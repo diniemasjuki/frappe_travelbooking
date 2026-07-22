@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
-<link rel="stylesheet" href="/assets/travel_management/css/booking.css">
+<link rel="stylesheet" href="/assets/travel_booking/css/booking.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/css/intlTelInput.min.css"/>
 </head>
 <body>
@@ -768,7 +768,7 @@ function pollWizardConfirmation(bookingNumber, prName, attempt) {
   var DELAY_MS     = 3000;
 
   apiCall(
-    "travel_management.api.booking.get_wizard_confirmation",
+    "travel_booking.api.booking.get_wizard_confirmation",
     { booking_number: bookingNumber, pr: prName || "" },
     true // GET
   ).then(function(result) {
@@ -897,7 +897,7 @@ async function loadCabins() {
   showLoading("Loading room options...");
   try {
     const data = await apiCall(
-      "travel_management.api.booking.get_booking_details",
+      "travel_booking.api.booking.get_booking_details",
       { trip_date: state.trip_date, trip_package: state.trip_package },
       true  // GET
     );
@@ -1216,7 +1216,7 @@ emailInput.addEventListener("blur", async function() {
 
   try {
     var result = await apiCall(
-      "travel_management.api.booking.send_otp",
+      "travel_booking.api.booking.send_otp",
       { email: email },
       false  // POST — send_otp ada side-effect (hantar email), bukan GET
     );
@@ -1249,7 +1249,7 @@ otpInput.addEventListener("input", async function() {
   showLoading("Verifying OTP...");
   try {
     await apiCall(
-      "travel_management.api.booking.verify_otp",
+      "travel_booking.api.booking.verify_otp",
       { email: emailInput.value.trim(), otp: this.value },
       false  // POST
     );
@@ -1273,7 +1273,7 @@ document.getElementById("resendOtp").addEventListener("click", async function() 
   showLoading("Resending OTP...");
   try {
     await apiCall(
-      "travel_management.api.booking.send_otp",
+      "travel_booking.api.booking.send_otp",
       { email: emailInput.value.trim() },
       false  // POST — sama sebab macam blur handler di atas
     );
@@ -1435,7 +1435,7 @@ var state_payment_settings = {
 
 async function loadPaymentSettings() {
   try {
-    var result = await apiCall("travel_management.api.booking.get_payment_settings", {}, true);
+    var result = await apiCall("travel_booking.api.booking.get_payment_settings", {}, true);
     if (result && !result.exc) {
       state_payment_settings = {
         bank_name:               result.bank_name || state_payment_settings.bank_name,
@@ -1504,7 +1504,7 @@ async function applyVoucher() {
 
   try {
     var result = await apiCall(
-      "travel_management.api.booking.validate_voucher",
+      "travel_booking.api.booking.validate_voucher",
       {
         code:        code,
         trip_date: state.trip_date,
@@ -1560,7 +1560,7 @@ async function applyAffiliateCode() {
 
   try {
     var result = await apiCall(
-      "travel_management.api.booking.validate_affiliate_code",
+      "travel_booking.api.booking.validate_affiliate_code",
       { code: code, trip_date: state.trip_date },
       true  // GET
     );
@@ -1780,7 +1780,7 @@ document.getElementById("payNowBtn").addEventListener("click", async function() 
       });
 
     var result = await apiCall(
-      "travel_management.api.booking.confirm_booking",
+      "travel_booking.api.booking.confirm_booking",
       {
         trip_date:      state.trip_date,
         trip_package:   state.trip_package,

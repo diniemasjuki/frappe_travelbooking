@@ -36,7 +36,7 @@ class Booking(Document):
 	@property
 	def total_amount(self):
 		"""Jumlah keseluruhan (SEMUA SO — utama + addon) berkaitan booking ni."""
-		from travel_management.api.booking import _get_all_booking_sales_orders
+		from travel_booking.api.booking import _get_all_booking_sales_orders
 		total = 0
 		for so_name in _get_all_booking_sales_orders(self.name):
 			total += frappe.db.get_value("Sales Order", so_name, "grand_total") or 0
@@ -45,7 +45,7 @@ class Booking(Document):
 	@property
 	def balance_amount(self):
 		"""Baki tertunggak (SEMUA SO — utama + addon) berkaitan booking ni."""
-		from travel_management.api.booking import _get_all_booking_sales_orders
+		from travel_booking.api.booking import _get_all_booking_sales_orders
 		total = 0
 		paid  = 0
 		for so_name in _get_all_booking_sales_orders(self.name):
@@ -60,7 +60,7 @@ class Booking(Document):
 		"""Apa yang customer beli — SO UTAMA sahaja (cabin booking asal),
 		BUKAN addon (excursion dll dipaparkan berasingan sebagai 'Add-ons').
 		"""
-		from travel_management.api.booking import _get_primary_so
+		from travel_booking.api.booking import _get_primary_so
 		primary_so = _get_primary_so(self.name)
 		if not primary_so:
 			return ""

@@ -1,4 +1,4 @@
-# travel_management/www/traveller_portal.py
+# travel_booking/www/traveller_portal.py
 no_cache = 1
 allow_guest = True
 

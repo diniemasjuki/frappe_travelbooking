@@ -1,0 +1,20 @@
+{
+  "name": "Rarecation Customer Portal",
+  "short_name": "Rarecation",
+  "description": "Manage your cruise booking, passengers and payments",
+  "start_url": "/traveller_portal",
+  "display": "standalone",
+  "background_color": "#F5F3EE",
+  "theme_color": "#D4A312",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/assets/travel_booking/img/icon-rarecation-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["travel", "business"],
+  "lang": "en"
+}

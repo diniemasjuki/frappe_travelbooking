@@ -6,15 +6,15 @@
 const CACHE_NAME = 'rarecation-v3';
 const STATIC_ASSETS = [
   '/traveller_portal',
-  '/assets/travel_management/css/portal.css',
-  '/assets/travel_management/js/portal.js',
-  '/assets/travel_management/js/portal_booking.js',
-  '/assets/travel_management/js/portal_payment.js',
-  '/assets/travel_management/js/portal_traveller.js',
-  '/assets/travel_management/js/portal_wizard.js',
-  '/assets/travel_management/img/logo-horizontal.jpg',
-  '/assets/travel_management/img/icon-rarecation-192.png',
-  '/assets/travel_management/img/example_passport.jpg'
+  '/assets/travel_booking/css/portal.css',
+  '/assets/travel_booking/js/portal.js',
+  '/assets/travel_booking/js/portal_booking.js',
+  '/assets/travel_booking/js/portal_payment.js',
+  '/assets/travel_booking/js/portal_traveller.js',
+  '/assets/travel_booking/js/portal_wizard.js',
+  '/assets/travel_booking/img/logo-horizontal.jpg',
+  '/assets/travel_booking/img/icon-rarecation-192.png',
+  '/assets/travel_booking/img/example_passport.jpg'
 ];
 
 /* ── Install ── */

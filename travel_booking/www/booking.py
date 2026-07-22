@@ -1,4 +1,4 @@
-# travel_management/www/booking.py
+# travel_booking/www/booking.py
 import frappe
 import json
 
@@ -40,7 +40,7 @@ def get_context(context):
         if dates:
             pkgs = frappe.db.sql("""
                 SELECT tp.name, tp.trip_date, tp.package_name, tp.package_type,
-                       tp.flight, f.airline, f.departure_airport, f.departure_date
+                       tp.flight, f.airline, f.home_airport, f.departure_date
                 FROM `tabTrip Package` tp
                 LEFT JOIN `tabFlight` f ON f.name = tp.flight
                 WHERE tp.trip_date IN %(dates)s
@@ -53,8 +53,8 @@ def get_context(context):
                     trip_packages[p.trip_date] = []
                 if p.flight:
                     flight_label = (p.airline or "Flight")
-                    if p.departure_airport:
-                        flight_label = flight_label + " · " + p.departure_airport
+                    if p.home_airport:
+                        flight_label = flight_label + " · " + p.home_airport
                 else:
                     flight_label = "No Flight"
                 trip_packages[p.trip_date].append({

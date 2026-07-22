@@ -1,4 +1,4 @@
-# travel_management/www/checkout.py
+# travel_booking/www/checkout.py
 import frappe
 import json
 
@@ -34,7 +34,7 @@ def get_context(context):
     amount = float(pr.grand_total or 0)
     try:
         if not (pr.status == "Paid"):
-            from travel_management.api.stripe_checkout import _get_stripe_settings
+            from travel_booking.api.stripe_checkout import _get_stripe_settings
             import stripe as _stripe
             ss, _ = _get_stripe_settings(pr.currency or "MYR")
             _stripe.api_key = ss.get_password("secret_key")

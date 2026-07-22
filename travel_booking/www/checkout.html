@@ -193,7 +193,7 @@
       '</div>';
 
     // Beritahu server supaya emel "Pending" dihantar (jika belum).
-    fetch("/api/method/travel_management.api.stripe_checkout.mark_checkout_timeout?pr=" + encodeURIComponent(PR_NAME))
+    fetch("/api/method/travel_booking.api.stripe_checkout.mark_checkout_timeout?pr=" + encodeURIComponent(PR_NAME))
       .catch(function() { /* senyap — UI dah papar pending walau apa pun */ });
   }
 
@@ -204,7 +204,7 @@
   async function init() {
     var errBox = document.getElementById("co-error");
     try {
-      var res = await fetch("/api/method/travel_management.api.stripe_checkout.get_checkout_context?pr=" + encodeURIComponent(PR_NAME));
+      var res = await fetch("/api/method/travel_booking.api.stripe_checkout.get_checkout_context?pr=" + encodeURIComponent(PR_NAME));
       var data = await res.json();
       var ctx = data.message || data;
 
