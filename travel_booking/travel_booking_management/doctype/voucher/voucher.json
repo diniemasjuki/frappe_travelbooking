@@ -1,0 +1,162 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "VCH-.YYYY.-.#####",
+ "creation": "2026-06-11 13:13:49.540831",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "voucher_info_section",
+  "voucher_code",
+  "voucher_type",
+  "column_break_yifo",
+  "discount_value",
+  "status",
+  "scope_section",
+  "trip",
+  "trip_date",
+  "column_break_tsqq",
+  "room_category",
+  "section_break_szig",
+  "valid_from",
+  "valid_to",
+  "column_break_alvb",
+  "max_uses",
+  "used_count",
+  "section_break_cgbu",
+  "usage"
+ ],
+ "fields": [
+  {
+   "fieldname": "voucher_info_section",
+   "fieldtype": "Section Break",
+   "label": "Voucher Info"
+  },
+  {
+   "fieldname": "voucher_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Voucher Code",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "voucher_type",
+   "fieldtype": "Select",
+   "label": "Voucher Type",
+   "options": "Percentage\nFixed Amount"
+  },
+  {
+   "fieldname": "column_break_yifo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "discount_value",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Discount Value",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Active\nInactive\nExpired"
+  },
+  {
+   "fieldname": "scope_section",
+   "fieldtype": "Section Break",
+   "label": "Scope"
+  },
+  {
+   "fieldname": "trip",
+   "fieldtype": "Link",
+   "label": "Trip",
+   "options": "Trip Master"
+  },
+  {
+   "fieldname": "trip_date",
+   "fieldtype": "Link",
+   "label": "Trip Date",
+   "options": "Trip Date"
+  },
+  {
+   "fieldname": "column_break_tsqq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "room_category",
+   "fieldtype": "Link",
+   "label": "Room Category",
+   "options": "Room Category"
+  },
+  {
+   "fieldname": "section_break_szig",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Datetime",
+   "label": "Valid From"
+  },
+  {
+   "fieldname": "valid_to",
+   "fieldtype": "Datetime",
+   "label": "Valid To"
+  },
+  {
+   "fieldname": "column_break_alvb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_uses",
+   "fieldtype": "Int",
+   "label": "Max Uses"
+  },
+  {
+   "fieldname": "used_count",
+   "fieldtype": "Int",
+   "label": "Used Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_cgbu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "usage",
+   "fieldtype": "Table",
+   "options": "Voucher Usage"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-22 13:21:16.681099",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Voucher",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

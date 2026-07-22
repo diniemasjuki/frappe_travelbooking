@@ -1,0 +1,115 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "format:PKG-{#####}",
+ "creation": "2026-07-06 00:40:04.918276",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "trip_name",
+  "trip_date",
+  "package_name",
+  "package_type",
+  "status",
+  "cb1",
+  "flight",
+  "sec_pricing",
+  "package_pricing"
+ ],
+ "fields": [
+  {
+   "fetch_from": "trip_date.trip_master",
+   "fieldname": "trip_name",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Trip",
+   "options": "Trip Master",
+   "read_only": 1
+  },
+  {
+   "fieldname": "trip_date",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Trip Date (Sailing)",
+   "options": "Trip Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "package_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Package Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "package_type",
+   "fieldtype": "Select",
+   "label": "Package Type",
+   "options": "Cruise Only\nWith Flight",
+   "reqd": 1
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Active\nInactive"
+  },
+  {
+   "fieldname": "cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.package_type==\"With Flight\"",
+   "fieldname": "flight",
+   "fieldtype": "Link",
+   "label": "Flight",
+   "options": "Flight"
+  },
+  {
+   "fieldname": "sec_pricing",
+   "fieldtype": "Section Break",
+   "label": "Pricing"
+  },
+  {
+   "fieldname": "package_pricing",
+   "fieldtype": "Table",
+   "label": "Package Pricing",
+   "options": "Room Pricing"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-22 13:38:18.120595",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Trip Package",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "package_name",
+ "track_changes": 1
+}

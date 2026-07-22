@@ -1,0 +1,274 @@
+{% extends "templates/web.html" %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block page_content %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --rc-black:    #0D0D0D;
+    --rc-white:    #FFFFFF;
+    --rc-gold:     #C9A84C;
+    --rc-gold-dark:#A8883A;
+    --rc-navy:     #1A2340;
+    --rc-gray-100: #F7F7F7;
+    --rc-gray-200: #EEEEEE;
+    --rc-gray-400: #AAAAAA;
+    --rc-gray-600: #666666;
+    --rc-green:    #1A7A4A;
+    --rc-green-bg: #EBF7F1;
+    --rc-radius:   8px;
+    --rc-radius-lg:12px;
+    --rc-shadow:   0 2px 12px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Archivo', sans-serif;
+    background: var(--rc-gray-100);
+    color: var(--rc-black);
+    margin: 0;
+  }
+  .co-wrap {
+    max-width: 460px;
+    margin: 48px auto;
+    padding: 0 20px;
+  }
+  .co-brand {
+    text-align: center;
+    margin-bottom: 28px;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--rc-black);
+  }
+  .co-brand span { color: var(--rc-gold-dark); font-weight: 300; }
+  .co-card {
+    background: var(--rc-white);
+    border-radius: var(--rc-radius-lg);
+    box-shadow: var(--rc-shadow);
+    padding: 28px 24px;
+  }
+  .co-amount-box {
+    background: var(--rc-gray-100);
+    border-radius: var(--rc-radius);
+    padding: 16px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .co-amount-label { font-size: 12px; color: var(--rc-gray-600); text-transform: uppercase; letter-spacing: 0.06em; }
+  .co-amount-value { font-size: 22px; font-weight: 700; color: var(--rc-black); }
+  #payment-element { margin-bottom: 18px; }
+  #submit-btn {
+    width: 100%;
+    padding: 13px;
+    border: none;
+    border-radius: var(--rc-radius);
+    background: var(--rc-gold);
+    color: var(--rc-black);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+  #submit-btn:hover { opacity: 0.9; }
+  #submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  #co-error {
+    color: #B3261E;
+    font-size: 13px;
+    margin-top: 10px;
+    display: none;
+  }
+  .co-secure {
+    text-align: center;
+    font-size: 11px;
+    color: var(--rc-gray-600);
+    margin-top: 16px;
+  }
+  .co-paid, .co-loading, .co-pending {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--rc-gray-600);
+    font-size: 14px;
+  }
+  .co-pending-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--rc-black);
+    margin-bottom: 10px;
+  }
+  .co-pending a {
+    display: inline-block;
+    margin-top: 18px;
+    background: var(--rc-gold);
+    color: var(--rc-black);
+    font-weight: 600;
+    font-size: 13px;
+    padding: 11px 24px;
+    border-radius: var(--rc-radius);
+    text-decoration: none;
+  }
+  .co-timer {
+    text-align: center;
+    font-size: 12px;
+    color: var(--rc-gray-400);
+    margin-top: 12px;
+  }
+  .co-spinner {
+    width: 28px; height: 28px;
+    border: 3px solid var(--rc-gray-200);
+    border-top-color: var(--rc-gold);
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    animation: co-spin 0.8s linear infinite;
+  }
+  @keyframes co-spin { to { transform: rotate(360deg); } }
+</style>
+
+<div class="co-wrap">
+  <div class="co-brand">Rare<span>cruise</span></div>
+
+  {% if already_paid %}
+  <div class="co-card">
+    <div class="co-paid">
+      ✓ Payment ini telah selesai.<br>Anda boleh tutup halaman ini.
+    </div>
+  </div>
+  {% else %}
+  <div class="co-card">
+    <div class="co-amount-box">
+      <div>
+        <div class="co-amount-label">Amount to pay</div>
+      </div>
+      <div class="co-amount-value">{{ currency }} {{ "%.2f"|format(amount) }}</div>
+    </div>
+
+    <div id="loading-state" class="co-loading">
+      <div class="co-spinner"></div>
+      Loading secure payment form...
+    </div>
+
+    <form id="payment-form" style="display:none">
+      <div id="payment-element"></div>
+      <button id="submit-btn" type="submit">Pay {{ currency }} {{ "%.2f"|format(amount) }}</button>
+      <div id="co-error"></div>
+    </form>
+  </div>
+  <div class="co-secure">🔒 Secured by Stripe · Your card details are never stored on our servers</div>
+  {% endif %}
+</div>
+
+{% if not already_paid %}
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+(function() {
+  var PR_NAME = {{ pr_name_json }};
+  var SOURCE  = {{ source_json }};
+  var REF     = {{ ref_json }};
+
+  var TIMEOUT_SECONDS = 300; // 5 minit
+  var timeoutHandle = null;
+  var paymentSettled = false; // true bila berjaya submit / dah "already_paid"
+
+  function returnUrl() {
+    var base = window.location.origin;
+    if (SOURCE === "wizard" && REF) {
+      return base + "/booking?ref=" + encodeURIComponent(REF) + "&step=confirm&pr=" + encodeURIComponent(PR_NAME);
+    }
+    return base + "/traveller_portal?paid=1";
+  }
+
+  function showPendingState() {
+    if (paymentSettled) return; // elak race — bayaran sempat berjaya serentak
+    document.querySelector(".co-card").innerHTML =
+      '<div class="co-pending">' +
+        '<div class="co-pending-title">Booking Pending</div>' +
+        'Checkout ini telah tamat tempoh. Booking anda masih disimpan — ' +
+        'sila log masuk ke portal untuk menyambung pembayaran.' +
+        '<br><a href="/traveller_portal">Go to Portal &rarr;</a>' +
+      '</div>';
+
+    // Beritahu server supaya emel "Pending" dihantar (jika belum).
+    fetch("/api/method/travel_management.api.stripe_checkout.mark_checkout_timeout?pr=" + encodeURIComponent(PR_NAME))
+      .catch(function() { /* senyap — UI dah papar pending walau apa pun */ });
+  }
+
+  function startTimeoutTimer() {
+    timeoutHandle = setTimeout(showPendingState, TIMEOUT_SECONDS * 1000);
+  }
+
+  async function init() {
+    var errBox = document.getElementById("co-error");
+    try {
+      var res = await fetch("/api/method/travel_management.api.stripe_checkout.get_checkout_context?pr=" + encodeURIComponent(PR_NAME));
+      var data = await res.json();
+      var ctx = data.message || data;
+
+      if (ctx.status === "already_paid") {
+        paymentSettled = true;
+        document.querySelector(".co-card").innerHTML = '<div class="co-paid">✓ Payment ini telah selesai.<br>Anda boleh tutup halaman ini.</div>';
+        return;
+      }
+      if (ctx.status !== "ok") {
+        throw new Error(ctx.message || "Gagal memuatkan borang pembayaran.");
+      }
+
+      var stripe   = Stripe(ctx.publishable_key);
+      var elements = stripe.elements({ clientSecret: ctx.client_secret, appearance: {
+        theme: 'stripe',
+        variables: {
+          colorPrimary: '#C9A84C',
+          fontFamily: 'Archivo, sans-serif',
+          borderRadius: '8px'
+        }
+      }});
+      var paymentElement = elements.create("payment");
+      paymentElement.mount("#payment-element");
+
+      document.getElementById("loading-state").style.display = "none";
+      document.getElementById("payment-form").style.display = "block";
+
+      startTimeoutTimer();
+
+      document.getElementById("payment-form").addEventListener("submit", async function(e) {
+        e.preventDefault();
+        var btn = document.getElementById("submit-btn");
+        btn.disabled = true;
+        btn.textContent = "Processing...";
+        errBox.style.display = "none";
+
+        var result = await stripe.confirmPayment({
+          elements: elements,
+          confirmParams: { return_url: returnUrl() }
+        });
+
+        if (result.error) {
+          // Stripe confirm gagal (cth kad ditolak) — biar customer cuba
+          // lagi di page yang sama. Emel "Pending" untuk kegagalan RASMI
+          // (payment_intent.payment_failed) dihantar oleh webhook server-side,
+          // bukan dari sini — elak spam emel setiap kali retry gagal.
+          errBox.textContent = result.error.message || "Payment gagal. Sila cuba lagi.";
+          errBox.style.display = "block";
+          btn.disabled = false;
+          btn.textContent = "Pay {{ currency }} {{ '%.2f'|format(amount) }}";
+        } else {
+          paymentSettled = true;
+          if (timeoutHandle) clearTimeout(timeoutHandle);
+        }
+        // Kalau berjaya, Stripe auto-redirect ke return_url — tiada else perlu.
+      });
+    } catch (err) {
+      document.getElementById("loading-state").innerHTML =
+        '<div style="color:#B3261E">Ralat: ' + (err.message || "Gagal memuatkan borang pembayaran.") + '</div>';
+    }
+  }
+
+  init();
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,195 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "TD-.YYYY.-.#####",
+ "creation": "2026-04-22 17:14:42.519385",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "basic_info_section",
+  "trip_master",
+  "sailing_no",
+  "status",
+  "column_break_obcw",
+  "total_capacity",
+  "total_bookings",
+  "available_slots",
+  "section_break_igwv",
+  "departure_date",
+  "return_date",
+  "column_break_mzon",
+  "sailing_start",
+  "sailing_end",
+  "vessel_section",
+  "ship_name",
+  "cruise_line",
+  "column_break_qnzj",
+  "embarkation_port",
+  "disembarkation_port",
+  "section_break_iadt",
+  "fill_manifest_btn",
+  "column_break_nrfg",
+  "preview_manifest_btn"
+ ],
+ "fields": [
+  {
+   "fieldname": "basic_info_section",
+   "fieldtype": "Section Break",
+   "label": "Basic Info"
+  },
+  {
+   "fieldname": "trip_master",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Trip Master",
+   "options": "Trip Master",
+   "reqd": 1
+  },
+  {
+   "fieldname": "sailing_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Sailing No",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Active\nFull\nCancelled\nCompleted"
+  },
+  {
+   "fieldname": "column_break_obcw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_capacity",
+   "fieldtype": "Int",
+   "label": "Total Capacity"
+  },
+  {
+   "fieldname": "total_bookings",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Total Bookings",
+   "read_only": 1
+  },
+  {
+   "fieldname": "available_slots",
+   "fieldtype": "Int",
+   "is_virtual": 1,
+   "label": "Available Slots"
+  },
+  {
+   "fieldname": "section_break_igwv",
+   "fieldtype": "Section Break",
+   "label": "Schedule"
+  },
+  {
+   "fieldname": "departure_date",
+   "fieldtype": "Date",
+   "label": "Departure Date"
+  },
+  {
+   "fieldname": "return_date",
+   "fieldtype": "Date",
+   "label": "Return Date"
+  },
+  {
+   "fieldname": "column_break_mzon",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sailing_start",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Sailing Start"
+  },
+  {
+   "fieldname": "sailing_end",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Sailing End"
+  },
+  {
+   "fieldname": "vessel_section",
+   "fieldtype": "Section Break",
+   "label": "Vessel"
+  },
+  {
+   "fieldname": "ship_name",
+   "fieldtype": "Data",
+   "label": "Ship Name"
+  },
+  {
+   "fieldname": "cruise_line",
+   "fieldtype": "Data",
+   "label": "Cruise Line"
+  },
+  {
+   "fieldname": "column_break_qnzj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "embarkation_port",
+   "fieldtype": "Data",
+   "label": "Embarkation Port"
+  },
+  {
+   "fieldname": "disembarkation_port",
+   "fieldtype": "Data",
+   "label": "Disembarkation Port"
+  },
+  {
+   "fieldname": "section_break_iadt",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "fill_manifest_btn",
+   "fieldtype": "Button",
+   "label": "Fill Aroya Manifest"
+  },
+  {
+   "fieldname": "column_break_nrfg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "preview_manifest_btn",
+   "fieldtype": "Button",
+   "label": "Preview Manifest Match"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-22 13:38:18.553240",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Trip Date",
+ "naming_rule": "Expression",
+ "owner": "abdsobur.abdahad@gmail.com",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "sailing_no",
+ "track_changes": 1
+}

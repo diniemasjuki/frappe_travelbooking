@@ -1,0 +1,264 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "field:pnr",
+ "creation": "2026-06-08 15:46:30.385386",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "flight_information_section",
+  "column_break_eymd",
+  "pnr",
+  "view_pnr",
+  "airline",
+  "column_break_ukfi",
+  "flight_title",
+  "status",
+  "departure_details_section",
+  "home_airport",
+  "column_break_msug",
+  "departure_date",
+  "column_break_bdea",
+  "arrival_date",
+  "return_details_section",
+  "destination_airport",
+  "column_break_mcro",
+  "return_date",
+  "column_break_rbfp",
+  "return_arrival_date",
+  "section_break_ajdt",
+  "flight_class",
+  "column_break_mvtd",
+  "ticket_type",
+  "column_break_kxkl",
+  "seats_occupied",
+  "min_seat",
+  "max_seat",
+  "flight_itinerary_section",
+  "flight_itinerary"
+ ],
+ "fields": [
+  {
+   "fieldname": "flight_information_section",
+   "fieldtype": "Section Break",
+   "label": "Flight Information"
+  },
+  {
+   "fieldname": "column_break_ukfi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "flight_title",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Flight Title"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Open\nFull\nClosed\nCompleted"
+  },
+  {
+   "fieldname": "column_break_eymd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "pnr",
+   "fieldtype": "Data",
+   "label": "PNR Number",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "airline",
+   "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Airline",
+   "options": "Flight Airline",
+   "reqd": 1
+  },
+  {
+   "description": "Departure & Return Arrival Airport",
+   "fieldname": "departure_details_section",
+   "fieldtype": "Section Break",
+   "label": "Home Airport"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "home_airport",
+   "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Departure Airport",
+   "options": "Flight Airport",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_msug",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "departure_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Departure Date"
+  },
+  {
+   "fieldname": "column_break_bdea",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "arrival_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Return Arrival Date"
+  },
+  {
+   "fieldname": "return_details_section",
+   "fieldtype": "Section Break",
+   "label": "Destination Airport"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "destination_airport",
+   "fieldtype": "Link",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Destination Airport",
+   "options": "Flight Airport",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_mcro",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "return_date",
+   "fieldtype": "Date",
+   "label": "Destination Arrival Date"
+  },
+  {
+   "fieldname": "column_break_rbfp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "return_arrival_date",
+   "fieldtype": "Date",
+   "label": "Destination Departure Date"
+  },
+  {
+   "fieldname": "section_break_ajdt",
+   "fieldtype": "Section Break",
+   "label": "Flight Reservation"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "flight_class",
+   "fieldtype": "Select",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Flight Class",
+   "options": "Economy\nEconomy Plus\nPremium Economy\nFirst Class\nBusiness Class"
+  },
+  {
+   "fieldname": "column_break_mvtd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "ticket_type",
+   "fieldtype": "Select",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Ticket Type",
+   "options": "FIT\nGIT"
+  },
+  {
+   "fieldname": "column_break_kxkl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.ticket_type===\"GIT\"",
+   "fieldname": "min_seat",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Min Seats"
+  },
+  {
+   "depends_on": "eval:doc.ticket_type===\"GIT\"",
+   "fieldname": "max_seat",
+   "fieldtype": "Int",
+   "label": "Max Seats"
+  },
+  {
+   "fieldname": "flight_itinerary_section",
+   "fieldtype": "Section Break",
+   "label": "Flight Itinerary"
+  },
+  {
+   "fieldname": "flight_itinerary",
+   "fieldtype": "Text Editor",
+   "label": "Flight Itinerary"
+  },
+  {
+   "fieldname": "view_pnr",
+   "fieldtype": "Read Only",
+   "is_virtual": 1,
+   "label": "PNR Number",
+   "options": "doc.pnr"
+  },
+  {
+   "default": "0",
+   "fieldname": "seats_occupied",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Seats Occupied",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "links": [],
+ "modified": "2026-07-22 13:03:31.517360",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Flight",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "pnr",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "flight_title",
+ "track_changes": 1
+}

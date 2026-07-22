@@ -1,0 +1,302 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "field:ic_number",
+ "creation": "2026-04-08 20:36:42.454361",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "status",
+  "column_break_ghkn",
+  "document_verified",
+  "personal_information_section",
+  "title",
+  "first_name",
+  "last_name",
+  "column_break_lrcy",
+  "full_name",
+  "fullname_format",
+  "identity_and_passport_section",
+  "ic_number",
+  "gender",
+  "column_break_qgun",
+  "date_of_birth",
+  "age",
+  "age_category",
+  "column_break_uvew",
+  "passport_no",
+  "passport_expiry",
+  "nationality",
+  "column_break_copa",
+  "section_break_gyvn",
+  "passport_image",
+  "passport_gambar",
+  "column_break_qxej",
+  "visa_photo",
+  "visa_gambar",
+  "contacts_section",
+  "email",
+  "phone",
+  "column_break_bnea",
+  "emergency_contact_name",
+  "emergency_contact_phone",
+  "emergency_contact_relationship",
+  "health_tab",
+  "health_and_special_needs_section",
+  "dietary_requirements",
+  "medical_conditions",
+  "special_needs"
+ ],
+ "fields": [
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "New\nValid\nExpired"
+  },
+  {
+   "fieldname": "column_break_ghkn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "document_verified",
+   "fieldtype": "Check",
+   "label": "Document Is Verified"
+  },
+  {
+   "fieldname": "personal_information_section",
+   "fieldtype": "Section Break",
+   "label": "Personal Information"
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Title",
+   "options": "Mr\nMrs"
+  },
+  {
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "First Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "last_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Last Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_lrcy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Full Name",
+   "read_only": 1
+  },
+  {
+   "default": "First Name + Last Name",
+   "fieldname": "fullname_format",
+   "fieldtype": "Select",
+   "label": "Full Name Format",
+   "options": "First Name + Last Name\nLast Name + First Name"
+  },
+  {
+   "fieldname": "identity_and_passport_section",
+   "fieldtype": "Section Break",
+   "label": "Identity and Passport"
+  },
+  {
+   "fieldname": "ic_number",
+   "fieldtype": "Data",
+   "label": "IC Number",
+   "unique": 1
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Select",
+   "label": "Gender",
+   "options": "Male\nFemale"
+  },
+  {
+   "fieldname": "column_break_qgun",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "label": "Date of Birth"
+  },
+  {
+   "fieldname": "age",
+   "fieldtype": "Int",
+   "label": "Age",
+   "read_only": 1
+  },
+  {
+   "fieldname": "age_category",
+   "fieldtype": "Select",
+   "label": "Age Category",
+   "options": "Adult\nChild\nInfant",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_uvew",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "passport_no",
+   "fieldtype": "Data",
+   "label": "Passport No"
+  },
+  {
+   "fieldname": "passport_expiry",
+   "fieldtype": "Date",
+   "label": "Passport Expiry"
+  },
+  {
+   "fieldname": "nationality",
+   "fieldtype": "Link",
+   "label": "Nationality",
+   "options": "Country"
+  },
+  {
+   "fieldname": "column_break_copa",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_gyvn",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "passport_image",
+   "fieldtype": "Attach",
+   "label": "Passport"
+  },
+  {
+   "fieldname": "passport_gambar",
+   "fieldtype": "Image",
+   "is_virtual": 1,
+   "label": "Passport Gambar",
+   "options": "passport_image"
+  },
+  {
+   "fieldname": "column_break_qxej",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "visa_photo",
+   "fieldtype": "Attach",
+   "label": "Visa Photo"
+  },
+  {
+   "fieldname": "visa_gambar",
+   "fieldtype": "Image",
+   "is_virtual": 1,
+   "label": "Visa Gambar",
+   "options": "visa_photo"
+  },
+  {
+   "fieldname": "contacts_section",
+   "fieldtype": "Section Break",
+   "label": "Contacts"
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Phone",
+   "label": "Phone"
+  },
+  {
+   "fieldname": "column_break_bnea",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "emergency_contact_name",
+   "fieldtype": "Data",
+   "label": "Emergency Contact "
+  },
+  {
+   "fieldname": "emergency_contact_phone",
+   "fieldtype": "Phone",
+   "label": "Emergency Phone"
+  },
+  {
+   "fieldname": "emergency_contact_relationship",
+   "fieldtype": "Data",
+   "label": "Relationship"
+  },
+  {
+   "fieldname": "health_tab",
+   "fieldtype": "Tab Break",
+   "label": "Health"
+  },
+  {
+   "fieldname": "health_and_special_needs_section",
+   "fieldtype": "Section Break",
+   "label": "Health and Special Needs"
+  },
+  {
+   "fieldname": "dietary_requirements",
+   "fieldtype": "Small Text",
+   "label": "Dietary Requirements"
+  },
+  {
+   "fieldname": "medical_conditions",
+   "fieldtype": "Small Text",
+   "label": "Medical Conditions"
+  },
+  {
+   "fieldname": "special_needs",
+   "fieldtype": "Small Text",
+   "label": "Special Needs"
+  }
+ ],
+ "grid_page_length": 50,
+ "links": [
+  {
+   "link_doctype": "Reservation",
+   "link_fieldname": "traveller"
+  }
+ ],
+ "modified": "2026-07-22 13:24:57.637450",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Traveller",
+ "naming_rule": "By fieldname",
+ "owner": "abdsobur.abdahad@gmail.com",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "full_name",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "full_name"
+}

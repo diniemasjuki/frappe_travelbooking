@@ -1,0 +1,256 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "BK-.YYYY.-.####",
+ "creation": "2026-04-08 18:55:47.144024",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "sec_booking",
+  "booking_number",
+  "status",
+  "payment_status",
+  "column_break_lfil",
+  "trip_name",
+  "trip_date",
+  "trip_package",
+  "customer",
+  "section_break_mhpl",
+  "order_summary",
+  "payment_section",
+  "payment_type",
+  "payment_method",
+  "deposit_amount",
+  "total_amount",
+  "balance_amount",
+  "column_break_jnes",
+  "affiliate",
+  "referral_code_used",
+  "pre_discount_total",
+  "details_information_section",
+  "total_pax",
+  "verified_pax",
+  "pending_pax",
+  "section_break_6rz0",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "sec_booking",
+   "fieldtype": "Section Break",
+   "label": "Booking Info"
+  },
+  {
+   "fieldname": "booking_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Booking Number",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Booking Status",
+   "options": "Pending\nProcessing\nAccepted\nConfirmed\nCompleted\nCancelled"
+  },
+  {
+   "fieldname": "payment_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Payment Status",
+   "options": "Pending\nPartially Paid\nPaid\nRequest Refund\nPending Refund\nRefunded"
+  },
+  {
+   "fieldname": "column_break_lfil",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip_date.trip_master",
+   "fieldname": "trip_name",
+   "fieldtype": "Link",
+   "label": "Trip",
+   "options": "Trip Master",
+   "read_only": 1
+  },
+  {
+   "fieldname": "trip_date",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Trip Date",
+   "options": "Trip Date"
+  },
+  {
+   "fieldname": "trip_package",
+   "fieldtype": "Link",
+   "label": "Trip Package",
+   "options": "Trip Package"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Customer",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "section_break_mhpl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "order_summary",
+   "fieldtype": "Small Text",
+   "is_virtual": 1,
+   "label": "Order Summary",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payment_section",
+   "fieldtype": "Section Break",
+   "label": "Payment"
+  },
+  {
+   "fieldname": "payment_type",
+   "fieldtype": "Select",
+   "label": "Payment Type",
+   "options": "Full Payment\nDeposit"
+  },
+  {
+   "fieldname": "payment_method",
+   "fieldtype": "Select",
+   "label": "Payment Method",
+   "options": "Online Payment\nManual Transfer"
+  },
+  {
+   "fieldname": "deposit_amount",
+   "fieldtype": "Currency",
+   "label": "Deposit Amount"
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "is_virtual": 1,
+   "label": "Total Amount"
+  },
+  {
+   "fieldname": "balance_amount",
+   "fieldtype": "Currency",
+   "is_virtual": 1,
+   "label": "Balance Amount"
+  },
+  {
+   "fieldname": "column_break_jnes",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "affiliate",
+   "fieldtype": "Link",
+   "label": "Sales Partner - Affiliate",
+   "options": "Sales Partner"
+  },
+  {
+   "fetch_from": "affiliate.referral_code",
+   "fieldname": "referral_code_used",
+   "fieldtype": "Data",
+   "label": "Referral Code Used"
+  },
+  {
+   "fieldname": "pre_discount_total",
+   "fieldtype": "Currency",
+   "label": "Pre-Discount Total",
+   "read_only": 1
+  },
+  {
+   "fieldname": "details_information_section",
+   "fieldtype": "Section Break",
+   "label": "Details Information"
+  },
+  {
+   "fieldname": "total_pax",
+   "fieldtype": "Int",
+   "is_virtual": 1,
+   "label": "Total Traveller"
+  },
+  {
+   "fieldname": "verified_pax",
+   "fieldtype": "Int",
+   "is_virtual": 1,
+   "label": "Verified Traveller"
+  },
+  {
+   "fieldname": "pending_pax",
+   "fieldtype": "Int",
+   "is_virtual": 1,
+   "label": "Pending Traveller"
+  },
+  {
+   "fieldname": "section_break_6rz0",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Booking",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "links": [],
+ "modified": "2026-07-22 13:35:14.238523",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Booking",
+ "naming_rule": "Expression",
+ "owner": "abdsobur.abdahad@gmail.com",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "booking_number",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "booking_number",
+ "track_changes": 1
+}
