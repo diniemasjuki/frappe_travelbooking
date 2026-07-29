@@ -29,7 +29,3 @@ class FlightAirline(Document):
 
 		if self.airline_code:
 			self.airline_code = re.sub(r'[^a-zA-Z0-9]', '', self.airline_code).upper().replace(" ","")
-
-		if self.name:
-			self.name = self.name.upper().strip()
-	

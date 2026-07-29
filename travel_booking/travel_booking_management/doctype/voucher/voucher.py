@@ -13,20 +13,23 @@ class Voucher(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
+		from travel_booking.travel_booking_management.doctype.voucher_applicable_package.voucher_applicable_package import VoucherApplicablePackage
+		from travel_booking.travel_booking_management.doctype.voucher_applicable_room_category.voucher_applicable_room_category import VoucherApplicableRoomCategory
+		from travel_booking.travel_booking_management.doctype.voucher_applicable_trip.voucher_applicable_trip import VoucherApplicableTrip
 		from travel_booking.travel_booking_management.doctype.voucher_usage.voucher_usage import VoucherUsage
 
-		discount_value: DF.Float
-		max_uses: DF.Int
-		room_category: DF.Link | None
+		applicable_packages: DF.TableMultiSelect[VoucherApplicablePackage]
+		applicable_room_categories: DF.TableMultiSelect[VoucherApplicableRoomCategory]
+		applicable_trips: DF.TableMultiSelect[VoucherApplicableTrip]
+		discount_type: DF.Literal["Percentage", "Fixed Amount"]
+		discount_value: DF.Currency
+		max_usage: DF.Int
+		max_usage_per_customer: DF.Int
 		status: DF.Literal["Active", "Inactive", "Expired"]
-		trip: DF.Link | None
-		trip_date: DF.Link | None
 		usage: DF.Table[VoucherUsage]
-		used_count: DF.Int
-		valid_from: DF.Datetime | None
-		valid_to: DF.Datetime | None
+		valid_from: DF.Date
+		valid_until: DF.Date
 		voucher_code: DF.Data
-		voucher_type: DF.Literal["Percentage", "Fixed Amount"]
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Voucher"

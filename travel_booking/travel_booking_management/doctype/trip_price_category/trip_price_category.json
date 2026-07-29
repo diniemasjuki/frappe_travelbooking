@@ -1,0 +1,140 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "field:category_name",
+ "creation": "2026-06-04 10:47:33.151071",
+ "default_view": "Image",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "gred",
+  "is_a_cruise",
+  "category_name",
+  "category_code",
+  "room_type",
+  "capacity",
+  "max_capacity",
+  "column_break_ndnr",
+  "room_profile",
+  "image_ogyu",
+  "section_break_dvve",
+  "description"
+ ],
+ "fields": [
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "category_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Category Name",
+   "reqd": 1,
+   "set_only_once": 1,
+   "unique": 1
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "room_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Room Type",
+   "options": "\nCabin\nSuite\nVilla\nRoom"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "default": "2",
+   "fieldname": "capacity",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Capacity"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "max_capacity",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Max Capacity",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "gred",
+   "fieldtype": "Rating",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Price Range"
+  },
+  {
+   "fieldname": "column_break_ndnr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_dvve",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "room_profile",
+   "fieldtype": "Attach Image",
+   "label": "Attach Image"
+  },
+  {
+   "fieldname": "image_ogyu",
+   "fieldtype": "Image",
+   "options": "room_profile"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_a_cruise",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "is a Cruise"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "category_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Category Code",
+   "unique": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "image_field": "room_profile",
+ "in_create": 1,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "make_attachments_public": 1,
+ "modified": "2026-07-27 12:25:30.257676",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Trip Price Category",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "category_name"
+}

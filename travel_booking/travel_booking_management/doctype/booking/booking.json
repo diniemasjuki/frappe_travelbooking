@@ -8,13 +8,17 @@
  "field_order": [
   "sec_booking",
   "booking_number",
+  "column_break_bgxh",
   "status",
+  "column_break_nrfb",
   "payment_status",
+  "section_break_ziol",
+  "column_break_qlzh",
+  "customer",
   "column_break_lfil",
   "trip_name",
   "trip_date",
   "trip_package",
-  "customer",
   "section_break_mhpl",
   "order_summary",
   "payment_section",
@@ -30,9 +34,7 @@
   "details_information_section",
   "total_pax",
   "verified_pax",
-  "pending_pax",
-  "section_break_6rz0",
-  "amended_from"
+  "pending_pax"
  ],
  "fields": [
   {
@@ -67,21 +69,14 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "trip_date.trip_master",
+   "fetch_from": "trip_package.trip_link",
    "fieldname": "trip_name",
    "fieldtype": "Link",
    "label": "Trip",
-   "options": "Trip Master",
-   "read_only": 1
+   "options": "Trip"
   },
   {
-   "fieldname": "trip_date",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Trip Date",
-   "options": "Trip Date"
-  },
-  {
+   "depends_on": "eval:doc.trip_date",
    "fieldname": "trip_package",
    "fieldtype": "Link",
    "label": "Trip Package",
@@ -185,23 +180,33 @@
    "label": "Pending Traveller"
   },
   {
-   "fieldname": "section_break_6rz0",
-   "fieldtype": "Section Break"
+   "depends_on": "eval:doc.trip_name",
+   "fieldname": "trip_date",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Trip Date",
+   "options": "Trip Group Date"
   },
   {
-   "fieldname": "amended_from",
-   "fieldtype": "Link",
-   "label": "Amended From",
-   "no_copy": 1,
-   "options": "Booking",
-   "print_hide": 1,
-   "read_only": 1,
-   "search_index": 1
+   "fieldname": "column_break_qlzh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_bgxh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_nrfb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_ziol",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "links": [],
- "modified": "2026-07-22 13:35:14.238523",
+ "modified": "2026-07-27 08:45:48.759849",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking",

@@ -36,19 +36,19 @@ def get_all_so_payments():
         # JOIN terus melalui custom_booking (bukan Booking.sales_order yang
         # cuma menyimpan rujukan sehala dari Booking → SO utama).
         bk_rows = frappe.db.sql("""
-            SELECT b.name, b.booking_number, tm.trip_name AS trip_label, td.sailing_no
+            SELECT b.name, b.booking_number, tm.trip_name AS trip_label, td.trip_group_name
             FROM `tabSales Order` so
             JOIN `tabBooking` b ON b.name = so.custom_booking
-            LEFT JOIN `tabTrip Date`   td ON td.name = b.trip_date
-            LEFT JOIN `tabTrip Master` tm ON tm.name = td.trip_master
+            LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
+            LEFT JOIN `tabTrip` tm ON tm.name = td.trip
             WHERE so.name = %s AND b.customer = %s
         """, (so_name, customer_name), as_dict=True)
         booking_names   = []
         booking_numbers = []
         for b in bk_rows:
             label = b.trip_label or b.name
-            if b.sailing_no:
-                label = label + " · " + b.sailing_no
+            if b.trip_group_name:
+                label = label + " · " + b.trip_group_name
             booking_names.append(label)
             booking_numbers.append(b.booking_number or b.name)
 
@@ -137,7 +137,7 @@ def get_all_so_payments():
 # ══════════════════════════════════════════════
 
 @frappe.whitelist()
-def create_payment_request(booking_number=None, amount=None, sales_order=None):
+def create_payment_request(booking_number: str = None, amount: float = None, sales_order: str = None):
     """Cipta Payment Request + Stripe PaymentIntent (checkout.html custom kita
     sendiri, Stripe Elements — BUKAN pr.get_payment_url() ERPNext standard).
     Open amount: min = deposit 20% kalau belum bayar apa-apa, selepas itu bebas; max = baki.
@@ -179,11 +179,18 @@ def create_payment_request(booking_number=None, amount=None, sales_order=None):
             booking_number = frappe.db.get_value("Booking", booking_name_from_so, "booking_number")
 
     so = frappe.db.get_value("Sales Order", so_name,
-                             ["customer", "grand_total", "advance_paid", "currency"], as_dict=True)
+                             ["customer", "grand_total", "rounded_total", "advance_paid", "currency"], as_dict=True)
     if so.customer != customer_name:
         frappe.throw("Akses ditolak.", frappe.PermissionError)
 
-    grand_total = float(so.grand_total or 0)
+    # PENTING: guna rounded_total (fallback grand_total) sebagai jumlah
+    # rujukan — ERPNext punya validate_payment_request_amount() sendiri
+    # bandingkan Payment Request terhadap rounded_total bila ia bukan
+    # sifar/kosong (rujuk nota lengkap di stripe_checkout.create_payment_intent()).
+    # Kalau kita kira outstanding/min_amount dari grand_total mentah sahaja,
+    # customer boleh nampak baki (cth RM 5.49) yang sebenarnya lebih tinggi
+    # dari apa yang ERPNext akan terima sebagai Payment Request (RM 5.00).
+    grand_total = float(so.rounded_total or so.grand_total or 0)
     paid        = float(so.advance_paid or 0)
     outstanding = grand_total - paid
     if outstanding <= 0:
@@ -191,10 +198,16 @@ def create_payment_request(booking_number=None, amount=None, sales_order=None):
 
     req_amount = float(amount) if amount else outstanding
 
-    min_amount = round(grand_total * 0.20, 2) if paid <= 0 else 1.0
+    # Deposit minimum ikut Travel Settings (single-sourced dengan
+    # confirm_booking()) — bukan hardcode 20%, supaya konsisten kalau admin
+    # tukar peratus deposit lalai.
+    settings = frappe.get_cached_doc("Travel Settings")
+    default_deposit_percent = float(settings.default_deposit_percent or 20)
+
+    min_amount = round(grand_total * (default_deposit_percent / 100), 2) if paid <= 0 else 1.0
     if req_amount < min_amount - 0.01:
         if paid <= 0:
-            frappe.throw("Bayaran pertama mesti sekurang-kurangnya deposit 20% (RM {:,.2f}).".format(min_amount))
+            frappe.throw("Bayaran pertama mesti sekurang-kurangnya deposit {:.0f}% (RM {:,.2f}).".format(default_deposit_percent, min_amount))
         frappe.throw("Amount tidak sah.")
     if req_amount > outstanding + 0.01:
         frappe.throw("Amount melebihi baki tertunggak (RM {:,.2f}).".format(outstanding))
@@ -221,9 +234,9 @@ def create_payment_request(booking_number=None, amount=None, sales_order=None):
 # ══════════════════════════════════════════════
 
 @frappe.whitelist()
-def submit_manual_payment(amount, payment_date, mode_of_payment,
-                          reference_no, notes, filedata, filename,
-                          sales_order=None, booking_number=None):
+def submit_manual_payment(amount: float, payment_date: str, mode_of_payment: str,
+                          reference_no: str, notes: str, filedata: str, filename: str,
+                          sales_order: str = None, booking_number: str = None):
     """Manual transfer — cipta Payment Entry DRAFT + attach bukti."""
     import base64
     from erpnext.accounts.party import get_party_account
@@ -316,7 +329,7 @@ PRINT_FORMAT_INVOICE = "Rarecation Invoice"
 
 
 @frappe.whitelist()
-def get_document_pdf(doctype, docname):
+def get_document_pdf(doctype: str, docname: str):
     frappe.flags.ignore_permissions = True
     customer_name = _get_customer()
 
@@ -375,20 +388,3 @@ def get_document_pdf(doctype, docname):
         "type":         "download",
         "content_type": "application/pdf"
     })
-
-
-# ══════════════════════════════════════════════
-# HELPER
-# ══════════════════════════════════════════════
-
-def _get_customer_email(customer_name):
-    result = frappe.db.sql("""
-        SELECT ce.email_id
-        FROM `tabContact Email` ce
-        JOIN `tabContact` c ON c.name = ce.parent
-        JOIN `tabDynamic Link` dl ON dl.parent = c.name
-        WHERE dl.link_doctype = 'Customer' AND dl.link_name = %s
-        ORDER BY ce.is_primary DESC
-        LIMIT 1
-    """, customer_name, as_dict=True)
-    return result[0].email_id if result else None

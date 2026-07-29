@@ -1,0 +1,65 @@
+{
+ "blocks": [],
+ "creation": "2026-07-28 23:46:10.364550",
+ "doctype": "Studio Page",
+ "draft_blocks": [
+  {
+   "baseStyles": {
+    "display": "flex",
+    "flexDirection": "row",
+    "flexShrink": 0,
+    "height": "100%",
+    "overflowX": "hidden",
+    "width": "inherit"
+   },
+   "blockName": "body",
+   "children": [],
+   "classes": [],
+   "componentId": "root",
+   "componentName": "div",
+   "originalElement": "body"
+  }
+ ],
+ "frappe_app": "travel_booking",
+ "is_standard": 1,
+ "modified": "2026-07-28 23:57:17.126062",
+ "modified_by": "Administrator",
+ "name": "my_page_1",
+ "owner": "Administrator",
+ "page_name": "page-896e494c",
+ "page_title": "My Page-1",
+ "resources": [
+  {
+   "auto": 1,
+   "document_type": "Trip",
+   "fields": "[\"name\",\"trip_name\",\"trip_code\",\"trip_image\",\"trip_organizer\",\"status\"]",
+   "limit": 50,
+   "method": "GET",
+   "resource_name": "trips",
+   "resource_type": "Document List",
+   "sort_field": "name",
+   "sort_order": "DESC"
+  },
+  {
+   "auto": 1,
+   "document_type": "Trip Group Date",
+   "fields": "[\"name\",\"trip\",\"departure_date\",\"return_date\",\"trip_group_name\",\"status\"]",
+   "limit": 200,
+   "method": "GET",
+   "resource_name": "trip_group_dates",
+   "resource_type": "Document List"
+  },
+  {
+   "auto": 1,
+   "document_type": "Trip Package",
+   "fields": "[\"name\",\"trip_link\",\"package_title\",\"package_type\",\"status\"]",
+   "limit": 200,
+   "method": "GET",
+   "resource_name": "trip_packages",
+   "resource_type": "Document List"
+  }
+ ],
+ "route": "/my-page-1-99c5",
+ "studio_app": "travel-management",
+ "variables": []
+}

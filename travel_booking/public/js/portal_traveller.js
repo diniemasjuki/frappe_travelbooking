@@ -263,7 +263,6 @@ async function saveTraveller() {
     const result = await API_TV('save_booking_traveller', {
       booking_number:  BOOKING,
       slot_name:       ACTIVE_SLOT.slot_name,
-      age_category:    ACTIVE_SLOT.age_category,
       first_name:      firstName,
       last_name:       lastName,
       full_name:       name,

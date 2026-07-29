@@ -23,20 +23,20 @@ def _format_phone(phone):
 
 
 @frappe.whitelist()
-def save_booking_traveller(booking_number, slot_name,
-                            ic_number, first_name="",
-                            last_name="", full_name="", gender="",
-                            date_of_birth="", nationality="",
-                            passport_no="", passport_expiry="",
-                            email="", phone="",
-                            filedata="", filename="",
-                            visa_filedata="", visa_filename="",
-                            emergency_contact_name="",
-                            emergency_contact_phone="",
-                            emergency_contact_relationship="",
-                            dietary_requirements="",
-                            medical_conditions="",
-                            special_needs=""):
+def save_booking_traveller(booking_number: str, slot_name: str,
+                            ic_number: str, first_name: str = "",
+                            last_name: str = "", full_name: str = "", gender: str = "",
+                            date_of_birth: str = "", nationality: str = "",
+                            passport_no: str = "", passport_expiry: str = "",
+                            email: str = "", phone: str = "",
+                            filedata: str = "", filename: str = "",
+                            visa_filedata: str = "", visa_filename: str = "",
+                            emergency_contact_name: str = "",
+                            emergency_contact_phone: str = "",
+                            emergency_contact_relationship: str = "",
+                            dietary_requirements: str = "",
+                            medical_conditions: str = "",
+                            special_needs: str = ""):
     frappe.flags.ignore_permissions = True
     import base64
 
@@ -94,9 +94,9 @@ def save_booking_traveller(booking_number, slot_name,
     # atau payment_status (customer boleh isi maklumat traveller walaupun
     # bayaran belum selesai).
 
-    # Verify slot (Reservation) milik booking ini
+    # Verify slot (Booking Reservation) milik booking ini
     slot = frappe.db.get_value(
-        "Reservation", slot_name,
+        "Booking Reservation", slot_name,
         ["name", "booking", "document_status"], as_dict=True
     )
     if not slot or slot.booking != booking.name:
@@ -113,7 +113,7 @@ def save_booking_traveller(booking_number, slot_name,
         # Elak traveller yang SAMA di-assign ke slot LAIN dalam booking yang sama
         # (cth IC sama termasuk secara tak sengaja untuk Traveller berbeza).
         conflict = frappe.db.get_value(
-            "Reservation",
+            "Booking Reservation",
             {"booking": booking.name, "traveller": existing, "name": ["!=", slot_name]},
             "name"
         )
@@ -132,30 +132,33 @@ def save_booking_traveller(booking_number, slot_name,
         frappe.throw("Passport copy is required.")
 
     if existing:
-        frappe.db.set_value("Traveller", existing, {
-            "first_name":      first_name,
-            "last_name":       last_name,
-            "full_name":       full_name,
-            "nationality":     nationality,
-            "passport_no":     passport_no,
-            "passport_expiry": passport_expiry or None,
-            "date_of_birth":   date_of_birth   or None,
-            "email":           email,
-            "phone":           _format_phone(phone),
-            "emergency_contact_name":         emergency_contact_name,
-            "emergency_contact_phone":        _format_phone(emergency_contact_phone),
-            "emergency_contact_relationship": emergency_contact_relationship,
-            "dietary_requirements": dietary_requirements,
-            "medical_conditions":   medical_conditions,
-            "special_needs":        special_needs,
-            **({} if not gender else {"gender": gender}),
-        })
+        # doc.save() (BUKAN db.set_value()) — supaya controller Traveller
+        # punya before_save() jalan (auto-kira full_name, age, age_category
+        # dari date_of_birth; auto-detect title/gender dari nama Melayu).
+        # db.set_value() terus SQL, bypass document lifecycle sepenuhnya.
+        tvl = frappe.get_doc("Traveller", existing)
+        tvl.first_name      = first_name
+        tvl.last_name       = last_name
+        tvl.nationality     = nationality
+        tvl.passport_no     = passport_no
+        tvl.passport_expiry = passport_expiry or None
+        tvl.date_of_birth   = date_of_birth   or None
+        tvl.email           = email
+        tvl.phone           = _format_phone(phone)
+        tvl.emergency_contact_name         = emergency_contact_name
+        tvl.emergency_contact_phone        = _format_phone(emergency_contact_phone)
+        tvl.emergency_contact_relationship = emergency_contact_relationship
+        tvl.dietary_requirements = dietary_requirements
+        tvl.medical_conditions   = medical_conditions
+        tvl.special_needs        = special_needs
+        if gender:
+            tvl.gender = gender
+        tvl.save(ignore_permissions=True)
         traveller_name = existing
     else:
         tvl = frappe.new_doc("Traveller")
         tvl.first_name      = first_name
         tvl.last_name       = last_name
-        tvl.full_name       = full_name
         tvl.gender          = gender
         tvl.ic_number       = ic_number
         tvl.date_of_birth   = date_of_birth   or None
@@ -173,21 +176,16 @@ def save_booking_traveller(booking_number, slot_name,
         tvl.insert(ignore_permissions=True, ignore_mandatory=True)
         traveller_name = tvl.name
 
-    # Link Traveller ke Reservation. NOTA PENTING: field full_name/passport_no/
-    # passport_expiry/nationality pada Reservation adalah fetch_from (rujuk
-    # Traveller.xxx, fieldtype Data — dah dibetulkan dari Link sebelum ni)
-    # — tapi fetch_from HANYA auto-trigger semasa submit form Desk atau
-    # doc.save() penuh, BUKAN semasa frappe.db.set_value() (yang terus SQL,
-    # bypass document lifecycle). Jadi field ni perlu diisi MANUAL di sini,
-    # atau ia akan kekal kosong walau Traveller.full_name dll sudah betul.
-    frappe.db.set_value("Reservation", slot_name, {
-        "traveller":       traveller_name,
-        "document_status": "Pending",
-        "full_name":       full_name,
-        "passport_no":     passport_no,
-        "passport_expiry": passport_expiry or None,
-        "nationality":     nationality,
-    })
+    # Link Traveller ke Booking Reservation. NOTA: full_name pada Booking
+    # Reservation adalah fetch_from (traveller.full_name) — auto-terisi bila
+    # doc di-save() penuh (bukan db.set_value()). passport_no/passport_expiry/
+    # nationality LANGSUNG TAK WUJUD pada Booking Reservation — semua
+    # maklumat tu disimpan pada Traveller sahaja (di atas), jadi kita cuma
+    # perlu set 'traveller' + 'document_status' di sini.
+    res_doc = frappe.get_doc("Booking Reservation", slot_name)
+    res_doc.traveller       = traveller_name
+    res_doc.document_status = "Pending"
+    res_doc.save(ignore_permissions=True)
 
     # Upload passport — simpan dalam Traveller.passport_image
     if filedata and filename:
@@ -224,12 +222,11 @@ def save_booking_traveller(booking_number, slot_name,
         })
         visa_file_doc.insert(ignore_permissions=True)
         frappe.db.set_value("Traveller", traveller_name, "visa_photo", visa_file_doc.file_url)
-        frappe.db.set_value("Traveller", traveller_name, "passport_image", file_doc.file_url)
 
     frappe.db.commit()
 
-    total_slots  = frappe.db.count("Reservation", {"booking": booking_number})
-    filled_count = frappe.db.count("Reservation", {
+    total_slots  = frappe.db.count("Booking Reservation", {"booking": booking_number})
+    filled_count = frappe.db.count("Booking Reservation", {
         "booking":   booking_number,
         "traveller": ["!=", ""]
     })
@@ -249,7 +246,7 @@ def save_booking_traveller(booking_number, slot_name,
 # ══════════════════════════════════════════════
 
 @frappe.whitelist()
-def wizard_lookup(ic_number, passport_no, full_name):
+def wizard_lookup(ic_number: str, passport_no: str, full_name: str):
     """Verify traveller identity using IC + Passport + Full Name."""
     _get_customer()
 
@@ -359,12 +356,12 @@ def wizard_lookup(ic_number, passport_no, full_name):
 # ══════════════════════════════════════════════
 
 @frappe.whitelist()
-def request_document_update(slot_name):
+def request_document_update(slot_name: str):
     """Customer request to unlock a Verified slot for re-editing."""
     customer = _get_customer()
 
     slot = frappe.db.get_value(
-        "Reservation", slot_name,
+        "Booking Reservation", slot_name,
         ["name", "booking", "document_status"],
         as_dict=True
     )
@@ -378,7 +375,7 @@ def request_document_update(slot_name):
     if slot.document_status != "Verified":
         frappe.throw("Only Verified slots can request an update")
 
-    frappe.db.set_value("Reservation", slot_name, "document_status", "Open for Update")
+    frappe.db.set_value("Booking Reservation", slot_name, "document_status", "Open for Update")
     frappe.db.commit()
 
     return {"status": "ok"}

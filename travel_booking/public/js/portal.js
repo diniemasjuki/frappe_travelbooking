@@ -33,7 +33,7 @@ const _CACHE = {
 };
 
 /* ── API helpers ── */
-const _csrfToken = () => 'fetch';
+const _csrfToken = () => document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
 
 const _post = (path, body) =>
   fetch(path, {
@@ -107,7 +107,7 @@ async function doLogin() {
     formData.append('pwd', password);
     const loginRes = await fetch('/api/method/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Frappe-CSRF-Token': 'fetch' },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Frappe-CSRF-Token': _csrfToken() },
       credentials: 'include',
       body: formData
     });
@@ -146,7 +146,7 @@ async function doLogout() {
   try {
     await fetch('/api/method/logout', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': 'fetch' },
+      headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': _csrfToken() },
       credentials: 'include'
     });
   } catch {}
@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Silent background refresh
       fetch('/api/method/travel_booking.api.portal_auth.check_session', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': 'fetch' },
+        headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': _csrfToken() },
         credentials: 'include',
         body: JSON.stringify({})
       }).then(r => r.json()).then(data => {
@@ -278,7 +278,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const res  = await fetch('/api/method/travel_booking.api.portal_auth.check_session', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': 'fetch' },
+      headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': _csrfToken() },
       credentials: 'include',
       body: JSON.stringify({})
     });

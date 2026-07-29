@@ -152,34 +152,24 @@ use_json_request_body = True
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"Payment Entry": {
+		"on_submit": "travel_booking.api.booking.on_payment_entry_submit",
+		"on_cancel": "travel_booking.api.booking.on_payment_entry_cancel",
+	},
+	"Booking": {
+		"on_update": "travel_booking.api.booking.on_booking_update",
+	},
+}
 
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"travel_booking.tasks.all"
-# 	],
-# 	"daily": [
-# 		"travel_booking.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"travel_booking.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"travel_booking.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"travel_booking.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"daily": [
+		"travel_booking.api.booking.mark_completed_trips",
+	],
+}
 
 # Testing
 # -------
@@ -274,4 +264,3 @@ require_type_annotated_api_methods = True
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
-

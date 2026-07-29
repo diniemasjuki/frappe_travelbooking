@@ -2,6 +2,7 @@
 # Booking Data — Portal
 
 import frappe
+from travel_booking.api._helpers import get_customer_by_email
 
 
 def _get_customer():
@@ -9,35 +10,27 @@ def _get_customer():
     if not user_email or user_email == "Guest":
         frappe.throw("Sila log in untuk meneruskan.", frappe.AuthenticationError)
 
-    result = frappe.db.sql("""
-        SELECT dl.link_name as customer_name
-        FROM `tabContact Email` ce
-        JOIN `tabContact` c ON c.name = ce.parent
-        JOIN `tabDynamic Link` dl ON dl.parent = c.name
-        WHERE ce.email_id = %s AND dl.link_doctype = 'Customer'
-        LIMIT 1
-    """, user_email, as_dict=True)
-
-    if not result:
+    customer_name = get_customer_by_email(user_email)
+    if not customer_name:
         frappe.throw("Akaun customer tidak ditemui.", frappe.AuthenticationError)
 
-    return result[0].customer_name
+    return customer_name
 
 
 @frappe.whitelist()
-def get_booking_data(booking_number):
+def get_booking_data(booking_number: str):
     frappe.flags.ignore_permissions = True
     customer_name = _get_customer()
 
     booking = frappe.db.sql("""
         SELECT
             b.name, b.booking_number, b.customer, b.trip_date,
-            b.sales_invoice, b.status,
-            tm.trip_name, tm.trip_type,
-            td.sailing_no, td.departure_date, td.return_date
+            b.status,
+            tm.trip_name,
+            td.trip_group_name, td.departure_date, td.return_date
         FROM `tabBooking` b
-        LEFT JOIN `tabTrip Date`   td ON td.name = b.trip_date
-        LEFT JOIN `tabTrip Master` tm ON tm.name = td.trip_master
+        LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
+        LEFT JOIN `tabTrip` tm ON tm.name = td.trip
         WHERE b.booking_number = %s
     """, booking_number, as_dict=True)
 
@@ -92,10 +85,10 @@ def get_booking_data(booking_number):
             t.dietary_requirements,
             t.medical_conditions,
             t.special_needs
-        FROM `tabReservation` res
-        LEFT JOIN `tabTraveller` t      ON t.name  = res.traveller
-        LEFT JOIN `tabFlight` f         ON f.name  = res.flight
-        LEFT JOIN `tabRoom Category` rc ON rc.name = res.room_category
+        FROM `tabBooking Reservation` res
+        LEFT JOIN `tabTraveller` t          ON t.name  = res.traveller
+        LEFT JOIN `tabFlight` f             ON f.name  = res.flight
+        LEFT JOIN `tabTrip Price Category` rc ON rc.name = res.room_category
         WHERE res.booking = %s
         ORDER BY res.stateroom_no ASC, res.creation ASC
     """, booking_name, as_dict=True)
@@ -263,10 +256,10 @@ def get_booking_data(booking_number):
         "booking": {
             "name":           booking.name,
             "booking_number": booking.booking_number or booking.name,
-            "trip_name":      booking.trip_name  or "-",
-            "trip_type":      booking.trip_type  or "",
-            "group_name":     booking.sailing_no or "",
-            "sailing_no":     booking.sailing_no or "",
+            "trip_name":      booking.trip_name       or "-",
+            "trip_type":      "",
+            "group_name":     booking.trip_group_name or "",
+            "sailing_no":     booking.trip_group_name or "",
             "departure_date": str(booking.departure_date) if booking.departure_date else "",
             "return_date":    str(booking.return_date)    if booking.return_date    else "",
             "sales_order":    primary_so or "",

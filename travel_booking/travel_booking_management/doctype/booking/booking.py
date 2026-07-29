@@ -1,7 +1,7 @@
 # Copyright (c) 2026, WargaPrihatin and contributors
 # For license information, please see license.txt
 
-# import frappe
+import frappe
 from frappe.model.document import Document
 
 
@@ -15,7 +15,6 @@ class Booking(Document):
 		from frappe.types import DF
 
 		affiliate: DF.Link | None
-		amended_from: DF.Link | None
 		booking_number: DF.Data
 		customer: DF.Link | None
 		deposit_amount: DF.Currency
@@ -75,13 +74,12 @@ class Booking(Document):
 
 	@property
 	def total_pax(self):
-		return frappe.db.count("Reservation", {"booking": self.name, "status": "Confirmed"})
+		return frappe.db.count("Booking Reservation", {"booking": self.name, "status": "Confirmed"})
 
 	@property
 	def verified_pax(self):
-		return frappe.db.count("Reservation", {"booking": self.name, "status": "Confirmed", "document_status": "Verified"})
+		return frappe.db.count("Booking Reservation", {"booking": self.name, "status": "Confirmed", "document_status": "Verified"})
 
 	@property
 	def pending_pax(self):
-		return frappe.db.count("Reservation", {"booking": self.name, "status": "Confirmed", "document_status": "Pending"})
-
+		return frappe.db.count("Booking Reservation", {"booking": self.name, "status": "Confirmed", "document_status": "Pending"})

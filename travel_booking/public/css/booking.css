@@ -166,6 +166,7 @@ body {
 }
 
 .rc-container--narrow { max-width: 640px; }
+.rc-container--rooms  { max-width: 760px; }
 
 .rc-section__header {
   margin-bottom: 24px;
@@ -205,6 +206,47 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.rc-order-summary__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  gap: 12px;
+}
+
+.rc-order-summary__trip {
+  font-size: 13px;
+  color: var(--rc-black);
+  font-weight: 600;
+  margin: 0 0 2px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.rc-order-summary__sub {
+  font-size: 13px;
+  color: var(--rc-gray-600);
+  margin: 0;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+
+.rc-order-summary__chev {
+  font-size: 18px;
+  color: var(--rc-gray-600);
+  flex-shrink: 0;
+  transition: transform var(--rc-transition);
+}
+
+.rc-order-summary__chev--open { transform: rotate(180deg); }
+
+.rc-order-summary__body {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rc-gray-100);
 }
 
 /* ─── FORM ─────────────────────────────────────────────── */
@@ -673,9 +715,89 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   padding: 10px 0;
   border-bottom: 1px solid var(--rc-gray-100);
   font-size: 13px;
+}
+
+/* Elak label/nilai bertindih atau wrap tak kemas dalam ruang sempit —
+   flex children secara default tak boleh shrink bawah saiz kandungan
+   (min-width:auto), jadi label perlu boleh truncate (min-width:0) dan
+   nilai (angka) tak sepatutnya sekali-kali wrap (nowrap + flex-shrink:0). */
+.rc-order-line > span:first-child,
+.rc-order-line > strong:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rc-order-line > span:last-child,
+.rc-order-line > strong:last-child {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.rc-order-cabin {
+  margin-bottom: 12px;
+}
+
+.rc-order-cabin__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rc-gray-600);
+  margin-bottom: 4px;
+}
+
+.rc-order-cabin .rc-order-line--fare {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--rc-black);
+  border-bottom: none;
+  padding: 2px 0 6px;
+}
+
+.rc-order-cabin .rc-order-line--guest {
+  font-size: 13px;
+  color: var(--rc-gray-600);
+  padding: 3px 0 3px 12px;
+  border-bottom: none;
+}
+
+.rc-order-cabin .rc-order-line--guest:last-child {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rc-gray-100);
+}
+
+/* Step 3 Order Summary redesign — indent wrapper (border kiri) + grid
+   alignment supaya label panjang tak buat nilai/angka bertindih atau
+   tak sejajar (lihat mockup yang diluluskan). Class berasingan dari
+   .rc-order-line--guest (Step 1) supaya tak konflik. */
+.rc-order-cabin__guests {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-left: 12px;
+  border-left: 2px solid var(--rc-gray-100);
+  margin-bottom: 4px;
+}
+
+.rc-order-guest-line {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--rc-gray-600);
+}
+
+.rc-order-guest-line span:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.rc-order-line--muted {
+  color: var(--rc-gray-600);
 }
 
 .rc-order-total {
@@ -1311,6 +1433,71 @@ body {
 }
 
 /* ─── ROOMS & PAX (STEP 1) ──────────────────────────────── */
+.rc-rooms-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.rc-rooms-header .rc-rooms-title {
+  margin-bottom: 0;
+}
+
+.rc-sales-person-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.rc-sales-person-row:last-child { margin-bottom: 0; }
+
+.rc-sales-person-row .rc-select-wrapper { flex: 1; }
+
+.rc-sales-person-row__remove {
+  background: none;
+  border: none;
+  color: #CC0000;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: "Archivo", sans-serif;
+  padding: 4px 8px;
+  border-radius: var(--rc-radius);
+  transition: background var(--rc-transition);
+  flex-shrink: 0;
+}
+
+.rc-sales-person-row__remove:hover { background: #FFF0F0; }
+
+.rc-rooms-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 680px) {
+  .rc-rooms-grid { grid-template-columns: 1fr; }
+}
+
+.rc-summary-panel {
+  background: var(--rc-gray-100);
+  border-radius: var(--rc-radius-lg);
+  padding: 14px 14px;
+  min-width: 0;
+}
+
+.rc-summary-panel__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rc-gray-600);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 12px;
+}
+
 .rc-rooms-title {
   font-size: 17px;
   font-weight: 600;
@@ -1331,6 +1518,31 @@ body {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 14px;
+  cursor: pointer;
+}
+
+.rc-room__head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rc-room__chev {
+  font-size: 16px;
+  color: var(--rc-gray-600);
+  flex-shrink: 0;
+  transition: transform var(--rc-transition);
+}
+
+.rc-room__chev--open { transform: rotate(180deg); }
+
+.rc-room__summary {
+  font-size: 13px;
+  color: var(--rc-gray-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rc-room__title {
@@ -1435,6 +1647,59 @@ body {
   text-align: center;
 }
 
+/* Vertical counter list: Main Guest / Extra Bed / Infant, stacked, with the
+   rate displayed to the right of each stepper. Gantikan .rc-room__grid yang
+   horizontal (Adult/Children/Infant side-by-side) untuk model SLOT baru. */
+.rc-counter-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: 14px;
+}
+
+.rc-counter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rc-gray-100);
+  gap: 12px;
+}
+
+.rc-counter-row:last-child {
+  border-bottom: none;
+}
+
+.rc-counter-row__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--rc-black);
+  flex: 1;
+}
+
+.rc-counter-row .rc-stepper {
+  width: auto;
+  height: auto;
+  border: none;
+  padding: 0;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.rc-counter-row .rc-stepper__btn {
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid var(--rc-gray-200);
+  border-radius: 50%;
+}
+
+.rc-counter-row__rate {
+  font-size: 13px;
+  color: var(--rc-gray-600);
+  min-width: 92px;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .rc-add-room {
   background: none;
   border: none;
@@ -1482,6 +1747,17 @@ body {
 }
 
 .rc-totals__row--muted { font-size: 13px; }
+
+/* Bila rc-totals bersarang dalam rc-summary-panel (Step 2) — kedua-duanya
+   guna background gray-100 yang sama, jadi buang background/margin box
+   berasingan, gantikan dengan pemisah border-top sahaja (sama gaya
+   dengan Total row di Step 3 Order Summary). */
+.rc-summary-panel .rc-totals {
+  background: none;
+  padding: 12px 0 0;
+  margin: 12px 0 0;
+  border-top: 1px solid var(--rc-gray-200);
+}
 
 
 /* ─── PAYMENT AMOUNT (CUSTOM) ───────────────────────────── */

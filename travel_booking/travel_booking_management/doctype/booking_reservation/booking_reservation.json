@@ -1,0 +1,291 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "RES-.YYYY.-.#####",
+ "creation": "2026-05-05 11:02:24.899692",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "reservation_info_section",
+  "booking",
+  "guest_label",
+  "column_break_wcmg",
+  "status",
+  "document_status",
+  "package_info_section",
+  "trip_package",
+  "package_title",
+  "trip_package_code",
+  "package_type",
+  "column_break_fnrc",
+  "trip_link",
+  "trip_name",
+  "trip_organizer",
+  "departure_point",
+  "reservation_section",
+  "date_selection",
+  "is_a_cruise",
+  "column_break_bsxx",
+  "departure_date",
+  "arrival_date",
+  "column_break_srnx",
+  "cruise_start",
+  "cruise_end",
+  "traveller_details_section",
+  "column_break_egqo",
+  "traveller",
+  "column_break_cedq",
+  "full_name",
+  "room_and_flight_section",
+  "room_category",
+  "stateroom_no",
+  "aroya_guest_no",
+  "delegate_no",
+  "column_break_depl",
+  "flight"
+ ],
+ "fields": [
+  {
+   "fieldname": "reservation_info_section",
+   "fieldtype": "Section Break",
+   "label": "Reservation Info "
+  },
+  {
+   "fieldname": "booking",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Booking",
+   "options": "Booking"
+  },
+  {
+   "fieldname": "traveller",
+   "fieldtype": "Link",
+   "label": "Traveller",
+   "options": "Traveller",
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_wcmg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Confirmed",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending Review\nConfirmed\nCancelled"
+  },
+  {
+   "default": "Pending",
+   "fieldname": "document_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Document Status",
+   "options": "Pending\nVerified\nOpen for Update\nRejected"
+  },
+  {
+   "fieldname": "traveller_details_section",
+   "fieldtype": "Section Break",
+   "label": "Traveller Details"
+  },
+  {
+   "fetch_from": "traveller.full_name",
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Full Name",
+   "options": "Traveller",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_egqo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "room_and_flight_section",
+   "fieldtype": "Section Break",
+   "label": "Room And Flight"
+  },
+  {
+   "fieldname": "room_category",
+   "fieldtype": "Link",
+   "label": "Room Category",
+   "options": "Trip Price Category"
+  },
+  {
+   "fieldname": "stateroom_no",
+   "fieldtype": "Data",
+   "label": "Stateroom No"
+  },
+  {
+   "fieldname": "aroya_guest_no",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Aroya Guest No"
+  },
+  {
+   "fieldname": "delegate_no",
+   "fieldtype": "Data",
+   "label": "Delegate No"
+  },
+  {
+   "fieldname": "column_break_depl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "flight",
+   "fieldtype": "Link",
+   "label": "Flight",
+   "options": "Flight"
+  },
+  {
+   "fieldname": "column_break_cedq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "booking.trip_package",
+   "fieldname": "trip_package",
+   "fieldtype": "Link",
+   "label": "Trip Package (Link)",
+   "options": "Trip Package",
+   "search_index": 1
+  },
+  {
+   "fieldname": "package_info_section",
+   "fieldtype": "Section Break",
+   "label": "Package Info"
+  },
+  {
+   "fieldname": "column_break_fnrc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip_package.trip_link",
+   "fieldname": "trip_link",
+   "fieldtype": "Data",
+   "label": "Trip Code"
+  },
+  {
+   "fetch_from": "trip_package.trip_name",
+   "fieldname": "trip_name",
+   "fieldtype": "Data",
+   "label": "Trip Name"
+  },
+  {
+   "fetch_from": "trip_package.organizer_link",
+   "fieldname": "trip_organizer",
+   "fieldtype": "Data",
+   "label": "Trip Organizer"
+  },
+  {
+   "fetch_from": "trip_package.airport_form",
+   "fieldname": "departure_point",
+   "fieldtype": "Data",
+   "label": "Departure Point"
+  },
+  {
+   "fetch_from": "trip_package.package_code",
+   "fieldname": "trip_package_code",
+   "fieldtype": "Data",
+   "label": "Trip Package Code"
+  },
+  {
+   "fetch_from": "trip_package.package_title",
+   "fieldname": "package_title",
+   "fieldtype": "Data",
+   "label": "Package TItle"
+  },
+  {
+   "fetch_from": "trip_package.package_type",
+   "fieldname": "package_type",
+   "fieldtype": "Data",
+   "label": "Package Type"
+  },
+  {
+   "fieldname": "reservation_section",
+   "fieldtype": "Section Break",
+   "label": "Reservation"
+  },
+  {
+   "fieldname": "date_selection",
+   "fieldtype": "Link",
+   "label": "Date Selection",
+   "options": "Trip Group Date"
+  },
+  {
+   "fieldname": "column_break_bsxx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "date_selection.departure_date",
+   "fieldname": "departure_date",
+   "fieldtype": "Data",
+   "label": "Departure Date"
+  },
+  {
+   "fetch_from": "date_selection.return_date",
+   "fieldname": "arrival_date",
+   "fieldtype": "Data",
+   "label": "Arrival Date"
+  },
+  {
+   "fieldname": "column_break_srnx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_a_cruise",
+   "fieldtype": "Check",
+   "label": "is a cruise"
+  },
+  {
+   "fetch_from": "date_selection.sailing_start",
+   "fieldname": "cruise_start",
+   "fieldtype": "Data",
+   "label": "Cruise Start"
+  },
+  {
+   "fetch_from": "date_selection.sailing_end",
+   "fieldname": "cruise_end",
+   "fieldtype": "Data",
+   "label": "Cruise End"
+  },
+  {
+   "fieldname": "guest_label",
+   "fieldtype": "Data",
+   "label": "Guest Label - Slot_Label",
+   "set_only_once": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-28 16:14:11.262698",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Booking Reservation",
+ "naming_rule": "Expression",
+ "owner": "abdsobur.abdahad@gmail.com",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

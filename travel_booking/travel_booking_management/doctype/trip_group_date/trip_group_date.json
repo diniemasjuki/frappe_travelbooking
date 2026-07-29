@@ -1,0 +1,455 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "naming_series:naming_series",
+ "creation": "2026-04-22 17:14:42.519385",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "information",
+  "basic_info_section",
+  "trip",
+  "trip_name",
+  "trip_code",
+  "column_break_dium",
+  "trip_group_name",
+  "trip_group_code",
+  "section_break_kosn",
+  "column_break_uyli",
+  "group_organizer",
+  "naming_series",
+  "column_break_hbzc",
+  "is_a_cruise_trip",
+  "is_cruise_only",
+  "column_break_cncs",
+  "status",
+  "section_break_aakd",
+  "cuise_schedule_column",
+  "cruise_schedule",
+  "filter_by_trip",
+  "column_break_tthi",
+  "cruise_days",
+  "cruise_trip",
+  "cruise_section",
+  "info_column",
+  "ship_name",
+  "ship_code",
+  "column_break_qnzj",
+  "sailing_start",
+  "sailing_end",
+  "column_break_mzon",
+  "embarkation_port",
+  "disembarkation_port",
+  "group_date_section",
+  "column_break_kcsk",
+  "departure_date",
+  "column_break_obcw",
+  "return_date",
+  "section_break_mxbl",
+  "column_break_jvne",
+  "max_participants",
+  "column_break_mhqq",
+  "current_participants",
+  "column_break_dbxx",
+  "available_slots",
+  "description_section",
+  "trip_group_description",
+  "section_break_medt",
+  "column_break_htum",
+  "total_days",
+  "column_break_ktcu",
+  "total_nights"
+ ],
+ "fields": [
+  {
+   "fieldname": "basic_info_section",
+   "fieldtype": "Section Break",
+   "label": "Basic Info"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending Review\nActive\nFull\nCancelled\nCompleted"
+  },
+  {
+   "fieldname": "column_break_obcw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "available_slots",
+   "fieldtype": "Int",
+   "is_virtual": 1,
+   "label": "Vacancy",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "departure_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Departure Date (From)",
+   "mandatory_depends_on": "eval:!doc.is_cruise_only",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "return_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Return Date (Until)",
+   "mandatory_depends_on": "eval:!doc.is_cruise_only",
+   "no_copy": 1
+  },
+  {
+   "depends_on": "eval:doc.cruise_schedule",
+   "fieldname": "column_break_mzon",
+   "fieldtype": "Column Break",
+   "label": "Port of call"
+  },
+  {
+   "depends_on": "eval:doc.cruise_schedule",
+   "fetch_from": "cruise_schedule.sail_start",
+   "fieldname": "sailing_start",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Sailing Start",
+   "mandatory_depends_on": "eval:doc.is_a_cruise_trip",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.cruise_schedule",
+   "fetch_from": "cruise_schedule.sail_end",
+   "fieldname": "sailing_end",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Sailing End",
+   "mandatory_depends_on": "eval:doc.is_a_cruise_trip",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.cruise_schedule",
+   "fetch_from": "cruise_schedule.ship_name",
+   "fieldname": "ship_name",
+   "fieldtype": "Data",
+   "label": "Ship Name",
+   "mandatory_depends_on": "eval:doc.is_a_cruise_trip",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.cruise_schedule",
+   "fieldname": "column_break_qnzj",
+   "fieldtype": "Column Break",
+   "label": "Sailing Date"
+  },
+  {
+   "depends_on": "eval:doc.cruise_schedule",
+   "fetch_from": "cruise_schedule.port_start",
+   "fieldname": "embarkation_port",
+   "fieldtype": "Link",
+   "label": "Embarkation Port",
+   "mandatory_depends_on": "eval:doc.is_a_cruise_trip",
+   "options": "Trip Destination Point",
+   "read_only": 1,
+   "remember_last_selected_value": 1
+  },
+  {
+   "depends_on": "eval:doc.cruise_schedule",
+   "fetch_from": "cruise_schedule.port_end",
+   "fieldname": "disembarkation_port",
+   "fieldtype": "Link",
+   "label": "Disembarkation Port",
+   "mandatory_depends_on": "eval:doc.is_a_cruise_trip",
+   "options": "Trip Destination Point",
+   "read_only": 1,
+   "remember_last_selected_value": 1
+  },
+  {
+   "fieldname": "column_break_uyli",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "trip_group_name",
+   "fieldtype": "Data",
+   "label": "Trip Group Name",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "max_participants",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Capacity",
+   "non_negative": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "current_participants",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Occupancy",
+   "non_negative": 1,
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fieldname": "cruise_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "depends_on": "eval:!doc.is_cruise_only",
+   "fieldname": "group_date_section",
+   "fieldtype": "Section Break",
+   "label": "Trip Departure Date"
+  },
+  {
+   "fieldname": "column_break_ktcu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "trip_group_code",
+   "fieldtype": "Data",
+   "label": "Trip Group Code",
+   "no_copy": 1,
+   "read_only": 1,
+   "set_only_once": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "column_break_jvne",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_cruise_only",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "is Cruise Only",
+   "read_only_depends_on": "eval:!doc.is_a_cruise_trip",
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "trip_group_description",
+   "fieldtype": "Text Editor",
+   "label": "Trip Group Description"
+  },
+  {
+   "fieldname": "column_break_cncs",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "description_section",
+   "fieldtype": "Section Break",
+   "label": "Description"
+  },
+  {
+   "fieldname": "trip",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trip",
+   "options": "Trip",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fieldname": "column_break_hbzc",
+   "fieldtype": "Column Break",
+   "label": "Cruise Check"
+  },
+  {
+   "depends_on": "eval:doc.trip",
+   "fieldname": "section_break_kosn",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fetch_from": "group_organizer.org_series",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Naming Series",
+   "read_only": 1,
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "default": "0",
+   "fetch_from": "trip.is_a_cruise_trip",
+   "fieldname": "is_a_cruise_trip",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "is a Cruise Trip",
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "column_break_dium",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_dbxx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_kcsk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip.trip_organizer",
+   "fetch_if_empty": 1,
+   "fieldname": "group_organizer",
+   "fieldtype": "Link",
+   "label": "Organizer",
+   "mandatory_depends_on": "eval:doc.trip",
+   "options": "Trip Organizer",
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "section_break_medt",
+   "fieldtype": "Section Break",
+   "label": "Days Duration"
+  },
+  {
+   "fieldname": "section_break_mxbl",
+   "fieldtype": "Section Break",
+   "label": "Participant Quantity"
+  },
+  {
+   "fieldname": "column_break_mhqq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_htum",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_days",
+   "fieldtype": "Int",
+   "label": "Duration Days"
+  },
+  {
+   "fieldname": "total_nights",
+   "fieldtype": "Int",
+   "label": "Duration Night"
+  },
+  {
+   "fetch_from": "trip.trip_name",
+   "fieldname": "trip_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Trip Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "information",
+   "fieldtype": "HTML",
+   "label": "Information",
+   "options": "<style>\n    .wizard-ui {\n  font-family: Arial, sans-serif;\n  max-width: 800px;\n  margin: auto;\n  margin-bottom:10px;\n}\n\n.progressbar {\n  display: flex;\n  align-items: center;\n  margin: 20px 0;\n}\n\n.progress-step {\n  width: 30px;\n  height: 30px;\n  border-radius: 50%;\n  background: #ccc;\n  color: #fff;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.progress-step.completed {\n  background: #28a745;\n}\n\n.progress-step.active {\n  background: #007bff;\n}\n\n.progress-line {\n  flex: 1;\n  height: 4px;\n  background: #ccc;\n}\n\n.progress-line.completed {\n  background: #28a745;\n}\n\n.progress-line.active {\n  background: #007bff;\n}\n\n.wizard-steps {\n  display: flex;\n  gap: 20px;\n}\n\n.step-card {\n  flex: 1;\n  padding: 15px;\n  border: 1px solid #ddd;\n  border-radius: 6px;\n  background: #f9f9f9;\n  text-align:center;\n}\n\n.step-card > h3{\n    margin:0;\n}\n\n.step-card.active {\n  border: 2px solid #007bff;\n  background: #e9f2ff;\n}\n\n</style>\n<section id=\"trip-management\" class=\"wizard-ui\">\n  <div class=\"wizard-header\">\n    <h2>Trip Management Section</h2>\n    <p>Anda kini berada di <strong>Trip Group</strong></p>\n  </div>\n\n  <!-- Progress Bar -->\n  <div class=\"progressbar\">\n    <div class=\"progress-step completed\">1</div>\n    <div class=\"progress-line active\"></div>\n    <div class=\"progress-step active\">2</div>\n    <div class=\"progress-line \"></div>\n    <div class=\"progress-step \">3</div>\n  </div>\n\n  <!-- Step Cards -->\n  <div class=\"wizard-steps\">\n    <div class=\"step-card\"> <a href=\"/desk/trip/\" style=\"text-decoration:none\" >\n      <h3><small>Step 1: </small><br/>Trip</a></h3>\n    </div>\n    <div class=\"step-card active\">\n      <h3><small>Step 2: </small><br/>Trip Group</h3>\n    </div>\n    <div class=\"step-card \">\n      <h3><a href=\"/desk/trip-package/\" style=\"text-decoration:none\" ><small>Step 3: </small><br/>Trip Package</a></h3>\n    </div>\n  </div>\n</section>\n<br/>"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fieldname": "cruise_schedule",
+   "fieldtype": "Link",
+   "label": "Cruise Schedule",
+   "mandatory_depends_on": "eval:doc.is_a_cruise_trip",
+   "no_copy": 1,
+   "options": "Trip Cruise Schedule"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fieldname": "cuise_schedule_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip.trip_code",
+   "fieldname": "trip_code",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Trip Code",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.cruise_schedule",
+   "fetch_from": "cruise_schedule.total_days",
+   "fieldname": "cruise_days",
+   "fieldtype": "Int",
+   "label": "Cruise Days",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.cruise_schedule",
+   "fieldname": "info_column",
+   "fieldtype": "Column Break",
+   "label": "Info"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fieldname": "section_break_aakd",
+   "fieldtype": "Section Break",
+   "hide_border": 1,
+   "label": "Select Cruise Schedule"
+  },
+  {
+   "depends_on": "eval:doc.cruise_schedule",
+   "fetch_from": "cruise_schedule.ship_code",
+   "fieldname": "ship_code",
+   "fieldtype": "Data",
+   "label": "Ship Code",
+   "mandatory_depends_on": "eval:doc.is_a_cruise_trip",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_tthi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.cruise_schedule",
+   "fetch_from": "cruise_schedule.trip_link",
+   "fieldname": "cruise_trip",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Cruise Trip"
+  },
+  {
+   "default": "1",
+   "fieldname": "filter_by_trip",
+   "fieldtype": "Check",
+   "label": "Filter by Trip"
+  }
+ ],
+ "grid_page_length": 50,
+ "is_calendar_and_gantt": 1,
+ "links": [],
+ "modified": "2026-07-26 08:10:08.720360",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Trip Group Date",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "abdsobur.abdahad@gmail.com",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "trip_group_name,trip_name,trip_group_code",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "trip_group_name"
+}

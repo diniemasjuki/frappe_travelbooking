@@ -1,0 +1,223 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": ".ship_code.-.YY.#",
+ "creation": "2026-07-24 03:16:03.247831",
+ "default_view": "List",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "operator_section",
+  "cruise_line_company",
+  "column_break_cqkb",
+  "ship_code",
+  "ship_name",
+  "status",
+  "trip_information_section",
+  "trip_link",
+  "trip_name",
+  "section_break_xorj",
+  "column_break_lmpp",
+  "schedule_code",
+  "total_days",
+  "column_break_ympw",
+  "sail_start",
+  "sail_end",
+  "column_break_dfrr",
+  "port_start",
+  "port_end"
+ ],
+ "fields": [
+  {
+   "allow_in_quick_entry": 1,
+   "default": "Aroya",
+   "fieldname": "ship_name",
+   "fieldtype": "Data",
+   "label": "Ship Name"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "default": "Aroya Cruise",
+   "fieldname": "cruise_line_company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Cruise Line Company",
+   "link_filters": "[[\"Trip Organizer\",\"is_a_cruise_line\",\"=\",1]]",
+   "options": "Trip Organizer",
+   "remember_last_selected_value": 1,
+   "set_only_once": 1
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "default": "AC01",
+   "fieldname": "ship_code",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Ship Code",
+   "options": "AC01\nHV01",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "column_break_ympw",
+   "fieldtype": "Column Break",
+   "label": "Cruie Date"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "sail_start",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Sailing Start",
+   "no_copy": 1,
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "sail_end",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Sailing End",
+   "no_copy": 1,
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "total_days",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Days",
+   "non_negative": 1,
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "column_break_dfrr",
+   "fieldtype": "Column Break",
+   "label": "Port of Calls"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "port_start",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Start Port",
+   "options": "Trip Destination Point",
+   "remember_last_selected_value": 1,
+   "reqd": 1
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "port_end",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Return Port",
+   "options": "Trip Destination Point",
+   "remember_last_selected_value": 1,
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "column_break_lmpp",
+   "fieldtype": "Column Break",
+   "label": "Summary"
+  },
+  {
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "section_break_xorj",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_cqkb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "schedule_code",
+   "fieldtype": "Data",
+   "label": "Schedule Code",
+   "no_copy": 1,
+   "read_only": 1,
+   "set_only_once": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "operator_section",
+   "fieldtype": "Section Break",
+   "label": "Operator"
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending Review\nActive\nInactive\nCanceled"
+  },
+  {
+   "fieldname": "trip_information_section",
+   "fieldtype": "Section Break",
+   "label": "Trip Information"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "trip_link",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trip",
+   "link_filters": "[[\"Trip\",\"is_a_cruise_trip\",\"=\",1]]",
+   "options": "Trip"
+  },
+  {
+   "fetch_from": "trip_link.trip_name",
+   "fieldname": "trip_name",
+   "fieldtype": "Data",
+   "label": "Trip Name"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_calendar_and_gantt": 1,
+ "links": [],
+ "modified": "2026-07-26 02:22:22.681826",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Trip Cruise Schedule",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "trip_link,trip_name",
+ "show_preview_popup": 1,
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "schedule_code"
+}

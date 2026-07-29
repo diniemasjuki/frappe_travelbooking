@@ -15,12 +15,12 @@ class VoucherUsage(Document):
 		from frappe.types import DF
 
 		booking: DF.Link | None
-		customer: DF.Link
-		discount_applied: DF.Currency
+		customer: DF.Link | None
+		discount_amount: DF.Currency
 		parent: DF.Data
 		parentfield: DF.Data
 		parenttype: DF.Data
-		used_date: DF.Datetime | None
+		used_on: DF.Datetime | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Voucher Usage"

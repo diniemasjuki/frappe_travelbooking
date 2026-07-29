@@ -1,0 +1,108 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_copy": 1,
+ "allow_rename": 1,
+ "autoname": "field:org_name",
+ "creation": "2026-07-23 09:11:50.921488",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "org_name",
+  "is_a_cruise_line",
+  "section_break_fqqn",
+  "org_series",
+  "website",
+  "column_break_tiky",
+  "org_logo",
+  "image_uvih"
+ ],
+ "fields": [
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "org_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Organizer Name",
+   "unique": 1
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "org_series",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Organizer Naming Series",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "column_break_tiky",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "org_logo",
+   "fieldtype": "Attach Image",
+   "label": "Logo"
+  },
+  {
+   "fieldname": "image_uvih",
+   "fieldtype": "Image",
+   "is_virtual": 1,
+   "options": "org_logo"
+  },
+  {
+   "fieldname": "website",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Website"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "default": "0",
+   "fieldname": "is_a_cruise_line",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "is a Cruise Line"
+  },
+  {
+   "fieldname": "section_break_fqqn",
+   "fieldtype": "Section Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "hide_toolbar": 1,
+ "image_field": "org_logo",
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-25 16:33:17.194548",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Trip Organizer",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "org_name",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "org_name",
+ "track_changes": 1
+}

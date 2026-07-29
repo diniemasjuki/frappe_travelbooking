@@ -1,0 +1,137 @@
+{
+ "app": "travel_booking",
+ "charts": [],
+ "content": "[{\"id\":\"G6W9B_sJIL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Settings for Travel Booking Management</b></span>\",\"col\":12}},{\"id\":\"QKqV-8oTGe\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Welcome to the Setting Travel Booking workspace</span>\",\"col\":12}},{\"id\":\"MsWSnbgmRb\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"lyWCVIylzp\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Places</b></span>\",\"col\":12}},{\"id\":\"vb6fGKIgSa\",\"type\":\"quick_list\",\"data\":{\"quick_list_name\":\"Recent Destination Cities\",\"col\":7}},{\"id\":\"XL369QvxMe\",\"type\":\"quick_list\",\"data\":{\"quick_list_name\":\"Airport Destination\",\"col\":5}},{\"id\":\"174Xmy_y7D\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"OnZdCOGKjE\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Operators</b></span>\",\"col\":12}},{\"id\":\"SEYuSs_7Ub\",\"type\":\"quick_list\",\"data\":{\"quick_list_name\":\"Tour Organizer\",\"col\":6}},{\"id\":\"HA5ddsKZx-\",\"type\":\"quick_list\",\"data\":{\"quick_list_name\":\"List of Airlines\",\"col\":6}},{\"id\":\"XULGeLEXm4\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"ASnD-RhbTq\",\"type\":\"card\",\"data\":{\"card_name\":\"Flight Setting\",\"col\":4}}]",
+ "creation": "2026-07-25 18:02:32.298360",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "cog",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Setting Travel Booking",
+ "link_type": "DocType",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Flight Setting",
+   "link_count": 2,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Airline Company",
+   "link_count": 0,
+   "link_to": "Flight Airline",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Airport Destinations",
+   "link_count": 0,
+   "link_to": "Flight Airport",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-07-25 18:13:58.786958",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Setting Travel Booking",
+ "number_cards": [],
+ "owner": "Administrator",
+ "public": 1,
+ "quick_lists": [
+  {
+   "document_type": "Trip Destination Point",
+   "label": "Recent Destination Cities",
+   "quick_list_filter": "[]"
+  },
+  {
+   "document_type": "Flight Airport",
+   "label": "Airport Destination",
+   "quick_list_filter": "[]"
+  },
+  {
+   "document_type": "Trip Organizer",
+   "label": "Tour Organizer",
+   "quick_list_filter": "[]"
+  },
+  {
+   "document_type": "Flight Airline",
+   "label": "List of Airlines",
+   "quick_list_filter": "[]"
+  }
+ ],
+ "roles": [],
+ "sequence_id": 37.0,
+ "shortcuts": [],
+ "sidebar_items": [
+  {
+   "child": 0,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Destinations Point",
+   "link_to": "Trip Destination Point",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Trip Organizer",
+   "link_to": "Trip Organizer",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "List of Airlines",
+   "link_to": "Flight Airline",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "List of Airports",
+   "link_to": "Flight Airport",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  }
+ ],
+ "standard": 1,
+ "title": "Setting Travel Booking",
+ "type": "Workspace"
+}

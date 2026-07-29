@@ -36,8 +36,8 @@ class Flight(Document):
 	_DOCTYPE_NAME = "Flight"
 
 	def refresh_seats(self):
-		"""Kira seats_occupied dari Reservation yang assign ke Flight ini."""
-		filled = frappe.db.count("Reservation", {"flight": self.name})
+		"""Kira seats_occupied dari Booking Reservation yang assign ke Flight ini."""
+		filled = frappe.db.count("Booking Reservation", {"flight": self.name})
 		frappe.db.set_value("Flight", self.name, "seats_occupied", filled,
 							update_modified=False)
 
@@ -45,8 +45,6 @@ class Flight(Document):
 
 		if self.pnr:
 			self.pnr = re.sub(r'[^a-zA-Z0-9]', '', self.pnr).upper().replace(" ","")
-		if self.name:
-					self.name = re.sub(r'[^a-zA-Z0-9]', '', self.name).upper().replace(" ","")
 
 		self.flight_title = self.pnr + "-" + self.airline + "-" + self.home_airport + "-" + self.destination_airport
 		self.flight_title = self.flight_title.upper().strip()

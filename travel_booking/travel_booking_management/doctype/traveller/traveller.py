@@ -3,6 +3,7 @@
 
 # import frappe
 from frappe.model.document import Document
+from frappe.utils import getdate, today
 
 
 class Traveller(Document):
@@ -105,4 +106,3 @@ class Traveller(Document):
 		elif " bin " in name or name.startswith("bin "):
 			if not self.title:  self.title = "Mr"
 			if not self.gender: self.gender = "Male"
-

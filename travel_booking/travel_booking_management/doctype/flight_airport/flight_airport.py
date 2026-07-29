@@ -19,6 +19,7 @@ class FlightAirport(Document):
 		airport_code: DF.Data
 		airport_country: DF.Link | None
 		airport_name: DF.Data
+		currency: DF.Link | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Flight Airport"
@@ -30,9 +31,6 @@ class FlightAirport(Document):
 
 		if self.airport_code:
 			self.airport_code = re.sub(r'[^a-zA-Z0-9]', '', self.airport_code).upper().replace(" ","")
-
-		if self.name:
-					self.name = re.sub(r'[^a-zA-Z0-9]', '', self.name).upper().replace(" ","")
 
 		if self.airport_city:
 			self.airport_city = self.airport_city.title()

@@ -3,6 +3,7 @@
 # ─────────────────────────────────────────────
 
 import frappe
+from travel_booking.api._helpers import get_customer_by_email
 
 
 # ══════════════════════════════════════════════
@@ -11,8 +12,8 @@ import frappe
 
 def _fetch_bookings(customer_name):
     """Fetch bookings untuk customer.
-    - trip_name dari Trip Master (via Trip Date)
-    - departure_date, return_date, sailing_no dari Trip Date
+    - trip_name dari Trip (via Trip Group Date)
+    - departure_date, return_date, sailing_no dari Trip Group Date
     - total_slots dan filled_count dari Reservation
     (Sales Order TIDAK lagi dipaparkan pada kad booking — 1 booking boleh ada
     banyak SO sekarang, jadi paparan dipindah ke tab Transactions/Payment &
@@ -24,24 +25,23 @@ def _fetch_bookings(customer_name):
             b.booking_number,
             b.status AS booking_status,
             tm.trip_name,
-            tm.trip_type,
-            td.sailing_no,
+            td.trip_group_name,
             td.departure_date,
             td.return_date
         FROM `tabBooking` b
-        LEFT JOIN `tabTrip Date`   td ON td.name = b.trip_date
-        LEFT JOIN `tabTrip Master` tm ON tm.name = td.trip_master
+        LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
+        LEFT JOIN `tabTrip` tm ON tm.name = td.trip
         WHERE b.customer = %s
         ORDER BY td.departure_date ASC
     """, customer_name, as_dict=True)
 
     for bk in bookings:
-        total = frappe.db.count("Reservation", {"booking": bk["name"]})
+        total = frappe.db.count("Booking Reservation", {"booking": bk["name"]})
         counts = frappe.db.sql("""
             SELECT
                 COUNT(*) as filled,
                 SUM(CASE WHEN document_status = 'Verified' THEN 1 ELSE 0 END) as verified
-            FROM `tabReservation`
+            FROM `tabBooking Reservation`
             WHERE booking = %s AND (traveller IS NOT NULL AND traveller != '')
         """, bk["name"], as_dict=True)
         filled_count   = counts[0].filled   if counts else 0
@@ -54,7 +54,7 @@ def _fetch_bookings(customer_name):
         bk["departure_date"]  = str(bk["departure_date"]) if bk["departure_date"] else ""
         bk["return_date"]     = str(bk["return_date"])    if bk["return_date"]    else ""
         bk["trip_name"]       = bk["trip_name"] or bk["name"]
-        bk["sailing_no"]      = bk["sailing_no"] or ""
+        bk["sailing_no"]      = bk["trip_group_name"] or ""
 
     return bookings
 
@@ -72,21 +72,12 @@ def check_session():
     if not user_email or user_email == "Guest":
         return {"status": "guest", "logged_in": False}
 
-    result = frappe.db.sql("""
-        SELECT dl.link_name as customer_name
-        FROM `tabContact Email` ce
-        JOIN `tabContact` c ON c.name = ce.parent
-        JOIN `tabDynamic Link` dl ON dl.parent = c.name
-        WHERE ce.email_id = %s
-          AND dl.link_doctype = 'Customer'
-        LIMIT 1
-    """, user_email, as_dict=True)
-
-    if not result:
+    customer_name = get_customer_by_email(user_email)
+    if not customer_name:
         return {"status": "no_customer", "logged_in": False}
 
     customer = frappe.db.get_value(
-        "Customer", result[0].customer_name,
+        "Customer", customer_name,
         ["name", "customer_name"],
         as_dict=True
     )
@@ -109,7 +100,7 @@ def check_session():
 # ══════════════════════════════════════════════
 
 @frappe.whitelist(allow_guest=True)
-def set_password(key, email, new_password):
+def set_password(key: str, email: str, new_password: str):
     if not key or not email or not new_password:
         frappe.throw("Maklumat tidak lengkap.")
 
@@ -136,7 +127,7 @@ def set_password(key, email, new_password):
 # ══════════════════════════════════════════════
 
 @frappe.whitelist(allow_guest=True)
-def forgot_password(email):
+def forgot_password(email: str):
     if not email:
         frappe.throw("Sila masukkan alamat email.")
 
@@ -144,15 +135,7 @@ def forgot_password(email):
     if not user:
         return {"status": "ok", "message": "Jika email ini berdaftar, link akan dihantar."}
 
-    customer_check = frappe.db.sql("""
-        SELECT dl.link_name
-        FROM `tabContact Email` ce
-        JOIN `tabContact` c ON c.name = ce.parent
-        JOIN `tabDynamic Link` dl ON dl.parent = c.name
-        WHERE ce.email_id = %s AND dl.link_doctype = 'Customer'
-        LIMIT 1
-    """, email, as_dict=True)
-    if not customer_check:
+    if not get_customer_by_email(email):
         return {"status": "ok", "message": "Jika email ini berdaftar, link akan dihantar."}
 
     reset_key = frappe.generate_hash(length=32)
@@ -164,7 +147,9 @@ def forgot_password(email):
 
     frappe.sendmail(
         recipients=[email],
-        sender="no-reply@rarecruise.com",
+        # Sender TIDAK di-hardcode — biar Frappe guna default Outgoing
+        # Email Account. Hardcode domain lain dari domain sebenar site
+        # punca email silently gagal/masuk spam (SPF/DKIM mismatch).
         subject="Rarecation Portal — Reset Password Anda",
         message="""
             <p>Anda telah meminta untuk reset password portal Rarecation.</p>
@@ -181,7 +166,7 @@ def forgot_password(email):
 
 
 @frappe.whitelist(allow_guest=True)
-def send_magic_link_by_email(email):
+def send_magic_link_by_email(email: str):
     """Portal login — hantar magic link ke email registered.
     User portal kini SENTIASA dicipta serentak dengan Booking (rujuk
     _ensure_portal_user() di api/booking.py) — jadi function ni tak perlu
@@ -198,16 +183,7 @@ def send_magic_link_by_email(email):
     if not user:
         return {"status": "ok", "message": generic_msg}
 
-    customer_check = frappe.db.sql("""
-        SELECT dl.link_name
-        FROM `tabContact Email` ce
-        JOIN `tabContact` c ON c.name = ce.parent
-        JOIN `tabDynamic Link` dl ON dl.parent = c.name
-        WHERE ce.email_id = %s AND dl.link_doctype = 'Customer'
-        LIMIT 1
-    """, email, as_dict=True)
-
-    if not customer_check:
+    if not get_customer_by_email(email):
         return {"status": "ok", "message": generic_msg}
 
     expiry_minutes = 30
@@ -235,7 +211,7 @@ def send_magic_link_by_email(email):
 
     frappe.sendmail(
         recipients=[email],
-        sender="no-reply@rarecruise.com",
+        # Sender TIDAK di-hardcode — rujuk nota di forgot_password().
         subject="Rarecation Portal — Log Masuk",
         message="""
             <div style="font-family:'DM Sans',sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
@@ -274,7 +250,7 @@ def send_magic_link_by_email(email):
 
 
 @frappe.whitelist(allow_guest=True)
-def login_via_portal_key(key):
+def login_via_portal_key(key: str):
     """Custom magic-link login — pengganti frappe.www.login.login_via_key.
     Dua sebab kenapa perlu custom (bukan guna Frappe punya built-in):
       1. Expiry-only, BUKAN one-time — key TIDAK dipadam selepas guna,

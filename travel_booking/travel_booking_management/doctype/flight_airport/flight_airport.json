@@ -11,7 +11,8 @@
   "airport_code",
   "airport_name",
   "airport_city",
-  "airport_country"
+  "airport_country",
+  "currency"
  ],
  "fields": [
   {
@@ -46,12 +47,21 @@
    "in_list_view": 1,
    "label": "Airport Country",
    "options": "Country"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Currency",
+   "options": "Currency"
   }
  ],
  "grid_page_length": 50,
  "hide_toolbar": 1,
  "links": [],
- "modified": "2026-07-22 12:05:46.430964",
+ "modified": "2026-07-26 07:55:36.043300",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Flight Airport",

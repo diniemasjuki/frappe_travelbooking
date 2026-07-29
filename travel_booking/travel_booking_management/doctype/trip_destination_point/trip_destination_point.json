@@ -1,0 +1,107 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_copy": 1,
+ "allow_rename": 1,
+ "autoname": "field:destination_name",
+ "creation": "2026-07-23 08:13:58.233855",
+ "default_view": "List",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "destination_name",
+  "destination_name_view",
+  "destination_country",
+  "column_break_jtkc",
+  "destination_image",
+  "image_reli",
+  "section_break_ccol",
+  "destination_description"
+ ],
+ "fields": [
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "destination_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Destination Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "destination_name_view",
+   "fieldtype": "Data",
+   "is_virtual": 1,
+   "label": "Destination",
+   "options": "doc.destination_name"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "destination_country",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Destination Country",
+   "options": "Country",
+   "remember_last_selected_value": 1
+  },
+  {
+   "fieldname": "column_break_jtkc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "destination_image",
+   "fieldtype": "Attach Image",
+   "label": "Destination Image"
+  },
+  {
+   "fieldname": "image_reli",
+   "fieldtype": "Image",
+   "is_virtual": 1,
+   "options": "doc.destination_image"
+  },
+  {
+   "fieldname": "section_break_ccol",
+   "fieldtype": "Section Break"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "destination_description",
+   "fieldtype": "Text Editor",
+   "label": "Destination Description"
+  }
+ ],
+ "grid_page_length": 50,
+ "hide_toolbar": 1,
+ "image_field": "destination_image",
+ "links": [],
+ "modified": "2026-07-23 08:39:11.556996",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Trip Destination Point",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "destination_name,destination_country",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "destination_name"
+}

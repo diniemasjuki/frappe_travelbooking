@@ -7,6 +7,8 @@ import json
 import random
 import string
 
+from travel_booking.api._helpers import get_customer_by_email, get_customer_email
+
 
 # ══════════════════════════════════════════════
 # 0. GET PAYMENT SETTINGS (Bank Account + Cashback)
@@ -29,12 +31,31 @@ def get_payment_settings():
     }
 
 
+@frappe.whitelist(allow_guest=True)
+def get_sales_persons():
+    """Senarai Sales Person aktif (staff dalaman RareCruise) untuk dropdown
+    optional di wizard booking. Customer boleh pilih staff yang uruskan
+    booking dia — disimpan terus dalam Sales Order punya child table
+    'Sales Team' sahaja (bukan Booking doctype).
+
+    NOTA: 'Sales Person' adalah Tree doctype (macam Item Group/Territory) —
+    ada node 'Group' (folder organisasi, cth root 'Sales Team') yang BUKAN
+    staff sebenar. is_group=0 elak folder ni tersalah masuk sebagai pilihan.
+    """
+    return frappe.get_all(
+        "Sales Person",
+        filters={"enabled": 1, "is_group": 0},
+        fields=["name", "sales_person_name"],
+        order_by="sales_person_name ASC",
+    )
+
+
 # ══════════════════════════════════════════════
 # 1. GET BOOKING DETAILS
 # ══════════════════════════════════════════════
 
 @frappe.whitelist(allow_guest=True)
-def get_wizard_confirmation(booking_number, pr=None):
+def get_wizard_confirmation(booking_number: str, pr: str = None):
     """Data ringan untuk papar step Confirm selepas redirect dari checkout (Stripe).
     Tiada data sensitif traveller — hanya untuk paparan status booking.
     Loose-token check via 'pr' (Payment Request) untuk elak sesiapa teka booking_number.
@@ -42,10 +63,10 @@ def get_wizard_confirmation(booking_number, pr=None):
     booking = frappe.db.sql("""
         SELECT
             b.name, b.booking_number, b.status,
-            tm.trip_name, td.sailing_no, td.departure_date, td.return_date
+            tm.trip_name, td.trip_group_name, td.departure_date, td.return_date
         FROM `tabBooking` b
-        LEFT JOIN `tabTrip Date`   td ON td.name = b.trip_date
-        LEFT JOIN `tabTrip Master` tm ON tm.name = td.trip_master
+        LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
+        LEFT JOIN `tabTrip` tm ON tm.name = td.trip
         WHERE b.booking_number = %s
     """, booking_number, as_dict=True)
 
@@ -73,7 +94,7 @@ def get_wizard_confirmation(booking_number, pr=None):
         "booking_number":  booking.booking_number,
         "booking_status":  booking.status,
         "trip_name":       booking.trip_name or "",
-        "group_name":      booking.sailing_no or "",
+        "group_name":      booking.trip_group_name or "",
         "departure_date":  str(booking.departure_date) if booking.departure_date else "",
         "return_date":     str(booking.return_date) if booking.return_date else "",
         "grand_total":     grand_total,
@@ -83,46 +104,49 @@ def get_wizard_confirmation(booking_number, pr=None):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_booking_details(trip_date, trip_package=None):
+def get_booking_details(trip_group_date: str, trip_package: str = None):
     """Return trip + sailing info + cabin categories with pricing.
-    Pricing dibaca dari Room Pricing (child Trip Date).
+    Pricing dibaca dari Trip Package Price (child Trip Package), setiap
+    row berkait dengan satu Trip Price Category (kategori bilik/kabin).
     Room Availability dibuang — inventori bilik diurus manual oleh admin.
     """
     td = frappe.db.get_value(
-        "Trip Date", trip_date,
-        ["name", "trip_master", "sailing_no", "status",
+        "Trip Group Date", trip_group_date,
+        ["name", "trip", "trip_group_name", "trip_group_code", "status",
          "departure_date", "return_date", "sailing_start", "sailing_end",
-         "ship_name", "cruise_line", "embarkation_port", "disembarkation_port"],
+         "ship_name", "ship_code", "total_days", "total_nights",
+         "embarkation_port", "disembarkation_port"],
         as_dict=True
     )
     if not td:
-        frappe.throw("Trip Date tidak ditemui.")
+        frappe.throw("Trip Group Date tidak ditemui.")
 
     trip = frappe.db.get_value(
-        "Trip Master", td.trip_master,
-        ["name", "trip_name", "trip_type", "trip_code",
-         "duration_days", "duration_nights", "description"],
+        "Trip", td.trip,
+        ["name", "trip_name", "trip_code", "description", "is_a_cruise_trip"],
         as_dict=True
     )
     if not trip:
         frappe.throw("Trip tidak ditemui.")
 
-    # Pricing rows dari Room Pricing child table
+    # Pricing rows dari Trip Package Price (child Trip Package), JOIN
+    # Trip Price Category untuk dapatkan maklumat kategori bilik/kabin.
     pricing_rows = frappe.db.sql("""
         SELECT
-            rp.room_category,
-            rc.room_type,
-            rc.capacity,
-            rc.description,
-            rp.price_twin,
-            rp.price_single,
-            rp.price_third,
-            rp.price_child,
-            rp.price_infant
-        FROM `tabRoom Pricing` rp
-        JOIN `tabRoom Category` rc ON rc.name = rp.room_category
-        WHERE rp.parent = %s AND rp.parenttype = 'Trip Package'
-        ORDER BY rp.idx ASC
+            tpp.pricing_for_class AS room_category,
+            tpc.category_name,
+            tpc.room_type,
+            tpc.capacity,
+            tpc.max_capacity,
+            tpc.description,
+            tpp.price_adult_single,
+            tpp.price_adult,
+            tpp.price_adult_upperberth,
+            tpp.price_infant
+        FROM `tabTrip Package Price` tpp
+        JOIN `tabTrip Price Category` tpc ON tpc.name = tpp.pricing_for_class
+        WHERE tpp.parent = %s AND tpp.parenttype = 'Trip Package'
+        ORDER BY tpp.idx ASC
     """, trip_package, as_dict=True)
 
     cabins = []
@@ -133,16 +157,16 @@ def get_booking_details(trip_date, trip_package=None):
 
         cabins.append({
             "room_category": row.room_category,
-            "room_name":     row.room_category,
+            "room_name":     row.category_name or row.room_category,
             "room_type":     row.room_type,
             "capacity":      row.capacity or 2,
+            "max_capacity":  row.max_capacity or row.capacity or 2,
             "description":   row.description or "",
             "pricing": {
-                "price_twin":   float(row.price_twin   or 0),
-                "price_single": float(row.price_single or 0),
-                "price_third":  float(row.price_third  or 0),
-                "price_child":  float(row.price_child  or 0),
-                "price_infant": float(row.price_infant or 0),
+                "price_adult_single":     float(row.price_adult_single     or 0),
+                "price_adult":            float(row.price_adult           or 0),
+                "price_adult_upperberth": float(row.price_adult_upperberth or 0),
+                "price_infant":           float(row.price_infant          or 0),
             },
             "available":    available,
             "is_available": available > 0,
@@ -150,21 +174,22 @@ def get_booking_details(trip_date, trip_package=None):
 
     return {
         "trip": {
-            "name":            trip.name,
-            "trip_name":       trip.trip_name,
-            "trip_type":       trip.trip_type,
-            "trip_code":       trip.trip_code,
-            "duration_days":   trip.duration_days,
-            "duration_nights": trip.duration_nights,
-            "description":     trip.description or "",
+            "name":             trip.name,
+            "trip_name":        trip.trip_name,
+            "trip_code":        trip.trip_code,
+            "description":      trip.description or "",
+            "is_a_cruise_trip": bool(trip.is_a_cruise_trip),
         },
-        "trip_date": {
-            "name":           td.name,
-            "sailing_no":     td.sailing_no,
-            "departure_date": str(td.departure_date) if td.departure_date else "",
-            "return_date":    str(td.return_date)    if td.return_date    else "",
-            "ship_name":      td.ship_name or "",
-            "cruise_line":    td.cruise_line or "",
+        "trip_group_date": {
+            "name":             td.name,
+            "trip_group_name":  td.trip_group_name or "",
+            "trip_group_code":  td.trip_group_code or "",
+            "departure_date":   str(td.departure_date) if td.departure_date else "",
+            "return_date":      str(td.return_date)    if td.return_date    else "",
+            "total_days":       td.total_days or 0,
+            "total_nights":     td.total_nights or 0,
+            "ship_name":        td.ship_name or "",
+            "ship_code":        td.ship_code or "",
         },
         "cabins": cabins,
     }
@@ -175,21 +200,12 @@ def get_booking_details(trip_date, trip_package=None):
 # ══════════════════════════════════════════════
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-def send_otp(email):
+def send_otp(email: str):
     email = (email or "").strip().lower()
     if not email:
         frappe.throw("Sila masukkan alamat email.")
 
-    existing = frappe.db.sql("""
-        SELECT dl.link_name
-        FROM `tabContact Email` ce
-        JOIN `tabContact` c ON c.name = ce.parent
-        JOIN `tabDynamic Link` dl ON dl.parent = c.name
-        WHERE ce.email_id = %s AND dl.link_doctype = 'Customer'
-        LIMIT 1
-    """, email, as_dict=True)
-
-    if existing:
+    if get_customer_by_email(email):
         return {"verified": True, "message": "Email disahkan."}
 
     # ── Rate limiting — elak spam/abuse hantar OTP berulang-ulang ──
@@ -274,7 +290,7 @@ def send_otp(email):
 # ══════════════════════════════════════════════
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-def verify_otp(email, otp):
+def verify_otp(email: str, otp: str):
     email     = email.strip().lower()
     cache_key = "booking_otp_" + email
     stored    = frappe.cache().get_value(cache_key)
@@ -299,8 +315,21 @@ def verify_otp(email, otp):
 # ══════════════════════════════════════════════
 
 @frappe.whitelist(allow_guest=True)
-def validate_voucher(code, trip_date, grand_total, email=""):
-    """Validate voucher + return discount. Scope: trip / trip_date / room_category."""
+def validate_voucher(code: str, trip_group_date: str, grand_total: float, email: str = "",
+                     selections: str = "", trip_package: str = None):
+    """Validate voucher + kira discount ikut scope (Voucher doctype terkini).
+
+    PENTING — model diskaun: diskaun HANYA dikira dari subtotal cabin/room
+    yang match scope voucher (applicable_trips/applicable_packages/
+    applicable_room_categories), BUKAN dari grand_total keseluruhan. Kalau
+    scope kosong (semua 3 field), voucher applicable untuk semua — diskaun
+    dikira dari grand_total penuh.
+
+    `selections` (JSON list per-cabin, sama struktur dengan confirm_booking)
+    + `trip_package` diperlukan untuk kira subtotal ikut scope dengan tepat.
+    Kalau tak dihantar (contoh preview awal sebelum room dipilih), kita
+    fallback guna grand_total penuh sebagai anggaran.
+    """
     code        = (code or "").strip().upper()
     grand_total = float(grand_total or 0)
 
@@ -309,9 +338,8 @@ def validate_voucher(code, trip_date, grand_total, email=""):
 
     voucher = frappe.db.get_value(
         "Voucher", {"voucher_code": code},
-        ["name", "status", "voucher_type", "discount_value",
-         "valid_from", "valid_to", "max_uses", "used_count",
-         "trip", "trip_date", "room_category"],
+        ["name", "status", "discount_type", "discount_value",
+         "valid_from", "valid_until", "max_usage", "max_usage_per_customer"],
         as_dict=True
     )
 
@@ -320,45 +348,83 @@ def validate_voucher(code, trip_date, grand_total, email=""):
     if voucher.status != "Active":
         return {"valid": False, "message": "This voucher is no longer active."}
 
-    now = frappe.utils.now_datetime()
-    if voucher.valid_from and frappe.utils.get_datetime(voucher.valid_from) > now:
+    today = frappe.utils.getdate()
+    if voucher.valid_from and frappe.utils.getdate(voucher.valid_from) > today:
         return {"valid": False, "message": "This voucher is not yet valid."}
-    if voucher.valid_to and frappe.utils.get_datetime(voucher.valid_to) < now:
+    if voucher.valid_until and frappe.utils.getdate(voucher.valid_until) < today:
         return {"valid": False, "message": "This voucher has expired."}
 
-    if voucher.max_uses and (voucher.used_count or 0) >= voucher.max_uses:
+    # Usage count dikira LIVE dari child table 'usage' (bukan field
+    # berasingan) — satu sumber data sahaja, elak tak segerak.
+    usage_count = frappe.db.count("Voucher Usage", {"parent": voucher.name})
+    if voucher.max_usage and usage_count >= voucher.max_usage:
         return {"valid": False, "message": "This voucher has reached its maximum usage."}
 
-    # Scope check: trip_date
-    if voucher.trip_date and voucher.trip_date != trip_date:
-        return {"valid": False, "message": "This voucher is not valid for this sailing."}
+    # Once per customer (ikut max_usage_per_customer, default 1 kalau tak diisi)
+    customer = get_customer_by_email(email.strip().lower()) if email else None
+    if customer and voucher.max_usage_per_customer:
+        customer_usage = frappe.db.count(
+            "Voucher Usage", {"parent": voucher.name, "customer": customer}
+        )
+        if customer_usage >= voucher.max_usage_per_customer:
+            return {"valid": False, "message": "You have reached the usage limit for this voucher."}
 
-    # Scope check: trip (via trip_date.trip_master)
-    if voucher.trip:
-        td_trip = frappe.db.get_value("Trip Date", trip_date, "trip_master")
-        if voucher.trip != td_trip:
-            return {"valid": False, "message": "This voucher is not valid for this trip."}
+    # Scope: kosong semua 3 = applicable untuk semua trip/package/room.
+    scope_trips      = [r.trip          for r in frappe.get_all("Voucher Applicable Trip",          filters={"parent": voucher.name}, fields=["trip"])]
+    scope_packages   = [r.trip_package  for r in frappe.get_all("Voucher Applicable Package",        filters={"parent": voucher.name}, fields=["trip_package"])]
+    scope_categories = [r.room_category for r in frappe.get_all("Voucher Applicable Room Category",  filters={"parent": voucher.name}, fields=["room_category"])]
+    has_scope = bool(scope_trips or scope_packages or scope_categories)
 
-    # Once per customer
-    if email:
-        customer = _get_customer_by_email(email.strip().lower())
-        if customer:
-            already = frappe.db.exists(
-                "Voucher Usage", {"parent": voucher.name, "customer": customer}
-            )
-            if already:
-                return {"valid": False, "message": "You have already used this voucher."}
-
-    if voucher.voucher_type == "Percentage":
-        discount_amount = round(grand_total * (voucher.discount_value / 100), 2)
+    if not has_scope:
+        # Tiada scope — diskaun dikira dari grand_total penuh.
+        eligible_amount = grand_total
     else:
-        discount_amount = min(float(voucher.discount_value), grand_total)
+        # Ada scope — perlu selections + trip_package untuk kira subtotal
+        # cabin yang match sahaja.
+        if isinstance(selections, str) and selections:
+            selections = json.loads(selections)
+        if not selections or not trip_package:
+            # Tiada breakdown cabin dihantar — tak boleh kira scope dengan
+            # tepat. Anggap TIDAK eligible (selamat: elak over-discount).
+            return {"valid": False, "message": "Please select your rooms before applying this voucher."}
+
+        trip_of_package = frappe.db.get_value("Trip Package", trip_package, "trip_link")
+        package_ok = (not scope_packages) or (trip_package in scope_packages)
+        trip_ok    = (not scope_trips)    or (trip_of_package in scope_trips)
+
+        if not (package_ok and trip_ok):
+            return {"valid": False, "message": "This voucher is not valid for this trip or package."}
+
+        pricing_map = _get_pricing_map(trip_package)
+        eligible_amount = 0.0
+        for sel in selections:
+            room_category = sel.get("room_category")
+            if scope_categories and room_category not in scope_categories:
+                continue  # cabin ni tak match scope room category — skip
+            price = pricing_map.get(room_category)
+            if not price:
+                continue
+            eligible_amount += _price_selection(
+                price,
+                int(sel.get("main_guests", 0)),
+                int(sel.get("extra_beds", 0)),
+                int(sel.get("infants", 0)),
+            )
+
+        if eligible_amount <= 0:
+            return {"valid": False, "message": "None of your selected rooms are eligible for this voucher."}
+
+    if voucher.discount_type == "Percentage":
+        discount_amount = round(eligible_amount * (float(voucher.discount_value) / 100), 2)
+    else:
+        discount_amount = min(float(voucher.discount_value), eligible_amount)
 
     return {
         "valid":           True,
         "discount_amount": discount_amount,
-        "voucher_type":    voucher.voucher_type,
+        "discount_type":   voucher.discount_type,
         "discount_value":  voucher.discount_value,
+        "eligible_amount": eligible_amount,
         "message":         "Voucher applied! You save " + fmt_currency(discount_amount) + ".",
     }
 
@@ -372,22 +438,33 @@ def fmt_currency(amount):
 # ══════════════════════════════════════════════
 
 @frappe.whitelist(allow_guest=True)
-def validate_affiliate_code(code, trip_date=None):
-    """Validate referral/affiliate code. Discount % tetap sama untuk semua
-    trip — diambil dari Travel Settings.default_referral_discount_percent
-    (bukan dari Affliate atau Trip Date), ikut keputusan admin.
+def validate_affiliate_code(code: str, trip_group_date: str = None):
+    """Validate referral/affiliate code. Discount % kepada CUSTOMER tetap
+    sama untuk semua trip — diambil dari
+    Travel Settings.default_referral_discount_percent (bukan dari commission
+    rate affiliate, yang merupakan konsep berasingan diurus oleh app
+    'affiliate').
+
+    Referral code disimpan pada Sales Partner.referral_code (field native
+    ERPNext) — bukan doctype 'Affliate' yang tak wujud. Setiap Sales Partner
+    yang dicipta oleh app 'affiliate' link balik ke satu Affiliate Profile;
+    kita pastikan affiliate tu 'Verified' sebelum terima kod dia.
     """
     code = (code or "").strip().upper()
     if not code:
         return {"valid": False, "message": "Please enter a referral code."}
 
-    affiliate = frappe.db.get_value(
-        "Affliate", {"referral_code": code},
-        ["name", "affiliate_name", "status"], as_dict=True
+    sales_partner = frappe.db.get_value(
+        "Sales Partner", {"referral_code": code},
+        ["name", "partner_name"], as_dict=True
     )
-    if not affiliate:
+    if not sales_partner:
         return {"valid": False, "message": "Invalid referral code."}
-    if affiliate.status != "Active":
+
+    affiliate_status = frappe.db.get_value(
+        "Affiliate Profile", {"sales_partner": sales_partner.name}, "status"
+    )
+    if affiliate_status and affiliate_status != "Verified":
         return {"valid": False, "message": "This referral code is no longer active."}
 
     settings = frappe.get_cached_doc("Travel Settings")
@@ -399,7 +476,8 @@ def validate_affiliate_code(code, trip_date=None):
     return {
         "valid":            True,
         "discount_percent": discount_percent,
-        "affiliate_name":   affiliate.affiliate_name,
+        "affiliate_name":   sales_partner.partner_name,
+        "sales_partner":    sales_partner.name,
         "message":          "Referral code applied! You get " + str(discount_percent) + "% off.",
     }
 
@@ -409,35 +487,81 @@ def validate_affiliate_code(code, trip_date=None):
 # ══════════════════════════════════════════════
 
 def _get_pricing_map(trip_package):
-    """Return {room_category: {...}} dari Room Pricing (child Trip Package)."""
+    """Return {pricing_for_class: {...}} dari Trip Package Price (child
+    Trip Package). Setiap row berkait dengan satu Trip Price Category
+    (kategori bilik/kabin) melalui field 'pricing_for_class'.
+    """
     rows = frappe.db.sql("""
-        SELECT room_category, price_twin, price_single,
-               price_third, price_child, price_infant
-        FROM `tabRoom Pricing`
+        SELECT pricing_for_class AS room_category,
+               price_adult_single, price_adult, price_adult_upperberth,
+               price_children, price_toddler, price_infant
+        FROM `tabTrip Package Price`
         WHERE parent = %s AND parenttype = 'Trip Package'
     """, trip_package, as_dict=True)
     return {r.room_category: r for r in rows}
 
 
-def _price_selection(price, adults, children, infants):
-    """Kira harga satu selection ikut peraturan B.
-    1 adult = single; 2 adult = twin x2; adult ke-3+ = third.
+def _price_selection(price, main_guests, extra_beds, infants):
+    """Kira harga satu selection — model SLOT (posisi dalam bilik), bukan
+    kategori umur:
+      - main_guests == 1  -> price_adult_single (satu org, single occupancy)
+      - main_guests >= 2  -> price_adult x setiap org (twin/multi occupancy)
+      - extra_beds        -> price_adult_upperberth x setiap org, flat
+                             (tak kira umur), hanya sah bila main_guests
+                             sudah capai capacity (max) bilik tu
+      - infants           -> price_infant x setiap org (harga SEBENAR dari
+                             pakej, BUKAN percuma) — tak dikira dalam
+                             capacity bilik (Main Guest + Extra Bed)
     """
+    mg = int(main_guests or 0)
+    eb = int(extra_beds  or 0)
+    inf = int(infants    or 0)
+
     total = 0.0
-    a = int(adults or 0)
-    c = int(children or 0)
-    i = int(infants or 0)
+    if mg == 1:
+        total += float(price.price_adult_single or 0)
+    elif mg >= 2:
+        total += float(price.price_adult or 0) * mg
 
-    if a == 1:
-        total += float(price.price_single or price.price_twin or 0)
-    elif a >= 2:
-        total += float(price.price_twin or 0) * 2
-        if a > 2:
-            total += float(price.price_third or 0) * (a - 2)
-
-    total += float(price.price_child  or 0) * c
-    total += float(price.price_infant or 0) * i
+    total += float(price.price_adult_upperberth or 0) * eb
+    total += float(price.price_infant or 0) * inf
     return round(total, 2)
+
+
+def _validate_selection_capacity(selections, cabin_info_map):
+    """Sahkan setiap selection ikut had SLOT (server-side) — jangan percaya
+    client-side JS je, sebab payload boleh dimanipulasi.
+      - main_guests: 1..capacity
+      - extra_beds : 0..(max_capacity - capacity), hanya sah bila
+                     main_guests == capacity (bilik penuh Main Guest dulu)
+      - infants    : 0..floor(max_capacity / 2), hanya sah bila main_guests >= 2
+    cabin_info_map: {room_category: {"capacity":.., "max_capacity":..}}
+    """
+    for sel in selections:
+        room_category = sel.get("room_category")
+        info = cabin_info_map.get(room_category)
+        if not info:
+            frappe.throw("Kategori bilik tidak sah: " + str(room_category))
+
+        capacity     = int(info.get("capacity") or 0)
+        max_capacity = int(info.get("max_capacity") or capacity)
+        max_extra    = max(0, max_capacity - capacity)
+        max_infant   = max_capacity // 2
+
+        mg  = int(sel.get("main_guests", 0))
+        eb  = int(sel.get("extra_beds", 0))
+        inf = int(sel.get("infants", 0))
+
+        if mg < 1 or mg > capacity:
+            frappe.throw("Main Guest untuk " + str(room_category) + " mesti antara 1 dan " + str(capacity) + ".")
+        if eb > 0 and mg != capacity:
+            frappe.throw("Extra Bed hanya dibenarkan bila Main Guest sudah penuh (" + str(capacity) + ") untuk " + str(room_category) + ".")
+        if eb > max_extra:
+            frappe.throw("Extra Bed untuk " + str(room_category) + " melebihi had (" + str(max_extra) + ").")
+        if inf > 0 and mg < 2:
+            frappe.throw("Infant hanya dibenarkan bila Main Guest sekurang-kurangnya 2 untuk " + str(room_category) + ".")
+        if inf > max_infant:
+            frappe.throw("Infant untuk " + str(room_category) + " melebihi had (" + str(max_infant) + ").")
 
 
 # ══════════════════════════════════════════════
@@ -445,10 +569,10 @@ def _price_selection(price, adults, children, infants):
 # ══════════════════════════════════════════════
 
 @frappe.whitelist(allow_guest=True)
-def confirm_booking(trip_date, selections, billing,
-                    payment_type="Full Payment", payment_method="Online Payment",
-                    receipt=None, voucher_code="", affiliate_code="", amount_paid=None,
-                    trip_package=None):
+def confirm_booking(trip_group_date: str, selections: str, billing: str,
+                    payment_type: str = "Full Payment", payment_method: str = "Online Payment",
+                    receipt: str = None, voucher_code: str = "", affiliate_code: str = "", amount_paid: float = None,
+                    trip_package: str = None, sales_persons: str = None):
     if isinstance(selections, str):
         selections = json.loads(selections)
     if isinstance(billing, str):
@@ -457,7 +581,7 @@ def confirm_booking(trip_date, selections, billing,
     email = billing.get("email", "").strip().lower()
 
     is_verified       = frappe.cache().get_value("booking_email_verified_" + email)
-    existing_customer = _get_customer_by_email(email)
+    existing_customer = get_customer_by_email(email)
 
     if not existing_customer and not is_verified:
         frappe.throw("Email belum disahkan. Sila verify OTP dahulu.")
@@ -465,25 +589,40 @@ def confirm_booking(trip_date, selections, billing,
     customer_name = existing_customer or _create_customer(billing)
 
     # Trip info
-    td = frappe.db.get_value("Trip Date", trip_date,
-                             ["trip_master", "sailing_no", "departure_date"], as_dict=True)
+    td = frappe.db.get_value("Trip Group Date", trip_group_date,
+                             ["trip", "trip_group_name", "departure_date"], as_dict=True)
     if not td:
-        frappe.throw("Trip Date tidak ditemui.")
-    trip_name = frappe.db.get_value("Trip Master", td.trip_master, "trip_name") or ""
+        frappe.throw("Trip Group Date tidak ditemui.")
+    trip_name = frappe.db.get_value("Trip", td.trip, "trip_name") or ""
 
     if not trip_package:
         frappe.throw("Sila pilih pakej terlebih dahulu.")
 
     # Backend pricing (dari Trip Package yang dipilih)
     pricing_map = _get_pricing_map(trip_package)
-    so_items    = _build_so_items(selections, pricing_map, trip_name, td.sailing_no)
+
+    # Sahkan had slot (Main Guest/Extra Bed/Infant) server-side sebelum kira
+    # harga — cabin_info_map dari Trip Price Category (capacity/max_capacity).
+    cabin_info_rows = frappe.db.sql("""
+        SELECT tpp.pricing_for_class AS room_category,
+               tpc.capacity, tpc.max_capacity
+        FROM `tabTrip Package Price` tpp
+        JOIN `tabTrip Price Category` tpc ON tpc.name = tpp.pricing_for_class
+        WHERE tpp.parent = %s AND tpp.parenttype = 'Trip Package'
+    """, trip_package, as_dict=True)
+    cabin_info_map = {r.room_category: r for r in cabin_info_rows}
+    _validate_selection_capacity(selections, cabin_info_map)
+
+    so_items    = _build_so_items(selections, pricing_map, trip_name, td.trip_group_name)
     grand_total = sum(float(it["rate"]) * int(it["qty"]) for it in so_items)
     pre_discount_total = grand_total  # snapshot BEFORE any voucher/referral discount — used for affiliate commission calc later
 
-    # Voucher
+    # Voucher — hantar selections + trip_package supaya diskaun dikira ikut
+    # scope (subtotal cabin yang match sahaja), bukan grand_total keseluruhan.
     voucher_discount = 0
     if voucher_code:
-        vr = validate_voucher(voucher_code, trip_date, grand_total, billing.get("email", ""))
+        vr = validate_voucher(voucher_code, trip_group_date, grand_total,
+                              billing.get("email", ""), selections, trip_package)
         if vr.get("valid"):
             voucher_discount = float(vr.get("discount_amount", 0))
             grand_total = grand_total - voucher_discount
@@ -497,13 +636,17 @@ def confirm_booking(trip_date, selections, billing,
             })
 
     # Referral / Affiliate — Tier B: dikira dari baki SELEPAS voucher (sepadan
-    # dengan UI). Discount % tetap sama untuk semua trip (Travel Settings).
+    # dengan UI). Discount % kepada CUSTOMER tetap sama untuk semua trip
+    # (Travel Settings). sales_partner (bukan "Affliate" — doctype tu tak
+    # wujud) di-link terus ke SO di bawah, supaya hook automation app
+    # 'affiliate' (create_commission_if_eligible di Sales Order.on_update)
+    # dapat cipta Affiliate Commission untuk affiliate ni secara automatik.
     referral_discount = 0
-    affiliate_name    = None
+    sales_partner      = None
     if affiliate_code:
-        ar = validate_affiliate_code(affiliate_code, trip_date)
+        ar = validate_affiliate_code(affiliate_code, trip_group_date)
         if ar.get("valid"):
-            affiliate_name    = frappe.db.get_value("Affliate", {"referral_code": affiliate_code.strip().upper()}, "name")
+            sales_partner      = ar.get("sales_partner")
             referral_percent  = float(ar.get("discount_percent", 0))
             referral_discount = round(grand_total * (referral_percent / 100), 2)
             grand_total = grand_total - referral_discount
@@ -546,6 +689,37 @@ def confirm_booking(trip_date, selections, billing,
             "items":              so_items,
             "selling_price_list": "Standard Selling",
         }
+        if sales_partner:
+            so_payload["sales_partner"] = sales_partner
+        if sales_persons:
+            # Optional — staff dalaman RareCruise yang uruskan booking ni,
+            # boleh lebih dari SATU (customer tambah melalui "+ Add
+            # another" di wizard). Disimpan terus dalam SO's child table
+            # 'Sales Team' sahaja (bukan Booking doctype).
+            #
+            # NOTA PENTING: ERPNext ENFORCE "Total allocated percentage for
+            # sales team should be 100" semasa simpan Sales Order — kita
+            # TAK BOLEH biarkan allocated_percentage kosong/0 macam rancangan
+            # asal (admin tak boleh isi sendiri lepas ni sebab SO gagal
+            # simpan dari awal). Jadi kita auto-bahagi SAMA RATA merentasi
+            # semua sales person dipilih — customer tak nampak/isi peratus
+            # ni langsung, cuma teknikal untuk penuhi validation ERPNext.
+            # Admin boleh edit manual di Desk kemudian kalau nak nisbah lain.
+            sp_list = sales_persons
+            if isinstance(sp_list, str):
+                sp_list = json.loads(sp_list)
+            sp_list = [sp for sp in (sp_list or []) if sp]  # buang kosong/duplikat
+            sp_list = list(dict.fromkeys(sp_list))
+            if sp_list:
+                n = len(sp_list)
+                base_pct = round(100.0 / n, 2)
+                rows = []
+                for i, sp in enumerate(sp_list):
+                    # Baris terakhir dapat baki supaya jumlah TEPAT 100.00
+                    # (elak ralat float, cth 3 orang: 33.33+33.33+33.34=100).
+                    pct = base_pct if i < n - 1 else round(100.0 - base_pct * (n - 1), 2)
+                    rows.append({"sales_person": sp, "allocated_percentage": pct})
+                so_payload["sales_team"] = rows
         if cashback_percent > 0:
             if not settings.cashback_discount_account:
                 frappe.throw("Cashback Discount Account belum ditetapkan dalam Travel Settings.")
@@ -586,7 +760,7 @@ def confirm_booking(trip_date, selections, billing,
     # kemudian (isian tu yang trigger status "Processing").
     booking = frappe.get_doc({
         "doctype":        "Booking",
-        "trip_date":      trip_date,
+        "trip_date":      trip_group_date,
         "trip_package":   trip_package,
         "customer":       customer_name,
         "status":         "Pending",
@@ -595,8 +769,7 @@ def confirm_booking(trip_date, selections, billing,
         "payment_type":   payment_type,
         "deposit_amount": deposit_amount if payment_type == "Deposit" else 0,
         "booking_number": _generate_booking_number(),
-        "affiliate":            affiliate_name if referral_discount > 0 else None,
-        "referral_code_used":   affiliate_code.strip().upper() if referral_discount > 0 else "",
+        "affiliate":            sales_partner if referral_discount > 0 else None,
         "pre_discount_total":   pre_discount_total,
     })
     booking.insert(ignore_permissions=True)
@@ -624,7 +797,7 @@ def confirm_booking(trip_date, selections, billing,
     res_created = 0  # dicipta bila Confirmed (hook Payment Entry)
 
     if voucher_code and voucher_discount > 0:
-        _use_voucher(voucher_code, customer_name, booking.name)
+        _use_voucher(voucher_code, customer_name, booking.name, voucher_discount)
 
     # Online Payment → jana Stripe payment URL (bayar ikut payment_type: deposit/full)
     # PENTING: emel "Pending" TIDAK dihantar di sini untuk Online Payment.
@@ -772,29 +945,6 @@ def _create_payment_url(customer_name, so_name, amount, booking_number):
         return ""
 
 
-def _get_customer_email_by_name(customer_name):
-    result = frappe.db.sql("""
-        SELECT ce.email_id
-        FROM `tabContact Email` ce
-        JOIN `tabContact` c ON c.name = ce.parent
-        JOIN `tabDynamic Link` dl ON dl.parent = c.name
-        WHERE dl.link_doctype = 'Customer' AND dl.link_name = %s
-        ORDER BY ce.is_primary DESC LIMIT 1
-    """, customer_name, as_dict=True)
-    return result[0].email_id if result else None
-
-
-def _get_customer_by_email(email):
-    result = frappe.db.sql("""
-        SELECT dl.link_name
-        FROM `tabContact Email` ce
-        JOIN `tabContact` c ON c.name = ce.parent
-        JOIN `tabDynamic Link` dl ON dl.parent = c.name
-        WHERE ce.email_id = %s AND dl.link_doctype = 'Customer'
-        LIMIT 1
-    """, email, as_dict=True)
-    return result[0].link_name if result else None
-
 
 def _create_customer(billing):
     customer = frappe.get_doc({
@@ -819,48 +969,45 @@ def _create_customer(billing):
     return customer.name
 
 
-def _build_so_items(selections, pricing_map, trip_name="", sailing_no=""):
-    """Bina SO items dengan harga dari backend pricing_map."""
+def _build_so_items(selections, pricing_map, trip_name="", group_label=""):
+    """Bina SO items dengan harga dari backend pricing_map.
+    Model SLOT (posisi bilik): Main Guest (single/twin) / Extra Bed /
+    Infant. Harga ditentukan oleh SLOT, bukan label umur — kecuali Infant
+    yang sentiasa guna price_infant sendiri.
+    """
     items        = []
     default_item = _get_or_create_travel_item()
 
     for cabin_no, sel in enumerate(selections, start=1):
         room_category = sel.get("room_category")
-        adults        = int(sel.get("adults", 0))
-        children      = int(sel.get("children", 0))
+        main_guests   = int(sel.get("main_guests", 0))
+        extra_beds    = int(sel.get("extra_beds", 0))
         infants       = int(sel.get("infants", 0))
 
         price = pricing_map.get(room_category)
         if not price:
             frappe.throw("Harga tidak ditemui untuk kategori: " + str(room_category))
 
-        # Adult
-        if adults == 1:
-            items.append(_so_line(default_item, room_category, "Adult (Single)",
-                                  1, float(price.price_single or price.price_twin or 0),
-                                  trip_name, sailing_no, cabin_no))
-        elif adults >= 2:
-            items.append(_so_line(default_item, room_category, "Adult (Twin)",
-                                  2, float(price.price_twin or 0),
-                                  trip_name, sailing_no, cabin_no))
-            if adults > 2:
-                items.append(_so_line(default_item, room_category, "Adult (3rd Pax)",
-                                      adults - 2, float(price.price_third or 0),
-                                      trip_name, sailing_no, cabin_no))
-        # Child
-        if children > 0:
-            items.append(_so_line(default_item, room_category, "Child",
-                                  children, float(price.price_child or 0),
-                                  trip_name, sailing_no, cabin_no))
-        # Infant
+        if main_guests == 1:
+            items.append(_so_line(default_item, room_category, "Main Guest (Single)",
+                                  1, float(price.price_adult_single or 0),
+                                  trip_name, group_label, cabin_no))
+        elif main_guests >= 2:
+            items.append(_so_line(default_item, room_category, "Main Guest",
+                                  main_guests, float(price.price_adult or 0),
+                                  trip_name, group_label, cabin_no))
+        if extra_beds > 0:
+            items.append(_so_line(default_item, room_category, "Extra Bed",
+                                  extra_beds, float(price.price_adult_upperberth or 0),
+                                  trip_name, group_label, cabin_no))
         if infants > 0:
             items.append(_so_line(default_item, room_category, "Infant",
                                   infants, float(price.price_infant or 0),
-                                  trip_name, sailing_no, cabin_no))
+                                  trip_name, group_label, cabin_no))
     return items
 
 
-def _so_line(item_code, room_category, pax_type, qty, rate, trip_name, sailing_no, cabin_no=1):
+def _so_line(item_code, room_category, pax_type, qty, rate, trip_name, group_label, cabin_no=1):
     cabin_tag = "Cabin " + str(cabin_no)
     return {
         "item_code":   item_code,
@@ -868,7 +1015,7 @@ def _so_line(item_code, room_category, pax_type, qty, rate, trip_name, sailing_n
         "qty":         qty,
         "rate":        rate,
         "uom":         "Nos",
-        "description": trip_name + " | " + sailing_no + " | " + room_category + " | " + cabin_tag + " | " + pax_type,
+        "description": trip_name + " | " + group_label + " | " + room_category + " | " + cabin_tag + " | " + pax_type,
     }
 
 
@@ -892,7 +1039,7 @@ def _get_or_create_travel_item():
 
 def _cabin_layout_from_so(so_name):
     """Susunan cabin dari SO items (SO = sumber tunggal), ikut turutan cabin.
-    description: 'Trip | Sailing | Room Category | Cabin N | Pax Type'.
+    description: 'Trip | Group Label | Room Category | Cabin N | Pax Type'.
     Return: [{cabin_no, room_category, pax}] disusun ikut cabin_no.
     """
     items = frappe.db.get_all("Sales Order Item",
@@ -916,11 +1063,12 @@ def _cabin_layout_from_so(so_name):
 
 
 def _activate_booking(booking_name):
-    """Cipta Reservation (status Active) bila booking Confirmed. Idempotent.
-    Reservation dicipta dengan room_category sahaja; flight & stateroom admin assign.
-    Cabin layout diambil dari SO UTAMA (cabin booking asal), bukan addon SO.
+    """Cipta Booking Reservation (status Confirmed) bila booking Confirmed.
+    Idempotent. Reservation dicipta dengan room_category sahaja; flight &
+    stateroom admin assign. Cabin layout diambil dari SO UTAMA (cabin
+    booking asal), bukan addon SO.
     """
-    if frappe.db.count("Reservation", {"booking": booking_name}):
+    if frappe.db.count("Booking Reservation", {"booking": booking_name}):
         return 0
     so_name = _get_primary_so(booking_name)
     if not so_name:
@@ -929,7 +1077,7 @@ def _activate_booking(booking_name):
     for cabin in _cabin_layout_from_so(so_name):
         for _ in range(int(cabin.get("pax", 0))):
             frappe.get_doc({
-                "doctype":         "Reservation",
+                "doctype":         "Booking Reservation",
                 "booking":         booking_name,
                 "room_category":   cabin.get("room_category"),
                 "status":          "Confirmed",
@@ -1109,7 +1257,7 @@ def mark_completed_trips(booking_name=None):
     bookings = frappe.db.sql("""
         SELECT b.name
         FROM `tabBooking` b
-        JOIN `tabTrip Date` td ON td.name = b.trip_date
+        JOIN `tabTrip Group Date` td ON td.name = b.trip_date
         WHERE b.status = 'Confirmed'
           AND td.departure_date IS NOT NULL
           AND td.departure_date < %(today)s
@@ -1129,14 +1277,17 @@ def mark_completed_trips(booking_name=None):
 
 
 def _release_voucher_for_booking(booking_name):
-    """Lepaskan voucher yang diguna booking ni (decrement used_count + buang usage row)."""
+    """Lepaskan voucher yang diguna booking ni (buang usage row).
+    usage_count dikira live dari child table, jadi cukup buang row sahaja
+    — tiada field counter berasingan untuk decrement.
+    """
     for u in frappe.db.get_all("Voucher Usage",
                                filters={"booking": booking_name},
                                fields=["parent"]):
         try:
+            frappe.db.sql("SELECT name FROM `tabVoucher` WHERE name = %s FOR UPDATE", u.parent)
             v = frappe.get_doc("Voucher", u.parent)
             v.usage = [row for row in v.usage if row.booking != booking_name]
-            v.used_count = max(0, (v.used_count or 0) - 1)
             v.save(ignore_permissions=True)
         except Exception:
             pass
@@ -1150,10 +1301,10 @@ def _cancel_booking_cascade(booking_doc):
     admin nampak booking ni perlukan proses refund (Pending Refund/Refunded
     ditetapkan admin secara manual selepas refund diproses melalui bank/Stripe).
     """
-    for r in frappe.get_all("Reservation",
+    for r in frappe.get_all("Booking Reservation",
                             filters={"booking": booking_doc.name, "status": "Confirmed"},
                             fields=["name"]):
-        res = frappe.get_doc("Reservation", r.name)
+        res = frappe.get_doc("Booking Reservation", r.name)
         res.status = "Cancelled"
         res.save(ignore_permissions=True)
 
@@ -1183,20 +1334,28 @@ def _cancel_booking_cascade(booking_doc):
         frappe.db.set_value("Booking", booking_doc.name, "payment_status", "Request Refund")
 
 
-def _use_voucher(code, customer_name, booking_name):
-    """Increment used_count + record usage."""
+def _use_voucher(code, customer_name, booking_name, discount_amount=0):
+    """Rekod penggunaan voucher — tambah row ke child table 'usage'.
+    Guna document lock (frappe.get_doc + for_update melalui db lock semasa
+    load) untuk elak race condition kalau dua booking guna kod yang sama
+    hampir serentak. usage_count TIDAK disimpan berasingan — dikira live
+    dari bilangan row dalam 'usage' (satu sumber data).
+    """
     try:
         code = (code or "").strip().upper()
         voucher_name = frappe.db.get_value("Voucher", {"voucher_code": code}, "name")
         if not voucher_name:
             return
+        # Lock row Voucher semasa baca supaya dua request serentak tak
+        # boleh sama-sama load versi lama dan overwrite usage row masing².
+        frappe.db.sql("SELECT name FROM `tabVoucher` WHERE name = %s FOR UPDATE", voucher_name)
         voucher_doc = frappe.get_doc("Voucher", voucher_name)
         voucher_doc.append("usage", {
-            "customer":  customer_name,
-            "booking":   booking_name,
-            "used_date": frappe.utils.now_datetime(),
+            "customer":        customer_name,
+            "booking":         booking_name,
+            "discount_amount": discount_amount,
+            "used_on":         frappe.utils.now_datetime(),
         })
-        voucher_doc.used_count = (voucher_doc.used_count or 0) + 1
         voucher_doc.save(ignore_permissions=True)
     except Exception as e:
         frappe.log_error("Voucher usage tracking failed: " + str(e), "Voucher Error")
@@ -1303,7 +1462,10 @@ def _send_set_password_email(email, first_name):
 
         frappe.sendmail(
             recipients=[email],
-            sender="no-reply@rarecruise.com",
+            # Sender TIDAK di-hardcode — biar Frappe guna default Outgoing
+            # Email Account, sama macam send_otp(). Hardcode domain lain
+            # dari domain sebenar site punca email silently gagal/masuk
+            # spam (SPF/DKIM mismatch).
             subject=subject,
             message=message,
             now=True
@@ -1329,10 +1491,10 @@ def _booking_email_context(booking_name):
     trip_name = ""
     group_name = ""
     if b.trip_date:
-        td = frappe.db.get_value("Trip Date", b.trip_date, ["trip_master", "sailing_no"], as_dict=True)
+        td = frappe.db.get_value("Trip Group Date", b.trip_date, ["trip", "trip_group_name"], as_dict=True)
         if td:
-            group_name = td.sailing_no or ""
-            trip_name = frappe.db.get_value("Trip Master", td.trip_master, "trip_name") or ""
+            group_name = td.trip_group_name or ""
+            trip_name = frappe.db.get_value("Trip", td.trip, "trip_name") or ""
     grand_total   = 0
     advance_paid  = 0
     for so_name in _get_all_booking_sales_orders(booking_name):
@@ -1342,7 +1504,7 @@ def _booking_email_context(booking_name):
             grand_total  += so_vals.grand_total  or 0
             advance_paid += so_vals.advance_paid or 0
     return {
-        "email":           _get_customer_email_by_name(b.customer),
+        "email":           get_customer_email(b.customer),
         "full_name":       frappe.db.get_value("Customer", b.customer, "customer_name") or "Customer",
         "booking_number":  b.booking_number,
         "trip_name":       trip_name,
@@ -1408,7 +1570,7 @@ def _send_status_email(booking_name, status, email_override=None):
 
         frappe.sendmail(
             recipients=[email],
-            sender="no-reply@rarecruise.com",
+            # Sender TIDAK di-hardcode — rujuk nota di _send_set_password_email().
             subject=subject,
             message=message,
             now=True
@@ -1440,7 +1602,7 @@ def _send_receipt_email(pe_doc):
     try:
         if pe_doc.party_type != "Customer" or not pe_doc.party:
             return
-        email = _get_customer_email_by_name(pe_doc.party)
+        email = get_customer_email(pe_doc.party)
         if not email:
             return
         full_name  = frappe.db.get_value("Customer", pe_doc.party, "customer_name") or "Customer"
@@ -1478,7 +1640,7 @@ def _send_receipt_email(pe_doc):
 
         frappe.sendmail(
             recipients=[email],
-            sender="no-reply@rarecruise.com",
+            # Sender TIDAK di-hardcode — rujuk nota di _send_set_password_email().
             subject=subject,
             message=message,
             attachments=attachments,
