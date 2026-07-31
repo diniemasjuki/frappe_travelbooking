@@ -121,6 +121,26 @@ async function openPortal(bookingName) {
   const bk = SESSION.bookings.find(b => (b.booking_number || b.name) === bookingName);
   if (!bk) return;
 
+  // PENTING: reset sub-tab balik ke 'Trip Details' (td) SETIAP kali booking
+  // baru dibuka. Sebelum ni, kalau customer sebelumnya berada di tab
+  // 'Payment & Invoice' (pi) untuk booking LAIN, klik balik ke 'My Bookings'
+  // lalu buka booking BAHARU — tab 'pi' kekal aktif (class 'on' tak pernah
+  // ditanggalkan) dengan KANDUNGAN LAMA yang tak pernah refresh, sebab
+  // loadBookingPayments() cuma dipanggil oleh showTab('pi', ...) bila tab
+  // tu diklik SECARA EKSPLISIT — bukan automatik bila booking baru dibuka.
+  // Customer nampak data booking SEBELUMNYA di bawah header booking BAHARU,
+  // sehingga klik tab 'Trip Details' -> 'Payment & Invoice' semula (yang
+  // barulah cetuskan refresh sebenar). Reset ke 'td' di sini pastikan tab
+  // 'pi' (kalau ada data lama) tak kelihatan langsung sehingga customer
+  // sendiri klik dia — pada masa tu loadBookingPayments() akan jalan
+  // dengan BOOKING punya nilai TERKINI dan papar data yang betul.
+  document.querySelectorAll('#S-portal .page').forEach(p => p.classList.remove('on'));
+  const tdPanel = document.getElementById('p-td');
+  if (tdPanel) tdPanel.classList.add('on');
+  document.querySelectorAll('#S-portal .tab').forEach(t => t.classList.remove('on'));
+  const tdTabBtn = document.querySelector('#S-portal .tab[onclick*="showTab(\'td\'"]');
+  if (tdTabBtn) tdTabBtn.classList.add('on');
+
   renderNav();
   const bref = bk.booking_number || bk.name;
   document.getElementById('portal-bk-ref').textContent      = bref;

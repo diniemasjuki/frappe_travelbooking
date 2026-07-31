@@ -85,9 +85,9 @@ def get_wizard_confirmation(booking_number: str, pr: str = None):
     advance_paid = 0
     if primary_so:
         so = frappe.db.get_value("Sales Order", primary_so,
-                                 ["grand_total", "advance_paid"], as_dict=True)
+                                 ["grand_total", "rounded_total", "advance_paid"], as_dict=True)
         if so:
-            grand_total  = float(so.grand_total or 0)
+            grand_total  = float(so.rounded_total or so.grand_total or 0)
             advance_paid = float(so.advance_paid or 0)
 
     return {
@@ -141,7 +141,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             tpc.description,
             tpp.price_adult_single,
             tpp.price_adult,
-            tpp.price_adult_upperberth,
+            tpp.price_upperberth,
             tpp.price_infant
         FROM `tabTrip Package Price` tpp
         JOIN `tabTrip Price Category` tpc ON tpc.name = tpp.pricing_for_class
@@ -165,7 +165,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             "pricing": {
                 "price_adult_single":     float(row.price_adult_single     or 0),
                 "price_adult":            float(row.price_adult           or 0),
-                "price_adult_upperberth": float(row.price_adult_upperberth or 0),
+                "price_upperberth": float(row.price_upperberth or 0),
                 "price_infant":           float(row.price_infant          or 0),
             },
             "available":    available,
@@ -205,7 +205,45 @@ def send_otp(email: str):
     if not email:
         frappe.throw("Sila masukkan alamat email.")
 
-    if get_customer_by_email(email):
+    # ── Rate limiting IKUT IP — WAJIB berlaku SEBELUM sebarang cawangan
+    # logik lain (termasuk check existing customer di bawah). ──
+    #
+    # PENTING (perlanggaran keselamatan yang dibetulkan di sini): endpoint
+    # ni allow_guest=True (sesiapa, tanpa login, boleh panggil). Cawangan
+    # "email existing" (return verified:True) di bawah SEBELUM ni langsung
+    # TIADA had kadar — sesiapa boleh cuba beribu-ribu alamat email sesaat
+    # dan sistem akan DEDAHKAN sama ada setiap satu tu customer sedia ada
+    # RareCruise atau tidak (melalui verified:true vs verified:false). Ini
+    # "email enumeration" — bocor senarai pelanggan sistem kepada
+    # sesiapa sahaja tanpa had. Had kadar sebelum ni (cooldown/hourly)
+    # cuma terpakai untuk cawangan "email baru" (hantar OTP sebenar),
+    # BUKAN untuk cawangan existing-customer yang justeru paling mudah
+    # disalah guna untuk scraping (tiada kos hantar emel pun). Kita had
+    # di peringkat IP di SINI — sebelum cawangan mana-mana — supaya
+    # kedua-dua cawangan terhad kadar yang sama.
+    #
+    # Had digenerus (30/minit) berbanding had per-email (5/jam) sebab
+    # tujuannya lain: ni untuk block scraping pukal pantas dari SATU IP
+    # merentasi BANYAK email, bukan untuk had customer tunggal minta OTP
+    # berulang (yang dah diuruskan cooldown_key/hourly_key di bawah).
+    client_ip = frappe.local.request_ip or "unknown"
+    ip_rate_key = "send_otp_ip_" + client_ip
+    ip_count = frappe.cache().get_value(ip_rate_key)
+    if ip_count and int(ip_count) >= 30:
+        frappe.throw("Terlalu banyak permintaan. Sila cuba lagi sebentar.")
+    frappe.cache().set_value(ip_rate_key, str(int(ip_count or 0) + 1), expires_in_sec=60)
+
+    # PENTING: check kewujudan "User" (akaun portal login), BUKAN
+    # "Customer" (rekod pelanggan ERPNext). Docname User = alamat email
+    # (rujuk _ensure_portal_user() di bawah, yang cipta User dengan
+    # docname = email semasa booking pertama). User wujud = signal yang
+    # LEBIH TEPAT untuk "orang ni dah pernah verify emel & ada akses
+    # portal" berbanding sekadar Customer wujud — sebab Customer BOLEH
+    # dicipta tanpa emel pernah disahkan langsung (cth admin cipta
+    # Customer terus di Desk, atau import data pukal) — kes tu Customer
+    # wujud tapi orang tu tak pernah verify email ni sendiri, jadi tak
+    # patut skip OTP.
+    if frappe.db.exists("User", email):
         return {"verified": True, "message": "Email disahkan."}
 
     # ── Rate limiting — elak spam/abuse hantar OTP berulang-ulang ──
@@ -470,15 +508,28 @@ def validate_affiliate_code(code: str, trip_group_date: str = None):
     settings = frappe.get_cached_doc("Travel Settings")
     discount_percent = float(settings.default_referral_discount_percent or 0)
 
-    if discount_percent <= 0:
-        return {"valid": False, "message": "Referral discount is not currently configured."}
+    # PENTING: kod referral tetap SAH (sales_partner tetap dipulangkan untuk
+    # attribution/commission affiliate) walaupun discount_percent = 0 (belum
+    # dikonfigurasikan admin di Travel Settings) — customer sekadar TAK
+    # dapat extra discount, tapi affiliate TETAP patut dapat commission
+    # bila SO/SI dibayar penuh (diuruskan app 'affiliate', konsep
+    # berasingan sepenuhnya dari discount customer ni). Sebelum ni,
+    # discount_percent<=0 pulangkan valid:False sepenuhnya — ini secara
+    # tak sengaja putuskan attribution affiliate JUGA (bukan cuma sekat
+    # discount), memandangkan confirm_booking() hanya set sales_partner
+    # bila ar.get("valid") bernilai True.
+    message = (
+        "Referral code applied! You get " + str(discount_percent) + "% off."
+        if discount_percent > 0
+        else "Referral code applied!"
+    )
 
     return {
         "valid":            True,
         "discount_percent": discount_percent,
         "affiliate_name":   sales_partner.partner_name,
         "sales_partner":    sales_partner.name,
-        "message":          "Referral code applied! You get " + str(discount_percent) + "% off.",
+        "message":          message,
     }
 
 
@@ -493,7 +544,7 @@ def _get_pricing_map(trip_package):
     """
     rows = frappe.db.sql("""
         SELECT pricing_for_class AS room_category,
-               price_adult_single, price_adult, price_adult_upperberth,
+               price_adult_single, price_adult, price_upperberth,
                price_children, price_toddler, price_infant
         FROM `tabTrip Package Price`
         WHERE parent = %s AND parenttype = 'Trip Package'
@@ -506,7 +557,7 @@ def _price_selection(price, main_guests, extra_beds, infants):
     kategori umur:
       - main_guests == 1  -> price_adult_single (satu org, single occupancy)
       - main_guests >= 2  -> price_adult x setiap org (twin/multi occupancy)
-      - extra_beds        -> price_adult_upperberth x setiap org, flat
+      - extra_beds        -> price_upperberth x setiap org, flat
                              (tak kira umur), hanya sah bila main_guests
                              sudah capai capacity (max) bilik tu
       - infants           -> price_infant x setiap org (harga SEBENAR dari
@@ -523,7 +574,7 @@ def _price_selection(price, main_guests, extra_beds, infants):
     elif mg >= 2:
         total += float(price.price_adult or 0) * mg
 
-    total += float(price.price_adult_upperberth or 0) * eb
+    total += float(price.price_upperberth or 0) * eb
     total += float(price.price_infant or 0) * inf
     return round(total, 2)
 
@@ -572,18 +623,37 @@ def _validate_selection_capacity(selections, cabin_info_map):
 def confirm_booking(trip_group_date: str, selections: str, billing: str,
                     payment_type: str = "Full Payment", payment_method: str = "Online Payment",
                     receipt: str = None, voucher_code: str = "", affiliate_code: str = "", amount_paid: float = None,
-                    trip_package: str = None, sales_persons: str = None):
+                    trip_package: str = None, sales_persons: str = None, bank_transfer_ref: str = None):
     if isinstance(selections, str):
         selections = json.loads(selections)
     if isinstance(billing, str):
         billing = json.loads(billing)
 
     email = billing.get("email", "").strip().lower()
+    bank_transfer_ref = (bank_transfer_ref or "").strip()
 
+    if payment_method == "Manual Transfer" and not bank_transfer_ref:
+        # Nombor rujukan transaksi DARI BANK CUSTOMER SENDIRI (bukan rujukan
+        # booking kami) — perlu untuk admin padankan bayaran ni dengan
+        # penyata bank semasa verify manual. Wajib diisi di frontend
+        # (booking.html/js), tapi disahkan semula di sini supaya panggilan
+        # terus ke API (skip frontend) tak boleh langkau keperluan ni.
+        frappe.throw("Sila masukkan nombor rujukan transfer bank anda.")
+
+    # PENTING: gate OTP ni MESTI konsisten dengan send_otp()'s logic
+    # (check User/akaun portal, bukan Customer) — kalau tidak, boleh
+    # berlaku kes frontend skip OTP (sebab send_otp() kata verified=True
+    # ikut User wujud) tapi backend di sini masih throw sebab Customer
+    # tak wujud (cth booking pertama customer tu, User belum dicipta lagi
+    # tapi dia baru sahaja verify OTP dalam sesi ni — is_verified cache
+    # akan cover kes tu). existing_customer (rekod Customer, kalau ada)
+    # kekal diguna BERASINGAN semata-mata untuk elak cipta Customer
+    # berganda — bukan untuk tentukan sama ada OTP diperlukan.
     is_verified       = frappe.cache().get_value("booking_email_verified_" + email)
+    has_portal_user   = bool(frappe.db.exists("User", email))
     existing_customer = get_customer_by_email(email)
 
-    if not existing_customer and not is_verified:
+    if not has_portal_user and not is_verified:
         frappe.throw("Email belum disahkan. Sila verify OTP dahulu.")
 
     customer_name = existing_customer or _create_customer(billing)
@@ -646,18 +716,26 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     if affiliate_code:
         ar = validate_affiliate_code(affiliate_code, trip_group_date)
         if ar.get("valid"):
-            sales_partner      = ar.get("sales_partner")
+            # PENTING: sales_partner di-set di SINI SEBAIK SAHAJA kod sah
+            # (tak kira discount_percent > 0 atau tidak) — attribution
+            # affiliate untuk commission MESTI berlaku serta-merta bila
+            # kod referral sah, berasingan sepenuhnya dari sama ada
+            # customer dapat extra discount. Line item SO (di bawah) untuk
+            # discount hanya ditambah kalau referral_discount > 0 — elak
+            # baris "-RM0.00" yang tak bermakna pada resit/invois.
+            sales_partner     = ar.get("sales_partner")
             referral_percent  = float(ar.get("discount_percent", 0))
             referral_discount = round(grand_total * (referral_percent / 100), 2)
-            grand_total = grand_total - referral_discount
-            so_items.append({
-                "item_code":   _get_or_create_travel_item(),
-                "item_name":   "Referral Discount (" + affiliate_code.strip().upper() + ")",
-                "qty":         1,
-                "rate":        -referral_discount,
-                "uom":         "Nos",
-                "description": "Referral code: " + affiliate_code.strip().upper(),
-            })
+            if referral_discount > 0:
+                grand_total = grand_total - referral_discount
+                so_items.append({
+                    "item_code":   _get_or_create_travel_item(),
+                    "item_name":   "Referral Discount (" + affiliate_code.strip().upper() + ")",
+                    "qty":         1,
+                    "rate":        -referral_discount,
+                    "uom":         "Nos",
+                    "description": "Referral code: " + affiliate_code.strip().upper(),
+                })
 
     # Manual Transfer cashback — dikira SEBELUM SO dicipta supaya boleh
     # apply terus sebagai Additional Discount pada SO (masuk GL Entry
@@ -729,16 +807,48 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
                 "additional_discount_account":    settings.cashback_discount_account,
             })
 
+        # PENTING: item 'TRAVEL-PKG' dikongsi untuk SEMUA jenis pax (Main
+        # Guest/Extra Bed/Infant/Voucher/Referral) dengan rate berbeza-beza
+        # setiap baris — ERPNext punya insert_item_price() automatik
+        # "kemaskini" Item Price pada Price List "Standard Selling" setiap
+        # kali rate SO Item tak sepadan dengan rate tersimpan, dan
+        # frappe.msgprint() sekali untuk setiap baris ("Item Price updated
+        # for TRAVEL-PKG..."). Mesej ni TIDAK BERBAHAYA (bukan error), tapi
+        # ia bocor masuk response API sebagai _server_messages, dan boleh
+        # disalah anggap sebagai error oleh sebarang caller yang tak teliti
+        # (rujuk fix di public/js/booking.js apiCall()). Kita redakan
+        # sepenuhnya di sini — simpan panjang frappe.message_log SEBELUM,
+        # pangkas balik ke panjang asal SELEPAS — supaya msgprint yang
+        # timbul dalam window insert/submit ni tak sampai ke response,
+        # tanpa ganggu logik ERPNext sendiri (Item Price tetap dikemaskini
+        # macam biasa, cuma notifikasi visualnya yang disekat).
+        _msg_log_len_before = len(frappe.message_log)
+
         so = frappe.get_doc(so_payload)
         so.insert(ignore_permissions=True)
         so.flags.ignore_permissions = True
         so.submit()
+
+        del frappe.message_log[_msg_log_len_before:]
     finally:
         frappe.set_user(_original_user)
 
     # Guna grand_total SEBENAR dari SO (selepas additional discount, jika ada)
     # supaya deposit/full-payment dikira dari jumlah yang betul-betul perlu dibayar.
-    grand_total = so.grand_total
+    #
+    # PENTING: guna rounded_total (fallback grand_total) — SO dah WUJUD di
+    # sini (selepas insert/submit di atas), jadi so.rounded_total dah sah
+    # terisi (dikira semasa calculate_taxes_and_totals() dalam validate()).
+    # Ini KRITIKAL untuk Manual Transfer — deposit_amount/pay_amount di
+    # sini terus jadi 'amount' untuk _create_manual_payment_entry(), yang
+    # TIADA semakan rounded_total sendiri (tak macam Online Payment yang
+    # di-cap semula oleh create_payment_intent()). Kalau kita guna
+    # grand_total mentah di sini (cth RM 5.49) sedangkan rounded_total
+    # sebenar SO cuma RM 5.00, Payment Entry Manual Transfer akan tercipta
+    # dengan amount yang tak sepadan — admin boleh nampak percanggahan
+    # bila cuba verify/submit nanti. Rujuk juga nota lengkap di
+    # stripe_checkout.create_payment_intent().
+    grand_total = float(so.rounded_total or so.grand_total or 0)
 
     # Deposit calc
     if amount_paid is not None:
@@ -769,7 +879,11 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         "payment_type":   payment_type,
         "deposit_amount": deposit_amount if payment_type == "Deposit" else 0,
         "booking_number": _generate_booking_number(),
-        "affiliate":            sales_partner if referral_discount > 0 else None,
+        # PENTING: attribution affiliate (untuk commission) TAK bergantung
+        # pada referral_discount > 0 — sales_partner dah sah (atau None)
+        # ditentukan di atas terus dari validate_affiliate_code(), jadi
+        # guna terus di sini tanpa syarat tambahan.
+        "affiliate":            sales_partner,
         "pre_discount_total":   pre_discount_total,
     })
     booking.insert(ignore_permissions=True)
@@ -823,6 +937,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
             amount        = deposit_amount,
             receipt_data  = receipt,
             label         = "receipt-" + booking.booking_number,
+            bank_transfer_ref = bank_transfer_ref,
         )
 
     frappe.db.commit()
@@ -857,7 +972,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
 
 
 
-def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data="", label="receipt"):
+def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data="", label="receipt", bank_transfer_ref=""):
     """Manual transfer — cipta Payment Entry DRAFT + attach resit.
     Draft (docstatus 0) = menunggu admin verify & submit. Corak sama dgn portal.
     """
@@ -887,14 +1002,23 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
         pe.paid_to         = paid_to
         pe.paid_amount     = float(amount)
         pe.received_amount = float(amount)
-        pe.reference_no    = so_name
+        # PENTING: reference_no = nombor rujukan/transaksi DARI BANK
+        # CUSTOMER SENDIRI (bukan nombor SO kami) — inilah tujuan asal
+        # field "Cheque/Reference No" dalam Payment Entry ERPNext, untuk
+        # admin padankan bayaran ni dengan penyata bank semasa verify.
+        # Pautan ke SO sendiri sudah cukup dikesan melalui child table
+        # 'references' di bawah — reference_no tak perlu (dan sebelum ni
+        # SALAH) diisi dengan so_name yang redundant.
+        pe.reference_no    = bank_transfer_ref or so_name
         pe.reference_date  = frappe.utils.today()
         pe.append("references", {
             "reference_doctype": "Sales Order",
             "reference_name":    so_name,
             "allocated_amount":  float(amount),
         })
-        pe.remarks = "Manual transfer (booking) untuk " + so_name + ". Pending verification."
+        pe.remarks = "Manual transfer (booking) untuk " + so_name + \
+                     (". Ref: " + bank_transfer_ref if bank_transfer_ref else "") + \
+                     ". Pending verification."
         pe.insert(ignore_permissions=True)
 
         if receipt_data:
@@ -998,7 +1122,7 @@ def _build_so_items(selections, pricing_map, trip_name="", group_label=""):
                                   trip_name, group_label, cabin_no))
         if extra_beds > 0:
             items.append(_so_line(default_item, room_category, "Extra Bed",
-                                  extra_beds, float(price.price_adult_upperberth or 0),
+                                  extra_beds, float(price.price_upperberth or 0),
                                   trip_name, group_label, cabin_no))
         if infants > 0:
             items.append(_so_line(default_item, room_category, "Infant",
@@ -1159,9 +1283,14 @@ def _recompute_booking_status(so_name):
     total = 0
     paid  = 0
     for name in all_so_names:
-        so = frappe.db.get_value("Sales Order", name, ["grand_total", "advance_paid"], as_dict=True)
+        so = frappe.db.get_value("Sales Order", name, ["grand_total", "rounded_total", "advance_paid"], as_dict=True)
         if so:
-            total += so.grand_total  or 0
+            # PENTING: guna rounded_total (fallback grand_total) — kalau
+            # tidak, payment_status boleh KEKAL "Partially Paid" selama-
+            # lamanya walaupun customer dah bayar PENUH ikut rounded_total
+            # sebenar (cth bayar RM 5.00 penuh, tapi 'total' di sini kira
+            # RM 5.49 mentah — payment_status silap kekal belum settle).
+            total += float(so.rounded_total or so.grand_total or 0)
             paid  += so.advance_paid or 0
 
     new_payment_status = _compute_payment_status(paid, total)
@@ -1499,9 +1628,9 @@ def _booking_email_context(booking_name):
     advance_paid  = 0
     for so_name in _get_all_booking_sales_orders(booking_name):
         so_vals = frappe.db.get_value("Sales Order", so_name,
-                                      ["grand_total", "advance_paid"], as_dict=True)
+                                      ["grand_total", "rounded_total", "advance_paid"], as_dict=True)
         if so_vals:
-            grand_total  += so_vals.grand_total  or 0
+            grand_total  += float(so_vals.rounded_total or so_vals.grand_total or 0)
             advance_paid += so_vals.advance_paid or 0
     return {
         "email":           get_customer_email(b.customer),

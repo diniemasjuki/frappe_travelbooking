@@ -19,7 +19,7 @@ class TripPackagePrice(Document):
 		parenttype: DF.Data
 		price_adult: DF.Currency
 		price_adult_single: DF.Currency
-		price_adult_upperberth: DF.Currency
+		price_upperberth: DF.Currency
 		price_children: DF.Currency
 		price_infant: DF.Currency
 		price_toddler: DF.Currency

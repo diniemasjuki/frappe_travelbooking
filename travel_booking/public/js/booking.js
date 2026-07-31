@@ -42,7 +42,16 @@ function fmtDate(iso) {
 }
 
 function fmt(n) {
-  return "RM " + Number(n).toLocaleString("en-MY");
+  // PENTING: kedua-dua minimumFractionDigits DAN maximumFractionDigits
+  // MESTI ditetapkan kepada 2 — hanya set minimumFractionDigits SAHAJA
+  // tidak mencukupi, sebab toLocaleString() defaultkan maximumFractionDigits
+  // ke max(minimumFractionDigits, 3) bila tak dinyatakan, jadi angka hasil
+  // pengiraan discount % (floating-point, cth 5.486) masih boleh papar 3
+  // titik perpuluhan di skrin — walhal jumlah SEBENAR yang dicaj (Stripe/
+  // Payment Request) sentiasa dibundarkan ke 2 titik perpuluhan (sen) di
+  // backend. Percanggahan paparan vs caj sebenar ni boleh buat customer
+  // fikir mereka dicaj lebih/kurang dari yang sepatutnya.
+  return "RM " + Number(n).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function showLoading(msg) {
@@ -153,8 +162,18 @@ async function apiCall(method, args, useGet) {
     throw new Error("Server error (" + res.status + "). Please try again or contact support.");
   }
 
-  // Sebarang bentuk ralat Frappe (frappe.throw, exception tak ditangkap, dsb.)
-  if (!res.ok || data.exc || data.exception || data._server_messages) {
+  // PENTING: ralat SEBENAR ditentukan oleh status HTTP (!res.ok) ATAU
+  // kewujudan data.exc/data.exception — BUKAN kewujudan data._server_messages
+  // semata-mata. _server_messages boleh mengandungi msgprint() BIASA yang
+  // ERPNext sendiri hantar semasa request BERJAYA (cth "Item Price updated
+  // for X in Price List Y" bila Sales Order Item disave dengan rate
+  // berbeza dari Item Price sedia ada — perkara normal untuk item generik
+  // macam TRAVEL-PKG yang dikongsi merentasi banyak rate berlainan).
+  // Sebelum ni, kewujudan _server_messages sahaja (walaupun res.ok=true,
+  // tiada exc/exception) dianggap error — punca customer nampak "Booking
+  // failed" walaupun booking tu SEBENARNYA berjaya tercipta di backend
+  // (data.message ada, cuma tak sempat dibaca sebab throw berlaku dulu).
+  if (!res.ok || data.exc || data.exception) {
     let msg = "";
     if (data.exc) {
       try {
@@ -164,15 +183,17 @@ async function apiCall(method, args, useGet) {
       } catch (e) {
         msg = String(data.exc);
       }
+    } else if (data.exception) {
+      msg = String(data.exception);
     } else if (data._server_messages) {
+      // res.ok = false tapi tiada exc/exception — cuba _server_messages
+      // sebagai fallback terakhir untuk mesej yang lebih membantu.
       try {
         var sm = JSON.parse(data._server_messages);
         msg = sm.map(function(x) { try { return JSON.parse(x).message; } catch (e) { return x; } }).join(" ");
       } catch (e) {
         msg = String(data._server_messages);
       }
-    } else if (data.exception) {
-      msg = String(data.exception);
     } else {
       msg = "Server error (" + res.status + "). Please try again.";
     }
@@ -207,7 +228,7 @@ function renderPackages(TripGroupDate) {
     var btn = document.createElement("button");
     btn.className    = "rc-date-btn";
     btn.dataset.name = p.name;
-    btn.innerHTML = '<span class="rc-date-btn__name">' + p.package_name + '</span>';
+    btn.innerHTML = '<span class="rc-date-btn__name"> From: ' + p.flight_label + '</span>';
     btn.addEventListener("click", function() {
       packageGrid.querySelectorAll(".rc-date-btn").forEach(function(b) { b.classList.remove("selected"); });
       this.classList.add("selected");
@@ -240,19 +261,28 @@ tripSelect.addEventListener("change", function() {
 
   dateGroup.style.display = "block";
   groups.forEach(function(g) {
+    
     var btn = document.createElement("button");
     btn.className    = "rc-date-btn";
     btn.dataset.name = g.name;
+
+    //detecting Cruise Trip Package
+    var a = g.trip_group_name.split(" : ");
+    if(a.length == 3){ var cruise = a[2] ; 
+      if(cruise == "Tour Trip") { cruise = ""; } else { cruise = " <br/>(" + cruise + ")"; }
+    } else { var cruise = ""; }
+    
     var durTxt = (g.total_days ? (g.total_days + "D") : "") + (g.total_nights ? (" " + g.total_nights + "N") : "");
     btn.innerHTML    =
-      '<span class="rc-date-btn__name">' + fmtDate(g.departure_date) + ' \u2013 ' + fmtDate(g.return_date) + '</span>' +
-      (durTxt ? '<span class="rc-date-btn__dates">' + durTxt + '</span>' : '');
-    btn.addEventListener("click", function() {
+      '<span class="rc-date-btn__name">' + fmtDate(g.departure_date) + ' \u2013 ' + fmtDate(g.return_date) + cruise + '</span>' +
+      (durTxt ? '<span class="rc-date-btn__dates">' + durTxt + '</span>' : '');    
+      btn.addEventListener("click", function() {
       dateGrid.querySelectorAll(".rc-date-btn").forEach(function(b) { b.classList.remove("selected"); });
       this.classList.add("selected");
       selectedGroup = g;
       renderPackages(g.name);
     });
+
     dateGrid.appendChild(btn);
   });
 });
@@ -317,6 +347,15 @@ function restoreWizard() {
       if (snap.billing.phone) {
         if (_itiBillingPhone) _itiBillingPhone.setNumber(snap.billing.phone);
         else { var bp = document.getElementById("billingPhone"); if (bp) bp.value = snap.billing.phone; }
+      }
+      // Restore field email yang dah verified sebelum ni sebagai LOCKED
+      // juga — UX konsisten dengan apa customer nampak sebelum refresh
+      // (bukan keperluan keselamatan tambahan; "input" listener sendiri
+      // dah cukup untuk elak edit tanpa disedari tak kira macam mana
+      // nilai field tu ditetapkan).
+      if (snap.otp_verified && be) {
+        lockEmailField();
+        setEmailStatus("verified", '<i class="ti ti-circle-check"></i> Verified');
       }
     }
     if (snap.pay_method) state_payment_method = snap.pay_method;
@@ -503,22 +542,181 @@ var _itiBillingPhone = null;
   }
 })();
 
+// PENTING: iti.getNumber() boleh pulangkan STRING KOSONG walaupun customer
+// dah taip sesuatu (digit belum lengkap ikut format negara, atau race
+// condition semasa widget baru initialize) — tanpa fallback, nombor yang
+// customer TAIP SEBENAR terbuang senyap (Contact.phone_nos jadi kosong
+// walaupun nampak terisi di skrin wizard). Fallback ke raw input.value()
+// kalau getNumber() kosong, sama corak dengan affiliate app punya
+// getPhoneValue() dan portal_traveller.js punya _getFullPhoneNumber().
 function _getBillingPhoneFull() {
-  if (_itiBillingPhone) return _itiBillingPhone.getNumber().trim();
-  return document.getElementById("billingPhone").value.trim();
+  var el = document.getElementById("billingPhone");
+  if (!_itiBillingPhone) return (el ? el.value : "").trim();
+  var full = _itiBillingPhone.getNumber().trim();
+  if (full) return full;
+  return (el ? el.value : "").trim();
+}
+
+// ─── DEEP LINK: ?trip=PACKAGE_ID (jump terus dari marketing site) ──
+// Satu Trip Package boleh SAH untuk BANYAK Trip Group Date (hubungan
+// many-to-many melalui child table 'Trip Package Group Date Select' —
+// rujuk trip_package.json/select_group_by_date) — jadi bagi satu Package
+// ID sahaja, kita TAK semestinya dapat SATU sailing date secara unik.
+// Strategi: kumpul SEMUA Trip Group Date yang package ni sah untuknya,
+// utamakan sailing AKAN DATANG (>= hari ini) yang TERAWAL — kalau semua
+// dah lepas tarikh, fallback ke yang terawal keseluruhan (lebih baik
+// drpd gagal terus). Customer tetap boleh tukar tarikh sendiri di UI
+// lepas ni (dateGrid tetap papar semua tarikh sah untuk Trip tu).
+//
+// Data (TRIP_PACKAGES, trip_group_dateS) SUDAH dimuatkan penuh di
+// client-side (JSON dari server, rujuk _data di atas) — tiada perlu
+// panggilan API tambahan untuk resolve ni.
+function resolvePackageDeepLink(packageId) {
+  if (!packageId) return null;
+
+  var candidates = []; // { groupDateName, tripName, departureDate }
+
+  Object.keys(TRIP_PACKAGES).forEach(function(groupDateName) {
+    var pkgs  = TRIP_PACKAGES[groupDateName] || [];
+    var found = pkgs.some(function(p) { return p.name === packageId; });
+    if (!found) return;
+
+    Object.keys(trip_group_dateS).forEach(function(tripName) {
+      var dates = trip_group_dateS[tripName] || [];
+      var match = dates.find(function(d) { return d.name === groupDateName; });
+      if (match) {
+        candidates.push({
+          groupDateName: groupDateName,
+          tripName:      tripName,
+          departureDate: match.departure_date || ""
+        });
+      }
+    });
+  });
+
+  if (!candidates.length) return null;  // package tak wujud/tak aktif
+
+  var today    = new Date().toISOString().slice(0, 10);
+  var upcoming = candidates.filter(function(c) { return c.departureDate >= today; });
+  var pool     = upcoming.length ? upcoming : candidates;
+
+  pool.sort(function(a, b) { return a.departureDate.localeCompare(b.departureDate); });
+
+  var chosen = pool[0];
+  return { tripName: chosen.tripName, groupDateName: chosen.groupDateName, packageId: packageId };
+}
+
+// ─── DEEP LINK: ?date=GROUP_DATE_ID (jump ke sailing tertentu) ──
+// Berbeza dengan resolvePackageDeepLink() (many-to-many, perlu teka),
+// hubungan Trip Group Date -> Trip TAK ambiguous — satu Group Date
+// SENTIASA milik SATU Trip sahaja (parent-child straightforward). Jadi
+// bagi satu Group Date ID, Trip dia boleh derive dengan yakin 100%,
+// tiada keperluan "teka sailing terawal" macam resolvePackageDeepLink().
+//
+// Guna kes: campaign yang promote SAILING/TARIKH tertentu (cth "Book the
+// August Sailing"), tanpa peduli jenis cabin/package — customer landing
+// terus di step pilih package sendiri, dengan Trip + Date dah auto-terisi.
+//
+// NOTA PENAMAAN: guna 'date' (bukan 'trip_master'/'trip') sengaja — 'trip'
+// dah dipakai untuk deep link Package ID (resolvePackageDeepLink), dan
+// 'trip_master' dikekalkan untuk mekanisme LAMA 2-parameter (backward
+// compat). Guna nama sama untuk maksud berbeza akan cetus konflik (rujuk
+// bug serupa yang pernah kita fix untuk parameter '?ref=').
+function resolveDateDeepLink(groupDateId) {
+  if (!groupDateId) return null;
+
+  var tripName = null;
+  Object.keys(trip_group_dateS).forEach(function(t) {
+    var dates = trip_group_dateS[t] || [];
+    var match = dates.some(function(d) { return d.name === groupDateId; });
+    if (match) tripName = t;
+  });
+
+  if (!tripName) return null;  // Group Date tak wujud/tak aktif
+  return { tripName: tripName, groupDateName: groupDateId };
+}
+
+// ─── DEEP LINK: ?trip=PACKAGE_ID&date=GROUP_DATE_ID (GABUNGAN, spesifik 100%) ──
+// Bila KEDUA-DUA parameter dihantar SEKALI, kita boleh elak "teka" sailing
+// terawal sepenuhnya (yang resolvePackageDeepLink() terpaksa buat bila
+// package tu valid untuk banyak Group Date) — sebab customer/marketer
+// dah nyatakan SENDIRI kombinasi Package + Group Date yang tepat.
+//
+// Kita tetap SAHKAN dulu (validate) yang Package ni memang valid untuk
+// Group Date yang diberi — pautan luar boleh sengaja/tak sengaja hantar
+// kombinasi yang tak wujud (cth package dan tarikh dari trip berlainan).
+// Kalau tak sah, pulangkan null — caller (di bawah) akan fallback ke
+// resolvePackageDeepLink() (teka ikut package sahaja) sebagai langkah
+// selamat, bukan terus gagal/kosongkan wizard.
+function resolveExactDeepLink(packageId, groupDateId) {
+  if (!packageId || !groupDateId) return null;
+
+  var pkgs  = TRIP_PACKAGES[groupDateId] || [];
+  var valid = pkgs.some(function(p) { return p.name === packageId; });
+  if (!valid) return null;  // kombinasi TAK SAH — package ni bukan untuk date ni
+
+  var tripName = null;
+  Object.keys(trip_group_dateS).forEach(function(t) {
+    var dates = trip_group_dateS[t] || [];
+    if (dates.some(function(d) { return d.name === groupDateId; })) tripName = t;
+  });
+  if (!tripName) return null;
+
+  return { tripName: tripName, groupDateName: groupDateId, packageId: packageId };
 }
 
 var _stripeReturn = checkStripeReturn();
 var _restored = _stripeReturn ? true : restoreWizard();
 window.addEventListener("beforeunload", saveState);
 
-if (!_restored && INIT_TRIP && INIT_DATE) {
-  tripSelect.value = INIT_TRIP;
-  tripSelect.dispatchEvent(new Event("change"));
-  setTimeout(function() {
-    var btn = dateGrid.querySelector('[data-name="' + INIT_DATE + '"]');
-    if (btn) btn.click();
-  }, 100);
+if (!_restored) {
+  var _urlParamsDeepLink = new URLSearchParams(window.location.search);
+  var _deepPackageId     = _urlParamsDeepLink.get("trip");
+  var _deepDateId        = _urlParamsDeepLink.get("date");
+
+  // Urutan priority (paling spesifik dahulu):
+  //   1. trip + date SEKALI, kombinasi SAH -> tiada teka langsung
+  //   2. trip sahaja -> teka sailing terawal (resolvePackageDeepLink)
+  //   3. date sahaja -> auto Trip+Date, Package customer pilih sendiri
+  //   4. mekanisme LAMA 2-parameter (trip_master/trip_group_date)
+  var _resolvedExact     = (_deepPackageId && _deepDateId) ? resolveExactDeepLink(_deepPackageId, _deepDateId) : null;
+  var _resolvedDeepLink  = _resolvedExact ? null : (_deepPackageId ? resolvePackageDeepLink(_deepPackageId) : null);
+  var _resolvedDateLink  = (!_resolvedExact && !_resolvedDeepLink && _deepDateId) ? resolveDateDeepLink(_deepDateId) : null;
+  var _finalPackageLink  = _resolvedExact || _resolvedDeepLink;
+
+  if (_finalPackageLink) {
+    // Trip + Group Date + Package ketiga-tiga auto-pilih — sama ada
+    // dari kombinasi SAH tepat (_resolvedExact) atau teka (_resolvedDeepLink).
+    tripSelect.value = _finalPackageLink.tripName;
+    tripSelect.dispatchEvent(new Event("change"));
+    setTimeout(function() {
+      var dateBtn = dateGrid.querySelector('[data-name="' + _finalPackageLink.groupDateName + '"]');
+      if (dateBtn) dateBtn.click();
+      setTimeout(function() {
+        var pkgBtn = packageGrid.querySelector('[data-name="' + _finalPackageLink.packageId + '"]');
+        if (pkgBtn) pkgBtn.click();
+      }, 100);
+    }, 100);
+  } else if (_resolvedDateLink) {
+    // Deep link Date (?date=) — auto-pilih Trip + Group Date, TAK
+    // auto-pilih Package (customer pilih sendiri jenis cabin).
+    tripSelect.value = _resolvedDateLink.tripName;
+    tripSelect.dispatchEvent(new Event("change"));
+    setTimeout(function() {
+      var dateBtn = dateGrid.querySelector('[data-name="' + _resolvedDateLink.groupDateName + '"]');
+      if (dateBtn) dateBtn.click();
+    }, 100);
+  } else if (INIT_TRIP && INIT_DATE) {
+    // Mekanisme LAMA (2 parameter: ?trip_master=&trip_group_date=) —
+    // dikekalkan untuk pautan/bookmark sedia ada yang mungkin dah wujud
+    // di luar sana. Tak auto-pilih Package (customer pilih sendiri).
+    tripSelect.value = INIT_TRIP;
+    tripSelect.dispatchEvent(new Event("change"));
+    setTimeout(function() {
+      var btn = dateGrid.querySelector('[data-name="' + INIT_DATE + '"]');
+      if (btn) btn.click();
+    }, 100);
+  }
 }
 
 // ─── STEP 1: ROOMS & PAX ──────────────────────────────────
@@ -538,6 +736,7 @@ async function loadCabins() {
 
     document.getElementById("bannerTripName").textContent  = data.trip.trip_name;
     document.getElementById("bannerGroupName").textContent = data.trip_group_date.trip_group_name;
+    // document.getElementById("bannerGroupName").textContent = data.trip_group_date.trip_group_name;
     document.getElementById("bannerTripType").textContent  = (selectedPackage && selectedPackage.package_type) || "";
     document.getElementById("bannerTripName2").textContent = data.trip.trip_name;
 
@@ -560,7 +759,7 @@ function cabinByCategory(room_category) {
 // (posisi bilik), bukan kategori umur:
 //   main_guests == 1  -> price_adult_single
 //   main_guests >= 2  -> price_adult x setiap org
-//   extra_beds        -> price_adult_upperberth x setiap org
+//   extra_beds        -> price_upperberth x setiap org
 //   infants           -> price_infant x setiap org (harga SEBENAR dari
 //                        pakej, bukan percuma), tak masuk capacity bilik
 function priceRoomSelection(pricing, mainGuests, extraBeds, infants) {
@@ -574,7 +773,7 @@ function priceRoomSelection(pricing, mainGuests, extraBeds, infants) {
   } else if (mg >= 2) {
     total += Number(pricing.price_adult || 0) * mg;
   }
-  total += Number(pricing.price_adult_upperberth || 0) * eb;
+  total += Number(pricing.price_upperberth || 0) * eb;
   total += Number(pricing.price_infant || 0) * inf;
   return total;
 }
@@ -710,17 +909,28 @@ function renderRooms() {
       var counters = document.createElement("div");
       counters.className = "rc-counter-list";
 
+      // Extra Bed & Infant berkongsi kapasiti (capFor() masing-masing
+      // bergantung pada nilai counter SATU LAGI — rujuk capFor() dalam
+      // mkStepper()) — array ni kumpul refreshButtons() SETIAP stepper
+      // untuk room ni, supaya bila SALAH SATU counter berubah, kita boleh
+      // refresh SEMUA stepper (bukan cuma yang diklik). Sebelum ni, setiap
+      // stepper cuma refresh dirinya sendiri — punca bug: butang "+" Extra
+      // Bed kekal disabled selepas Infant dikurangkan (walhal kapasiti dah
+      // terbuka semula), sebab tiada apa trigger refresh Extra Bed punya
+      // capFor() semula bila Infant yang berubah.
+      var stepperRefreshers = [];
+
       counters.appendChild(mkStepper(room, "main_guests", "Main Guest", capacity, function() {
         return room.main_guests === 1
           ? fmt(pricing.price_adult_single) + " /pax"
           : fmt(pricing.price_adult) + " /pax";
-      }));
+      }, stepperRefreshers));
       counters.appendChild(mkStepper(room, "extra_beds", "Extra Bed", 0, function() {
-        return fmt(pricing.price_adult_upperberth) + " /pax";
-      }));
+        return fmt(pricing.price_upperberth) + " /pax";
+      }, stepperRefreshers));
       counters.appendChild(mkStepper(room, "infants", "Infant", 0, function() {
         return fmt(pricing.price_infant) + " /pax";
-      }));
+      }, stepperRefreshers));
 
       card.appendChild(typeField);
       card.appendChild(counters);
@@ -732,42 +942,58 @@ function renderRooms() {
   updateTotals();
 }
 
-function mkStepper(room, key, label, max, rateFn) {
+function mkStepper(room, key, label, max, rateFn, refreshers) {
+  // ------------------------------------------
   var row = document.createElement("div");
   row.className = "rc-counter-row";
-
+  // ------------------------------------------
   var lbl = document.createElement("span");
   lbl.className = "rc-counter-row__label";
   lbl.textContent = label;
-
+  // ------------------------------------------
   var stepper = document.createElement("div");
   stepper.className = "rc-stepper";
-
+  // ------------------------------------------
   var minus = document.createElement("button");
   minus.className = "rc-stepper__btn";
   minus.type = "button";
   minus.textContent = "\u2212";
-
+  // ------------------------------------------
   var val = document.createElement("span");
   val.className = "rc-stepper__val";
   val.textContent = room[key];
-
+  // ------------------------------------------
   var plus = document.createElement("button");
   plus.className = "rc-stepper__btn";
   plus.type = "button";
   plus.textContent = "+";
-
+  // ------------------------------------------
   var rate = document.createElement("span");
   rate.className = "rc-counter-row__rate";
-
+  // ------------------------------------------
   function capFor() {
+
     var c = cabinByCategory(room.room_category);
     var capacity    = c ? (c.capacity || 0) : 0;
     var maxCapacity = c ? (c.max_capacity || capacity) : 0;
 
     if (key === "main_guests") {
-      return capacity;
+      // PENTING: bukan cuma capped oleh 'capacity' sendiri — Main Guest
+      // JUGA kena disable "+" kalau menambahnya akan exceed max_capacity
+      // KESELURUHAN cabin, memandangkan Extra Bed/Infant boleh dah guna
+      // sebahagian ruang WALAUPUN Main Guest belum sampai capacity lagi
+      // (cth Infant enable bila Main Guest >= 1, bukan perlu === capacity).
+      // Sebelum ni, capFor() Main Guest cuma pulangkan 'capacity' tetap,
+      // tak pernah ambil kira Extra Bed/Infant sedia ada — punca bug:
+      // Main Guest=1, Infant=3 (dah guna 4/4 ruang), tapi butang "+"
+      // Main Guest MASIH enabled, boleh diklik jadi Main Guest=2 (jumlah
+      // jadi 5, overbook kapasiti fizikal cabin). Sekarang: begitu total
+      // pax dah sampai max_capacity, "+" terus disabled — customer KENA
+      // kurangkan Extra Bed/Infant dulu secara eksplisit sebelum boleh
+      // tambah Main Guest semula (bukan auto-clamp/kurangkan senyap).
+      return Math.min(capacity, maxCapacity - room.extra_beds - room.infants);
     }
+
     if (key === "extra_beds") {
       // Extra Bed: perlu Main Guest sudah penuh (= capacity). Infant kini
       // turut dikira dalam capacity bilik — Extra Bed & Infant berkongsi
@@ -775,6 +1001,7 @@ function mkStepper(room, key, label, max, rateFn) {
       if (room.main_guests !== capacity) return 0;
       return Math.max(0, maxCapacity - room.main_guests - room.infants);
     }
+
     if (key === "infants") {
       // Infant: enable bila Main Guest sekurang-kurangnya 1 (bukan 2 lagi).
       // Infant dikira dalam capacity bilik — berkongsi baki ruang dengan
@@ -782,6 +1009,7 @@ function mkStepper(room, key, label, max, rateFn) {
       if (room.main_guests < 1) return 0;
       return Math.max(0, maxCapacity - room.main_guests - room.extra_beds);
     }
+
     return 0;
   }
 
@@ -801,28 +1029,57 @@ function mkStepper(room, key, label, max, rateFn) {
   }
   refreshButtons();
 
+  // Daftar refreshButtons() stepper ni ke senarai KONGSI (refreshers, sama
+  // array dipassing untuk ketiga-tiga stepper Main Guest/Extra Bed/Infant
+  // dalam SATU room — rujuk renderRooms()). refreshAll() di bawah guna
+  // senarai ni untuk refresh SEMUA stepper (bukan cuma diri sendiri) bila
+  // mana-mana satu counter berubah — supaya Extra Bed & Infant, yang
+  // capFor() masing-masing bergantung pada nilai SATU LAGI, sentiasa
+  // sepadan dengan kapasiti TERKINI tanpa perlu rebuild seluruh DOM
+  // (renderRooms()) — flicker-free, sepadan Opsyen 2.
+  if (refreshers) refreshers.push(refreshButtons);
+
+  function refreshAll() {
+    if (refreshers && refreshers.length) {
+      refreshers.forEach(function(fn) { fn(); });
+    } else {
+      refreshButtons();
+    }
+  }
+
+  // minus button action
   minus.addEventListener("click", function() {
+
     room[key] = Math.max(0, room[key] - 1);
+    
     if (key === "main_guests") {
+      
       // Cascade: turunkan Extra Bed / Infant kalau melanggar rule
       var cap = max_capacity_for_mg();
       if (room.main_guests !== cap) room.extra_beds = 0;
       if (room.main_guests < 1) room.infants = 0;
+      
       renderRooms();
       return;
     }
+
     val.textContent = room[key];
-    refreshButtons();
+    refreshAll();
     updateTotals();
   });
+
+  // plus button action
   plus.addEventListener("click", function() {
+
     room[key] = Math.min(capFor(), room[key] + 1);
+
     if (key === "main_guests") {
       renderRooms();
       return;
     }
+
     val.textContent = room[key];
-    refreshButtons();
+    refreshAll();
     updateTotals();
   });
 
@@ -830,8 +1087,10 @@ function mkStepper(room, key, label, max, rateFn) {
   stepper.appendChild(val);
   stepper.appendChild(plus);
   stepper.appendChild(rate);
+
   row.appendChild(lbl);
   row.appendChild(stepper);
+  
   return row;
 }
 
@@ -914,7 +1173,7 @@ function buildStep1Summary() {
         guestNo++;
       }
     }
-    var upperRate = Number(p.price_adult_upperberth || 0);
+    var upperRate = Number(p.price_upperberth || 0);
     for (var j = 0; j < r.extra_beds; j++) {
       cabinFare += upperRate;
       guestLines.push(["Guest " + guestNo + ": Extra Bed", upperRate]);
@@ -969,6 +1228,31 @@ function setEmailStatus(type, msg) {
   emailStatus.innerHTML = msg;
 }
 
+// PENTING: field email DIKUNCI (readonly) selepas verified — customer
+// idea asal: kalau field tak boleh diedit langsung selepas verified,
+// keseluruhan kelas bug "state.otp_verified lama terpakai untuk email
+// baharu yang tak disahkan" jadi MUSTAHIL berlaku, sebab kandungan field
+// tu sendiri tak boleh berubah. Kekal locked selama-lamanya sekali
+// verified — tiada mekanisme unlock (customer refresh/mula semula
+// wizard kalau perlu tukar email).
+function lockEmailField() {
+  emailInput.readOnly = true;
+}
+
+// Reset SERTA-MERTA bila email field diedit — elak state.otp_verified
+// (dari email SEBELUM ni yang mungkin verified) kekal sah untuk kandungan
+// email BAHARU yang belum pernah disahkan langsung. Tanpa ni, ada tingkap
+// masa (dari customer mula taip sehingga blur+async check selesai) di
+// mana butang "Continue" kekal enabled berdasarkan status email LAMA —
+// isu keselamatan sebenar (customer boleh proceed dengan email tak
+// disahkan asalkan mereka pernah taip email lain yang verified dulu).
+emailInput.addEventListener("input", function() {
+  state.otp_verified      = false;
+  otpInline.style.display = "none";
+  setEmailStatus("", "");
+  checkStep2Ready();
+});
+
 // Auto-check email bila keluar dari field
 emailInput.addEventListener("blur", async function() {
   var email = this.value.trim();
@@ -987,6 +1271,7 @@ emailInput.addEventListener("blur", async function() {
       // Email ada dalam sistem — verified terus
       state.otp_verified      = true;
       otpInline.style.display = "none";
+      lockEmailField();
       setEmailStatus("verified", '<i class="ti ti-circle-check"></i> Verified');
     } else {
       // Email baru — tunjuk OTP field
@@ -997,6 +1282,12 @@ emailInput.addEventListener("blur", async function() {
       setEmailStatus("pending", '<i class="ti ti-mail"></i> OTP sent');
     }
   } catch(e) {
+    // PENTING: WAJIB reset ke false di sini — kalau tidak, state.otp_verified
+    // dari email SEBELUM ni (cth verified=true) kekal terpakai untuk email
+    // BAHARU yang gagal disahkan (cth rate-limit "Sila tunggu sebentar..."),
+    // dan butang "Continue" akan silap kekal enabled untuk email yang
+    // sebenarnya BELUM disahkan langsung.
+    state.otp_verified = false;
     setEmailStatus("error", '<i class="ti ti-alert-circle"></i> ' +
       ((e && e.message) ? e.message : "Error"));
   }
@@ -1021,6 +1312,7 @@ otpInput.addEventListener("input", async function() {
         '<i class="ti ti-circle-check"></i>' +
         '<span>Email verified successfully!</span>' +
       '</div>';
+    lockEmailField();
     setEmailStatus("verified", '<i class="ti ti-circle-check"></i> Verified');
     checkStep2Ready();
   } catch(e) {
@@ -1112,7 +1404,7 @@ function buildOrderSummary() {
         guestNo++;
       }
     }
-    var upperRate = Number(p.price_adult_upperberth || 0);
+    var upperRate = Number(p.price_upperberth || 0);
     for (var j = 0; j < r.extra_beds; j++) {
       cabinFare += upperRate;
       guestLines.push(["Guest " + guestNo + " \u00b7 Extra Bed", upperRate]);
@@ -1459,12 +1751,22 @@ async function applyAffiliateCode() {
       state_affiliate_code   = code;
       state_referral_percent = result.discount_percent;
 
-      document.getElementById("affiliateDiscountRow").style.display = "flex";
-      document.getElementById("affiliateCodeApplied").textContent   = code;
-      // Amount papar dikira dari baki SELEPAS voucher (tier B) — sepadan backend.
-      var afterVoucher   = Math.max(0, calcGrandTotal() - (state_voucher_discount || 0));
-      var referralAmount = Math.round(afterVoucher * (state_referral_percent / 100) * 100) / 100;
-      document.getElementById("affiliateDiscountAmt").textContent = "-" + fmt(referralAmount);
+      if (state_referral_percent > 0) {
+        // Ada discount sebenar untuk customer — papar row + amount.
+        document.getElementById("affiliateDiscountRow").style.display = "flex";
+        document.getElementById("affiliateCodeApplied").textContent   = code;
+        // Amount papar dikira dari baki SELEPAS voucher (tier B) — sepadan backend.
+        var afterVoucher   = Math.max(0, calcGrandTotal() - (state_voucher_discount || 0));
+        var referralAmount = Math.round(afterVoucher * (state_referral_percent / 100) * 100) / 100;
+        document.getElementById("affiliateDiscountAmt").textContent = "-" + fmt(referralAmount);
+      } else {
+        // Kod SAH (affiliate tetap dapat commission bila SO/SI dibayar
+        // penuh) tapi admin belum konfigurasikan % discount customer di
+        // Travel Settings — jangan papar row discount dengan "-RM 0.00"
+        // yang mengelirukan; state_affiliate_code tetap disimpan untuk
+        // dihantar ke confirm_booking() (attribution affiliate kekal).
+        document.getElementById("affiliateDiscountRow").style.display = "none";
+      }
 
       showAffiliateMsg("success", "✓ " + result.message);
       updatePaymentUI();
@@ -1484,8 +1786,15 @@ async function applyAffiliateCode() {
 }
 
 function prefillAffiliateCodeFromUrl() {
+  // PENTING: guna parameter 'sp' (sales partner), BUKAN 'ref'. 'ref' sudah
+  // digunakan checkStripeReturn() untuk booking_number selepas redirect
+  // Stripe (?ref=RC-XXXXXX&step=confirm&pr=...) — kalau function ni turut
+  // baca 'ref' untuk affiliate code, customer yang balik dari bayaran
+  // Stripe akan tersalah dapat booking_number diproses SEBAGAI kod
+  // affiliate (dua maksud berlainan berkongsi satu nama parameter). 'sp'
+  // parameter baharu yang tak bertembung dengan mana-mana penggunaan lain.
   var params = new URLSearchParams(window.location.search);
-  var ref = params.get("ref");
+  var ref = params.get("sp");
   if (!ref) return;
 
   var input = document.getElementById("affiliateInput");
@@ -1567,6 +1876,22 @@ function updatePaymentUI() {
   inp.value = state_payment_amount;
 
   // Payment method cards
+  //
+  // PENTING: kedua-dua card LABEL (.selected class, untuk warna/border
+  // highlight) DAN radio input SEBENAR (.checked, untuk dot visual
+  // browser native) MESTI disegerakkan dengan state_payment_method di
+  // SINI. Sebelum ni, function ni cuma toggle .selected class — radio
+  // input's .checked property (yang datang dari attribute HTML statik
+  // "checked" pada radio "Online Payment") TAK PERNAH dikemas kini bila
+  // state_payment_method direstore dari snapshot (cth selepas refresh
+  // page dengan Manual Transfer dipilih sebelum ni) — punca bug radio
+  // dot papar "Online Payment" walhal Bank Transfer Details/fields
+  // Manual Transfer yang sebenarnya aktif di bawah.
+  var radioOnline = document.querySelector('input[name="paymentMethod"][value="Online Payment"]');
+  var radioManual = document.querySelector('input[name="paymentMethod"][value="Manual Transfer"]');
+  if (radioOnline) radioOnline.checked = state_payment_method === "Online Payment";
+  if (radioManual) radioManual.checked = state_payment_method === "Manual Transfer";
+
   document.getElementById("labelOnline").classList.toggle("selected", state_payment_method === "Online Payment");
   document.getElementById("labelManual").classList.toggle("selected", state_payment_method === "Manual Transfer");
   var isManual = state_payment_method === "Manual Transfer";
@@ -1606,9 +1931,13 @@ function calcGrandTotal() {
 
 function calcDiscountedTotal() {
   // Tier B: voucher dulu (dari jumlah asal), referral % kemudian (dari baki selepas voucher).
+  // PENTING: round ke 2 titik perpuluhan pada SETIAP langkah — sepadan
+  // tepat dengan backend (booking.py: referral_discount = round(grand_total
+  // * (referral_percent / 100), 2)) — elak nilai floating-point tak
+  // dibundarkan (cth 5.486) terbawa ke pengiraan seterusnya/paparan.
   var afterVoucher = Math.max(0, calcGrandTotal() - (state_voucher_discount || 0));
-  var referralAmt  = afterVoucher * ((state_referral_percent || 0) / 100);
-  var afterReferral = Math.max(0, afterVoucher - referralAmt);
+  var referralAmt  = Math.round(afterVoucher * ((state_referral_percent || 0) / 100) * 100) / 100;
+  var afterReferral = Math.max(0, Math.round((afterVoucher - referralAmt) * 100) / 100);
 
   // Manual Transfer cashback — dikira di UI untuk paparan sahaja; jumlah
   // sebenar yang dicaj tetap dikira & disahkan semula di backend (booking.py)
@@ -1616,8 +1945,8 @@ function calcDiscountedTotal() {
   if (state_payment_method === "Manual Transfer" &&
       state_payment_settings.cashback_enabled &&
       state_payment_settings.cashback_percent > 0) {
-    var cashbackAmt = afterReferral * (state_payment_settings.cashback_percent / 100);
-    return Math.max(0, afterReferral - cashbackAmt);
+    var cashbackAmt = Math.round(afterReferral * (state_payment_settings.cashback_percent / 100) * 100) / 100;
+    return Math.max(0, Math.round((afterReferral - cashbackAmt) * 100) / 100);
   }
   return afterReferral;
 }
@@ -1649,6 +1978,14 @@ document.getElementById("payNowBtn").addEventListener("click", async function() 
   if (state_payment_method === "Manual Transfer" && !state_receipt_data) {
     alert("Please upload your payment receipt before submitting.");
     return;
+  }
+  var bankTransferRef = "";
+  if (state_payment_method === "Manual Transfer") {
+    bankTransferRef = document.getElementById("bankTransferRefInput").value.trim();
+    if (!bankTransferRef) {
+      alert("Please enter your bank transfer reference number before submitting.");
+      return;
+    }
   }
   var payment_type = state_payment_amount >= getMaxPay() - 0.001 ? "Full Payment" : "Deposit";
   showLoading(state_payment_method === "Manual Transfer" ? "Submitting booking..." : "Creating your booking...");
@@ -1684,6 +2021,7 @@ document.getElementById("payNowBtn").addEventListener("click", async function() 
         voucher_code:   state_voucher_code,
         affiliate_code: state_affiliate_code,
         receipt:        state_receipt_data || "",
+        bank_transfer_ref: bankTransferRef,
         sales_persons:  JSON.stringify(selectedSalesPersons),
       },
       false  // POST

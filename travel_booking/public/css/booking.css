@@ -288,6 +288,15 @@ body {
   -webkit-apprearance: none;
 }
 
+/* Field email dikunci selepas verified (rujuk lockEmailField() dalam
+   booking.js) — background kelabu jelas menandakan tak boleh diedit
+   lagi sehingga customer klik "Change" untuk unlock semula. */
+.rc-input[readonly] {
+  background: var(--rc-gray-100);
+  color: var(--rc-gray-600);
+  cursor: not-allowed;
+}
+
 .rc-input:focus {
   border-color: var(--rc-gold);
   box-shadow: 0 0 0 3px rgba(201,168,76,0.12);
@@ -1716,6 +1725,27 @@ body {
 
 .rc-add-room:hover { color: var(--rc-gold-dark); }
 .rc-add-room i { font-size: 16px; }
+
+/* "Add another room" dibuat SOLID (bukan text-link biasa macam
+   .rc-add-room asal) supaya lebih ketara kepada customer — ini
+   tindakan yang lebih kerap diperlukan (booking multi-cabin)
+   berbanding "+ Add another" Sales Person (opsyenal, minor) yang
+   kekal guna style .rc-add-room asal. Target ID khusus (#addRoomBtn)
+   supaya TIDAK terjejas .rc-add-room base class yang dikongsi. */
+#addRoomBtn {
+  background: var(--rc-navy);
+  border: 1.5px solid var(--rc-navy);
+  color: var(--rc-white);
+  padding: 10px 18px;
+  border-radius: var(--rc-radius);
+  transition: all var(--rc-transition);
+}
+
+#addRoomBtn:hover { opacity: 0.85; }
+
+.rc-rooms-list-col #addRoomBtn {
+  margin-top: 16px;
+}
 
 .rc-totals {
   background: var(--rc-gray-100);

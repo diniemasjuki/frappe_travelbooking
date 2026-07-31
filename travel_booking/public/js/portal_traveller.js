@@ -335,8 +335,25 @@ function _initPhoneWidgets() {
 // Nombor PENUH format E.164 (cth "+60123456789") untuk validate/submit —
 // guna method getNumber() bawaan intl-tel-input (dial-code + digit
 // digabung automatik), bukan gabung manual macam widget custom sebelum ni.
+//
+// PENTING: iti.getNumber() boleh pulangkan STRING KOSONG walaupun customer
+// dah taip sesuatu ke dalam field (cth digit belum lengkap ikut format
+// negara yang dipilih, atau race condition semasa widget baru sahaja
+// initialize). Kalau kita terus guna hasil getNumber() tanpa fallback,
+// nombor yang customer TAIP SEBENAR boleh terbuang senyap (field jadi
+// kosong dalam rekod Traveller walaupun nampak ada di skrin) — inilah
+// punca bug asal (Traveller punya Phone field kosong dalam Desk walaupun
+// customer isi semasa daftar). Corak yang lebih selamat ni disamakan
+// dengan affiliate app punya getPhoneValue(): fallback ke raw
+// input.value() kalau getNumber() pulangkan kosong, supaya nombor tak
+// pernah hilang tanpa customer sedar.
 function _getFullPhoneNumber(iti, fallbackEl) {
-  if (iti) return iti.getNumber().trim();
+  if (!iti) return (fallbackEl?.value || '').trim();
+  const full = iti.getNumber().trim();
+  if (full) return full;
+  // getNumber() kosong tapi mungkin ada raw text dalam field — jangan
+  // buang, guna raw value sebagai fallback (lebih baik dari terus
+  // kosongkan nombor yang customer sebenarnya dah taip).
   return (fallbackEl?.value || '').trim();
 }
 

@@ -11,15 +11,52 @@ from travel_booking.api.portal_booking import _get_customer
 # ══════════════════════════════════════════════
 
 def _format_phone(phone):
-    """Format phone: '+60 1156973287' -> '+60-1156973287'."""
+    """Simpan nombor telefon sebagai "+ISD-nombor" (cth "+60-1156973287"),
+    bukan E.164 tulen ("+601156973287").
+
+    PUNCA BUG ASAL: implementasi lama guna regex yang WAJIBKAN sekurang-
+    kurangnya satu SPACE literal antara dial code dan nombor
+    (regex pattern: dial-code, diikuti \\s+, diikuti baki nombor),
+    sesuai untuk format seperti "+60 1156973287". Tapi intl-tel-input's
+    getNumber() (yang menghantar nilai phone dari portal_traveller.js/
+    booking.js) pulangkan format E.164 TULEN TANPA SPACE — cth
+    "+601156973287". Regex tu TAK PERNAH match format ni, jadi function
+    jatuh ke fallback "return phone" (nombor asal TANPA dash) — dan
+    Frappe's fieldtype Phone (Traveller.phone) perlukan format berdash
+    untuk widget Desk render betul, dan boleh gagal validation senyap
+    tanpa dash yang betul. Ini sebab customer isi phone di portal, tapi
+    field Phone kekal kosong dalam rekod Traveller.
+
+    Fix: guna phonenumbers.parse() (library yang SAMA dipakai Frappe's
+    sendiri validate_phone_number_with_country_code() secara dalaman)
+    untuk betul-betul parse dial code + national number, bukan cuba teka
+    format guna regex. Corak ni disamakan dengan affiliate app punya
+    AffiliateProfile._normalize_phone() (affiliate_profile.py) — yang
+    memang berfungsi dengan baik untuk kes yang sama, jadi kekalkan satu
+    pendekatan konsisten merentasi kedua-dua app.
+    """
     if not phone:
         return ""
+
     phone = phone.strip()
-    import re
-    match = re.match(r'(\+\d{1,4})\s+(.+)', phone)
-    if match:
-        return match.group(1) + '-' + match.group(2).replace(' ', '')
-    return phone
+    if "-" in phone:
+        # Dah dalam format dijangka (cth dihantar terus dari widget yang
+        # sudah normalize, atau simpanan sebelum ini) — jangan ganggu lagi.
+        return phone
+
+    try:
+        from phonenumbers import parse as phonenumbers_parse
+
+        parsed = phonenumbers_parse(phone)
+        dial_code = str(parsed.country_code)
+        national_number = str(parsed.national_number)
+        return f"+{dial_code}-{national_number}"
+    except Exception:
+        # Tak dapat parse — pulangkan seadanya. Frappe's sendiri
+        # validate_phone_number_with_country_code() (jalan lepas ni
+        # semasa save) akan bagi ralat jelas kalau nombor tu memang
+        # tak sah — tak perlu duplicate check di sini.
+        return phone
 
 
 @frappe.whitelist()

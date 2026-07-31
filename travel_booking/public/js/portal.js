@@ -91,6 +91,16 @@ function hideLoginError() {
   document.getElementById('login-error').style.display = 'none';
 }
 
+async function signInWithGoogle() {
+  hideLoginError();
+  try {
+    const authUrl = await API('get_google_login_url', { redirect_to: '/traveller_portal' });
+    window.location.href = authUrl;
+  } catch (e) {
+    showLoginError((e && e.message) || 'Could not start Google sign-in. Please try again.');
+  }
+}
+
 async function doLogin() {
   hideLoginError();
   const email    = document.getElementById('login-em').value.trim();
@@ -194,7 +204,7 @@ async function _checkPaymentReturn() {
 
 function renderPaymentResult(result) {
   const body = document.getElementById('pr-result-body');
-  const fmt  = n => parseFloat(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2 });
+  const fmt  = n => parseFloat(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   if (result.status === 'succeeded') {
     body.innerHTML = `

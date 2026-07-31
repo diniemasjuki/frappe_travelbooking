@@ -13,8 +13,18 @@ async function loadAllPayments() {
   if (cached) {
     _allOrders = cached;
     renderSoList(_allOrders);
+    // PENTING: mesti renderSoList() SEMULA selepas data terkini sampai —
+    // sebelum ni, .then() cuma update _allOrders/_CACHE secara senyap
+    // tanpa render, jadi skrin kekal papar data LAMA sehingga customer
+    // navigate keluar-masuk tab ni semula (waktu itu barulah data dari
+    // fetch senyap SEBELUM ni terpapar — nampak macam "kena refresh
+    // beberapa kali" walhal data sebenarnya dah sedia dari tadi).
     API_PM('get_all_so_payments', {})
-      .then(data => { _allOrders = data.orders || []; _CACHE.set('payments', _allOrders, _CACHE.TTL.payments); })
+      .then(data => {
+        _allOrders = data.orders || [];
+        _CACHE.set('payments', _allOrders, _CACHE.TTL.payments);
+        renderSoList(_allOrders);
+      })
       .catch(() => {});
     return;
   }
@@ -111,7 +121,7 @@ function renderSoList(orders) {
           <div style="font-size:12px;color:#B0AC9F;margin-top:2px">${t.subtitle}${t.sortDate ? ' · ' + t.sortDate : ''}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:14px;font-weight:600;color:${amountColor}">RM ${t.amount.toLocaleString('en-MY', {minimumFractionDigits:2})}</div>
+          <div style="font-size:14px;font-weight:600;color:${amountColor}">RM ${t.amount.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
           <div style="margin-top:4px;display:flex;align-items:center;gap:6px;justify-content:flex-end">
             ${t.statusLabel ? `<span style="font-size:11px;font-weight:600;padding:2px 10px;border-radius:14px;background:${t.statusBg};color:${t.statusColor}">${t.statusLabel}</span>` : ''}
             ${t.onClick ? `<button onclick="${t.onClick}" style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:6px;border:0.5px solid #D3D1C7;background:transparent;color:#5C5850;cursor:pointer">${t.actionLabel}</button>` : ''}
@@ -166,45 +176,52 @@ async function loadBookingPayments() {
   }
 
   if (subEl) subEl.textContent = BOOKING;
-  container.innerHTML = '<div style="font-size:13px;color:#B0AC9F;padding:8px 0">Loading...</div>';
 
-  // Guna cache _allOrders kalau dah ada (dari tab Transactions/loadAllPayments),
-  // kalau tidak fetch baru — sama endpoint, sama struktur data.
-  if (!_allOrders.length) {
-    const cached = _CACHE.get('payments');
-    if (cached) {
-      _allOrders = cached;
-    } else {
-      try {
-        const data = await API_PM('get_all_so_payments', {});
-        _allOrders = data.orders || [];
-        _CACHE.set('payments', _allOrders, _CACHE.TTL.payments);
-      } catch (e) {
-        container.innerHTML = `<div class="card"><div style="font-size:13px;color:#991B1B">${e.message}</div></div>`;
-        return;
-      }
+  // PENTING: JANGAN reuse _allOrders secara kekal hanya sebab ia dah ada
+  // data (dari tab Transactions atau booking LAIN sebelum ni). Sebelum
+  // ni, function ni cuma check `if (!_allOrders.length)` — bermakna
+  // SEBAIK SAHAJA _allOrders terisi (dari mana-mana panggilan sebelum
+  // ni, untuk booking APA PUN), ia kekal snapshot LAMA untuk SELURUH
+  // sesi browser — receipt/invois BAHARU yang admin jana selepas tu
+  // TAK AKAN muncul, walau berapa kali customer refresh (dalam window
+  // TTL _CACHE 5 minit pun sama masalah). Sekarang: papar cache/snapshot
+  // SEDIA ADA serta-merta (kalau ada) untuk rasa pantas, tapi SENTIASA
+  // fetch data TERKINI dari server di background dan RE-RENDER selepas
+  // dapat — supaya customer nampak status betul-betul terkini, bukan
+  // snapshot dari lawatan pertama tab ni dalam sesi semasa.
+  const renderForBooking = (allOrders) => {
+    const bookingOrders = allOrders.filter(so =>
+      (so.booking_numbers || []).includes(BOOKING)
+    );
+    if (!bookingOrders.length) {
+      container.innerHTML = '<div class="card"><div style="font-size:13px;color:#B0AC9F">No payment records for this booking yet.</div></div>';
+      return;
     }
+    container.innerHTML =
+      renderBookingOverview(bookingOrders) +
+      bookingOrders.map(so => renderSoCard(so)).join('');
+  };
+
+  const cached = _allOrders.length ? _allOrders : _CACHE.get('payments');
+  if (cached) {
+    _allOrders = cached;
+    renderForBooking(_allOrders);
+  } else {
+    container.innerHTML = '<div style="font-size:13px;color:#B0AC9F;padding:8px 0">Loading...</div>';
   }
 
-  const bookingOrders = _allOrders.filter(so =>
-    (so.booking_numbers || []).includes(BOOKING)
-  );
-
-  if (!bookingOrders.length) {
-    container.innerHTML = '<div class="card"><div style="font-size:13px;color:#B0AC9F">No payment records for this booking yet.</div></div>';
-    return;
+  try {
+    const data = await API_PM('get_all_so_payments', {});
+    _allOrders = data.orders || [];
+    _CACHE.set('payments', _allOrders, _CACHE.TTL.payments);
+    renderForBooking(_allOrders);
+  } catch (e) {
+    if (!cached) {
+      container.innerHTML = `<div class="card"><div style="font-size:13px;color:#991B1B">${e.message}</div></div>`;
+    }
+    // Kalau ada cache, kekalkan paparan cache (lebih baik dari error
+    // kosong) — customer tetap nampak data terkini yang kita ada.
   }
-
-  // SETIAP Sales Order (utama + addon) dipapar sebagai kad boleh
-  // dilipat/dibuka (toggleSoCard) — header sentiasa nampak (ref, total,
-  // status), butang bayar & line items disorok sehingga diklik. Collapsed
-  // by default WALAUPUN cuma 1 order — ini yang bezakan kad SO daripada
-  // kad "Booking summary" di atas (kalau tidak, nampak macam dua kad
-  // serupa diulang bila cuma 1 order).
-  const singleOrder = bookingOrders.length === 1;
-  container.innerHTML =
-    renderBookingOverview(bookingOrders) +
-    bookingOrders.map(so => renderSoCard(so)).join('');
 }
 
 // Ringkasan ATAS sahaja (Total/Paid/Balance keseluruhan booking) — untuk
@@ -212,7 +229,7 @@ async function loadBookingPayments() {
 // bayar sendiri (renderSoCard). SO Cancelled dikecualikan dari kiraan
 // (tapi tetap dipaparkan sebagai kad sendiri di bawah, dengan badge Cancelled).
 function renderBookingOverview(orders) {
-  const fmt = n => parseFloat(n || 0).toLocaleString('en-MY', {minimumFractionDigits: 2});
+  const fmt = n => parseFloat(n || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const activeOrders = orders.filter(so => !so.is_cancelled);
 
   const grandTotal  = activeOrders.reduce((a, so) => a + parseFloat(so.grand_total  || 0), 0);
@@ -262,7 +279,7 @@ function renderSoCard(so) {
   const pct         = total > 0 ? Math.min((paid / total) * 100, 100) : 0;
   const isPaid      = outstanding <= 0;
   const soId        = so.name.replace(/[^a-zA-Z0-9]/g, '-');
-  const fmt         = n => parseFloat(n || 0).toLocaleString('en-MY', {minimumFractionDigits: 2});
+  const fmt         = n => parseFloat(n || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const onlineMin   = paid <= 0 ? Math.round(total * 0.2 * 100) / 100 : 1;
   const onlineMax   = outstanding;
 
@@ -324,7 +341,7 @@ function renderSoCard(so) {
           </div>
           <div>
             <div style="font-size:13px;font-weight:500;color:var(--color-text-primary,#1E1C18)">${inv.name}</div>
-            <div style="font-size:11px;color:var(--color-text-tertiary,#B0AC9F);margin-top:1px">${inv.posting_date || '-'} · RM ${parseFloat(inv.grand_total || 0).toLocaleString('en-MY', {minimumFractionDigits:2})}</div>
+            <div style="font-size:11px;color:var(--color-text-tertiary,#B0AC9F);margin-top:1px">${inv.posting_date || '-'} · RM ${parseFloat(inv.grand_total || 0).toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
           </div>
         </div>
         <button onclick="downloadDocument(this,'Sales Invoice','${inv.name}')"
@@ -400,13 +417,13 @@ function renderSoCard(so) {
                 ${label}${qty > 1 ? ' <span style="color:var(--color-text-tertiary,#B0AC9F)">&times;' + qty.toFixed(0) + '</span>' : ''}
               </div>
               <div style="font-size:12px;font-weight:500;color:${isDiscount ? '#0F6E56' : 'var(--color-text-primary,#1E1C18)'};white-space:nowrap;padding-left:12px">
-                ${isDiscount ? '-' : ''}RM ${Math.abs(amt).toLocaleString('en-MY', {minimumFractionDigits:2})}
+                ${isDiscount ? '-' : ''}RM ${Math.abs(amt).toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}
               </div>
             </div>`;
         }).join('')}
         <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:4px;border-top:0.5px solid var(--color-border-secondary,#D3D1C7)">
           <div style="font-size:13px;font-weight:500;color:var(--color-text-primary,#1E1C18)">Total</div>
-          <div style="font-size:13px;font-weight:500;color:#D4A312">RM ${total.toLocaleString('en-MY', {minimumFractionDigits:2})}</div>
+          <div style="font-size:13px;font-weight:500;color:#D4A312">RM ${total.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         </div>
       </div>` : ''}
 
@@ -424,12 +441,6 @@ function renderSoCard(so) {
               <input type="number" id="pay-amount-${soId}" placeholder="0.00" step="0.01"/></div>
           </div>
           <div class="g2">
-            <div class="f"><label class="lbl">Payment method</label>
-              <select id="pay-method-${soId}">
-                <option>Bank Transfer</option><option>Online Banking</option>
-                <option>Cash</option><option>Cheque</option>
-                <option>Credit Card</option><option>Other</option>
-              </select></div>
             <div class="f"><label class="lbl">Reference no.</label>
               <input type="text" id="pay-ref-${soId}" placeholder="e.g. FPX20260410-12345"/></div>
           </div>
@@ -498,8 +509,8 @@ async function submitOnlinePayment(soId, soName, minAmt, maxAmt) {
   err.style.display = 'none';
   const showErr = m => { err.textContent = m; err.style.display = 'block'; };
   if (!val || val <= 0)     { showErr('Please enter an amount.'); return; }
-  if (val < minAmt - 0.001) { showErr(`Minimum is RM ${minAmt.toLocaleString('en-MY',{minimumFractionDigits:2})}.`); return; }
-  if (val > maxAmt + 0.001) { showErr(`Maximum is RM ${maxAmt.toLocaleString('en-MY',{minimumFractionDigits:2})} (balance).`); return; }
+  if (val < minAmt - 0.001) { showErr(`Minimum is RM ${minAmt.toLocaleString('en-MY',{minimumFractionDigits:2, maximumFractionDigits:2})}.`); return; }
+  if (val > maxAmt + 0.001) { showErr(`Maximum is RM ${maxAmt.toLocaleString('en-MY',{minimumFractionDigits:2, maximumFractionDigits:2})} (balance).`); return; }
 
   const btn = document.getElementById(`pay-online-submit-${soId}`);
   btn.textContent = 'Redirecting...'; btn.disabled = true;
@@ -535,7 +546,6 @@ function triggerPayUpload(soId) {
 async function submitSoPayment(soId, soName) {
   const amount = document.getElementById(`pay-amount-${soId}`).value;
   const date   = document.getElementById(`pay-date-${soId}`).value;
-  const method = document.getElementById(`pay-method-${soId}`).value;
   const ref    = document.getElementById(`pay-ref-${soId}`).value;
   const notes  = document.getElementById(`pay-notes-${soId}`).value;
 
@@ -561,7 +571,7 @@ async function submitSoPayment(soId, soName) {
 
     const result = await API_PM('submit_manual_payment', {
       sales_order: soName, amount,
-      payment_date: date, mode_of_payment: method,
+      payment_date: date,
       reference_no: ref, notes, filedata, filename
     });
 

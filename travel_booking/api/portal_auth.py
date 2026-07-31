@@ -6,6 +6,27 @@ import frappe
 from travel_booking.api._helpers import get_customer_by_email
 
 
+@frappe.whitelist(allow_guest=True)
+def get_google_login_url(redirect_to: str = "/traveller_portal") -> str:
+    """Returns the fully-formed Google OAuth authorize URL (client_id,
+    redirect_uri, scope, and a CSRF state token all included), so the
+    portal's "Sign in with Google" button can redirect straight to
+    Google — instead of stopping at Frappe's own generic /login page
+    first (yang mana perlukan state token yang dijana server-side,
+    tak boleh hardcode selamat di frontend).
+
+    Sama pattern dengan affiliate app punya get_google_login_url()
+    (affiliate/api/portal_api.py) — reuse Social Login Key Google yang
+    SAMA (config sekali di Desk, dua-dua app boleh guna).
+
+    Jalan sebagai Guest (belum login) sebab ini dipanggil SEBELUM
+    authentication berlaku — itu tujuan Sign in with Google.
+    """
+    from frappe.utils.oauth import get_oauth2_authorize_url
+
+    return get_oauth2_authorize_url("google", redirect_to)
+
+
 # ══════════════════════════════════════════════
 # HELPERS (internal)
 # ══════════════════════════════════════════════
@@ -65,7 +86,27 @@ def _fetch_bookings(customer_name):
 
 @frappe.whitelist(allow_guest=True)
 def check_session():
-    """Check sama ada user dah login."""
+    """Check sama ada user dah login DAN patut dapat akses portal.
+
+    Akses dibenarkan dalam DUA keadaan:
+      1. Ada rekod Customer link kepada email ni (customer sebenar,
+         biasa datang dari booking pertama — rujuk _ensure_portal_user()
+         dalam booking.py) — keadaan paling biasa untuk customer tulen.
+      2. TIADA Customer, tapi User ada role "Traveller" — cth staff/admin
+         yang sengaja diberi role ni secara manual di Desk untuk tujuan
+         testing/akses dalaman, tanpa perlu 'booking palsu' semata-mata
+         untuk cipta rekod Customer (yang boleh mengotorkan data
+         accounting/CRM ERPNext sebenar). Portal papar dashboard KOSONG
+         (0 booking) untuk kes ni — bukan skrin 'please login' yang
+         mengelirukan — sebab dari segi Frappe session, mereka MEMANG
+         dah authenticated dengan sah.
+
+    NOTA: untuk customer SEBENAR, role "Traveller" dan rekod Customer
+    SENTIASA dicipta serentak dalam SATU transaksi confirm_booking() —
+    jadi keadaan "ada role tapi tiada Customer" hanya berlaku untuk
+    akaun yang role-nya diberi terus di Desk (staff/testing), bukan
+    customer yang betul-betul buat booking.
+    """
     frappe.flags.ignore_permissions = True
 
     user_email = frappe.session.user
@@ -73,7 +114,18 @@ def check_session():
         return {"status": "guest", "logged_in": False}
 
     customer_name = get_customer_by_email(user_email)
+
     if not customer_name:
+        if "Traveller" in frappe.get_roles(user_email):
+            full_name = frappe.db.get_value("User", user_email, "full_name") or user_email
+            return {
+                "status":        "ok",
+                "logged_in":     True,
+                "customer_name": full_name,
+                "customer_id":   None,
+                "email":         user_email,
+                "bookings":      [],
+            }
         return {"status": "no_customer", "logged_in": False}
 
     customer = frappe.db.get_value(

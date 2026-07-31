@@ -21,7 +21,7 @@ def get_all_so_payments():
     customer_name = _get_customer()
 
     so_rows = frappe.db.sql("""
-        SELECT name, grand_total, advance_paid, status, docstatus
+        SELECT name, grand_total, rounded_total, advance_paid, status, docstatus
         FROM `tabSales Order`
         WHERE customer = %s AND docstatus IN (1, 2)
         ORDER BY creation DESC
@@ -66,9 +66,21 @@ def get_all_so_payments():
             "amount":      float(r.amount)
         } for r in item_rows]
 
-        # Payment Entry references ke SO ini (draft + submitted)
+        # Payment Entry references ke SO ini (draft + submitted).
+        #
+        # PENTING: Payment Entry boleh rujuk terus ke Sales Order (kes
+        # biasa) ATAU ke Sales Invoice yang dijana DARI SO ni (kes bila
+        # admin cipta Sales Invoice secara manual dan guna "Get Advances
+        # Received" ERPNext untuk reconcile bayaran sedia ada — mekanisme
+        # ni SECARA LITERAL menukar reference_doctype pada Payment Entry
+        # Reference dari 'Sales Order' kepada 'Sales Invoice', mengalihkan
+        # rujukan Payment Entry YANG SAMA ke dokumen invois baharu).
+        # Kalau kita cuma check reference_doctype='Sales Order', payment
+        # yang dah "dialihkan" ni akan senyap HILANG dari portal walaupun
+        # bayaran tu masih sah — inilah punca "payment history hilang
+        # bila dah create Sales Invoice".
         pe_rows = frappe.db.sql("""
-            SELECT pe.name, pe.paid_amount, pe.reference_date,
+            SELECT DISTINCT pe.name, pe.paid_amount, pe.reference_date,
                    pe.mode_of_payment, pe.reference_no,
                    pe.docstatus,
                    CASE pe.docstatus
@@ -78,10 +90,14 @@ def get_all_so_payments():
                    END AS status
             FROM `tabPayment Entry` pe
             JOIN `tabPayment Entry Reference` per ON per.parent = pe.name
-            WHERE per.reference_doctype = 'Sales Order'
-              AND per.reference_name = %s
+            WHERE (per.reference_doctype = 'Sales Order' AND per.reference_name = %(so_name)s)
+               OR (per.reference_doctype = 'Sales Invoice' AND per.reference_name IN (
+                     SELECT DISTINCT sii.parent
+                     FROM `tabSales Invoice Item` sii
+                     WHERE sii.sales_order = %(so_name)s
+                   ))
             ORDER BY pe.creation DESC
-        """, so_name, as_dict=True)
+        """, {"so_name": so_name}, as_dict=True)
 
         payments = []
         for r in pe_rows:
@@ -116,9 +132,20 @@ def get_all_so_payments():
             "status":       r.status
         } for r in inv_rows]
 
+        # PENTING: guna rounded_total (fallback grand_total) untuk paparan —
+        # MESTI konsisten dengan create_payment_request()'s outstanding
+        # calc (yang juga guna rounded_total). Kalau tidak, portal boleh
+        # papar baki tertunggak (cth RM 0.49, dari grand_total mentah)
+        # sedangkan backend (guna rounded_total) anggap SO tu dah settle
+        # PENUH — bila customer cuba bayar baki yang dipaparkan tu,
+        # create_payment_request() throw "Tiada baki untuk dibayar"
+        # walhal portal baru sahaja tunjuk ada baki. Rujuk juga nota
+        # lengkap di stripe_checkout.create_payment_intent().
+        effective_total = float(so.rounded_total or so.grand_total or 0)
+
         orders.append({
             "name":            so_name,
-            "grand_total":     float(so.grand_total  or 0),
+            "grand_total":     effective_total,
             "advance_paid":    float(so.advance_paid or 0),
             "status":          so.status,
             "is_cancelled":    so.docstatus == 2,
@@ -234,10 +261,21 @@ def create_payment_request(booking_number: str = None, amount: float = None, sal
 # ══════════════════════════════════════════════
 
 @frappe.whitelist()
-def submit_manual_payment(amount: float, payment_date: str, mode_of_payment: str,
+def submit_manual_payment(amount: float, payment_date: str,
                           reference_no: str, notes: str, filedata: str, filename: str,
                           sales_order: str = None, booking_number: str = None):
-    """Manual transfer — cipta Payment Entry DRAFT + attach bukti."""
+    """Manual transfer — cipta Payment Entry DRAFT + attach bukti.
+
+    PENTING: TIDAK set mode_of_payment — field ni Link ke doctype master
+    "Mode of Payment" (bukan teks bebas), jadi nilai yang dihantar mesti
+    sepadan TEPAT dengan rekod sebenar di Desk (Cash/Bank Draft/dsb),
+    kalau tidak pe.insert() throw LinkValidationError. Untuk booking
+    system ni, Manual Transfer SENTIASA bermaksud bank transfer sahaja
+    (tiada pilihan lain ditawarkan pun di wizard booking pertama —
+    rujuk _create_manual_payment_entry() dalam booking.py, yang turut
+    TIDAK set field ni langsung dan berfungsi baik) — jadi field pilihan
+    "Payment method" tidak perlu, cuma tambah risiko error tanpa faedah.
+    """
     import base64
     from erpnext.accounts.party import get_party_account
 
@@ -275,7 +313,6 @@ def submit_manual_payment(amount: float, payment_date: str, mode_of_payment: str
         pe.payment_type    = "Receive"
         pe.company         = company
         pe.posting_date    = payment_date or frappe.utils.today()
-        pe.mode_of_payment = mode_of_payment
         pe.party_type      = "Customer"
         pe.party           = customer_name
         pe.party_account   = party_account

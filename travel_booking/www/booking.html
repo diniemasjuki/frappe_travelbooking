@@ -104,13 +104,15 @@
       <div class="rc-card">
         <div class="rc-rooms-header">
           <h3 class="rc-rooms-title">Rooms &amp; Passengers</h3>
-          <button class="rc-add-room" id="addRoomBtn" type="button">
-            <i class="ti ti-plus"></i> Add another room
-          </button>
         </div>
 
         <div class="rc-rooms-grid">
-          <div id="roomList"></div>
+          <div class="rc-rooms-list-col">
+            <div id="roomList"></div>
+            <button class="rc-add-room" id="addRoomBtn" type="button">
+              <i class="ti ti-plus"></i> Add another room
+            </button>
+          </div>
 
           <div class="rc-summary-panel">
             <h4 class="rc-summary-panel__title">Payment Summary</h4>
@@ -350,7 +352,14 @@
           <div class="rc-bank-row"><span>Bank</span><strong id="bankNameDisplay">Maybank</strong></div>
           <div class="rc-bank-row"><span>Account Name</span><strong id="bankAccountNameDisplay">Rarecation Sdn Bhd</strong></div>
           <div class="rc-bank-row"><span>Account No</span><strong id="bankAccountNumberDisplay">1234 5678 9012</strong></div>
-          <div class="rc-bank-row"><span>Reference</span><strong id="transferRef">Your Booking Ref</strong></div>
+        </div>
+        <div class="rc-form-group" style="margin-top:16px">
+          <label class="rc-label">Bank Transfer Reference No. <span class="rc-required">*</span></label>
+          <input type="text" class="rc-input" id="bankTransferRefInput"
+                 placeholder="e.g. transaction/reference number from your bank">
+          <small style="color:var(--rc-text-muted, #888)">
+            Enter the reference/transaction number your bank gave you for this transfer — this helps us match your payment faster.
+          </small>
         </div>
         <div class="rc-form-group" style="margin-top:16px">
           <label class="rc-label">Upload Payment Receipt <span class="rc-required">*</span></label>
