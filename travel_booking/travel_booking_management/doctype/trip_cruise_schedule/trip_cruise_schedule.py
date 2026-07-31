@@ -20,6 +20,7 @@ class TripCruiseSchedule(Document):
 		from frappe.types import DF
 
 		cruise_line_company: DF.Link | None
+		naming_series: DF.Literal[".ship_code.-.YY.MM.#"]
 		port_end: DF.Link
 		port_start: DF.Link
 		sail_end: DF.Date
