@@ -407,7 +407,18 @@ function renderConfirmActions(bookingStatus, bookingNumber) {
 
   el.innerHTML =
     '<a href="/traveller_portal" class="rc-btn rc-btn--primary">View Booking <i class="ti ti-arrow-right"></i></a>' +
-    '<a href="https://www.rarecruise.com" class="rc-btn rc-btn--ghost">Back to RareCruise</a>';
+    '<button type="button" class="rc-btn rc-btn--ghost" onclick="startNewBooking()">New Booking</button>';
+}
+
+// "New Booking" — kosongkan snapshot wizard (elak restoreWizard() tarik
+// balik data booking yang BARU sahaja siap) dan reload page /booking
+// bersih. Full page reload (bukan reset manual puluhan state variable
+// satu-satu) — cara paling selamat untuk pastikan SEMUA state (rooms,
+// billing, payment amount, voucher/referral, dsb) betul-betul kosong
+// untuk booking baharu, tiada risiko baki data lama tercicir.
+function startNewBooking() {
+  clearWizardState();
+  window.location.href = "/booking";
 }
 
 // ─── STRIPE REDIRECT RETURN ────────────────────────────────
@@ -785,9 +796,19 @@ function initRooms() {
   else renderRooms();
 }
 
+// Had maksimum cabin per booking — konsisten dengan validation backend
+// (confirm_booking()) dan Booking Reservation.validate_cabin_capacity()
+// untuk admin manual di Desk. Perubahan nilai ni MESTI disegerakkan di
+// ketiga-tiga tempat.
+var MAX_CABINS_PER_BOOKING = 8;
+
 function addRoom() {
   var avail = availableCabins();
   if (!avail.length) return;
+  if (state.rooms.length >= MAX_CABINS_PER_BOOKING) {
+    alert("Maksimum " + MAX_CABINS_PER_BOOKING + " cabin dibenarkan untuk satu booking. Sila hubungi kami terus untuk tempahan lebih besar.");
+    return;
+  }
   // Collapse cabin sedia ada supaya customer fokus isi cabin baharu.
   state.rooms.forEach(function(r) { r.open = false; });
   state.rooms.push({
@@ -938,6 +959,18 @@ function renderRooms() {
 
     list.appendChild(card);
   });
+
+  // Disable "Add another room" secara VISUAL bila dah cecah had maksimum
+  // — elak customer klik berulang tanpa tahu kenapa tak jadi apa-apa
+  // (sebelum ni cuma block senyap dalam addRoom(), tiada isyarat visual).
+  var addRoomBtnEl = document.getElementById("addRoomBtn");
+  if (addRoomBtnEl) {
+    var atMax = state.rooms.length >= MAX_CABINS_PER_BOOKING;
+    addRoomBtnEl.disabled = atMax;
+    addRoomBtnEl.title    = atMax
+      ? "Maksimum " + MAX_CABINS_PER_BOOKING + " cabin setiap booking"
+      : "";
+  }
 
   updateTotals();
 }
@@ -1273,6 +1306,28 @@ emailInput.addEventListener("blur", async function() {
       otpInline.style.display = "none";
       lockEmailField();
       setEmailStatus("verified", '<i class="ti ti-circle-check"></i> Verified');
+
+      // Auto-fill + lock Full Name & Phone Number sekali — customer
+      // sedia ada tak perlu taip semula maklumat yang sistem SEBENARNYA
+      // dah ada untuk mereka. Cuma auto-fill + lock field yang MEMANG
+      // ada data (jangan overwrite dengan kosong/lock field yang
+      // customer masih perlu isi sendiri, cth Contact tak lengkap).
+      var nameInput = document.getElementById("billingName");
+      if (result.full_name && nameInput) {
+        nameInput.value    = result.full_name.toUpperCase();
+        nameInput.readOnly = true;
+      }
+      if (result.phone) {
+        if (_itiBillingPhone) {
+          _itiBillingPhone.setNumber(result.phone);
+        } else {
+          var phoneInputEl = document.getElementById("billingPhone");
+          if (phoneInputEl) phoneInputEl.value = result.phone;
+        }
+        var phoneInput = document.getElementById("billingPhone");
+        if (phoneInput) phoneInput.readOnly = true;
+      }
+      checkStep2Ready();
     } else {
       // Email baru — tunjuk OTP field
       state.otp_verified      = false;
@@ -1347,6 +1402,20 @@ function checkStep2Ready() {
   var phone = _getBillingPhoneFull();
   step2NextBtn.disabled = !(name && phone && state.otp_verified);
 }
+
+// Full Name dipaksa UPPERCASE semasa customer menaip — bukan sekadar
+// CSS visual (text-transform), tapi nilai SEBENAR yang disimpan, sebab
+// billing.full_name ni terus jadi Customer.customer_name, Contact.first_name,
+// DAN User.first_name/last_name (rujuk _create_customer()/_ensure_portal_user()
+// dalam booking.py) — uppercase di sini automatik mengalir ke ketiga-tiga
+// rekod tanpa perlu ubah backend. Cursor position dikekalkan (setSelectionRange)
+// supaya tak "terlonjak" ke hujung setiap kali menaip huruf tengah-tengah nama.
+document.getElementById("billingName").addEventListener("input", function() {
+  var start = this.selectionStart;
+  var end   = this.selectionEnd;
+  this.value = this.value.toUpperCase();
+  this.setSelectionRange(start, end);
+});
 
 ["billingName", "billingPhone"].forEach(function(id) {
   document.getElementById(id).addEventListener("input", checkStep2Ready);
@@ -1832,9 +1901,19 @@ function refreshPaySummary() {
 }
 
 function validatePay() {
-  var min = getMinPay(), max = getMaxPay();
   var err = document.getElementById("payAmountError");
   var btn = document.getElementById("payNowBtn");
+
+  // Pay Later: tiada bayaran dibuat sekarang (amount sentiasa 0) — skip
+  // sepenuhnya validation min/max deposit/full, sebab tiada "amount"
+  // untuk disahkan langsung dalam kes ni.
+  if (state_payment_method === "Pay Later") {
+    err.style.display = "none";
+    if (btn) btn.disabled = false;
+    return true;
+  }
+
+  var min = getMinPay(), max = getMaxPay();
   var ok  = true;
   if (state_payment_amount < min) {
     err.style.display = "block";
@@ -1862,6 +1941,8 @@ function setPayAmount(v) {
 }
 
 function updatePaymentUI() {
+  var isPayLater = state_payment_method === "Pay Later";
+
   var min = getMinPay(), max = getMaxPay();
   document.getElementById("chipDeposit").textContent = fmt(min);
   document.getElementById("chipFull").textContent    = fmt(max);
@@ -1869,11 +1950,20 @@ function updatePaymentUI() {
   var inp = document.getElementById("payAmountInput");
   inp.min = min; inp.max = max;
 
-  // Default to full payment, or clamp an existing amount into the new range
-  if (!state_payment_amount || state_payment_amount > max || state_payment_amount < min) {
+  if (isPayLater) {
+    // Pay Later: tiada bayaran sekarang — amount sentiasa 0, tiada
+    // Deposit/Full toggle relevan.
+    state_payment_amount = 0;
+  } else if (!state_payment_amount || state_payment_amount > max || state_payment_amount < min) {
+    // Default to full payment, or clamp an existing amount into the new range
     state_payment_amount = max;
   }
   inp.value = state_payment_amount;
+
+  // Sembunyikan seluruh card "Payment Amount" untuk Pay Later — tiada
+  // Deposit/Full/custom amount relevan bila tiada bayaran dibuat sekarang.
+  var amountCard = document.getElementById("paymentAmountCard");
+  if (amountCard) amountCard.style.display = isPayLater ? "none" : "block";
 
   // Payment method cards
   //
@@ -1889,14 +1979,19 @@ function updatePaymentUI() {
   // Manual Transfer yang sebenarnya aktif di bawah.
   var radioOnline = document.querySelector('input[name="paymentMethod"][value="Online Payment"]');
   var radioManual = document.querySelector('input[name="paymentMethod"][value="Manual Transfer"]');
+  var radioPayLater = document.querySelector('input[name="paymentMethod"][value="Pay Later"]');
   if (radioOnline) radioOnline.checked = state_payment_method === "Online Payment";
   if (radioManual) radioManual.checked = state_payment_method === "Manual Transfer";
+  if (radioPayLater) radioPayLater.checked = isPayLater;
 
   document.getElementById("labelOnline").classList.toggle("selected", state_payment_method === "Online Payment");
   document.getElementById("labelManual").classList.toggle("selected", state_payment_method === "Manual Transfer");
+  var labelPayLaterEl = document.getElementById("labelPayLater");
+  if (labelPayLaterEl) labelPayLaterEl.classList.toggle("selected", isPayLater);
+
   var isManual = state_payment_method === "Manual Transfer";
   document.getElementById("manualTransferCard").style.display = isManual ? "block" : "none";
-  document.getElementById("payNowLabel").textContent = isManual ? "Submit Booking" : "Pay Now";
+  document.getElementById("payNowLabel").textContent = isPayLater ? "Confirm Booking" : (isManual ? "Submit Booking" : "Pay Now");
 
   validatePay();
   refreshPaySummary();
@@ -1987,8 +2082,14 @@ document.getElementById("payNowBtn").addEventListener("click", async function() 
       return;
     }
   }
-  var payment_type = state_payment_amount >= getMaxPay() - 0.001 ? "Full Payment" : "Deposit";
-  showLoading(state_payment_method === "Manual Transfer" ? "Submitting booking..." : "Creating your booking...");
+  var payment_type = state_payment_method === "Pay Later"
+    ? "Deposit"  // amount_paid=0 dihantar terus di bawah — nilai ni tak
+                 // ubah kelakuan (deposit_amount = amount_paid bila
+                 // amount_paid diberi eksplisit), cuma untuk kejelasan.
+    : (state_payment_amount >= getMaxPay() - 0.001 ? "Full Payment" : "Deposit");
+  showLoading(state_payment_method === "Manual Transfer" ? "Submitting booking..." :
+              state_payment_method === "Pay Later" ? "Confirming your booking..." :
+              "Creating your booking...");
   
   try {
     // Hantar PER-CABIN (setiap room = satu cabin) — bukan agregat.
@@ -2096,9 +2197,17 @@ function showConfirmation(booking) {
   // Booking baru selalu "Accepted" di titik ini (Manual Transfer — PE masih
   // draft, menunggu admin verify) — portal masih locked, jadi jangan janji
   // "complete traveller details" yang belum boleh dibuat.
-  document.getElementById("confirmEmail").innerHTML =
-    'Confirmation sent to <strong>' + state.billing.email + '</strong>.<br>' +
-    'We\'ll notify you by email once your payment is verified — traveller details can be completed after that.';
+  //
+  // Pay Later: TIADA bayaran/resit dihantar untuk "disahkan" — mesej
+  // "payment verified" tak masuk akal di sini (mengelirukan, seolah-olah
+  // ada sesuatu dalam proses semakan). Guna mesej berbeza — arah customer
+  // terus ke portal untuk bayar bila-bila mereka nak.
+  var confirmMsg = state_payment_method === "Pay Later"
+    ? 'Confirmation sent to <strong>' + state.billing.email + '</strong>.<br>' +
+      'Log in to your portal anytime to complete payment for this booking.'
+    : 'Confirmation sent to <strong>' + state.billing.email + '</strong>.<br>' +
+      'We\'ll notify you by email once your payment is verified — traveller details can be completed after that.';
+  document.getElementById("confirmEmail").innerHTML = confirmMsg;
 }
 
 // ─── BOOTSTRAP ─────────────────────────────────────────────

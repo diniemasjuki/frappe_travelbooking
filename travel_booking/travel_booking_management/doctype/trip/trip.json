@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_bulk_edit": 1,
+ "allow_import": 1,
  "allow_rename": 1,
  "autoname": "TRIP.##",
  "creation": "2026-04-08 18:35:50.739775",
@@ -146,7 +147,7 @@
   }
  ],
  "make_attachments_public": 1,
- "modified": "2026-07-26 16:41:33.855622",
+ "modified": "2026-08-02 01:07:27.881750",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip",
@@ -158,10 +159,11 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "System Manager",
+   "role": "Tour Manager",
    "share": 1,
    "write": 1
   }

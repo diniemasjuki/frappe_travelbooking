@@ -120,7 +120,7 @@ def get_all_so_payments():
         # Sales Invoice (kalau admin dah generate)
         inv_rows = frappe.db.sql("""
             SELECT DISTINCT sii.parent, si.posting_date,
-                   si.grand_total, si.status
+                   si.grand_total, si.rounded_total, si.status
             FROM `tabSales Invoice Item` sii
             JOIN `tabSales Invoice` si ON si.name = sii.parent
             WHERE sii.sales_order = %s AND si.docstatus = 1
@@ -128,7 +128,9 @@ def get_all_so_payments():
         invoices = [{
             "name":         r.parent,
             "posting_date": str(r.posting_date) if r.posting_date else "",
-            "grand_total":  float(r.grand_total or 0),
+            # rounded_total diutamakan — sepadan dengan angka pada
+            # dokumen invois SEBENAR yang dicetak/dihantar ke customer.
+            "grand_total":  float(r.rounded_total or r.grand_total or 0),
             "status":       r.status
         } for r in inv_rows]
 
@@ -302,11 +304,17 @@ def submit_manual_payment(amount: float, payment_date: str,
     try:
         company = so.company or frappe.db.get_single_value("Global Defaults", "default_company")
 
-        paid_to = frappe.db.get_value(
-            "Account",
-            {"account_type": "Bank", "company": company, "is_group": 0},
-            "name"
-        )
+        # PENTING: guna Travel Settings.manual_transfer_paid_to_account
+        # (configurable di Desk) kalau admin dah tetapkan — sama fix
+        # dengan _create_manual_payment_entry() (api/booking.py), elak
+        # bergantung pada "Account jenis Bank PERTAMA yang jumpa".
+        paid_to = frappe.db.get_single_value("Travel Settings", "manual_transfer_paid_to_account")
+        if not paid_to:
+            paid_to = frappe.db.get_value(
+                "Account",
+                {"account_type": "Bank", "company": company, "is_group": 0},
+                "name"
+            )
         party_account = get_party_account("Customer", customer_name, company)
 
         pe = frappe.new_doc("Payment Entry")

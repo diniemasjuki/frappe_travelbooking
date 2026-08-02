@@ -37,7 +37,7 @@ class Traveller(Document):
 		passport_no: DF.Data | None
 		phone: DF.Phone | None
 		special_needs: DF.SmallText | None
-		status: DF.Literal["New", "Valid", "Expired"]
+		status: DF.Literal["Pending", "Verified", "Open for Update", "Rejected"]
 		title: DF.Literal["Mr", "Mrs"]
 		visa_photo: DF.Attach | None
 	# end: auto-generated types

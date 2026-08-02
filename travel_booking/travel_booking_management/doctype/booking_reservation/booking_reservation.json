@@ -1,15 +1,19 @@
 {
  "actions": [],
  "allow_bulk_edit": 1,
- "allow_rename": 1,
- "autoname": "RES-.YYYY.-.#####",
+ "allow_import": 1,
+ "autoname": "naming_series:naming_series",
  "creation": "2026-05-05 11:02:24.899692",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "reservation_info_section",
   "booking",
+  "booking_number",
   "guest_label",
+  "customer",
+  "customer_email",
+  "naming_series",
   "column_break_wcmg",
   "status",
   "document_status",
@@ -26,24 +30,35 @@
   "reservation_section",
   "date_selection",
   "is_a_cruise",
+  "is_cruise_only",
   "column_break_bsxx",
   "departure_date",
   "arrival_date",
   "column_break_srnx",
   "cruise_start",
   "cruise_end",
+  "traveller_information_tab",
   "traveller_details_section",
   "column_break_egqo",
   "traveller",
   "column_break_cedq",
   "full_name",
+  "rooming_and_flight_tab",
   "room_and_flight_section",
-  "room_category",
-  "stateroom_no",
-  "aroya_guest_no",
-  "delegate_no",
   "column_break_depl",
-  "flight"
+  "flight",
+  "column_break_wblj",
+  "flight_ticket_type",
+  "cabin_arrangement_tab",
+  "rooming_column",
+  "room_category",
+  "cabin_no",
+  "pax_type",
+  "aroya_column",
+  "stateroom_no",
+  "delegate_no",
+  "aroya_guest_no",
+  "column_break_wmuo"
  ],
  "fields": [
   {
@@ -61,6 +76,7 @@
   {
    "fieldname": "traveller",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Traveller",
    "options": "Traveller",
    "search_index": 1
@@ -79,11 +95,12 @@
   },
   {
    "default": "Pending",
+   "fetch_from": "traveller.status",
    "fieldname": "document_status",
-   "fieldtype": "Select",
+   "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Document Status",
-   "options": "Pending\nVerified\nOpen for Update\nRejected"
+   "options": "Pending\nVerified\nOpen for Update\nRejected\nValid"
   },
   {
    "fieldname": "traveller_details_section",
@@ -96,7 +113,7 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Full Name",
-   "options": "Traveller",
+   "options": "Name",
    "read_only": 1
   },
   {
@@ -131,10 +148,13 @@
    "label": "Delegate No"
   },
   {
+   "depends_on": "eval:!doc.is_cruise_only",
    "fieldname": "column_break_depl",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "label": "Flight"
   },
   {
+   "depends_on": "eval:!doc.is_cruise_only",
    "fieldname": "flight",
    "fieldtype": "Link",
    "label": "Flight",
@@ -148,6 +168,8 @@
    "fetch_from": "booking.trip_package",
    "fieldname": "trip_package",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Trip Package (Link)",
    "options": "Trip Package",
    "search_index": 1
@@ -209,8 +231,11 @@
    "label": "Reservation"
   },
   {
+   "fetch_from": "booking.trip_date",
    "fieldname": "date_selection",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Date Selection",
    "options": "Trip Group Date"
   },
@@ -221,13 +246,13 @@
   {
    "fetch_from": "date_selection.departure_date",
    "fieldname": "departure_date",
-   "fieldtype": "Data",
+   "fieldtype": "Date",
    "label": "Departure Date"
   },
   {
    "fetch_from": "date_selection.return_date",
    "fieldname": "arrival_date",
-   "fieldtype": "Data",
+   "fieldtype": "Date",
    "label": "Arrival Date"
   },
   {
@@ -236,6 +261,7 @@
   },
   {
    "default": "0",
+   "fetch_from": "booking.is_a_cruise_trip",
    "fieldname": "is_a_cruise",
    "fieldtype": "Check",
    "label": "is a cruise"
@@ -243,13 +269,13 @@
   {
    "fetch_from": "date_selection.sailing_start",
    "fieldname": "cruise_start",
-   "fieldtype": "Data",
+   "fieldtype": "Date",
    "label": "Cruise Start"
   },
   {
    "fetch_from": "date_selection.sailing_end",
    "fieldname": "cruise_end",
-   "fieldtype": "Data",
+   "fieldtype": "Date",
    "label": "Cruise End"
   },
   {
@@ -257,16 +283,108 @@
    "fieldtype": "Data",
    "label": "Guest Label - Slot_Label",
    "set_only_once": 1
+  },
+  {
+   "default": ".{booking}.-.#",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "naming series",
+   "no_copy": 1,
+   "options": ".{booking}.-.#\nRES.YY.MM.###",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "traveller_information_tab",
+   "fieldtype": "Tab Break",
+   "label": "Traveller"
+  },
+  {
+   "default": "0",
+   "fetch_from": "booking.is_cruise_only",
+   "fieldname": "is_cruise_only",
+   "fieldtype": "Check",
+   "label": "is cruise only"
+  },
+  {
+   "fetch_from": "booking.customer",
+   "fieldname": "customer",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Customer"
+  },
+  {
+   "fetch_from": "booking.booking_number",
+   "fieldname": "booking_number",
+   "fieldtype": "Data",
+   "label": "Booking No"
+  },
+  {
+   "fieldname": "rooming_column",
+   "fieldtype": "Column Break",
+   "label": "Rooming"
+  },
+  {
+   "description": "Cabin 1 - 8",
+   "fieldname": "cabin_no",
+   "fieldtype": "Int",
+   "label": "Cabin No"
+  },
+  {
+   "fieldname": "pax_type",
+   "fieldtype": "Select",
+   "label": "Pax Type",
+   "options": "Main Guest\nExtra Bed\nInfant"
+  },
+  {
+   "fieldname": "aroya_column",
+   "fieldtype": "Column Break",
+   "label": "Aroya"
+  },
+  {
+   "fetch_from": "booking.cust_email",
+   "fieldname": "customer_email",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Customer Email"
+  },
+  {
+   "fieldname": "column_break_wblj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:!doc.is_cruise_only",
+   "fetch_from": "flight.ticket_type",
+   "fieldname": "flight_ticket_type",
+   "fieldtype": "Data",
+   "label": "Flight Ticket Type"
+  },
+  {
+   "depends_on": "eval:!doc.is_cruise_only",
+   "fieldname": "rooming_and_flight_tab",
+   "fieldtype": "Tab Break",
+   "label": "Rooming And Flight"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise",
+   "fieldname": "cabin_arrangement_tab",
+   "fieldtype": "Tab Break",
+   "label": "Cabin Arrangement"
+  },
+  {
+   "fieldname": "column_break_wmuo",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-28 16:14:11.262698",
+ "modified": "2026-08-02 10:24:32.340354",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking Reservation",
- "naming_rule": "Expression",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "abdsobur.abdahad@gmail.com",
  "permissions": [
   {
@@ -274,10 +392,11 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "System Manager",
+   "role": "Tour Manager",
    "share": 1,
    "write": 1
   }

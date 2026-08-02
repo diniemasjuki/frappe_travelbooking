@@ -37,7 +37,7 @@ class TripGroupDate(Document):
 		sailing_start: DF.Date | None
 		ship_code: DF.Data | None
 		ship_name: DF.Data | None
-		status: DF.Literal["Pending Review", "Active", "Full", "Cancelled", "Completed"]
+		status: DF.Literal["Active", "Full", "Closed", "Completed", "Pending Review", "Cancelled"]
 		total_days: DF.Int
 		total_nights: DF.Int
 		trip: DF.Link

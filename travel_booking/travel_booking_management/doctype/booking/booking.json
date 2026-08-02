@@ -1,30 +1,45 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 1,
- "autoname": "BK-.YYYY.-.####",
+ "autoname": "naming_series:",
  "creation": "2026-04-08 18:55:47.144024",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "sec_booking",
   "booking_number",
-  "column_break_bgxh",
   "status",
+  "naming_series",
   "column_break_nrfb",
+  "prog_payment",
   "payment_status",
-  "section_break_ziol",
-  "column_break_qlzh",
+  "section_break_wqvr",
+  "column_break_hwbu",
   "customer",
+  "cust_phone",
+  "cust_email",
+  "section_break_mhpl",
   "column_break_lfil",
   "trip_name",
   "trip_date",
   "trip_package",
-  "section_break_mhpl",
+  "column_break_ckkw",
+  "trip_status",
+  "trip_date_group_status",
+  "trip_package_status",
+  "column_break_tgtv",
+  "departure_date",
+  "return_date",
+  "is_a_cruise_trip",
+  "is_cruise_only",
+  "section_break_eyrl",
   "order_summary",
+  "column_break_wyaj",
+  "cruise_start",
+  "cruise_end",
   "payment_section",
-  "payment_type",
-  "payment_method",
-  "deposit_amount",
+  "column_break_betz",
   "total_amount",
   "balance_amount",
   "column_break_jnes",
@@ -33,7 +48,9 @@
   "pre_discount_total",
   "details_information_section",
   "total_pax",
+  "column_break_gige",
   "verified_pax",
+  "column_break_whlk",
   "pending_pax"
  ],
  "fields": [
@@ -51,11 +68,12 @@
    "unique": 1
   },
   {
+   "description": "Pending = Pending Payment (auto)<br>\nAccepted = Payment Started (auto)<br>\nProcessing = Admin Attending  (Manual) <br>\nConfirmed = Preparation Completed (Manual) <br>\nCompleted = Journey has completed (Auto)<br>\nAbandoned = Pending Payment Too Long <br>\nCancelled = Canceled by any reason (Manual)",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Booking Status",
-   "options": "Pending\nProcessing\nAccepted\nConfirmed\nCompleted\nCancelled"
+   "options": "Pending\nProcessing\nAccepted\nConfirmed\nCompleted\nAbandoned\nCancelled"
   },
   {
    "fieldname": "payment_status",
@@ -91,7 +109,8 @@
   },
   {
    "fieldname": "section_break_mhpl",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Trip Information"
   },
   {
    "fieldname": "order_summary",
@@ -106,33 +125,18 @@
    "label": "Payment"
   },
   {
-   "fieldname": "payment_type",
-   "fieldtype": "Select",
-   "label": "Payment Type",
-   "options": "Full Payment\nDeposit"
-  },
-  {
-   "fieldname": "payment_method",
-   "fieldtype": "Select",
-   "label": "Payment Method",
-   "options": "Online Payment\nManual Transfer"
-  },
-  {
-   "fieldname": "deposit_amount",
-   "fieldtype": "Currency",
-   "label": "Deposit Amount"
-  },
-  {
    "fieldname": "total_amount",
    "fieldtype": "Currency",
    "is_virtual": 1,
-   "label": "Total Amount"
+   "label": "Total Amount",
+   "precision": "2"
   },
   {
    "fieldname": "balance_amount",
    "fieldtype": "Currency",
    "is_virtual": 1,
-   "label": "Balance Amount"
+   "label": "Balance Amount",
+   "precision": "2"
   },
   {
    "fieldname": "column_break_jnes",
@@ -183,34 +187,166 @@
    "depends_on": "eval:doc.trip_name",
    "fieldname": "trip_date",
    "fieldtype": "Link",
-   "in_list_view": 1,
    "label": "Trip Date",
    "options": "Trip Group Date"
-  },
-  {
-   "fieldname": "column_break_qlzh",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "column_break_bgxh",
-   "fieldtype": "Column Break"
   },
   {
    "fieldname": "column_break_nrfb",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "section_break_ziol",
+   "fieldname": "section_break_wqvr",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_hwbu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cust_phone",
+   "fieldtype": "Phone",
+   "is_virtual": 1,
+   "label": "Phone",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cust_email",
+   "fieldtype": "Data",
+   "is_virtual": 1,
+   "label": "Email",
+   "options": "Email",
+   "read_only": 1
+  },
+  {
+   "default": "BOOK.YY.MM.###",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "naming series",
+   "options": "BOOK.YY.MM.###",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_betz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_gige",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_whlk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_ckkw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "prog_payment",
+   "fieldtype": "Percent",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Payment Progress",
+   "no_copy": 1,
+   "precision": "0",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "trip_name.status",
+   "fieldname": "trip_status",
+   "fieldtype": "Read Only",
+   "label": "Trip Status"
+  },
+  {
+   "fetch_from": "trip_date.status",
+   "fieldname": "trip_date_group_status",
+   "fieldtype": "Read Only",
+   "label": "Trip Date Group Status"
+  },
+  {
+   "fetch_from": "trip_package.status",
+   "fieldname": "trip_package_status",
+   "fieldtype": "Read Only",
+   "label": "Trip Package Status"
+  },
+  {
+   "fieldname": "section_break_eyrl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_tgtv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip_date.departure_date",
+   "fieldname": "departure_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Departure Date"
+  },
+  {
+   "fetch_from": "trip_date.return_date",
+   "fieldname": "return_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Return Date"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fieldname": "column_break_wyaj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fetch_from": "trip_date.is_a_cruise_trip",
+   "fieldname": "is_a_cruise_trip",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "is a cruise trip"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fetch_from": "trip_date.is_cruise_only",
+   "fieldname": "is_cruise_only",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "is cruise only"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fetch_from": "trip_date.sailing_start",
+   "fieldname": "cruise_start",
+   "fieldtype": "Date",
+   "label": "Cruise Start"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fetch_from": "trip_date.sailing_end",
+   "fieldname": "cruise_end",
+   "fieldtype": "Date",
+   "label": "Cruise End"
   }
  ],
  "grid_page_length": 50,
- "links": [],
- "modified": "2026-08-01 07:20:43.885039",
+ "links": [
+  {
+   "link_doctype": "Sales Order",
+   "link_fieldname": "custom_booking"
+  },
+  {
+   "link_doctype": "Sales Invoice",
+   "link_fieldname": "custom_booking"
+  }
+ ],
+ "modified": "2026-08-02 01:07:25.711841",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking",
- "naming_rule": "Expression",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "abdsobur.abdahad@gmail.com",
  "permissions": [
   {
@@ -218,6 +354,7 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -230,6 +367,7 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -241,6 +379,7 @@
    "create": 1,
    "email": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
    "read": 1,
    "report": 1,

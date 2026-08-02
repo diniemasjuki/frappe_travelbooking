@@ -7,7 +7,7 @@ import json
 import random
 import string
 
-from travel_booking.api._helpers import get_customer_by_email, get_customer_email
+from travel_booking.api._helpers import get_customer_by_email, get_customer_email, get_customer_phone
 
 
 # ══════════════════════════════════════════════
@@ -244,7 +244,22 @@ def send_otp(email: str):
     # wujud tapi orang tu tak pernah verify email ni sendiri, jadi tak
     # patut skip OTP.
     if frappe.db.exists("User", email):
-        return {"verified": True, "message": "Email disahkan."}
+        # Ambil nama & phone customer SEDIA ADA supaya frontend boleh
+        # auto-fill + lock field Full Name/Phone Number sekali (bukan
+        # cuma email) — elak customer perlu taip semula maklumat yang
+        # sistem SEBENARNYA dah ada untuk mereka.
+        full_name = ""
+        phone     = ""
+        customer_name = get_customer_by_email(email)
+        if customer_name:
+            full_name = frappe.db.get_value("Customer", customer_name, "customer_name") or ""
+            phone     = get_customer_phone(customer_name) or ""
+        return {
+            "verified":  True,
+            "message":   "Email disahkan.",
+            "full_name": full_name,
+            "phone":     phone,
+        }
 
     # ── Rate limiting — elak spam/abuse hantar OTP berulang-ulang ──
     # Lapisan 1: cooldown 60 saat antara setiap request (elak klik
@@ -579,15 +594,35 @@ def _price_selection(price, main_guests, extra_beds, infants):
     return round(total, 2)
 
 
+# Had maksimum cabin per booking — MESTI disegerakkan dengan
+# MAX_CABINS_PER_BOOKING dalam booking.js (frontend) dan
+# validate_cabin_capacity() dalam booking_reservation.py (admin manual
+# di Desk), supaya konsisten merentasi ketiga-tiga laluan.
+MAX_CABINS_PER_BOOKING = 8
+
+
 def _validate_selection_capacity(selections, cabin_info_map):
     """Sahkan setiap selection ikut had SLOT (server-side) — jangan percaya
     client-side JS je, sebab payload boleh dimanipulasi.
       - main_guests: 1..capacity
       - extra_beds : 0..(max_capacity - capacity), hanya sah bila
                      main_guests == capacity (bilik penuh Main Guest dulu)
-      - infants    : 0..floor(max_capacity / 2), hanya sah bila main_guests >= 2
+      - infants    : 0..(max_capacity - main_guests - extra_beds), hanya
+                     sah bila main_guests >= 1. Had DINAMIK (bukan formula
+                     tetap max_capacity//2) — sepadan tepat dengan capFor()
+                     dalam booking.js (frontend).
     cabin_info_map: {room_category: {"capacity":.., "max_capacity":..}}
     """
+    # PENTING: had maksimum cabin — check DULU sebelum apa-apa, sebab
+    # 'selections' terus dari payload customer (boleh dimanipulasi walau
+    # frontend dah disable butang "Add another room" bila cecah had).
+    if len(selections) > MAX_CABINS_PER_BOOKING:
+        frappe.throw(
+            "Maksimum " + str(MAX_CABINS_PER_BOOKING) +
+            " cabin dibenarkan untuk satu booking. Sila hubungi kami " +
+            "terus untuk tempahan lebih besar."
+        )
+
     for sel in selections:
         room_category = sel.get("room_category")
         info = cabin_info_map.get(room_category)
@@ -597,11 +632,19 @@ def _validate_selection_capacity(selections, cabin_info_map):
         capacity     = int(info.get("capacity") or 0)
         max_capacity = int(info.get("max_capacity") or capacity)
         max_extra    = max(0, max_capacity - capacity)
-        max_infant   = max_capacity // 2
 
         mg  = int(sel.get("main_guests", 0))
         eb  = int(sel.get("extra_beds", 0))
         inf = int(sel.get("infants", 0))
+
+        # max_infant DINAMIK — sama formula dengan capFor() frontend
+        # (maxCapacity - main_guests - extra_beds). SEBELUM NI guna formula
+        # TETAP (max_capacity // 2) yang tak ambil kira berapa ruang
+        # main_guests/extra_beds DAH guna — boleh terlalu ketat (tolak
+        # selection sah, cth Main Guest=1 patut boleh Infant=3 dalam cabin
+        # 4-pax, tapi formula lama cap kat 2) atau dalam kes lain terlalu
+        # longgar berbanding apa frontend sebenarnya benarkan.
+        max_infant = max(0, max_capacity - mg - eb)
 
         if mg < 1 or mg > capacity:
             frappe.throw("Main Guest untuk " + str(room_category) + " mesti antara 1 dan " + str(capacity) + ".")
@@ -609,8 +652,8 @@ def _validate_selection_capacity(selections, cabin_info_map):
             frappe.throw("Extra Bed hanya dibenarkan bila Main Guest sudah penuh (" + str(capacity) + ") untuk " + str(room_category) + ".")
         if eb > max_extra:
             frappe.throw("Extra Bed untuk " + str(room_category) + " melebihi had (" + str(max_extra) + ").")
-        if inf > 0 and mg < 2:
-            frappe.throw("Infant hanya dibenarkan bila Main Guest sekurang-kurangnya 2 untuk " + str(room_category) + ".")
+        if inf > 0 and mg < 1:
+            frappe.throw("Infant hanya dibenarkan bila Main Guest sekurang-kurangnya 1 untuk " + str(room_category) + ".")
         if inf > max_infant:
             frappe.throw("Infant untuk " + str(room_category) + " melebihi had (" + str(max_infant) + ").")
 
@@ -875,9 +918,6 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         "customer":       customer_name,
         "status":         "Pending",
         "payment_status": "Pending",
-        "payment_method": payment_method,
-        "payment_type":   payment_type,
-        "deposit_amount": deposit_amount if payment_type == "Deposit" else 0,
         "booking_number": _generate_booking_number(),
         # PENTING: attribution affiliate (untuk commission) TAK bergantung
         # pada referral_discount > 0 — sales_partner dah sah (atau None)
@@ -939,14 +979,27 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
             label         = "receipt-" + booking.booking_number,
             bank_transfer_ref = bank_transfer_ref,
         )
+    elif payment_method == "Pay Later":
+        # Tiada bayaran cuba dibuat sekarang — SO + Booking dah cipta
+        # (grand_total penuh, advance_paid=0) macam biasa di atas, cuma
+        # SKIP terus penciptaan Payment Entry/Stripe URL. Customer bayar
+        # KEMUDIAN melalui portal (mekanisme sedia ada — tab Payment &
+        # Invoice, "Pay Now" — tiada perubahan diperlukan di situ).
+        # Booking Reservation TIDAK dicipta serta-merta (rujuk
+        # _recompute_booking_status(): trigger bergantung payment_status
+        # mula ada bayaran — kekal begitu, keputusan sengaja).
+        pass
 
     frappe.db.commit()
 
-    if payment_method == "Manual Transfer":
+    if payment_method in ("Manual Transfer", "Pay Later"):
         # Manual Transfer — booking betul-betul "Pending" (menunggu admin
-        # verify resit), jadi emel "Pending" dihantar terus di sini. (Wizard
-        # memaksa upload resit sebelum submit, tapi check ni tak bergantung
-        # pada 'receipt' supaya tetap selamat kalau dipanggil terus via API.)
+        # verify resit). Pay Later — booking "Pending" sebab memang belum
+        # ada bayaran langsung. Kedua-dua kongsi mesej/template EMAIL yang
+        # sama ("Booking Pending") — keputusan sengaja, elak template
+        # baharu buat masa ni. (Wizard memaksa upload resit untuk Manual
+        # Transfer sebelum submit, tapi check ni tak bergantung pada
+        # 'receipt' supaya tetap selamat kalau dipanggil terus via API.)
         _send_status_email(booking.name, "Pending",
                            email_override=billing.get("email", ""))
 
@@ -987,8 +1040,15 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
     frappe.set_user("Administrator")
     try:
         company = so.company or frappe.db.get_single_value("Global Defaults", "default_company")
-        paid_to = frappe.db.get_value("Account",
-            {"account_type": "Bank", "company": company, "is_group": 0}, "name")
+        # PENTING: guna Travel Settings.manual_transfer_paid_to_account
+        # (configurable di Desk) kalau admin dah tetapkan — elak bergantung
+        # pada "Account jenis Bank PERTAMA yang jumpa" (tak konsisten kalau
+        # company ada lebih dari satu akaun Bank). Fallback ke kelakuan
+        # LAMA kalau setting ni belum diisi (backward compat).
+        paid_to = frappe.db.get_single_value("Travel Settings", "manual_transfer_paid_to_account")
+        if not paid_to:
+            paid_to = frappe.db.get_value("Account",
+                {"account_type": "Bank", "company": company, "is_group": 0}, "name")
         party_account = get_party_account("Customer", customer_name, company)
 
         pe = frappe.new_doc("Payment Entry")
@@ -1164,7 +1224,13 @@ def _get_or_create_travel_item():
 def _cabin_layout_from_so(so_name):
     """Susunan cabin dari SO items (SO = sumber tunggal), ikut turutan cabin.
     description: 'Trip | Group Label | Room Category | Cabin N | Pax Type'.
-    Return: [{cabin_no, room_category, pax}] disusun ikut cabin_no.
+    Return: [{cabin_no, room_category, pax, pax_breakdown}] disusun ikut
+    cabin_no. pax_breakdown = {"Main Guest": 2, "Extra Bed": 1, ...} —
+    pecahan pax_type SEBENAR yang customer beli untuk cabin ni, perlu
+    untuk isi cabin_no/pax_type pada setiap Booking Reservation individu
+    (rujuk _activate_booking()). 'pax' (jumlah keseluruhan) dikekalkan
+    untuk backward compat dengan caller sedia ada (portal_booking.py
+    Pass 2 grouping) yang cuma perlukan kuantiti, bukan breakdown.
     """
     items = frappe.db.get_all("Sales Order Item",
                               filters={"parent": so_name},
@@ -1176,21 +1242,42 @@ def _cabin_layout_from_so(so_name):
             continue
         room_category = parts[2].strip()
         cabin_tag     = parts[3].strip()
+        pax_type      = parts[4].strip()
+
+        # PENTING: "Main Guest (Single)" cuma label PRICING/paparan (beza
+        # price_adult_single vs price_adult — rujuk _build_so_items()) —
+        # dari segi kapasiti/kiraan slot Booking Reservation, ia SAMA
+        # dengan "Main Guest" biasa (satu-satu tetap ambil 1 slot). Field
+        # pax_type (Select) pada Booking Reservation cuma terima 3 nilai
+        # tetap ("Main Guest"/"Extra Bed"/"Infant") — tanpa normalize ni,
+        # _activate_booking() akan cuba simpan "Main Guest (Single)" terus
+        # dan Frappe tolak dengan error validation (LinkValidationError
+        # gaya Select), block booking/update Payment Entry yang trigger
+        # laluan ni.
+        if pax_type == "Main Guest (Single)":
+            pax_type = "Main Guest"
+
         try:
             cabin_no = int(cabin_tag.lower().replace("cabin", "").strip())
         except Exception:
             continue
         if cabin_no not in layout:
-            layout[cabin_no] = {"cabin_no": cabin_no, "room_category": room_category, "pax": 0}
-        layout[cabin_no]["pax"] += int(it.qty or 0)
+            layout[cabin_no] = {"cabin_no": cabin_no, "room_category": room_category, "pax": 0, "pax_breakdown": {}}
+        qty = int(it.qty or 0)
+        layout[cabin_no]["pax"] += qty
+        layout[cabin_no]["pax_breakdown"][pax_type] = layout[cabin_no]["pax_breakdown"].get(pax_type, 0) + qty
     return [layout[n] for n in sorted(layout.keys())]
 
 
 def _activate_booking(booking_name):
     """Cipta Booking Reservation (status Confirmed) bila booking Confirmed.
-    Idempotent. Reservation dicipta dengan room_category sahaja; flight &
-    stateroom admin assign. Cabin layout diambil dari SO UTAMA (cabin
-    booking asal), bukan addon SO.
+    Idempotent. Reservation dicipta dengan room_category + cabin_no +
+    pax_type terisi (bukan cuma room_category macam sebelum ni) — setiap
+    slot individu terus tahu cabin & jenis pax dia dari mula, konsisten
+    dengan apa customer beli di SO, dan sepadan dengan validate() capacity
+    check baharu (rujuk booking_reservation.py) yang bergantung pada
+    field-field ni. flight & stateroom_no tetap admin assign kemudian.
+    Cabin layout diambil dari SO UTAMA (cabin booking asal), bukan addon SO.
     """
     if frappe.db.count("Booking Reservation", {"booking": booking_name}):
         return 0
@@ -1199,15 +1286,18 @@ def _activate_booking(booking_name):
         return 0
     count = 0
     for cabin in _cabin_layout_from_so(so_name):
-        for _ in range(int(cabin.get("pax", 0))):
-            frappe.get_doc({
-                "doctype":         "Booking Reservation",
-                "booking":         booking_name,
-                "room_category":   cabin.get("room_category"),
-                "status":          "Confirmed",
-                "document_status": "Pending",
-            }).insert(ignore_permissions=True)
-            count += 1
+        for pax_type, qty in cabin.get("pax_breakdown", {}).items():
+            for _ in range(int(qty)):
+                frappe.get_doc({
+                    "doctype":         "Booking Reservation",
+                    "booking":         booking_name,
+                    "room_category":   cabin.get("room_category"),
+                    "cabin_no":        cabin.get("cabin_no"),
+                    "pax_type":        pax_type,
+                    "status":          "Confirmed",
+                    "document_status": "Pending",
+                }).insert(ignore_permissions=True)
+                count += 1
     return count
 
 
@@ -1295,9 +1385,20 @@ def _recompute_booking_status(so_name):
 
     new_payment_status = _compute_payment_status(paid, total)
 
-    b = frappe.db.get_value("Booking", booking_name, ["name", "status", "payment_status"], as_dict=True)
+    # prog_payment: peratusan kemajuan bayaran, formula (1 - (balance/total))
+    # * 100 — field STORED sebenar (bukan @property macam total_amount/
+    # balance_amount), jadi WAJIB ditulis eksplisit di sini setiap kali
+    # payment data SO berkaitan berubah (bukan dikira on-the-fly semasa
+    # baca), supaya sentiasa terkini untuk paparan List View/laporan.
+    balance = max(0, total - paid)
+    new_prog_payment = round((1 - (balance / total)) * 100) if total > 0 else 0
+
+    b = frappe.db.get_value("Booking", booking_name, ["name", "status", "payment_status", "prog_payment"], as_dict=True)
     if not b:
         return
+
+    if b.prog_payment != new_prog_payment:
+        frappe.db.set_value("Booking", b.name, "prog_payment", new_prog_payment)
 
     # Reservation dicipta sebaik payment_status mula ada sebarang bayaran
     # (Partially Paid ATAU Paid) — bukan perlu tunggu Paid penuh. Ini
@@ -1493,7 +1594,7 @@ def _use_voucher(code, customer_name, booking_name, discount_amount=0):
 def _generate_booking_number():
     while True:
         suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        booking_number = "RC-" + suffix
+        booking_number = "RC" + suffix
         if not frappe.db.exists("Booking", {"booking_number": booking_number}):
             return booking_number
 

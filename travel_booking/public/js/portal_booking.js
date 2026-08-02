@@ -160,8 +160,21 @@ async function openPortal(bookingName) {
     PORTAL_DATA = cached;
     renderPortalBookingInfo(cached);
     renderTravellerSlots(cached);
+    // PENTING: mesti render SEMULA selepas data terkini sampai — sebelum
+    // ni, .then() cuma update PORTAL_DATA/_CACHE secara senyap tanpa
+    // render, jadi skrin kekal papar snapshot LAMA (cth 3 traveller slot)
+    // sehingga customer navigate keluar-masuk tab ni semula. Ini punca
+    // Booking Reservation BAHARU yang admin cipta secara manual di Desk
+    // (contoh slot ke-4) tak muncul serta-merta di portal walaupun query
+    // backend (WHERE res.booking = booking_number) sebenarnya dah betul
+    // kira rekod tu — cuma paparan yang belum refresh.
     API_BK('get_booking_data', { booking_number: bookingName })
-      .then(fresh => { PORTAL_DATA = fresh; _CACHE.set('booking_' + bookingName, fresh, _CACHE.TTL.booking); })
+      .then(fresh => {
+        PORTAL_DATA = fresh;
+        _CACHE.set('booking_' + bookingName, fresh, _CACHE.TTL.booking);
+        renderPortalBookingInfo(fresh);
+        renderTravellerSlots(fresh);
+      })
       .catch(() => {});
     return;
   }

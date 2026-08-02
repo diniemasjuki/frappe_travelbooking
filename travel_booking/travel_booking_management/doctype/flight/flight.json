@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_bulk_edit": 1,
+ "allow_import": 1,
  "allow_rename": 1,
  "autoname": "field:pnr",
  "creation": "2026-06-08 15:46:30.385386",
@@ -17,16 +18,10 @@
   "status",
   "departure_details_section",
   "home_airport",
-  "column_break_msug",
-  "departure_date",
-  "column_break_bdea",
-  "arrival_date",
-  "return_details_section",
   "destination_airport",
-  "column_break_mcro",
-  "return_date",
-  "column_break_rbfp",
-  "return_arrival_date",
+  "column_break_bdea",
+  "departure_date",
+  "arrival_date",
   "section_break_ajdt",
   "flight_class",
   "column_break_mvtd",
@@ -55,6 +50,7 @@
    "label": "Flight Title"
   },
   {
+   "description": "Open <br>\nFull <br>\nClosed <br>\nCompleted <br>",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_filter": 1,
@@ -104,10 +100,6 @@
    "reqd": 1
   },
   {
-   "fieldname": "column_break_msug",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "departure_date",
    "fieldtype": "Date",
    "in_list_view": 1,
@@ -124,11 +116,6 @@
    "label": "Return Arrival Date"
   },
   {
-   "fieldname": "return_details_section",
-   "fieldtype": "Section Break",
-   "label": "Destination Airport"
-  },
-  {
    "allow_in_quick_entry": 1,
    "fieldname": "destination_airport",
    "fieldtype": "Link",
@@ -138,24 +125,6 @@
    "label": "Destination Airport",
    "options": "Flight Airport",
    "reqd": 1
-  },
-  {
-   "fieldname": "column_break_mcro",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "return_date",
-   "fieldtype": "Date",
-   "label": "Destination Arrival Date"
-  },
-  {
-   "fieldname": "column_break_rbfp",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "return_arrival_date",
-   "fieldtype": "Date",
-   "label": "Destination Departure Date"
   },
   {
    "fieldname": "section_break_ajdt",
@@ -231,7 +200,7 @@
  ],
  "grid_page_length": 50,
  "links": [],
- "modified": "2026-07-22 13:03:31.517360",
+ "modified": "2026-08-02 09:03:05.093616",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Flight",
@@ -243,10 +212,11 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "System Manager",
+   "role": "Tour Manager",
    "share": 1,
    "write": 1
   }

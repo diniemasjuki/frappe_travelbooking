@@ -25,8 +25,6 @@ class Flight(Document):
 		max_seat: DF.Int
 		min_seat: DF.Int
 		pnr: DF.Data
-		return_arrival_date: DF.Date | None
-		return_date: DF.Date | None
 		seats_occupied: DF.Int
 		status: DF.Literal["Open", "Full", "Closed", "Completed"]
 		ticket_type: DF.Literal["FIT", "GIT"]

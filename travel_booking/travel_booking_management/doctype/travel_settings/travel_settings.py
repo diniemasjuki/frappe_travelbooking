@@ -23,6 +23,7 @@ class TravelSettings(Document):
 		email_verified_session_minutes: DF.Int
 		manual_transfer_cashback_enabled: DF.Check
 		manual_transfer_cashback_percent: DF.Percent
+		manual_transfer_paid_to_account: DF.Link | None
 		otp_expiry_minutes: DF.Int
 		support_email: DF.Data | None
 		support_phone: DF.Phone | None

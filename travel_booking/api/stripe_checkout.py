@@ -17,6 +17,15 @@ from travel_booking.api._helpers import get_customer_email
 def _get_stripe_settings(currency="MYR"):
     """Cari Payment Gateway Account + Stripe Settings untuk currency ini.
 
+    PENTING: nama 'Payment Gateway' (cth "Rarecruise") BOLEH jadi apa-apa
+    label brand admin pilih semasa setup — TAK semestinya bermula dengan
+    "Stripe" (cth "Stripe-USD"), walaupun controller di sebalik gateway
+    tu memang Stripe. Kita TAK BOLEH tekat nama guna LIKE 'Stripe%' —
+    sebaliknya check terus field 'gateway_controller' pada Payment Gateway
+    (yang menyimpan nama SEBENAR Stripe Settings document, cth
+    "Stripe | Rarecruise") untuk kenal pasti Payment Gateway Account mana
+    yang sebenarnya guna Stripe, tak kira apa nama brand yang dipilih admin.
+
     TEST vs LIVE: boleh wujud LEBIH DARI SATU Payment Gateway Account untuk
     currency yang sama (cth satu live, satu test/sandbox) — admin switch
     antara keduanya semata-mata dengan tukar checkbox "Is Default" di Desk,
@@ -28,7 +37,7 @@ def _get_stripe_settings(currency="MYR"):
     atau sebaliknya.
     """
     gateway_accounts = frappe.db.sql("""
-        SELECT pga.name, pga.payment_gateway, pga.is_default, pg.gateway_controller
+        SELECT pga.name, pga.payment_gateway, pga.payment_account, pga.is_default, pg.gateway_controller
         FROM `tabPayment Gateway Account` pga
         JOIN `tabPayment Gateway` pg ON pg.name = pga.payment_gateway
         WHERE pga.currency = %(currency)s
@@ -177,16 +186,22 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
 
     # Payment Request — rekod + guna semula method set_as_paid (ERPNext core)
     # yang dicetuskan oleh webhook selepas bayaran disahkan Stripe.
-    # PENTING: payment_gateway_account SENGAJA tidak diisi.
+    # PENTING: payment_account/payment_gateway SENGAJA tidak diisi semasa
+    # INSERT/SUBMIT (rujuk db_set() SELEPAS pr.submit() di bawah untuk
+    # bila field ni sebenarnya diisi).
     # Payment Request ini cuma rekod + kenderaan untuk set_as_paid() via webhook —
     # kita TAK guna pr.get_payment_url() (checkout.html + Stripe PaymentIntent kita
-    # sendiri yang jana URL bayaran). Kalau payment_gateway_account diisi, ERPNext
-    # cuba resolve payment gateway controller semasa submit() (before_submit ->
-    # set_payment_request_url() -> get_payment_url()) — laluan ini rapuh terhadap
-    # ketidakserasian versi antara app 'payments' dan 'erpnext', dan tiada exception
-    # handling yang lengkap di situ. Dengan payment_gateway_account kosong, syarat
-    # "if self.payment_account and self.payment_gateway" jadi False, laluan tu
-    # terus dilangkau — submit() jadi selamat sepenuhnya.
+    # sendiri yang jana URL bayaran). Kalau payment_account/payment_gateway diisi
+    # SEBELUM submit(), ERPNext cuba resolve payment gateway controller semasa
+    # submit() (before_submit -> set_payment_request_url() -> get_payment_url()) —
+    # laluan ini rapuh terhadap ketidakserasian versi antara app 'payments' dan
+    # 'erpnext', dan tiada exception handling yang lengkap di situ. Dengan kedua
+    # field ni kosong SEMASA submit(), syarat "if self.payment_account and
+    # self.payment_gateway" jadi False, laluan tu terus dilangkau — submit() jadi
+    # selamat sepenuhnya. Field diisi SELEPAS submit() (via db_set(), tak
+    # re-trigger validate()) supaya set_as_paid() (dipanggil kemudian via webhook)
+    # tetap ada rujukan akaun yang betul — tanpa ni, ERPNext fallback ke akaun
+    # Cash lalai company bila cipta Payment Entry, bukan akaun Bank/Stripe sebenar.
     #
     # grand_total guna pr_amount (dicap ke baki SO ni), BUKAN amount penuh —
     # kalau tidak validate_payment_request_amount() akan throw untuk booking
@@ -205,6 +220,18 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     })
     pr.insert(ignore_permissions=True)
     pr.submit()
+
+    # PENTING: set payment_account/payment_gateway SELEPAS submit() (guna
+    # db_set(), bukan sebelum/semasa insert) — db_set() terus tulis DB,
+    # TAK re-trigger validate()/before_submit(), jadi laluan rapuh yang
+    # sengaja kita elak (rujuk nota di atas) tetap tak tersentuh. Tanpa
+    # ni, set_as_paid() (dipanggil KEMUDIAN via webhook selepas Stripe
+    # sahkan bayaran) tiada rujukan akaun yang betul untuk Payment Entry
+    # yang ia cipta — ERPNext fallback ke akaun Cash lalai company
+    # (punca Payment Entry Online Payment tersalah papar "Cash" sebagai
+    # Paid To, bukan akaun Bank/Stripe yang sepatutnya).
+    pr.db_set("payment_account", gateway_account.payment_account, update_modified=False)
+    pr.db_set("payment_gateway", gateway_account.payment_gateway, update_modified=False)
 
     stripe.api_key = ss.get_password("secret_key")
 

@@ -1,0 +1,39 @@
+{
+ "attach_files": "",
+ "attach_print": 1,
+ "channel": "Email",
+ "condition_type": "Filters",
+ "creation": "2026-08-02 03:34:22.480910",
+ "days_in_advance": 0,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Payment Entry",
+ "enabled": 1,
+ "event": "Submit",
+ "filters": "[[\"Payment Entry\",\"payment_type\",\"=\",\"Receive\"],[\"Payment Entry\",\"party_type\",\"=\",\"Customer\"]]",
+ "idx": 0,
+ "is_standard": 1,
+ "letter_message_type": "Custom Message",
+ "message": "<!DOCTYPE html>\r\n<html>\r\n<head>\r\n  <meta charset=\"UTF-8\">\r\n  <title>Booking Payment {{ doc.name }} Pending Verification</title>\r\n  <style>\r\n    body {\r\n      font-family: 'Segoe UI', Arial, sans-serif;\r\n      background-color: #f9fafb;\r\n      margin: 0;\r\n      padding: 0;\r\n    }\r\n    .container {\r\n      max-width: 600px;\r\n      margin: 20px auto;\r\n      background: #ffffff;\r\n      border-radius: 10px;\r\n      overflow: hidden;\r\n      border: 1px solid #e0e0e0;\r\n    }\r\n    .header {\r\n      background: #ffe0b2; /* oren pastel lembut */\r\n      color: #333333;\r\n      padding: 20px;\r\n      text-align: center;\r\n    }\r\n    .content {\r\n      padding: 25px;\r\n      color: #444444;\r\n      line-height: 1.6;\r\n    }\r\n    .button {\r\n      display: inline-block;\r\n      padding: 12px 20px;\r\n      margin-top: 20px;\r\n      background: #a7c7e7; /* biru pastel */\r\n      color: #ffffff;\r\n      text-decoration: none;\r\n      border-radius: 6px;\r\n      font-weight: bold;\r\n    }\r\n    .button:hover {\r\n      background: #8bb6dd;\r\n    }\r\n    .footer {\r\n      background: #f3f4f6;\r\n      text-align: center;\r\n      padding: 15px;\r\n      font-size: 12px;\r\n      color: #777777;\r\n    }\r\n  </style>\r\n</head>\r\n<body>\r\n  <div class=\"container\">\r\n    <div class=\"header\">\r\n      <h2>Payment Received \u2013 Pending Verification</h2>\r\n    </div>\r\n    <div class=\"content\">\r\n      <p>Hi {{ doc.customer_name }},</p>\r\n      <p>We\u2019re pleased to inform you that we have received your payment with Transaction Reference: <strong>{{ doc.name }}</strong>.</p>\r\n      <p>Your payment is currently <strong>pending verification</strong>. The verification process will take approximately <strong>5\u20137 business days</strong>. Our team will review and confirm it within this timeframe, and you will receive another update once the verification is complete.</p>\r\n      {% if doc.payment_link %}\r\n      <a href=\"{{ doc.payment_link }}\" class=\"button\">View Payment Details</a>\r\n      {% endif %}\r\n    </div>\r\n    <div class=\"footer\">\r\n      &copy; {{ frappe.utils.nowdate() }} Rarecation Travel. Thank you for your trust.\r\n    </div>\r\n  </div>\r\n</body>\r\n</html>\r\n",
+ "message_type": "HTML",
+ "minutes_offset": 0,
+ "modified": "2026-08-02 03:52:51.905053",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Travel | Booking Payment Verified",
+ "notification_message": "New Booking Payment has been made MANUALLY to validate by {{doc.party_name}} at {{doc.reference_no}}",
+ "notification_title": "Payment For Booking by {{doc.party_name}}",
+ "notification_type": "Alert",
+ "owner": "Administrator",
+ "print_format": "Rarecation Receipt",
+ "recipients": [
+  {
+   "receiver_by_document_field": "contact_email"
+  }
+ ],
+ "send_system_notification": 0,
+ "send_to_all_assignees": 1,
+ "sender": "Dev Site Outgoing",
+ "sender_email": "contact@rpwp.my",
+ "subject": "Booking Payment {{doc.name}} is Verified "
+}

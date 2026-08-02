@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_bulk_edit": 1,
+ "allow_import": 1,
  "allow_rename": 1,
  "autoname": "naming_series:naming_series",
  "creation": "2026-07-24 03:16:03.247831",
@@ -203,7 +204,7 @@
  "index_web_pages_for_search": 1,
  "is_calendar_and_gantt": 1,
  "links": [],
- "modified": "2026-08-01 01:06:39.338199",
+ "modified": "2026-08-02 01:07:28.161382",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Cruise Schedule",
@@ -215,10 +216,25 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "select": 1,
    "share": 1,
    "write": 1
   }

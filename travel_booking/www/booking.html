@@ -293,7 +293,7 @@
       </div>
 
       <!-- Payment Amount (custom amount: min deposit 20%, max full) -->
-      <div class="rc-card">
+      <div class="rc-card" id="paymentAmountCard">
         <h3 class="rc-card__title">Payment Amount</h3>
         <div class="rc-pay-amount">
           <span class="rc-pay-amount__prefix">RM</span>
@@ -340,6 +340,13 @@
                 <span class="rc-cashback-badge" id="cashbackBadge">5% cashback</span>
               </span>
               <small class="rc-cashback-note" id="cashbackNote">Get 5% cashback when you pay via bank transfer</small>
+            </div>
+          </label>
+          <label class="rc-radio-option" id="labelPayLater">
+            <input type="radio" name="paymentMethod" value="Pay Later" onchange="onPaymentMethodChange(this)">
+            <div class="rc-radio-option__content">
+              <span class="rc-radio-option__label"><i class="ti ti-clock"></i> Pay Later</span>
+              <small class="rc-cashback-note">Secure your booking now, pay anytime via your portal</small>
             </div>
           </label>
         </div>
@@ -401,7 +408,7 @@
         <div class="rc-confirm-box__icon">
           <i class="ti ti-check"></i>
         </div>
-        <div class="rc-confirm-box__ref" id="confirmRef">RC-XXXXXX</div>
+        <div class="rc-confirm-box__ref" id="confirmRef">RCXXXXXX</div>
         <div id="confirmStatusBadge" style="margin:8px 0 4px"></div>
         <div class="rc-confirm-details" id="confirmDetails"></div>
         <p class="rc-confirm-box__email" id="confirmEmail"></p>

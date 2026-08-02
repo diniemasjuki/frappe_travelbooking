@@ -54,6 +54,8 @@ def get_booking_data(booking_number: str):
         SELECT
             res.name              AS slot_name,
             res.room_category,
+            res.cabin_no,
+            res.pax_type,
             res.stateroom_no,
             res.aroya_guest_no,
             res.delegate_no,
@@ -90,10 +92,18 @@ def get_booking_data(booking_number: str):
         LEFT JOIN `tabFlight` f             ON f.name  = res.flight
         LEFT JOIN `tabTrip Price Category` rc ON rc.name = res.room_category
         WHERE res.booking = %s
-        ORDER BY res.stateroom_no ASC, res.creation ASC
+        ORDER BY res.cabin_no ASC, res.creation ASC
     """, booking_name, as_dict=True)
 
-    # Group by stateroom sebenar (kalau dah assign), fallback room_category
+    # Group ikut cabin_no (field EKSPLISIT pada setiap Booking Reservation
+    # — diisi automatik oleh _activate_booking() untuk booking website,
+    # ATAU admin isi terus semasa cipta manual di Desk). Ini gantikan
+    # logic LAMA (Pass1: text-match stateroom_no, Pass2: parse balik SO
+    # layout) yang rapuh — cabin_no sekarang SUMBER TUNGGAL untuk
+    # grouping, stateroom_no cuma dipaparkan sebagai maklumat TAMBAHAN
+    # dalam kad cabin (bukan penentu kumpulan lagi). Consistency check
+    # untuk stateroom_no antara sibling DITANGGUHKAN buat masa ini
+    # (keputusan bersama — ada rancangan paparan lain untuk stateroom_no).
     all_slots = []
     traveller_counter = 0
 
@@ -104,10 +114,11 @@ def get_booking_data(booking_number: str):
 
         slot = {
             "slot_name":         raw.slot_name,
-            "slot_label":        "Traveller " + str(traveller_counter),
+            "slot_label":        "Traveller " + str(traveller_counter) + (" (" + raw.pax_type + ")" if raw.pax_type else ""),
             "age_category":      raw.age_category      or "",
             "room_category":     raw.room_category     or "",
             "room_type":         raw.room_type         or "",
+            "pax_type":          raw.pax_type          or "",
             "stateroom_no":      raw.stateroom_no      or "",
             "delegate_no":       raw.delegate_no       or "",
             "aroya_guest_no":    raw.aroya_guest_no    or "",
@@ -140,84 +151,74 @@ def get_booking_data(booking_number: str):
             "special_needs":        raw.special_needs        or "",
         }
 
-        slot["_sr"] = raw.stateroom_no or ""
-        slot["_rc"] = raw.room_category or ""
+        slot["_cabin_no"] = raw.cabin_no or 0
+        slot["_rc"]       = raw.room_category or ""
         all_slots.append(slot)
 
-    def _mkcabin(room_category, stateroom, assigned, cslots):
+    def _mkcabin(room_category, stateroom, cslots, cabin_no_hint=0):
         return {
             "cabin_assignment": stateroom or "",
-            "cabin_no":         0,
+            "cabin_no":         cabin_no_hint,
             "room_name":        room_category or "",
             "room_category":    room_category or "",
             "state_room":       stateroom or "",
             "stateroom_no":     stateroom or "",
-            "assigned":         assigned,
+            "assigned":         bool(stateroom),
             "slots":            cslots,
         }
 
     cabins = []
-    ungrouped = []
 
-    # Pass 1: reservation dengan stateroom sebenar (admin dah assign) — group by stateroom
-    stateroom_map = {}
-    stateroom_order = []
-    no_stateroom = []
+    # Utama: group ikut cabin_no (rekod TERKINI, sentiasa diisi).
+    cabin_map   = {}
+    cabin_order = []
+    no_cabin_no = []
     for slot in all_slots:
-        if slot["_sr"]:
-            if slot["_sr"] not in stateroom_map:
-                stateroom_map[slot["_sr"]] = _mkcabin(slot["_rc"], slot["_sr"], True, [])
-                stateroom_order.append(slot["_sr"])
-            stateroom_map[slot["_sr"]]["slots"].append(slot)
+        if slot["_cabin_no"]:
+            key = slot["_cabin_no"]
+            if key not in cabin_map:
+                cabin_map[key] = _mkcabin(slot["_rc"], slot["stateroom_no"], [], key)
+                cabin_order.append(key)
+            cabin_map[key]["slots"].append(slot)
+            # stateroom_no dipaparkan dari SIBLING PERTAMA yang ada nilai —
+            # cuma paparan, tak paksa konsisten (validation ditangguh).
+            if not cabin_map[key]["stateroom_no"] and slot["stateroom_no"]:
+                cabin_map[key]["stateroom_no"]     = slot["stateroom_no"]
+                cabin_map[key]["state_room"]       = slot["stateroom_no"]
+                cabin_map[key]["cabin_assignment"] = slot["stateroom_no"]
+                cabin_map[key]["assigned"]         = True
         else:
-            no_stateroom.append(slot)
-    for sr in stateroom_order:
-        cabins.append(stateroom_map[sr])
+            no_cabin_no.append(slot)
+    for k in sorted(cabin_order):
+        cabins.append(cabin_map[k])
 
-    # Pass 2: reservation belum di-assign stateroom — ikut susunan cabin dari SO UTAMA
-    layout = []
-    from travel_booking.api.booking import _get_primary_so
-    primary_so = _get_primary_so(booking_name)
-    if primary_so:
-        try:
-            from travel_booking.api.booking import _cabin_layout_from_so
-            layout = _cabin_layout_from_so(primary_so)
-        except Exception:
-            layout = []
-
-    if layout and no_stateroom:
-        idx = 0
-        for cab in layout:
-            pax = int(cab.get("pax", 0))
-            cslots = no_stateroom[idx: idx + pax]
-            idx += pax
-            if cslots:
-                cabins.append(_mkcabin(cab.get("room_category", ""), "", False, cslots))
-        ungrouped.extend(no_stateroom[idx:])  # lebihan (kalau tak padan)
-    elif no_stateroom:
-        # Fallback: tiada layout — group by kategori
-        cat_map = {}
+    # Fallback UNTUK REKOD LAMA sahaja (cabin_no belum diisi, dari sebelum
+    # field ni wujud) — group ikut room_category, letak SELEPAS cabin yang
+    # dah ada cabin_no.
+    if no_cabin_no:
+        cat_map   = {}
         cat_order = []
-        for slot in no_stateroom:
+        for slot in no_cabin_no:
             key = slot["_rc"] or "?"
             if key not in cat_map:
-                cat_map[key] = _mkcabin(slot["_rc"], "", False, [])
+                cat_map[key] = _mkcabin(slot["_rc"], "", [])
                 cat_order.append(key)
             cat_map[key]["slots"].append(slot)
         for k in cat_order:
             cabins.append(cat_map[k])
 
-    # Nombor cabin + buang kunci sementara
+    # Nombor cabin PAPARAN (1, 2, 3... berturutan) — guna urutan senarai
+    # cabins di atas, BUKAN cabin_no mentah, supaya paparan sentiasa
+    # 1..N berturutan walaupun cabin_no yang disimpan tak berturutan.
     for i, c in enumerate(cabins, 1):
         c["cabin_no"] = i
     for slot in all_slots:
-        slot.pop("_sr", None)
+        slot.pop("_cabin_no", None)
         slot.pop("_rc", None)
 
     slots = []
     for cabin in cabins:
         slots.extend(cabin["slots"])
-    slots.extend(ungrouped)
 
     total_slots  = len(slots)
     filled_count = sum(1 for s in slots if s["filled"])
@@ -231,9 +232,16 @@ def get_booking_data(booking_number: str):
     advance_paid = 0.0
     for so_name in _get_all_booking_sales_orders(booking_name):
         so_vals = frappe.db.get_value("Sales Order", so_name,
-                                      ["grand_total", "advance_paid"], as_dict=True)
+                                      ["grand_total", "rounded_total", "advance_paid"], as_dict=True)
         if so_vals:
-            grand_total  += float(so_vals.grand_total  or 0)
+            # PENTING: guna rounded_total (fallback grand_total) — konsisten
+            # dengan get_all_so_payments() (portal_payment.py) dan
+            # _recompute_booking_status()/create_payment_request() (booking.py/
+            # stripe_checkout.py) supaya payment_status & total yang dipapar
+            # di sini SEPADAN dengan apa yang backend guna untuk validate
+            # bayaran sebenar — elak "portal kata ada baki, bayar kata dah
+            # settle" atau payment_status tersangkut salah selama-lamanya.
+            grand_total  += float(so_vals.rounded_total or so_vals.grand_total or 0)
             advance_paid += float(so_vals.advance_paid or 0)
 
     primary_so = _get_primary_so(booking_name)

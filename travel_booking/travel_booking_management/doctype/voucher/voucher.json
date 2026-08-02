@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_bulk_edit": 1,
+ "allow_import": 1,
  "allow_rename": 1,
  "autoname": "field:voucher_code",
  "creation": "2026-07-29 06:08:00.349230",
@@ -134,7 +135,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-29 06:47:06.670943",
+ "modified": "2026-08-02 01:07:30.256374",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Voucher",
@@ -146,10 +147,11 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "System Manager",
+   "role": "Tour Manager",
    "share": 1,
    "write": 1
   }

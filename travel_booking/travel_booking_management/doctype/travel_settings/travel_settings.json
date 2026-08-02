@@ -10,12 +10,14 @@
   "bank_name",
   "account_name",
   "account_number",
+  "column_break_acfc",
+  "manual_transfer_paid_to_account",
+  "cashback_discount_account",
   "deposit_and_payment_section",
   "default_deposit_percent",
   "column_break_zykz",
   "manual_transfer_cashback_enabled",
   "manual_transfer_cashback_percent",
-  "cashback_discount_account",
   "otp_and_security_section",
   "otp_expiry_minutes",
   "email_verified_session_minutes",
@@ -52,6 +54,12 @@
    "in_list_view": 1,
    "label": "Account Number",
    "reqd": 1
+  },
+  {
+   "fieldname": "manual_transfer_paid_to_account",
+   "fieldtype": "Link",
+   "label": "Manual Transfer - Paid To Account",
+   "options": "Account"
   },
   {
    "fieldname": "deposit_and_payment_section",
@@ -135,13 +143,17 @@
    "fieldname": "terms_and_conditions",
    "fieldtype": "Text Editor",
    "label": "Terms & Conditions"
+  },
+  {
+   "fieldname": "column_break_acfc",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-07-22 13:29:40.111685",
+ "modified": "2026-08-02 02:50:07.523429",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Settings",
