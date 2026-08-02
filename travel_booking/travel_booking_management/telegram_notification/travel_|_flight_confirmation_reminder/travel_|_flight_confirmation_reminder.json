@@ -14,11 +14,11 @@
  "idx": 0,
  "is_standard": 1,
  "message": "Add your message here",
- "modified": "2026-08-02 09:18:40.568094",
+ "modified": "2026-08-02 12:01:17.878443",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel | Flight Confirmation Reminder",
  "owner": "Administrator",
- "subject": "REMINDER : FLIGHT CONFIRMATION FOR BOOKING RESERVATION",
+ "subject": "REMINDER : 30 DAYS TO FLIGHT RESERVATION",
  "telegram_user": "Administrator-RPWP Biz"
 }

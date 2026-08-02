@@ -1,0 +1,39 @@
+{
+ "attach_files": "From Field",
+ "attach_print": 0,
+ "channel": "Email",
+ "condition_type": "Filters",
+ "creation": "2026-05-22 14:31:11.421776",
+ "datetime_changed": "modified",
+ "days_in_advance": 0,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Booking Reservation",
+ "enabled": 0,
+ "event": "Value Change",
+ "filters": "[[\"Passport Traveller\",\"flight_announcement\",\"=\",\"Flight Confirmation\"],[\"Passport Traveller\",\"pnr_no\",\"!=\",\"NOFLIGHT\"]]",
+ "from_attach_field": "personal_eticket",
+ "idx": 0,
+ "is_standard": 1,
+ "message": "<!DOCTYPE html>\n<html>\n<body style=\"margin:0; padding:0; font-family:Arial, sans-serif; background-color:#f4f4f4;\">\n    <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color:#f4f4f4; padding:20px;\">\n        <tr>\n            <td align=\"center\">\n                <table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 6px rgba(0,0,0,0.1);\">\n                    <!-- Header -->\n                    <tr>\n                        <td style=\"background-color:#0165c8; color:#ffffff; padding:30px 0px 00px 0px; text-align:center; font-size:22px; font-weight:bold;\">\n                            <img src=\"https://www.rarecruise.com/cdn/shop/files/rarecruise_1_wthie-_16x9_1000.png?height=100&v=1770440471\" alt=\"Rarecruise Logo\" />\n                        </td>\n                    </tr>\n                    <!-- Body -->\n                    <tr>\n                        <td style=\"padding:30px; color:#333333; font-size:15px; line-height:1.4;\">\n                            \n                            <p><strong>Dear {{ doc.firstname }}</strong>,</p>\n                            \n                            <p>We are pleased to share with your flight details for your upcoming trip as follow:</p>\n\n                            \n                            <br/>                            \n                            <hr/>\n                            <br/>\n                                \n                                <small>Booking Number (PNR):</small> \n                                <h3 style=\"margin:0\">{{ doc.pnr_no }}</h3>\n                                \n                                <p>\n                                    <strong>Airline:</strong> <label>{{ doc.airline }}</label>\n                                    <br/>\n                                    <strong>First Name:</strong> <label>{{ doc.firstname }}</label>\n                                    <br/>\n                                    <strong>Last Name:</strong> <label>{{ doc.lastname }}</label>\n                                </p>\n                            \n                            <!-- Download App Section -->\n                            <div style=\"background:#fffff0; width:auto; padding:15px; border-radius:10px; margin:20px auto; text-align:left; border:1px solid #eee\">\n                                <h5 style=\"margin:15px 0px; text-align: center;\">Flight Information / Message:</h5>\n                                {{doc.flight_itinerary}}\n                                \n                            </div>\n                            \n                            <!-- WhatsApp Invitation -->\n                            <div style=\"margin:30px 0; text-align:center;\">\n                                <h3 style=\"margin:0; color:#003366;\">\ud83d\udcf1 Private Invitation!</h3>\n                                <p style=\"margin:10px 0; font-size:14px; color:#555;\">\n                                    Join our dedicated WhatsApp Group for <strong>{{ doc.trip_group }}</strong> to receive quick updates and announcements.\n                                </p>\n                                <a href=\"{{ doc.chat_link }}\" \n                                   style=\"display:inline-block; padding:12px 24px; background:#28a745; color:#fff; \n                                          border-radius:6px; font-weight:bold; text-decoration:none; font-size:15px;\">\n                                   <small>Join WhatsApp Group</small> <br/> \ud83d\udc49 {{doc.trip_group}}\n                                </a>\n                            </div>\n                    \n                            <p>\n                                If you have any questions,<br/>\n                                please do not hesitate to contact our team at:\n                                <ul>\n                                    <li><a href=\"mailto:contact@rarecruise.com\">contact@rarecruise.com</a></li>\n                                    <li><a href=\"https://wa.me/60127789060\">+60127789060 (KL)</a></li>\n                                    <li><a href=\"https://wa.me/60127789060\">+60127789060 (Singapore)</a></li>\n                                </ul>\n                            </p>\n\n                            <p>\n                                We can\u2019t wait to welcome you onboard and create unforgettable memories together.\n                            </p>\n                            <p>\n                                Warm regards,<br />\n                                <strong>Rarecruise Team</strong><br />\n                                <small>Rarecation Travel Sdn Bhd</small>\n                            </p>\n                        </td>\n                    </tr>\n                    <!-- Footer -->\n                    <tr>\n                        <td style=\"background-color:#f0f0f0; padding:15px; text-align:center; font-size:12px; color:#666;\">\n                            For inquiries, reply to this email or contact us at\n                            <a href=\"mailto:contact@rarecruise.com\" style=\"color:#004080; text-decoration:none;\">contact@rarecruise.com</a>.\n                        </td>\n                    </tr>\n                </table>\n            </td>\n        </tr>\n    </table>\n</body>\n\n</html>\n",
+ "message_type": "HTML",
+ "minutes_offset": 10,
+ "modified": "2026-08-02 12:35:59.736135",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "RARECRUISE | FLIGHT | CONFIRMATION UPDATE",
+ "owner": "Administrator",
+ "property_value": "No Action",
+ "recipients": [
+  {
+   "receiver_by_document_field": "email"
+  }
+ ],
+ "send_system_notification": 0,
+ "send_to_all_assignees": 0,
+ "sender": "",
+ "sender_email": "",
+ "set_property_after_alert": "flight_announcement",
+ "subject": "RARECRUISE | FLIGHT INFO UPDATE {{ doc.date_today }} | FOR {{ doc.firstname}}",
+ "value_changed": "flight_announcement"
+}

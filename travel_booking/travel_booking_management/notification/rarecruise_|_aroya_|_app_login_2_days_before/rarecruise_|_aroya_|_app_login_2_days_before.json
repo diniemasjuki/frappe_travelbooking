@@ -1,0 +1,37 @@
+{
+ "attach_files": "",
+ "attach_print": 0,
+ "channel": "Email",
+ "condition_type": "Filters",
+ "creation": "2026-06-11 22:50:35.410344",
+ "date_changed": "sail_date_from",
+ "days_in_advance": 2,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Booking Reservation",
+ "enabled": 0,
+ "event": "Days Before",
+ "filters": "[[\"Passport Traveller\",\"cabin_is_ready\",\"=\",1]]",
+ "idx": 0,
+ "is_standard": 1,
+ "message": "<!DOCTYPE html>\n<html>\n<body style=\"margin:0; padding:0; font-family:Arial, sans-serif; background-color:#f4f4f4;\">\n    <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color:#f4f4f4; padding:20px;\">\n        <tr>\n            <td align=\"center\">\n                <table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" style=\"background-color:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 2px 6px rgba(0,0,0,0.1);\">\n                    <!-- Header -->\n                    <tr>\n                        <td style=\"background-color:#0165c8; color:#ffffff; padding:30px 0px 00px 0px; text-align:center; font-size:22px; font-weight:bold;\">\n                            <img src=\"https://www.rarecruise.com/cdn/shop/files/rarecruise_1_wthie-_16x9_1000.png?height=100&v=1770440471\" alt=\"Rarecruise Logo\" />\n                        </td>\n                    </tr>\n                    <!-- Body -->\n                    <tr>\n                        <td style=\"padding:30px; color:#333333; font-size:15px; line-height:1.6;\">\n                            <p><strong>Dear {{ doc.firstname }}</strong>,</p>\n                            <p>Your adventure with Aroya Cruise is just <strong>1 Day Ahead! </strong></p>\n                            <p>To make boarding smoother and faster, we invite you to complete your <strong>ONLINE CHECK\u2011IN</strong> today. It only takes a few minutes and ensures you\u2019re all set before stepping onboard!</p>\n\n                            <!-- Download App Section -->\n                            <div style=\"background:#efefef; width:80%; padding:40px 20px; border-radius:10px; margin:40px auto; text-align:center;\">\n                                <img src=\"https://gp-aroya-cruise.oss-me-central-1.aliyuncs.com/header-logo.svg\" alt=\"Aroya Logo\" />\n                                <p style=\"font-size:16px; font-weight:bold; line-height:1.4; color:#004080;\">\n                                    \ud83d\udcf2 Download the AROYA Cruise App <br/>and check in with ease!\n                                </p>\n                                <a href=\"https://play.google.com/store/apps/details?id=com.aroya.guestapp\" style=\"display:inline-block; margin:10px; text-decoration:none;\">\n                                    <img src=\"https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg\" alt=\"Get it on Google Play\" width=\"150\" />\n                                </a>\n                                <a href=\"https://apps.apple.com/us/app/aroya-cruises/id6737065220\" style=\"display:inline-block; margin:10px; text-decoration:none;\">\n                                    <img src=\"https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg\" alt=\"Download on the App Store\" width=\"150\" />\n                                </a>\n                                <hr style=\"margin:30px 0; border:none; border-top:1px solid #ccc;\" />\n                                <p><small>Booking Number:</small><br/><label style=\"font-size:x-large\"><strong>{{ doc.delegate_no }}</strong></label></p>\n                                <p><small>First Name:</small><br/><strong>{{ doc.firstname }}</strong></p>\n                                <p><small>Last Name:</small><br/><strong>{{ doc.lastname }}</strong></p>\n                            </div>\n\n                            <p>\n                                We can\u2019t wait to welcome you onboard and create unforgettable memories together.\n                            </p>\n                            <p>\n                                Warm regards,<br />\n                                <strong>Rarecruise Team</strong><br />\n                                <small>Rarecation Travel Sdn Bhd</small>\n                            </p>\n                        </td>\n                    </tr>\n                    <!-- Footer -->\n                    <tr>\n                        <td style=\"background-color:#f0f0f0; padding:15px; text-align:center; font-size:12px; color:#666;\">\n                            For inquiries, reply to this email or contact us at\n                            <a href=\"mailto:contact@rarecruise.com\" style=\"color:#004080; text-decoration:none;\">contact@rarecruise.com</a>.\n                        </td>\n                    </tr>\n                </table>\n            </td>\n        </tr>\n    </table>\n</body>\n\n</html>\n",
+ "message_type": "HTML",
+ "minutes_offset": 0,
+ "modified": "2026-08-02 12:34:44.174153",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "RARECRUISE | AROYA | APP LOGIN 2 DAYS BEFORE",
+ "owner": "Administrator",
+ "property_value": "",
+ "recipients": [
+  {
+   "receiver_by_document_field": "email"
+  }
+ ],
+ "send_system_notification": 0,
+ "send_to_all_assignees": 0,
+ "sender": "",
+ "sender_email": "",
+ "set_property_after_alert": "reservation_contact",
+ "subject": "RARECRUISE | AROYA SELF CHECK-IN VIA APPS NOW FOR {{ doc.firstname }}"
+}
