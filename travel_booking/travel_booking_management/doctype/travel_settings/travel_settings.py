@@ -16,7 +16,7 @@ class TravelSettings(Document):
 
 		account_name: DF.Data
 		account_number: DF.Data
-		bank_name: DF.Data
+		bank_name: DF.Link
 		cashback_discount_account: DF.Link | None
 		default_deposit_percent: DF.Percent
 		default_referral_discount_percent: DF.Percent
@@ -25,9 +25,6 @@ class TravelSettings(Document):
 		manual_transfer_cashback_percent: DF.Percent
 		manual_transfer_paid_to_account: DF.Link | None
 		otp_expiry_minutes: DF.Int
-		support_email: DF.Data | None
-		support_phone: DF.Phone | None
-		terms_and_conditions: DF.TextEditor | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Travel Settings"

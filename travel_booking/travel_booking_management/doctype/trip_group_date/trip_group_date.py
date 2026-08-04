@@ -19,6 +19,7 @@ class TripGroupDate(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
+		cruise_code: DF.Data | None
 		cruise_days: DF.Int
 		cruise_schedule: DF.Link | None
 		cruise_trip: DF.Data | None
@@ -41,7 +42,6 @@ class TripGroupDate(Document):
 		total_days: DF.Int
 		total_nights: DF.Int
 		trip: DF.Link
-		trip_code: DF.Data | None
 		trip_group_code: DF.Data | None
 		trip_group_description: DF.TextEditor | None
 		trip_group_name: DF.Data | None
@@ -50,6 +50,7 @@ class TripGroupDate(Document):
 
 	_DOCTYPE_NAME = "Trip Group Date"
 
+	
 	def validate(self):
 
 		# setting kalau trip ini CRUISE ONLY
@@ -94,30 +95,33 @@ class TripGroupDate(Document):
 				frappe.throw("RETURN DATE must earlier then SAILING END DATE" )
 
 
+
 		
 		# -- trip group name
 
-		date_range = str(self.departure_date) + " to " + str(self.return_date)
+		date_range = str(self.departure_date) # + " to " + str(self.return_date)
 
 		if (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (not self.is_cruise_only or self.is_cruise_only == 0):
-			self.trip_group_name = date_range + " : " + (self.cruise_schedule or "") + " : Fly Cruise"
+			self.trip_group_name = date_range + (" : " + self.trip or "") + " : Fly Cruise"
+			package_type = "FC"
+			groupinfo = self.trip
 		
 		elif (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (self.is_cruise_only is True or self.is_cruise_only == 1) :
-			self.trip_group_name = date_range + " : " + (self.cruise_schedule or "") + " : Cruise Only"
+			self.trip_group_name = date_range + (" : " + self.trip or "") + " : Cruise Only"
+			package_type = "CO"
+			groupinfo = self.trip
 
 		else:
-			self.trip_group_name = date_range + " : " + (self.trip_code or "") + " : Tour Trip"
-
+			self.trip_group_name = date_range + (" : " + self.trip or "") + (" : " + self.name or "") 
+			package_type = "CU"
+			groupinfo = self.name
 
 
 		# -- trip group code 
 
-		if not self.trip_group_code or self.trip_group_code == "":
-			self.trip_group_code = self.trip + "-" + self.name
-			
-		if self.trip_group_code:
-			self.trip_group_code = re.sub(r'[^a-zA-Z0-9\-]', '', self.trip_group_code).upper().replace(" ","")
-
+		# if not self.trip_group_code or self.trip_group_code == "":
+		self.trip_group_code = (date_range.replace("-","") + ":" + groupinfo + ":" + package_type).upper()
+		
 
 		# -- update trip_link in Trip Cruise Schedule if this is a cruise trip
 		if self.cruise_schedule and not self.cruise_trip:

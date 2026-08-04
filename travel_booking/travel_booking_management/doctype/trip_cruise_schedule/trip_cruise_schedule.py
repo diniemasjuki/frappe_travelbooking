@@ -18,9 +18,11 @@ class TripCruiseSchedule(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
+		from travel_booking.travel_booking_management.doctype.trip_package_price.trip_package_price import TripPackagePrice
 
+		cabin_rates: DF.Table[TripPackagePrice]
 		cruise_line_company: DF.Link | None
-		naming_series: DF.Literal[".ship_code.-.YY.MM.#"]
+		naming_series: DF.Literal[".ship_code.-.YY.###"]
 		port_end: DF.Link
 		port_start: DF.Link
 		sail_end: DF.Date
@@ -30,6 +32,7 @@ class TripCruiseSchedule(Document):
 		ship_name: DF.Data | None
 		status: DF.Literal["Pending Review", "Active", "Inactive", "Canceled"]
 		total_days: DF.Int
+		trip_code: DF.Data | None
 		trip_link: DF.Link | None
 		trip_name: DF.Data | None
 	# end: auto-generated types
@@ -38,12 +41,14 @@ class TripCruiseSchedule(Document):
 
 	def validate(self):
 
+		if self.trip_code:
+			self.trip_code = self.trip_code.upper().strip()
+			code = self.trip_code
+		else:
+			code = self.name
+
 		if self.sail_start and self.sail_end:
-			self.schedule_code = (
-				frappe.utils.getdate(self.sail_start).strftime("%Y-%m-%d")
-				+ " : " + frappe.utils.getdate(self.sail_end).strftime("%Y-%m-%d")
-				+ " : " + (self.ship_code or "")
-			).strip()
+			self.schedule_code = ( frappe.utils.getdate(self.sail_start).strftime("%Y-%m-%d") + " : " + code ).upper().strip()
 
 		if self.sail_start and self.sail_end:
 

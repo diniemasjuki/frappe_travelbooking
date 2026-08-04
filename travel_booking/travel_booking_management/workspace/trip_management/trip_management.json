@@ -1,10 +1,6 @@
 {
  "app": "erpnext",
- "charts": [
-  {
-   "chart_name": "Email Activity"
-  }
- ],
+ "charts": [],
  "content": "[]",
  "creation": "2026-07-25 17:07:57.533923",
  "custom_blocks": [],
@@ -19,7 +15,7 @@
  "label": "Trip Management",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-08-01 20:00:35.140270",
+ "modified": "2026-08-04 07:21:11.123002",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Management",
@@ -27,7 +23,15 @@
  "owner": "Administrator",
  "public": 1,
  "quick_lists": [],
- "roles": [],
+ "restrict_to_domain": "Travel Booking",
+ "roles": [
+  {
+   "role": "Tour Manager"
+  },
+  {
+   "role": "Tour Operator"
+  }
+ ],
  "sequence_id": 37.0,
  "shortcuts": [],
  "sidebar_items": [
@@ -39,8 +43,60 @@
    "indent": 0,
    "keep_closed": 0,
    "label": "Dashboard",
-   "link_to": "CRM",
+   "link_to": "Travel Booking",
    "link_type": "Dashboard",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 0,
+   "default_workspace": 0,
+   "icon": "arrow-big-right-dash",
+   "indent": 1,
+   "keep_closed": 0,
+   "label": "Booking Management",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 1,
+   "type": "Section Break"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "1 Booking",
+   "link_to": "Booking",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "2 Booking Reservation",
+   "link_to": "Booking Reservation",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "3 Traveller",
+   "link_to": "Traveller",
+   "link_type": "DocType",
    "open_in_new_tab": 1,
    "show_arrow": 0,
    "type": "Link"
@@ -93,58 +149,6 @@
    "keep_closed": 0,
    "label": "3 Trip Package",
    "link_to": "Trip Package",
-   "link_type": "DocType",
-   "open_in_new_tab": 1,
-   "show_arrow": 0,
-   "type": "Link"
-  },
-  {
-   "child": 0,
-   "collapsible": 0,
-   "default_workspace": 0,
-   "icon": "arrow-big-right-dash",
-   "indent": 1,
-   "keep_closed": 0,
-   "label": "Booking Management",
-   "link_type": "DocType",
-   "open_in_new_tab": 1,
-   "show_arrow": 1,
-   "type": "Section Break"
-  },
-  {
-   "child": 1,
-   "collapsible": 1,
-   "default_workspace": 0,
-   "indent": 0,
-   "keep_closed": 0,
-   "label": "1 Booking",
-   "link_to": "Booking",
-   "link_type": "DocType",
-   "open_in_new_tab": 1,
-   "show_arrow": 0,
-   "type": "Link"
-  },
-  {
-   "child": 1,
-   "collapsible": 1,
-   "default_workspace": 0,
-   "indent": 0,
-   "keep_closed": 0,
-   "label": "2 Booking Reservation",
-   "link_to": "Booking Reservation",
-   "link_type": "DocType",
-   "open_in_new_tab": 1,
-   "show_arrow": 0,
-   "type": "Link"
-  },
-  {
-   "child": 1,
-   "collapsible": 1,
-   "default_workspace": 0,
-   "indent": 0,
-   "keep_closed": 0,
-   "label": "3 Traveller",
-   "link_to": "Traveller",
    "link_type": "DocType",
    "open_in_new_tab": 1,
    "show_arrow": 0,

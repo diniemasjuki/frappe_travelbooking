@@ -16,7 +16,6 @@ class Voucher(Document):
 		from travel_booking.travel_booking_management.doctype.voucher_applicable_package.voucher_applicable_package import VoucherApplicablePackage
 		from travel_booking.travel_booking_management.doctype.voucher_applicable_room_category.voucher_applicable_room_category import VoucherApplicableRoomCategory
 		from travel_booking.travel_booking_management.doctype.voucher_applicable_trip.voucher_applicable_trip import VoucherApplicableTrip
-		from travel_booking.travel_booking_management.doctype.voucher_usage.voucher_usage import VoucherUsage
 
 		applicable_packages: DF.TableMultiSelect[VoucherApplicablePackage]
 		applicable_room_categories: DF.TableMultiSelect[VoucherApplicableRoomCategory]
@@ -26,10 +25,18 @@ class Voucher(Document):
 		max_usage: DF.Int
 		max_usage_per_customer: DF.Int
 		status: DF.Literal["Active", "Inactive", "Expired"]
-		usage: DF.Table[VoucherUsage]
 		valid_from: DF.Date
 		valid_until: DF.Date
 		voucher_code: DF.Data
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Voucher"
+
+	def validate(self):
+		self.voucher_code = self.voucher_code.upper() if self.voucher_code else None
+		
+	def before_insert(self):
+		self.validate()
+
+	def before_update(self):
+		self.validate()

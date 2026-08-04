@@ -22,3 +22,18 @@ class TripOrganizer(Document):
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Trip Organizer"
+
+	def validate(self):
+
+		self.org_series = (self.org_series).upper().strip()
+		self.name = (self.name).upper().strip()
+		
+
+	def before_save(self):
+		self.validate()
+
+	def before_submit(self):
+		self.validate()
+	
+	def before_insert(self):
+		self.validate()

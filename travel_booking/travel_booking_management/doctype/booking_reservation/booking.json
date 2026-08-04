@@ -2,7 +2,7 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "naming_series:naming_series",
+ "autoname": "naming_series:",
  "creation": "2026-04-08 18:55:47.144024",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -18,7 +18,7 @@
   "column_break_hwbu",
   "customer",
   "get_cust_phone",
-  "get_cust_email",
+  "get_get_cust_email",
   "section_break_mhpl",
   "column_break_lfil",
   "trip_name",
@@ -46,16 +46,12 @@
   "affiliate",
   "referral_code_used",
   "pre_discount_total",
-  "column_break_qemr",
-  "voucher",
-  "voucher_usage",
   "details_information_section",
   "total_pax",
   "column_break_gige",
   "verified_pax",
   "column_break_whlk",
-  "pending_pax",
-  "flight"
+  "pending_pax"
  ],
  "fields": [
   {
@@ -95,8 +91,7 @@
    "fieldname": "trip_name",
    "fieldtype": "Link",
    "label": "Trip",
-   "options": "Trip",
-   "search_index": 1
+   "options": "Trip"
   },
   {
    "depends_on": "eval:doc.trip_date",
@@ -208,12 +203,12 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "BK.YY.MM.###",
+   "default": "BOOK.YY.MM.###",
    "fieldname": "naming_series",
    "fieldtype": "Select",
    "hidden": 1,
    "label": "naming series",
-   "options": "BK.YY.MM.###",
+   "options": "BOOK.YY.MM.###",
    "reqd": 1
   },
   {
@@ -321,9 +316,8 @@
    "label": "Cruise End"
   },
   {
-   "fieldname": "get_cust_email",
+   "fieldname": "get_get_cust_email",
    "fieldtype": "Data",
-   "is_virtual": 1,
    "label": "Customer Email"
   },
   {
@@ -332,29 +326,6 @@
    "is_virtual": 1,
    "label": "Customer Phone",
    "read_only": 1
-  },
-  {
-   "fieldname": "flight",
-   "fieldtype": "Link",
-   "label": "Flight Arrangment",
-   "options": "Flight",
-   "search_index": 1
-  },
-  {
-   "fieldname": "column_break_qemr",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "voucher",
-   "fieldtype": "Link",
-   "label": "Voucher",
-   "options": "Voucher"
-  },
-  {
-   "fieldname": "voucher_usage",
-   "fieldtype": "Link",
-   "label": "Voucher Usage",
-   "options": "Voucher Usage"
   }
  ],
  "grid_page_length": 50,
@@ -366,13 +337,9 @@
   {
    "link_doctype": "Sales Invoice",
    "link_fieldname": "custom_booking"
-  },
-  {
-   "link_doctype": "Booking Reservation",
-   "link_fieldname": "booking"
   }
  ],
- "modified": "2026-08-04 08:07:01.348576",
+ "modified": "2026-08-03 22:19:34.445280",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking",

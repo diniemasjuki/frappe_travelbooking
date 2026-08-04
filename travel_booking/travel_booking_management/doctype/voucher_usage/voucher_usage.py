@@ -17,10 +17,8 @@ class VoucherUsage(Document):
 		booking: DF.Link | None
 		customer: DF.Link | None
 		discount_amount: DF.Currency
-		parent: DF.Data
-		parentfield: DF.Data
-		parenttype: DF.Data
-		used_on: DF.Datetime | None
+		naming_series: DF.Literal[".voucher.-.YY.MM.##"]
+		voucher: DF.Link | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Voucher Usage"

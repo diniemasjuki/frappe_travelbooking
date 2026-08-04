@@ -24,8 +24,15 @@ class FlightAirline(Document):
 
 	def validate(self):
 		
-		if self.airline_name:
-			self.airline_name = self.airline_name.upper().strip()
+		self.airline_name = (self.airline_name).upper().strip()
 
-		if self.airline_code:
-			self.airline_code = re.sub(r'[^a-zA-Z0-9]', '', self.airline_code).upper().replace(" ","")
+		self.airline_code = (re.sub(r'[^a-zA-Z0-9]', '', self.airline_code)).upper().replace(" ","")
+
+	def before_save(self):
+		self.validate()
+
+	def before_submit(self):
+		self.validate()
+	
+	def before_insert(self):
+		self.validate()

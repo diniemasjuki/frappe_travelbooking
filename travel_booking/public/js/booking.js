@@ -1576,8 +1576,6 @@ var state_payment_settings = {
   cashback_enabled:          true,
   cashback_percent:          5,
   default_deposit_percent:   20,
-  support_email:             "",
-  support_phone:             "",
 };
 
 async function loadPaymentSettings() {
@@ -1590,9 +1588,7 @@ async function loadPaymentSettings() {
         account_number:          result.account_number || state_payment_settings.account_number,
         cashback_enabled:        !!result.cashback_enabled,
         cashback_percent:        result.cashback_percent || 0,
-        default_deposit_percent: result.default_deposit_percent || 20,
-        support_email:           result.support_email || "",
-        support_phone:           result.support_phone || "",
+        default_deposit_percent: result.default_deposit_percent || 20
       };
     }
   } catch (e) {
@@ -1857,7 +1853,7 @@ async function applyAffiliateCode() {
 function prefillAffiliateCodeFromUrl() {
   // PENTING: guna parameter 'sp' (sales partner), BUKAN 'ref'. 'ref' sudah
   // digunakan checkStripeReturn() untuk booking_number selepas redirect
-  // Stripe (?ref=RC-XXXXXX&step=confirm&pr=...) — kalau function ni turut
+  // Stripe (?ref=RCXXXXXX&step=confirm&pr=...) — kalau function ni turut
   // baca 'ref' untuk affiliate code, customer yang balik dari bayaran
   // Stripe akan tersalah dapat booking_number diproses SEBAGAI kod
   // affiliate (dua maksud berlainan berkongsi satu nama parameter). 'sp'

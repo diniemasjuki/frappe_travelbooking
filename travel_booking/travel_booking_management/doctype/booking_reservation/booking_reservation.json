@@ -10,7 +10,6 @@
   "reservation_info_section",
   "booking",
   "booking_number",
-  "guest_label",
   "customer",
   "customer_email",
   "naming_series",
@@ -52,6 +51,7 @@
   "cabin_arrangement_tab",
   "rooming_column",
   "room_category",
+  "guest_label",
   "cabin_no",
   "pax_type",
   "aroya_column",
@@ -71,7 +71,8 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Booking",
-   "options": "Booking"
+   "options": "Booking",
+   "search_index": 1
   },
   {
    "fieldname": "traveller",
@@ -97,7 +98,7 @@
    "default": "Pending",
    "fetch_from": "traveller.status",
    "fieldname": "document_status",
-   "fieldtype": "Data",
+   "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Document Status",
    "options": "Pending\nVerified\nOpen for Update\nRejected\nValid"
@@ -150,15 +151,17 @@
   {
    "depends_on": "eval:!doc.is_cruise_only",
    "fieldname": "column_break_depl",
-   "fieldtype": "Column Break",
-   "label": "Flight"
+   "fieldtype": "Column Break"
   },
   {
    "depends_on": "eval:!doc.is_cruise_only",
+   "fetch_from": "booking.flight_arrangment",
+   "fetch_if_empty": 1,
    "fieldname": "flight",
    "fieldtype": "Link",
    "label": "Flight",
-   "options": "Flight"
+   "options": "Flight",
+   "search_index": 1
   },
   {
    "fieldname": "column_break_cedq",
@@ -281,8 +284,7 @@
   {
    "fieldname": "guest_label",
    "fieldtype": "Data",
-   "label": "Guest Label - Slot_Label",
-   "set_only_once": 1
+   "label": "Guest / Slot Label"
   },
   {
    "default": ".{booking}.-.#",
@@ -329,12 +331,12 @@
    "description": "Cabin 1 - 8",
    "fieldname": "cabin_no",
    "fieldtype": "Int",
-   "label": "Cabin No"
+   "label": "Cabin Sequence (in order)"
   },
   {
    "fieldname": "pax_type",
    "fieldtype": "Select",
-   "label": "Pax Type",
+   "label": "Passenger / Bed Type",
    "options": "Main Guest\nExtra Bed\nInfant"
   },
   {
@@ -343,7 +345,7 @@
    "label": "Aroya"
   },
   {
-   "fetch_from": "booking.cust_email",
+   "fetch_from": "booking.get_cust_email",
    "fieldname": "customer_email",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -364,7 +366,7 @@
    "depends_on": "eval:!doc.is_cruise_only",
    "fieldname": "rooming_and_flight_tab",
    "fieldtype": "Tab Break",
-   "label": "Rooming And Flight"
+   "label": "Flight Info"
   },
   {
    "depends_on": "eval:doc.is_a_cruise",
@@ -380,7 +382,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-02 10:24:32.340354",
+ "modified": "2026-08-04 01:45:43.443339",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking Reservation",

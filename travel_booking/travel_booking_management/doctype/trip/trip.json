@@ -11,9 +11,8 @@
   "information",
   "trip_details_section",
   "column_break_exud",
-  "is_a_cruise_trip",
   "trip_name",
-  "trip_code",
+  "is_a_cruise_trip",
   "destination_list",
   "column_break_fkpo",
   "image_llpz",
@@ -44,16 +43,6 @@
   {
    "fieldname": "column_break_fkpo",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "trip_code",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Trip Code",
-   "no_copy": 1,
-   "read_only": 1,
-   "set_only_once": 1,
-   "unique": 1
   },
   {
    "default": "Active",
@@ -144,10 +133,18 @@
   {
    "link_doctype": "Trip Package",
    "link_fieldname": "trip_link"
+  },
+  {
+   "link_doctype": "Booking",
+   "link_fieldname": "trip_name"
+  },
+  {
+   "link_doctype": "Booking Reservation",
+   "link_fieldname": "trip_link"
   }
  ],
  "make_attachments_public": 1,
- "modified": "2026-08-02 01:07:27.881750",
+ "modified": "2026-08-04 01:25:39.780762",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip",

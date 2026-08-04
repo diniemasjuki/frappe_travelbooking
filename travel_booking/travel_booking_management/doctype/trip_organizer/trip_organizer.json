@@ -74,9 +74,8 @@
  "grid_page_length": 50,
  "hide_toolbar": 1,
  "image_field": "org_logo",
- "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-02 01:07:29.245450",
+ "modified": "2026-08-04 01:25:41.167075",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Organizer",
@@ -97,6 +96,7 @@
    "write": 1
   }
  ],
+ "protect_attached_files": 1,
  "quick_entry": 1,
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,

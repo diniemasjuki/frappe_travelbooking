@@ -23,9 +23,7 @@
   "scope_section",
   "applicable_trips",
   "applicable_packages",
-  "applicable_room_categories",
-  "section_break_hhnz",
-  "usage"
+  "applicable_room_categories"
  ],
  "fields": [
   {
@@ -119,23 +117,21 @@
    "fieldtype": "Table MultiSelect",
    "label": "Applicable Room Categories",
    "options": "Voucher Applicable Room Category"
-  },
-  {
-   "fieldname": "section_break_hhnz",
-   "fieldtype": "Section Break",
-   "label": "Usage"
-  },
-  {
-   "fieldname": "usage",
-   "fieldtype": "Table",
-   "label": "Voucher Usage",
-   "options": "Voucher Usage"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-08-02 01:07:30.256374",
+ "links": [
+  {
+   "link_doctype": "Voucher Usage",
+   "link_fieldname": "voucher"
+  },
+  {
+   "link_doctype": "Booking",
+   "link_fieldname": "voucher"
+  }
+ ],
+ "modified": "2026-08-04 08:18:41.870670",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Voucher",

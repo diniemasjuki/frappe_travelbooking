@@ -20,7 +20,6 @@ class Trip(Document):
 		destination_list: DF.TableMultiSelect[TripDestinationPointSelect]
 		is_a_cruise_trip: DF.Check
 		status: DF.Literal["Pending Review", "Active", "Completed", "Cancelled"]
-		trip_code: DF.Data | None
 		trip_image: DF.AttachImage | None
 		trip_name: DF.Data
 		trip_organizer: DF.Link
@@ -28,9 +27,15 @@ class Trip(Document):
 
 	_DOCTYPE_NAME = "Trip"
 
-	def validate(self):
+	# def validate(self):
 
-		if self.trip_code:
-			self.trip_code = re.sub(r'[^a-zA-Z0-9]', '', self.trip_code).upper().replace(" ","")
-		else:
-			self.trip_code = self.name
+
+	# def before_save(self):
+	# 	self.validate()
+
+	# def before_submit(self):
+	# 	self.validate()
+
+	# def before_insert(self):
+	# 	self.validate()
+	

@@ -12,21 +12,17 @@
   "account_number",
   "column_break_acfc",
   "manual_transfer_paid_to_account",
-  "cashback_discount_account",
   "deposit_and_payment_section",
   "default_deposit_percent",
   "column_break_zykz",
   "manual_transfer_cashback_enabled",
+  "cashback_discount_account",
   "manual_transfer_cashback_percent",
   "otp_and_security_section",
   "otp_expiry_minutes",
   "email_verified_session_minutes",
   "referral_and_voucher_section",
-  "default_referral_discount_percent",
-  "company_and_support_info_section",
-  "support_email",
-  "support_phone",
-  "terms_and_conditions"
+  "default_referral_discount_percent"
  ],
  "fields": [
   {
@@ -36,12 +32,14 @@
   },
   {
    "fieldname": "bank_name",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Bank Name",
+   "options": "Bank Account",
    "reqd": 1
   },
   {
+   "fetch_from": "bank_name.account_name",
    "fieldname": "account_name",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -49,6 +47,7 @@
    "reqd": 1
   },
   {
+   "fetch_from": "bank_name.bank_account_no",
    "fieldname": "account_number",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -59,6 +58,7 @@
    "fieldname": "manual_transfer_paid_to_account",
    "fieldtype": "Link",
    "label": "Manual Transfer - Paid To Account",
+   "link_filters": "[[\"Account\",\"is_group\",\"=\",0],[\"Account\",\"account_type\",\"=\",\"Bank\"]]",
    "options": "Account"
   },
   {
@@ -77,23 +77,26 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "1",
+   "default": "0",
    "fieldname": "manual_transfer_cashback_enabled",
    "fieldtype": "Check",
    "label": "Enable Manual Transfer Cashback"
   },
   {
    "default": "5",
+   "depends_on": "eval:doc.manual_transfer_cashback_enabled==1",
    "fieldname": "manual_transfer_cashback_percent",
    "fieldtype": "Percent",
    "label": "Cashback Percent",
-   "mandatory_depends_on": "eval:doc.manual_transfer_cashback_enabled"
+   "mandatory_depends_on": "eval:doc.manual_transfer_cashback_enabled",
+   "precision": "0"
   },
   {
    "depends_on": "eval:doc.manual_transfer_cashback_enabled",
    "fieldname": "cashback_discount_account",
    "fieldtype": "Link",
    "label": "Cashback Discount Account",
+   "link_filters": "[[\"Account\",\"is_group\",\"=\",0],[\"Account\",\"account_category\",\"=\",\"Operating Expenses\"]]",
    "options": "Account"
   },
   {
@@ -102,13 +105,13 @@
    "label": "OTP and Security"
   },
   {
-   "default": "10",
+   "default": "60",
    "fieldname": "otp_expiry_minutes",
    "fieldtype": "Int",
    "label": "OTP Expiry (minutes)"
   },
   {
-   "default": "30",
+   "default": "120",
    "fieldname": "email_verified_session_minutes",
    "fieldtype": "Int",
    "label": "Email Verified Session (minutes)"
@@ -124,27 +127,6 @@
    "label": "Default Referral Discount Percent"
   },
   {
-   "fieldname": "company_and_support_info_section",
-   "fieldtype": "Section Break",
-   "label": "Company and Support Info"
-  },
-  {
-   "fieldname": "support_email",
-   "fieldtype": "Data",
-   "label": "Support Email",
-   "options": "Email"
-  },
-  {
-   "fieldname": "support_phone",
-   "fieldtype": "Phone",
-   "label": "Support Phone"
-  },
-  {
-   "fieldname": "terms_and_conditions",
-   "fieldtype": "Text Editor",
-   "label": "Terms & Conditions"
-  },
-  {
    "fieldname": "column_break_acfc",
    "fieldtype": "Column Break"
   }
@@ -153,7 +135,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-02 02:50:07.523429",
+ "modified": "2026-08-04 01:25:39.239435",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Settings",

@@ -16,19 +16,40 @@ from travel_booking.api._helpers import get_customer_by_email, get_customer_emai
 
 @frappe.whitelist(allow_guest=True)
 def get_payment_settings():
-    """Bank account & cashback info untuk papar di booking.html —
-    ganti nilai hardcoded (Maybank / 5% cashback) dengan Travel Settings."""
-    settings = frappe.get_cached_doc("Travel Settings")
-    return {
-        "bank_name":                        settings.bank_name,
-        "account_name":                     settings.account_name,
-        "account_number":                   settings.account_number,
-        "cashback_enabled":                 bool(settings.manual_transfer_cashback_enabled),
-        "cashback_percent":                 float(settings.manual_transfer_cashback_percent or 0),
-        "default_deposit_percent":          float(settings.default_deposit_percent or 20),
-        "support_email":                    settings.support_email,
-        "support_phone":                    settings.support_phone,
-    }
+
+    # """Bank account & cashback info untuk papar di booking.html —
+    # ganti nilai hardcoded (Maybank / 5% cashback) dengan Travel Settings."""
+    # settings = frappe.get_cached_doc("Travel Settings")
+    # return {
+    #     "bank_name":                        settings.bank_name,
+    #     "account_name":                     settings.account_name,
+    #     "account_number":                   settings.account_number,
+    #     "cashback_enabled":                 bool(settings.manual_transfer_cashback_enabled),
+    #     "cashback_percent":                 float(settings.manual_transfer_cashback_percent or 0),
+    #     "default_deposit_percent":          float(settings.default_deposit_percent or 20),
+    # }
+
+    """Bank account & cashback info untuk papar di booking.html"""
+    try:
+        settings = frappe.get_cached_doc("Travel Settings")
+        return {
+            "bank_name": settings.bank_name or "Default Bank",
+            "account_name": settings.account_name or "Default Account",
+            "account_number": settings.account_number or "000000",
+            "cashback_enabled": bool(settings.manual_transfer_cashback_enabled),
+            "cashback_percent": float(settings.manual_transfer_cashback_percent or 0),
+            "default_deposit_percent": float(settings.default_deposit_percent or 20)
+        }
+    except Exception:
+        # fallback kalau Travel Settings tak jumpa langsung
+        return {
+            "bank_name": "Demo Bank",
+            "account_name": "Demo Account",
+            "account_number": "000000",
+            "cashback_enabled": False,
+            "cashback_percent": 0.0,
+            "default_deposit_percent": 20.0
+        }
 
 
 @frappe.whitelist(allow_guest=True)

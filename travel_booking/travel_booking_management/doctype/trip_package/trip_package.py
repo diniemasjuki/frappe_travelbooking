@@ -28,7 +28,6 @@ class TripPackage(Document):
 		package_type: DF.Literal["", "Fly Package", "Ground Only", "Fly Cruise", "Cruise Only", "Customed"]
 		select_group_by_date: DF.TableMultiSelect[TripPackageGroupDateSelect]
 		status: DF.Literal["Pending Review", "Active", "Inactive"]
-		trip_code: DF.Data | None
 		trip_image: DF.AttachImage | None
 		trip_link: DF.Link | None
 		trip_name: DF.Data | None
@@ -53,18 +52,22 @@ class TripPackage(Document):
 			package_type = ""
 
 		if( self.airport_form ):
-			airport = " - " + self.airport_form
+			airport = " / " + self.airport_form
 		else :
 			airport = ""
 
 
 		if not self.currency:
 			self.currency = "MYR"
-					
 
+		if package_type == "GP":
+			self.airport_form = None
+					
 		if not self.package_code:
-			self.package_code = ((self.trip_code or "") + "-" + package_type + airport )
-			self.package_code = self.package_code.upper().replace(" ","").strip()
+			self.package_code = (self.trip_link + " / " + package_type + airport ).upper().replace(" ","").replace("/",":").strip()
 
 		if not self.package_title:
-			self.package_title = (self.trip_name or "") + " - " + (self.package_type or "") + airport
+			self.package_title = (self.trip_name or "") + " / " + (self.package_type or "") + airport
+
+		
+			

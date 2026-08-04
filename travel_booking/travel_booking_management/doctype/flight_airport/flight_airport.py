@@ -26,11 +26,17 @@ class FlightAirport(Document):
 
 	def validate(self):
 		
-		if self.airport_name:
-			self.airport_name = self.airport_name.upper().strip()
+		self.airport_name = (self.airport_name).upper().strip()
 
-		if self.airport_code:
-			self.airport_code = re.sub(r'[^a-zA-Z0-9]', '', self.airport_code).upper().replace(" ","")
+		self.airport_code = (re.sub(r'[^a-zA-Z0-9]', '', self.airport_code)).upper().replace(" ","")
 
-		if self.airport_city:
-			self.airport_city = self.airport_city.title()
+		self.airport_city = (self.airport_city).title()
+
+	def before_save(self):
+		self.validate()
+
+	def before_submit(self):
+		self.validate()
+	
+	def before_insert(self):
+		self.validate()

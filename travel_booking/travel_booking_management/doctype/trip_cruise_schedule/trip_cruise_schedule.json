@@ -9,18 +9,9 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "operator_section",
-  "cruise_line_company",
-  "naming_series",
-  "column_break_cqkb",
-  "ship_code",
-  "ship_name",
-  "status",
-  "trip_information_section",
-  "trip_link",
-  "trip_name",
   "section_break_xorj",
   "column_break_lmpp",
+  "naming_series",
   "schedule_code",
   "total_days",
   "column_break_ympw",
@@ -28,7 +19,20 @@
   "sail_end",
   "column_break_dfrr",
   "port_start",
-  "port_end"
+  "port_end",
+  "trip_information_section",
+  "trip_link",
+  "trip_name",
+  "column_break_uiie",
+  "trip_code",
+  "operator_section",
+  "cruise_line_company",
+  "column_break_cqkb",
+  "ship_code",
+  "ship_name",
+  "status",
+  "section_break_scdk",
+  "cabin_rates"
  ],
  "fields": [
   {
@@ -73,7 +77,6 @@
    "fieldtype": "Date",
    "in_list_view": 1,
    "label": "Sailing Start",
-   "no_copy": 1,
    "reqd": 1,
    "set_only_once": 1
   },
@@ -84,7 +87,6 @@
    "fieldtype": "Date",
    "in_list_view": 1,
    "label": "Sailing End",
-   "no_copy": 1,
    "reqd": 1,
    "set_only_once": 1
   },
@@ -147,6 +149,7 @@
    "depends_on": "eval:doc.ship_code",
    "fieldname": "schedule_code",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Schedule Code",
    "no_copy": 1,
    "read_only": 1,
@@ -154,6 +157,7 @@
    "unique": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "operator_section",
    "fieldtype": "Section Break",
    "label": "Operator"
@@ -190,21 +194,40 @@
    "label": "Trip Name"
   },
   {
-   "default": ".ship_code.-.YY.MM.#",
+   "default": ".ship_code.-.YY.###",
    "fieldname": "naming_series",
    "fieldtype": "Select",
    "hidden": 1,
    "label": "naming series",
-   "options": ".ship_code.-.YY.MM.#",
-   "read_only": 1,
-   "reqd": 1
+   "options": ".ship_code.-.YY.###"
+  },
+  {
+   "fieldname": "section_break_scdk",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cabin_rates",
+   "fieldtype": "Table",
+   "label": "Cabin Rates",
+   "options": "Trip Package Price"
+  },
+  {
+   "fieldname": "trip_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Trip Code",
+   "read_only_depends_on": "eval:doc.trip_code ? 1 : 0"
+  },
+  {
+   "fieldname": "column_break_uiie",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_calendar_and_gantt": 1,
  "links": [],
- "modified": "2026-08-02 01:07:28.161382",
+ "modified": "2026-08-04 01:25:40.133210",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Cruise Schedule",
@@ -242,7 +265,6 @@
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
  "search_fields": "trip_link,trip_name",
- "show_preview_popup": 1,
  "show_title_field_in_link": 1,
  "sort_field": "creation",
  "sort_order": "DESC",

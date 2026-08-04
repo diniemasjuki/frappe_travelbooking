@@ -3,6 +3,8 @@
 
 import frappe
 import re
+from frappe.utils import getdate
+from frappe.utils import date_diff
 from frappe.model.document import Document
 
 class Flight(Document):
@@ -13,6 +15,7 @@ class Flight(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
+		from travel_booking.travel_booking_management.doctype.trip_package_price.trip_package_price import TripPackagePrice
 
 		airline: DF.Link
 		arrival_date: DF.Date | None
@@ -20,6 +23,7 @@ class Flight(Document):
 		destination_airport: DF.Link
 		flight_class: DF.Literal["Economy", "Economy Plus", "Premium Economy", "First Class", "Business Class"]
 		flight_itinerary: DF.TextEditor | None
+		flight_price_category: DF.Table[TripPackagePrice]
 		flight_title: DF.Data | None
 		home_airport: DF.Link
 		max_seat: DF.Int
@@ -41,8 +45,40 @@ class Flight(Document):
 
 	def validate(self):
 
-		if self.pnr:
-			self.pnr = re.sub(r'[^a-zA-Z0-9]', '', self.pnr).upper().replace(" ","")
+		self.pnr = (re.sub(r'[^a-zA-Z0-9]', '', self.pnr)).upper().replace(" ","")
 
-		self.flight_title = self.pnr + "-" + self.airline + "-" + self.home_airport + "-" + self.destination_airport
-		self.flight_title = self.flight_title.upper().strip()
+		self.flight_title = self.pnr + "-" + self.airline + "-" + self.home_airport 
+		self.flight_title = (self.flight_title).upper().strip()
+
+		if self.departure_date and self.arrival_date:
+			self.schedule_code = (
+				frappe.utils.getdate(self.departure_date).strftime("%Y-%m-%d")
+				+ " : " + frappe.utils.getdate(self.arrival_date).strftime("%Y-%m-%d")
+				+ " : " + (self.ship_code or "")
+			).strip()
+
+		if self.departure_date and self.arrival_date:
+
+			if self.departure_date:
+				departure_date = self.departure_date
+
+			if self.arrival_date:
+				arrival_date = self.arrival_date
+
+			if departure_date > arrival_date:
+				frappe.throw("SAILING START DATE must earlier then SAILING END DATE")
+
+			self.total_days = date_diff(self.arrival_date, self.departure_date)+1
+
+
+
+
+
+	def before_save(self):
+		self.validate()
+
+	def before_submit(self):
+		self.validate()
+	
+	def before_insert(self):
+		self.validate()

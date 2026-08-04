@@ -26,7 +26,7 @@
  "owner": "Administrator",
  "recipients": [
   {
-   "receiver_by_document_field": "cust_email"
+   "receiver_by_document_field": "get_cust_email"
   }
  ],
  "send_system_notification": 0,

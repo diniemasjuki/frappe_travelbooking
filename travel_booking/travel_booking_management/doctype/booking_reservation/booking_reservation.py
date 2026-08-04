@@ -27,7 +27,7 @@ class BookingReservation(Document):
 		delegate_no: DF.Data | None
 		departure_date: DF.Date | None
 		departure_point: DF.Data | None
-		document_status: DF.Data | None
+		document_status: DF.Literal["Pending", "Verified", "Open for Update", "Rejected", "Valid"]
 		flight: DF.Link | None
 		flight_ticket_type: DF.Data | None
 		full_name: DF.Data | None

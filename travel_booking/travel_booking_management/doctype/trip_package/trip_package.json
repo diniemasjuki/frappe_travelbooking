@@ -19,23 +19,21 @@
   "image_ydqq",
   "trip_image",
   "trip_name",
-  "trip_code",
   "section_break_wwby",
   "package_title",
   "package_description",
   "section_break_vpir",
   "is_a_cruise_trip",
   "is_cruise_only",
-  "select_group_by_date",
-  "section_break_eute",
-  "column_break_dkzp",
-  "package_code",
-  "column_break_nibq",
   "package_type",
   "airport_form",
+  "package_code",
+  "column_break_zwvy",
+  "select_group_by_date",
   "sec_pricing",
   "currency",
-  "package_pricing"
+  "package_pricing",
+  "import_from_cruise_rate"
  ],
  "fields": [
   {
@@ -86,6 +84,7 @@
    "in_standard_filter": 1,
    "label": "Trip",
    "options": "Trip",
+   "search_index": 1,
    "set_only_once": 1
   },
   {
@@ -93,6 +92,7 @@
    "fetch_from": "trip_link.trip_organizer",
    "fieldname": "organizer_link",
    "fieldtype": "Link",
+   "hidden": 1,
    "in_list_view": 1,
    "label": "Organizer",
    "options": "Trip Organizer",
@@ -136,25 +136,7 @@
    "unique": 1
   },
   {
-   "fetch_from": "trip_link.trip_code",
-   "fieldname": "trip_code",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Trip Code",
-   "read_only": 1
-  },
-  {
-   "depends_on": "eval:doc.trip_link",
-   "fieldname": "section_break_eute",
-   "fieldtype": "Section Break",
-   "label": "Package Setting"
-  },
-  {
-   "depends_on": "eval:doc.package_code",
-   "fieldname": "column_break_dkzp",
-   "fieldtype": "Column Break"
-  },
-  {
+   "depends_on": "eval:doc.is_a_cruise_trip == 0",
    "fieldname": "package_type",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -165,6 +147,7 @@
    "set_only_once": 1
   },
   {
+   "depends_on": "eval:(!doc.is_cruise_only && doc.is_a_cruise_trip) || (doc.package_type == \"Fly Package\")",
    "fieldname": "airport_form",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -176,10 +159,6 @@
   },
   {
    "fieldname": "column_break_eemr",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "column_break_nibq",
    "fieldtype": "Column Break"
   },
   {
@@ -201,7 +180,6 @@
   },
   {
    "default": "MYR",
-   "fetch_from": "airport_form.currency",
    "fieldname": "currency",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -213,7 +191,7 @@
    "depends_on": "eval:doc.trip_link",
    "fieldname": "select_group_by_date",
    "fieldtype": "Table MultiSelect",
-   "label": "Group by Date",
+   "label": "Select Trip Date",
    "options": "Trip Package Group Date Select"
   },
   {
@@ -231,13 +209,23 @@
   {
    "fieldname": "section_break_vpir",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_zwvy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fieldname": "import_from_cruise_rate",
+   "fieldtype": "Button",
+   "label": "Import From Cruise Rate"
   }
  ],
  "grid_page_length": 50,
  "image_field": "trip_image",
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-02 01:07:29.444762",
+ "modified": "2026-08-04 01:25:41.394215",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Package",

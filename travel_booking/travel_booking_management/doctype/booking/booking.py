@@ -18,12 +18,12 @@ class Booking(Document):
 		booking_number: DF.Data
 		cruise_end: DF.Date | None
 		cruise_start: DF.Date | None
-		cust_email: DF.Data | None
 		customer: DF.Link | None
 		departure_date: DF.Date | None
+		flight: DF.Link | None
 		is_a_cruise_trip: DF.Check
 		is_cruise_only: DF.Check
-		naming_series: DF.Literal["BOOK.YY.MM.###"]
+		naming_series: DF.Literal["BK.YY.MM.###"]
 		payment_status: DF.Literal["Pending", "Partially Paid", "Paid", "Request Refund", "Pending Refund", "Refunded"]
 		pre_discount_total: DF.Currency
 		prog_payment: DF.Percent
@@ -36,6 +36,8 @@ class Booking(Document):
 		trip_package: DF.Link | None
 		trip_package_status: DF.ReadOnly | None
 		trip_status: DF.ReadOnly | None
+		voucher: DF.Link | None
+		voucher_usage: DF.Link | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Booking"
@@ -57,7 +59,7 @@ class Booking(Document):
 		return get_customer_phone(self.customer) or ""
 
 	@property
-	def cust_email(self):
+	def get_cust_email(self):
 		"""Email customer TERKINI — sama prinsip dengan cust_phone di atas,
 		dikira dari Customer -> Contact (Dynamic Link), bukan snapshot.
 		"""
