@@ -16,40 +16,40 @@ from travel_booking.api._helpers import get_customer_by_email, get_customer_emai
 
 @frappe.whitelist(allow_guest=True)
 def get_payment_settings():
+    """Bank account & cashback info untuk papar di booking.html —
+    ganti nilai hardcoded (Maybank / 5% cashback) dengan Travel Settings.
 
-    # """Bank account & cashback info untuk papar di booking.html —
-    # ganti nilai hardcoded (Maybank / 5% cashback) dengan Travel Settings."""
-    # settings = frappe.get_cached_doc("Travel Settings")
-    # return {
-    #     "bank_name":                        settings.bank_name,
-    #     "account_name":                     settings.account_name,
-    #     "account_number":                   settings.account_number,
-    #     "cashback_enabled":                 bool(settings.manual_transfer_cashback_enabled),
-    #     "cashback_percent":                 float(settings.manual_transfer_cashback_percent or 0),
-    #     "default_deposit_percent":          float(settings.default_deposit_percent or 20),
-    # }
+    PENTING: guna getattr() (bukan attribute access terus) untuk field
+    yang mungkin dah dibuang/diubah struktur di doctype (cth support_email/
+    support_phone dibuang dalam kemas kini terkini) — elak AttributeError
+    yang boleh crash endpoint ni sepenuhnya untuk customer.
+    """
+    settings = frappe.get_cached_doc("Travel Settings")
 
-    """Bank account & cashback info untuk papar di booking.html"""
-    try:
-        settings = frappe.get_cached_doc("Travel Settings")
-        return {
-            "bank_name": settings.bank_name or "Default Bank",
-            "account_name": settings.account_name or "Default Account",
-            "account_number": settings.account_number or "000000",
-            "cashback_enabled": bool(settings.manual_transfer_cashback_enabled),
-            "cashback_percent": float(settings.manual_transfer_cashback_percent or 0),
-            "default_deposit_percent": float(settings.default_deposit_percent or 20)
-        }
-    except Exception:
-        # fallback kalau Travel Settings tak jumpa langsung
-        return {
-            "bank_name": "Demo Bank",
-            "account_name": "Demo Account",
-            "account_number": "000000",
-            "cashback_enabled": False,
-            "cashback_percent": 0.0,
-            "default_deposit_percent": 20.0
-        }
+    # bank_name sekarang Link ke "Bank Account" (bukan teks Data terus) —
+    # cuba resolve nama bank SEBENAR untuk paparan (cth "Maybank"), fallback
+    # ke nilai mentah (docname Bank Account) kalau gagal, supaya tetap ada
+    # sesuatu dipaparkan (bukan kosong/error) walau struktur berubah lagi
+    # di masa depan.
+    bank_display_name = getattr(settings, "bank_name", "") or ""
+    if bank_display_name:
+        try:
+            resolved = frappe.db.get_value("Bank Account", bank_display_name, "bank")
+            if resolved:
+                bank_display_name = resolved
+        except Exception:
+            pass
+
+    return {
+        "bank_name":                        bank_display_name,
+        "account_name":                     getattr(settings, "account_name", "") or "",
+        "account_number":                   getattr(settings, "account_number", "") or "",
+        "cashback_enabled":                 bool(getattr(settings, "manual_transfer_cashback_enabled", 0)),
+        "cashback_percent":                 float(getattr(settings, "manual_transfer_cashback_percent", 0) or 0),
+        "default_deposit_percent":          float(getattr(settings, "default_deposit_percent", 20) or 20),
+        "support_email":                    getattr(settings, "support_email", "") or "",
+        "support_phone":                    getattr(settings, "support_phone", "") or "",
+    }
 
 
 @frappe.whitelist(allow_guest=True)
@@ -102,13 +102,16 @@ def get_wizard_confirmation(booking_number: str, pr: str = None):
         if pr_so and pr_so != primary_so:
             frappe.throw("Rujukan tidak sah.", frappe.PermissionError)
 
+    # NOTA: "Disable Rounded Total" kini global (Selling Settings) — semua
+    # SO (wizard/addon) tak lagi guna rounded_total, standardize ke
+    # grand_total sahaja merentasi app (rujuk juga nota di confirm_booking()).
     grand_total = 0
     advance_paid = 0
     if primary_so:
         so = frappe.db.get_value("Sales Order", primary_so,
-                                 ["grand_total", "rounded_total", "advance_paid"], as_dict=True)
+                                 ["grand_total", "advance_paid"], as_dict=True)
         if so:
-            grand_total  = float(so.rounded_total or so.grand_total or 0)
+            grand_total  = float(so.grand_total or 0)
             advance_paid = float(so.advance_paid or 0)
 
     return {
@@ -428,9 +431,9 @@ def validate_voucher(code: str, trip_group_date: str, grand_total: float, email:
     if voucher.valid_until and frappe.utils.getdate(voucher.valid_until) < today:
         return {"valid": False, "message": "This voucher has expired."}
 
-    # Usage count dikira LIVE dari child table 'usage' (bukan field
-    # berasingan) — satu sumber data sahaja, elak tak segerak.
-    usage_count = frappe.db.count("Voucher Usage", {"parent": voucher.name})
+    # Usage count dikira LIVE dari doctype standalone 'Voucher Usage'
+    # (bukan child table lagi — rujuk field 'voucher' Link, bukan 'parent').
+    usage_count = frappe.db.count("Voucher Usage", {"voucher": voucher.name})
     if voucher.max_usage and usage_count >= voucher.max_usage:
         return {"valid": False, "message": "This voucher has reached its maximum usage."}
 
@@ -438,7 +441,7 @@ def validate_voucher(code: str, trip_group_date: str, grand_total: float, email:
     customer = get_customer_by_email(email.strip().lower()) if email else None
     if customer and voucher.max_usage_per_customer:
         customer_usage = frappe.db.count(
-            "Voucher Usage", {"parent": voucher.name, "customer": customer}
+            "Voucher Usage", {"voucher": voucher.name, "customer": customer}
         )
         if customer_usage >= voucher.max_usage_per_customer:
             return {"valid": False, "message": "You have reached the usage limit for this voucher."}
@@ -756,7 +759,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     voucher_discount = 0
     if voucher_code:
         vr = validate_voucher(voucher_code, trip_group_date, grand_total,
-                              billing.get("email", ""), selections, trip_package)
+                              billing.get("email", ""), json.dumps(selections), trip_package)
         if vr.get("valid"):
             voucher_discount = float(vr.get("discount_amount", 0))
             grand_total = grand_total - voucher_discount
@@ -830,6 +833,26 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
             "order_type":         "Sales",
             "items":              so_items,
             "selling_price_list": "Standard Selling",
+            # PENTING: matikan pembundaran ke ringgit-penuh untuk SO booking.
+            # Tanpa ni, ERPNext boleh bundar grand_total (cth RM9.50) ke
+            # rounded_total (cth RM10.00) — sedangkan jumlah SEBENAR yang
+            # dicaj/dibayar customer (Stripe/manual transfer/Payment Entry)
+            # sentiasa ikut grand_total tepat. Jurang ni punca SO kekal
+            # "ada baki" (Rounding Adjustment) walaupun booking dah settle
+            # penuh dari segi bisnes. Bayaran kita semua elektronik (Stripe/
+            # bank transfer) — tiada keperluan bundar ringgit-penuh macam
+            # transaksi tunai fizikal.
+            #
+            # NOTA: "Disable Rounded Total" kini turut dihidupkan SECARA
+            # GLOBAL di Selling Settings — flag di sini kekal (defence-in-
+            # depth untuk SO ni khusus, tak bergantung semata-mata pada
+            # setting global yang admin boleh terlupa/tersilap toggle),
+            # tapi puncanya sekarang global — semua SO (termasuk addon
+            # yang admin cipta manual di Desk) turut terjamin
+            # rounded_total=0, jadi seluruh app boleh standardize terus
+            # ke grand_total sahaja (rujuk juga booking.py properties,
+            # portal_booking.py, portal_payment.py, stripe_checkout.py).
+            "disable_rounded_total": 1,
         }
         if sales_partner:
             so_payload["sales_partner"] = sales_partner
@@ -898,21 +921,11 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         frappe.set_user(_original_user)
 
     # Guna grand_total SEBENAR dari SO (selepas additional discount, jika ada)
-    # supaya deposit/full-payment dikira dari jumlah yang betul-betul perlu dibayar.
-    #
-    # PENTING: guna rounded_total (fallback grand_total) — SO dah WUJUD di
-    # sini (selepas insert/submit di atas), jadi so.rounded_total dah sah
-    # terisi (dikira semasa calculate_taxes_and_totals() dalam validate()).
-    # Ini KRITIKAL untuk Manual Transfer — deposit_amount/pay_amount di
-    # sini terus jadi 'amount' untuk _create_manual_payment_entry(), yang
-    # TIADA semakan rounded_total sendiri (tak macam Online Payment yang
-    # di-cap semula oleh create_payment_intent()). Kalau kita guna
-    # grand_total mentah di sini (cth RM 5.49) sedangkan rounded_total
-    # sebenar SO cuma RM 5.00, Payment Entry Manual Transfer akan tercipta
-    # dengan amount yang tak sepadan — admin boleh nampak percanggahan
-    # bila cuba verify/submit nanti. Rujuk juga nota lengkap di
-    # stripe_checkout.create_payment_intent().
-    grand_total = float(so.rounded_total or so.grand_total or 0)
+    # supaya deposit/full-payment dikira dari jumlah yang betul-betul perlu
+    # dibayar. "Disable Rounded Total" kini global (Selling Settings) — SO
+    # ni (dan semua SO lain dalam app) tak lagi ada rounded_total berlainan
+    # dari grand_total, jadi guna grand_total terus tanpa fallback.
+    grand_total = float(so.grand_total or 0)
 
     # Deposit calc
     if amount_paid is not None:
@@ -972,7 +985,14 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     res_created = 0  # dicipta bila Confirmed (hook Payment Entry)
 
     if voucher_code and voucher_discount > 0:
-        _use_voucher(voucher_code, customer_name, booking.name, voucher_discount)
+        used_voucher_name, used_voucher_usage_name = _use_voucher(
+            voucher_code, customer_name, booking.name, voucher_discount
+        )
+        if used_voucher_name:
+            frappe.db.set_value("Booking", booking.name, {
+                "voucher":       used_voucher_name,
+                "voucher_usage": used_voucher_usage_name,
+            })
 
     # Online Payment → jana Stripe payment URL (bayar ikut payment_type: deposit/full)
     # PENTING: emel "Pending" TIDAK dihantar di sini untuk Online Payment.
@@ -1391,17 +1411,15 @@ def _recompute_booking_status(so_name):
     if not all_so_names:
         return
 
+    # NOTA: "Disable Rounded Total" kini global (Selling Settings) — semua
+    # SO berkaitan booking tak lagi ada rounded_total berlainan dari
+    # grand_total, jadi standardize ke grand_total sahaja.
     total = 0
     paid  = 0
     for name in all_so_names:
-        so = frappe.db.get_value("Sales Order", name, ["grand_total", "rounded_total", "advance_paid"], as_dict=True)
+        so = frappe.db.get_value("Sales Order", name, ["grand_total", "advance_paid"], as_dict=True)
         if so:
-            # PENTING: guna rounded_total (fallback grand_total) — kalau
-            # tidak, payment_status boleh KEKAL "Partially Paid" selama-
-            # lamanya walaupun customer dah bayar PENUH ikut rounded_total
-            # sebenar (cth bayar RM 5.00 penuh, tapi 'total' di sini kira
-            # RM 5.49 mentah — payment_status silap kekal belum settle).
-            total += float(so.rounded_total or so.grand_total or 0)
+            total += float(so.grand_total or 0)
             paid  += so.advance_paid or 0
 
     new_payment_status = _compute_payment_status(paid, total)
@@ -1528,20 +1546,24 @@ def mark_completed_trips(booking_name=None):
 
 
 def _release_voucher_for_booking(booking_name):
-    """Lepaskan voucher yang diguna booking ni (buang usage row).
-    usage_count dikira live dari child table, jadi cukup buang row sahaja
-    — tiada field counter berasingan untuk decrement.
+    """Lepaskan voucher yang diguna booking ni — padam rekod Voucher Usage
+    terus (doctype STANDALONE sekarang, bukan child table lagi — rujuk
+    field 'voucher' Link, bukan 'parent'). usage_count dikira live dari
+    bilangan rekod Voucher Usage yang wujud, jadi cukup padam rekod sahaja
+    — tiada field counter berasingan untuk decrement, dan TIADA perlu
+    load/lock/save Voucher induk (tiada child table untuk disegerakkan
+    lagi — jauh lebih ringkas dari pendekatan lama). Turut kosongkan
+    Booking.voucher/voucher_usage (field rujukan cepat BAHARU) supaya
+    tak tinggal rujukan ke rekod yang dah dipadam.
     """
     for u in frappe.db.get_all("Voucher Usage",
                                filters={"booking": booking_name},
-                               fields=["parent"]):
+                               pluck="name"):
         try:
-            frappe.db.sql("SELECT name FROM `tabVoucher` WHERE name = %s FOR UPDATE", u.parent)
-            v = frappe.get_doc("Voucher", u.parent)
-            v.usage = [row for row in v.usage if row.booking != booking_name]
-            v.save(ignore_permissions=True)
+            frappe.delete_doc("Voucher Usage", u, ignore_permissions=True)
         except Exception:
             pass
+    frappe.db.set_value("Booking", booking_name, {"voucher": None, "voucher_usage": None})
 
 
 def _cancel_booking_cascade(booking_doc):
@@ -1586,30 +1608,40 @@ def _cancel_booking_cascade(booking_doc):
 
 
 def _use_voucher(code, customer_name, booking_name, discount_amount=0):
-    """Rekod penggunaan voucher — tambah row ke child table 'usage'.
-    Guna document lock (frappe.get_doc + for_update melalui db lock semasa
-    load) untuk elak race condition kalau dua booking guna kod yang sama
-    hampir serentak. usage_count TIDAK disimpan berasingan — dikira live
-    dari bilangan row dalam 'usage' (satu sumber data).
+    """Rekod penggunaan voucher — cipta rekod BAHARU di doctype standalone
+    'Voucher Usage' (bukan append ke child table lagi). Row-lock pada
+    Voucher (FOR UPDATE) DIKEKALKAN sebagai mekanisme SERIALIZATION —
+    walaupun kita tak load/ubah/save dokumen Voucher itu sendiri lagi,
+    lock ni tetap perlu untuk elak race condition: dua booking guna kod
+    yang sama hampir serentak, kedua-dua check max_usage LULUS sebelum
+    mana-mana sempat rekod usage, jadi both proceed dan usage_count
+    akhirnya melebihi max_usage. Lock paksa request kedua tunggu sehingga
+    request pertama selesai (commit), baru boleh teruskan — insert
+    berlaku SELEPAS lock diperoleh, dalam transaksi yang sama.
+
+    Pulangkan (voucher_name, usage_name) — atau (None, None) kalau gagal
+    — supaya caller boleh isi Booking.voucher/voucher_usage (field Link
+    BAHARU pada Booking, rujukan cepat tanpa perlu query Voucher Usage
+    berasingan setiap kali).
     """
     try:
         code = (code or "").strip().upper()
         voucher_name = frappe.db.get_value("Voucher", {"voucher_code": code}, "name")
         if not voucher_name:
-            return
-        # Lock row Voucher semasa baca supaya dua request serentak tak
-        # boleh sama-sama load versi lama dan overwrite usage row masing².
+            return None, None
         frappe.db.sql("SELECT name FROM `tabVoucher` WHERE name = %s FOR UPDATE", voucher_name)
-        voucher_doc = frappe.get_doc("Voucher", voucher_name)
-        voucher_doc.append("usage", {
+        usage_doc = frappe.get_doc({
+            "doctype":         "Voucher Usage",
+            "voucher":         voucher_name,
             "customer":        customer_name,
             "booking":         booking_name,
             "discount_amount": discount_amount,
-            "used_on":         frappe.utils.now_datetime(),
         })
-        voucher_doc.save(ignore_permissions=True)
+        usage_doc.insert(ignore_permissions=True)
+        return voucher_name, usage_doc.name
     except Exception as e:
         frappe.log_error("Voucher usage tracking failed: " + str(e), "Voucher Error")
+        return None, None
 
 
 def _generate_booking_number():
@@ -1746,13 +1778,14 @@ def _booking_email_context(booking_name):
         if td:
             group_name = td.trip_group_name or ""
             trip_name = frappe.db.get_value("Trip", td.trip, "trip_name") or ""
+    # NOTA: "Disable Rounded Total" kini global — standardize ke grand_total.
     grand_total   = 0
     advance_paid  = 0
     for so_name in _get_all_booking_sales_orders(booking_name):
         so_vals = frappe.db.get_value("Sales Order", so_name,
-                                      ["grand_total", "rounded_total", "advance_paid"], as_dict=True)
+                                      ["grand_total", "advance_paid"], as_dict=True)
         if so_vals:
-            grand_total  += float(so_vals.rounded_total or so_vals.grand_total or 0)
+            grand_total  += float(so_vals.grand_total or 0)
             advance_paid += so_vals.advance_paid or 0
     return {
         "email":           get_customer_email(b.customer),

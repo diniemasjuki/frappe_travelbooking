@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_bulk_edit": 1,
+ "allow_copy": 1,
  "allow_rename": 1,
  "autoname": "naming_series:",
  "creation": "2026-07-29 06:42:17.981612",
@@ -21,7 +22,8 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Booking",
-   "options": "Booking"
+   "options": "Booking",
+   "search_index": 1
   },
   {
    "fetch_from": "booking.customer",
@@ -29,7 +31,8 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Customer",
-   "options": "Customer"
+   "options": "Customer",
+   "search_index": 1
   },
   {
    "fieldname": "column_break_ohuj",
@@ -46,7 +49,8 @@
    "fieldname": "voucher",
    "fieldtype": "Link",
    "label": "Voucher",
-   "options": "Voucher"
+   "options": "Voucher",
+   "search_index": 1
   },
   {
    "default": ".voucher.-.YY.MM.##",
@@ -60,9 +64,10 @@
   }
  ],
  "grid_page_length": 50,
- "index_web_pages_for_search": 1,
+ "hide_toolbar": 1,
+ "in_create": 1,
  "links": [],
- "modified": "2026-08-04 08:15:29.864715",
+ "modified": "2026-08-05 02:10:46.254048",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Voucher Usage",
@@ -80,8 +85,27 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "share": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1
   }
  ],
+ "protect_attached_files": 1,
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
  "sort_field": "creation",

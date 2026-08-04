@@ -13,6 +13,7 @@
   "basic_info_section",
   "trip",
   "trip_name",
+  "my_url",
   "column_break_dium",
   "is_a_cruise_trip",
   "is_cruise_only",
@@ -428,12 +429,18 @@
    "label": "Cruise Code",
    "no_copy": 1,
    "read_only": 1
+  },
+  {
+   "fieldname": "my_url",
+   "fieldtype": "Data",
+   "is_virtual": 1,
+   "options": "\"https://trip.rarecation.com?date=\" + doc.name"
   }
  ],
  "grid_page_length": 50,
  "is_calendar_and_gantt": 1,
  "links": [],
- "modified": "2026-08-04 01:25:40.828694",
+ "modified": "2026-08-05 04:31:30.607548",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Group Date",
@@ -452,8 +459,20 @@
    "role": "Tour Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1,
+   "write": 1
   }
  ],
+ "protect_attached_files": 1,
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
  "search_fields": "trip_group_name,trip_name,trip_group_code",

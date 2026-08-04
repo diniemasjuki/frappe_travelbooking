@@ -1224,6 +1224,16 @@ body {
   flex: 1;
 }
 
+/* Butang "Apply" bertukar ke state ni bila voucher/referral aktif —
+   toggle SATU butang sahaja (Apply <-> Remove), bukan kawalan berasingan. */
+.rc-btn--voucher-applied {
+  color: #CC0000;
+  border-color: #CC0000;
+}
+.rc-btn--voucher-applied:hover {
+  background: rgba(204, 0, 0, 0.06);
+}
+
 /* ─── CABIN TYPE WRAPPER ───────────────────────────────────── */
 .rc-cabin-type-wrap {
   margin-bottom: 20px;
@@ -1707,6 +1717,68 @@ body {
   min-width: 92px;
   text-align: right;
   white-space: nowrap;
+}
+
+/* ─── COUNTER ROW LABEL TOOLTIP (Main Guest / Infant age info) ────── */
+.rc-counter-row__label-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+}
+
+.rc-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--rc-gray-400);
+  cursor: help;
+}
+
+.rc-tooltip:hover,
+.rc-tooltip:focus {
+  color: var(--rc-gray-600);
+}
+
+.rc-tooltip i {
+  font-size: 15px;
+}
+
+.rc-tooltip__bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  background: var(--rc-black);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  padding: 8px 10px;
+  border-radius: 8px;
+  width: max-content;
+  max-width: 200px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.15s, transform 0.15s;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.rc-tooltip__bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 10px;
+  border: 5px solid transparent;
+  border-top-color: var(--rc-black);
+}
+
+.rc-tooltip:hover .rc-tooltip__bubble,
+.rc-tooltip:focus .rc-tooltip__bubble {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
 }
 
 .rc-add-room {

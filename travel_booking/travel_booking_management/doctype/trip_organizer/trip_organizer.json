@@ -75,7 +75,7 @@
  "hide_toolbar": 1,
  "image_field": "org_logo",
  "links": [],
- "modified": "2026-08-04 01:25:41.167075",
+ "modified": "2026-08-05 02:18:14.617011",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Organizer",
@@ -94,6 +94,15 @@
    "role": "Tour Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1
   }
  ],
  "protect_attached_files": 1,

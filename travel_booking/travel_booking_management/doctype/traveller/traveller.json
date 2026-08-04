@@ -12,42 +12,47 @@
   "column_break_ghkn",
   "document_verified",
   "personal_information_section",
-  "title",
   "first_name",
   "last_name",
-  "column_break_lrcy",
-  "full_name",
   "fullname_format",
+  "column_break_ftws",
+  "email",
+  "phone",
+  "passport_tab",
   "identity_and_passport_section",
   "ic_number",
+  "ic_number_view",
+  "full_name",
   "gender",
-  "column_break_qgun",
   "date_of_birth",
-  "age",
-  "age_category",
-  "column_break_uvew",
   "passport_no",
   "passport_expiry",
   "nationality",
   "column_break_copa",
-  "section_break_gyvn",
-  "passport_image",
   "passport_gambar",
-  "column_break_qxej",
-  "visa_photo",
-  "visa_gambar",
+  "passport_image",
+  "health_tab",
+  "health_and_special_needs_section",
+  "wheelchair_assistant",
+  "column_break_vfsb",
+  "dietary_requirements",
+  "section_break_vaio",
+  "medical_conditions",
+  "column_break_sbym",
+  "medicine_treatment",
+  "others_tab",
   "contacts_section",
-  "email",
-  "phone",
   "column_break_bnea",
   "emergency_contact_name",
   "emergency_contact_phone",
   "emergency_contact_relationship",
-  "health_tab",
-  "health_and_special_needs_section",
-  "dietary_requirements",
-  "medical_conditions",
-  "special_needs"
+  "column_break_cbrh",
+  "age",
+  "age_category",
+  "title",
+  "column_break_qxej",
+  "visa_gambar",
+  "visa_photo"
  ],
  "fields": [
   {
@@ -64,7 +69,7 @@
    "default": "0",
    "fieldname": "document_verified",
    "fieldtype": "Check",
-   "label": "Document Is Verified"
+   "label": "Lock Verified Document"
   },
   {
    "fieldname": "personal_information_section",
@@ -74,31 +79,29 @@
   {
    "fieldname": "title",
    "fieldtype": "Select",
-   "in_list_view": 1,
    "label": "Title",
-   "options": "Mr\nMrs"
+   "options": "Mr\nMrs",
+   "read_only": 1,
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "first_name",
    "fieldtype": "Data",
-   "in_list_view": 1,
    "label": "First Name",
+   "read_only_depends_on": "eval:doc.document_verified",
    "reqd": 1
   },
   {
    "fieldname": "last_name",
    "fieldtype": "Data",
-   "in_list_view": 1,
    "label": "Last Name",
+   "read_only_depends_on": "eval:doc.document_verified",
    "reqd": 1
-  },
-  {
-   "fieldname": "column_break_lrcy",
-   "fieldtype": "Column Break"
   },
   {
    "fieldname": "full_name",
    "fieldtype": "Data",
+   "in_global_search": 1,
    "in_list_view": 1,
    "label": "Full Name",
    "read_only": 1
@@ -108,7 +111,8 @@
    "fieldname": "fullname_format",
    "fieldtype": "Select",
    "label": "Full Name Format",
-   "options": "First Name + Last Name\nLast Name + First Name"
+   "options": "First Name + Last Name\nLast Name + First Name",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "identity_and_passport_section",
@@ -118,28 +122,30 @@
   {
    "fieldname": "ic_number",
    "fieldtype": "Data",
+   "in_global_search": 1,
    "label": "IC Number",
+   "read_only_depends_on": "eval:doc.document_verified",
+   "reqd": 1,
    "unique": 1
   },
   {
    "fieldname": "gender",
    "fieldtype": "Select",
    "label": "Gender",
-   "options": "Male\nFemale"
-  },
-  {
-   "fieldname": "column_break_qgun",
-   "fieldtype": "Column Break"
+   "options": "Male\nFemale",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "date_of_birth",
    "fieldtype": "Date",
-   "label": "Date of Birth"
+   "label": "Date of Birth",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "age",
    "fieldtype": "Int",
    "label": "Age",
+   "mandatory_depends_on": "eval:doc.document_verified",
    "read_only": 1
   },
   {
@@ -147,40 +153,39 @@
    "fieldtype": "Select",
    "label": "Age Category",
    "options": "Adult\nChild\nInfant",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_uvew",
-   "fieldtype": "Column Break"
+   "read_only": 1,
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "passport_no",
    "fieldtype": "Data",
-   "label": "Passport No"
+   "in_global_search": 1,
+   "label": "Passport No",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "passport_expiry",
    "fieldtype": "Date",
-   "label": "Passport Expiry"
+   "label": "Passport Expiry",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "nationality",
    "fieldtype": "Link",
+   "in_standard_filter": 1,
    "label": "Nationality",
-   "options": "Country"
+   "options": "Country",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "column_break_copa",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "section_break_gyvn",
-   "fieldtype": "Section Break"
-  },
-  {
    "fieldname": "passport_image",
-   "fieldtype": "Attach",
-   "label": "Passport"
+   "fieldtype": "Attach Image",
+   "label": "Passport",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "passport_gambar",
@@ -196,7 +201,8 @@
   {
    "fieldname": "visa_photo",
    "fieldtype": "Attach",
-   "label": "Visa Photo"
+   "label": "Visa Photo",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "visa_gambar",
@@ -207,38 +213,45 @@
   },
   {
    "fieldname": "contacts_section",
-   "fieldtype": "Section Break",
-   "label": "Contacts"
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "email",
    "fieldtype": "Data",
+   "in_global_search": 1,
    "label": "Email",
-   "options": "Email"
+   "options": "Email",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "phone",
    "fieldtype": "Phone",
-   "label": "Phone"
+   "label": "Phone",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "column_break_bnea",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "label": "Emergency Contact Information",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "emergency_contact_name",
    "fieldtype": "Data",
-   "label": "Emergency Contact "
+   "label": "Emergency Contact ",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "emergency_contact_phone",
    "fieldtype": "Phone",
-   "label": "Emergency Phone"
+   "label": "Emergency Phone",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "emergency_contact_relationship",
    "fieldtype": "Data",
-   "label": "Relationship"
+   "label": "Relationship",
+   "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "health_tab",
@@ -252,28 +265,75 @@
   },
   {
    "fieldname": "dietary_requirements",
-   "fieldtype": "Small Text",
+   "fieldtype": "Text",
    "label": "Dietary Requirements"
   },
   {
    "fieldname": "medical_conditions",
-   "fieldtype": "Small Text",
-   "label": "Medical Conditions"
+   "fieldtype": "Text",
+   "label": "Medical Conditions or Allergic"
   },
   {
-   "fieldname": "special_needs",
-   "fieldtype": "Small Text",
-   "label": "Special Needs"
+   "fieldname": "column_break_ftws",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ic_number_view",
+   "fieldtype": "Data",
+   "is_virtual": 1,
+   "label": "IC Number",
+   "options": "doc.ic_number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_cbrh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Let us know if you need an assistant on",
+   "fieldname": "wheelchair_assistant",
+   "fieldtype": "Select",
+   "label": "Wheelchair Assistant",
+   "options": "\nNot Required\nLong Walk Only\nAll Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_vfsb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_vaio",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_sbym",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "medicine_treatment",
+   "fieldtype": "Text",
+   "label": "List of Medicine or Treatment"
+  },
+  {
+   "fieldname": "passport_tab",
+   "fieldtype": "Tab Break",
+   "label": "Passport"
+  },
+  {
+   "fieldname": "others_tab",
+   "fieldtype": "Tab Break",
+   "label": "More"
   }
  ],
  "grid_page_length": 50,
+ "image_field": "passport_image",
  "links": [
   {
    "link_doctype": "Booking Reservation",
    "link_fieldname": "traveller"
   }
  ],
- "modified": "2026-08-04 01:25:39.464604",
+ "modified": "2026-08-05 02:00:58.108072",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Traveller",
@@ -290,15 +350,48 @@
    "read": 1,
    "report": 1,
    "role": "Tour Manager",
+   "select": 1,
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "select": 1,
    "share": 1,
    "write": 1
   }
  ],
+ "protect_attached_files": 1,
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
- "search_fields": "full_name",
+ "search_fields": "full_name,email,phone,ic_number,passport_no",
+ "show_title_field_in_link": 1,
  "sort_field": "creation",
  "sort_order": "DESC",
- "states": [],
- "title_field": "full_name"
+ "states": [
+  {
+   "color": "Blue",
+   "title": "Pending"
+  },
+  {
+   "color": "Green",
+   "title": "Verified"
+  },
+  {
+   "color": "Red",
+   "title": "Rejected"
+  },
+  {
+   "color": "Yellow",
+   "title": "Open for Update"
+  }
+ ],
+ "title_field": "full_name",
+ "track_changes": 1
 }

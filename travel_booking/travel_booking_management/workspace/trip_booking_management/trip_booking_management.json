@@ -1,0 +1,275 @@
+{
+ "app": "travel_booking",
+ "charts": [
+  {
+   "chart_name": "Traveller Enrollment",
+   "label": "Traveller Enrollment"
+  }
+ ],
+ "content": "[{\"id\":\"F06pQBTDAk\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Welcome to Trip Booking Management</span>\",\"col\":12}},{\"id\":\"xUu26PJF87\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Traveller Enrollment\",\"col\":12}},{\"id\":\"d2dvU2v_Oo\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Booking Info</b></span>\",\"col\":12}},{\"id\":\"RCXIYsB1gT\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending (for Payment)\",\"col\":3}},{\"id\":\"iCScEnnRIU\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Accepted (Ready to Process)\",\"col\":3}},{\"id\":\"rYV8_nGX3w\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Currently Processing\",\"col\":3}},{\"id\":\"vI9Q70oi1m\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Abandoned\",\"col\":3}}]",
+ "creation": "2026-08-05 02:47:38.200285",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "luggage",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Trip Booking Management",
+ "link_type": "DocType",
+ "links": [],
+ "modified": "2026-08-05 03:56:55.316923",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Trip Booking Management",
+ "number_cards": [
+  {
+   "label": "Pending (for Payment)",
+   "number_card_name": "Booking | Pending (Awaiting Payment)"
+  },
+  {
+   "label": "Accepted (Ready to Process)",
+   "number_card_name": "Booking | Accepted (To Process)"
+  },
+  {
+   "label": "Currently Processing",
+   "number_card_name": "Booking | Processing"
+  },
+  {
+   "label": "Abandoned",
+   "number_card_name": "Booking | Abandoned (Not Paid)"
+  }
+ ],
+ "owner": "Administrator",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [
+  {
+   "role": "Tour Manager"
+  },
+  {
+   "role": "Tour Operator"
+  }
+ ],
+ "sequence_id": 37.0,
+ "shortcuts": [],
+ "sidebar_items": [
+  {
+   "child": 0,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "icon": "house-heart",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Home",
+   "link_type": "URL",
+   "open_in_new_tab": 0,
+   "show_arrow": 0,
+   "type": "Link",
+   "url": "/desk/trip-booking"
+  },
+  {
+   "child": 0,
+   "collapsible": 0,
+   "default_workspace": 0,
+   "icon": "bed-double",
+   "indent": 1,
+   "keep_closed": 1,
+   "label": "Booking",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 1,
+   "type": "Section Break"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "icon": "arrow-big-right",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "1 Booking Order",
+   "link_to": "Booking",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "icon": "arrow-big-right",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "2 Booking Reservation",
+   "link_to": "Booking Reservation",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "icon": "arrow-big-right",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "3 Traveller Info",
+   "link_to": "Traveller",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 0,
+   "default_workspace": 0,
+   "icon": "circle-dollar-sign",
+   "indent": 1,
+   "keep_closed": 1,
+   "label": "Billing",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 1,
+   "type": "Section Break"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "1 Sales Order",
+   "link_to": "Sales Order",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "2 Sales Invoice",
+   "link_to": "Sales Invoice",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "3 Payment Entry",
+   "link_to": "Payment Entry",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "+ Payment Request",
+   "link_to": "Payment Request",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 0,
+   "default_workspace": 0,
+   "icon": "ticket-percent",
+   "indent": 1,
+   "keep_closed": 1,
+   "label": "Voucher",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 1,
+   "type": "Section Break"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Voucher",
+   "link_to": "Voucher",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Voucher Usage",
+   "link_to": "Voucher Usage",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 0,
+   "default_workspace": 0,
+   "icon": "book-up",
+   "indent": 1,
+   "keep_closed": 1,
+   "label": "Portal Link",
+   "link_type": "DocType",
+   "open_in_new_tab": 1,
+   "show_arrow": 1,
+   "type": "Section Break"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Traveller Portal",
+   "link_type": "URL",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link",
+   "url": "/traveller_portal"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "default_workspace": 0,
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Booking Portal",
+   "link_type": "URL",
+   "open_in_new_tab": 1,
+   "show_arrow": 0,
+   "type": "Link",
+   "url": "/booking"
+  }
+ ],
+ "standard": 1,
+ "title": "Trip Booking Management",
+ "type": "Workspace"
+}

@@ -48,6 +48,8 @@
   "flight",
   "column_break_wblj",
   "flight_ticket_type",
+  "airline",
+  "flight_itinerary",
   "cabin_arrangement_tab",
   "rooming_column",
   "room_category",
@@ -349,7 +351,8 @@
    "fieldname": "customer_email",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Customer Email"
+   "label": "Customer Email",
+   "options": "Email"
   },
   {
    "fieldname": "column_break_wblj",
@@ -377,12 +380,25 @@
   {
    "fieldname": "column_break_wmuo",
    "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "flight.flight_itinerary",
+   "fieldname": "flight_itinerary",
+   "fieldtype": "Text Editor",
+   "label": "Flight Itinerary"
+  },
+  {
+   "depends_on": "eval:!doc.is_cruise_only",
+   "fetch_from": "flight.airline",
+   "fieldname": "airline",
+   "fieldtype": "Link",
+   "label": "Flight Airline",
+   "options": "Flight Airline"
   }
  ],
  "grid_page_length": 50,
- "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-04 01:45:43.443339",
+ "modified": "2026-08-05 06:18:50.543133",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking Reservation",
@@ -401,8 +417,20 @@
    "role": "Tour Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1,
+   "write": 1
   }
  ],
+ "protect_attached_files": 1,
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
  "sort_field": "creation",

@@ -15,6 +15,7 @@
   "trip_link",
   "organizer_link",
   "status",
+  "my_url",
   "column_break_lpvl",
   "image_ydqq",
   "trip_image",
@@ -219,13 +220,19 @@
    "fieldname": "import_from_cruise_rate",
    "fieldtype": "Button",
    "label": "Import From Cruise Rate"
+  },
+  {
+   "fieldname": "my_url",
+   "fieldtype": "Data",
+   "is_virtual": 1,
+   "label": "My URL",
+   "options": "\"https://trip.rarecation.com?trip=\" + doc.name"
   }
  ],
  "grid_page_length": 50,
  "image_field": "trip_image",
- "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-04 01:25:41.394215",
+ "modified": "2026-08-05 04:21:42.804032",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Package",
@@ -244,8 +251,20 @@
    "role": "Tour Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1,
+   "write": 1
   }
  ],
+ "protect_attached_files": 1,
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
  "search_fields": "package_title,organizer_link",

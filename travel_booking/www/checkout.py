@@ -36,7 +36,7 @@ def get_context(context):
         if not (pr.status == "Paid"):
             from travel_booking.api.stripe_checkout import _get_stripe_settings
             import stripe as _stripe
-            ss, _ = _get_stripe_settings(pr.currency or "MYR")
+            ss, _ = _get_stripe_settings()
             _stripe.api_key = ss.get_password("secret_key")
 
             intent = None

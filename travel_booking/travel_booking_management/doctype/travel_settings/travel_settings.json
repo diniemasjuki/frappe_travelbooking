@@ -13,6 +13,7 @@
   "column_break_acfc",
   "manual_transfer_paid_to_account",
   "deposit_and_payment_section",
+  "payment_gateway",
   "default_deposit_percent",
   "column_break_zykz",
   "manual_transfer_cashback_enabled",
@@ -129,13 +130,18 @@
   {
    "fieldname": "column_break_acfc",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "payment_gateway",
+   "fieldtype": "Link",
+   "label": "Payment Gateway",
+   "options": "Payment Gateway Account"
   }
  ],
  "grid_page_length": 50,
- "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-04 01:25:39.239435",
+ "modified": "2026-08-05 02:28:08.850412",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Settings",
@@ -152,6 +158,7 @@
    "write": 1
   }
  ],
+ "protect_attached_files": 1,
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
  "sort_field": "creation",

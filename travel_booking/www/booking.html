@@ -256,9 +256,9 @@
             <div class="rc-voucher-row">
               <input type="text" class="rc-input rc-input--voucher" id="voucherInput"
                      placeholder="Enter voucher code" autocomplete="off"
-                     onkeydown="if(event.key==='Enter') applyVoucher()"
+                     onkeydown="if(event.key==='Enter') onVoucherBtnClick()"
                      oninput="this.value=this.value.toUpperCase()">
-              <button class="rc-btn rc-btn--ghost rc-btn--sm" onclick="applyVoucher()" id="voucherBtn">
+              <button class="rc-btn rc-btn--ghost rc-btn--sm" onclick="onVoucherBtnClick()" id="voucherBtn">
                 Apply
               </button>
             </div>
@@ -269,9 +269,9 @@
             <div class="rc-voucher-row">
               <input type="text" class="rc-input rc-input--voucher" id="affiliateInput"
                      placeholder="Enter referral code" autocomplete="off"
-                     onkeydown="if(event.key==='Enter') applyAffiliateCode()"
+                     onkeydown="if(event.key==='Enter') onAffiliateBtnClick()"
                      oninput="this.value=this.value.toUpperCase()">
-              <button class="rc-btn rc-btn--ghost rc-btn--sm" onclick="applyAffiliateCode()" id="affiliateBtn">
+              <button class="rc-btn rc-btn--ghost rc-btn--sm" onclick="onAffiliateBtnClick()" id="affiliateBtn">
                 Apply
               </button>
             </div>
@@ -364,9 +364,9 @@
         <div class="rc-form-group" style="margin-top:16px">
           <label class="rc-label">Bank Transfer Reference No. <span class="rc-required">*</span></label>
           <input type="text" class="rc-input" id="bankTransferRefInput"
-                 placeholder="e.g. transaction/reference number from your bank">
+                 placeholder="reference number from your bank">
           <small style="color:var(--rc-text-muted, #888)">
-            Enter the reference/transaction number your bank gave you for this transfer — this helps us match your payment faster.
+            Enter the reference/transaction number your bank gave you for this transfer, this helps us match your payment faster.
           </small>
         </div>
         <div class="rc-form-group" style="margin-top:16px">

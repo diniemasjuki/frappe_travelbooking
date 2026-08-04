@@ -1,50 +1,31 @@
 <div style="font-family: sans-serif; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden; max-width: 550px; margin: 20px auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
 
-    <div style="background-color: #003366; color: #ffffff; padding: 20px; text-align: center;">
-        <h2 style="color: #ffffff; margin: 0; font-size: 20px; letter-spacing: 1px;">
-            Flight Information For {{doc.full_name}}
-        </h2>
+    <div style="background-color: #409fff; color: #ffffff; padding: 20px; text-align: center;">
+        <h2 style="margin: 0; font-size: 20px; letter-spacing: 1px; color: #ffffff; "><small>FLIGHT INFORMATION <br/></small>UPDATED</h2>
     </div>
 
     <div style="padding: 25px; color: #444; line-height: 1.6;">
-        <p>Dear <strong>{{ doc.full_name }}</strong>,</p>
-        <p>Get ready for your adventure ahead! <br/>We are pleased to share with you flight details for your upcoming trip as follow:</p>
 
-        <div style="background-color: #f8f9fa; border-left: 4px solid #003366; padding: 15px; margin: 20px 0;">
-            <p style="margin: 5px 0;"><strong>Group Name:</strong> {{ doc.trip_group }}</p>
-            <p style="margin: 5px 0;"><strong>Booking Number:</strong> {{ doc.pnr_no }}</p>
+        <p>Dear <strong>{{ doc.full_name }}</strong>,</p>
+
+        <p>Get ready for your adventure ahead! We are pleased to share with you flight details for your upcoming trip as follow::</p>
+
+        <div style="background-color: #f8f9fa; border-left: 4px solid #ecf6ff; padding: 15px; margin: 20px 0;">
+            <p style="margin: 5px 0;"><strong>Booking Number:</strong> {{ doc.flight }}</p>
             <p style="margin: 5px 0;"><strong>Airline:</strong> {{ doc.airline }}</p>
             <br/>
-            <p style="margin: 5px 0;"><strong>Flight Itinerary:</strong> <hr/>{{doc.flight_itinerary}}</p>
+            <p style="margin: 5px 0;" ><strong>Flight Itinerary:</strong> <hr/>{{doc.flight_itinerary}}</p>
         </div>
 
-        <!-- WhatsApp Invitation -->
-        <div style="margin:30px 0; text-align:center;">
-            <h3 style="margin:0; color:#003366;">📱 Private Invitation!</h3>
-            <p style="margin:10px 0; font-size:14px; color:#555;">
-                Join our dedicated WhatsApp Group for <strong>{{ doc.trip_group }}</strong> to receive quick updates and announcements.
-            </p>
-            <a href="{{ doc.chat_link }}" 
-               style="display:inline-block; padding:12px 24px; background:#28a745; color:#fff; 
-                      border-radius:6px; font-weight:bold; text-decoration:none; font-size:15px;">
-               👉 Join WhatsApp Group {{doc.trip_group}}
-            </a>
-        </div>
-
-        <p>If you have any questions,<br/>
-        please do not hesitate to contact our team at:<br/>
-        <ul>
-            <li><a href="mailto:contact@rarecruise.com">contact@rarecruise.com</a></li>
-            <li><a href="https://wa.me/60127789060">+60127789060 (KL)</a></li>
-            <li><a href="https://wa.me/60127789060">+60127789060 (Singapore)</a></li>
-        </ul>
-        </p>
+        <p>For inquiries and updates, our team will keep you on top of our priority for any updates regarding you journey.</p>
 
         <p style="margin-top: 30px;">Best Regards,<br>
-        <strong>RareCruise Team</strong></p>
+        <strong>Rarecation Travel</strong></p>
+
     </div>
 
     <div style="background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 11px; color: #999;">
-        This is an automated notification from Rarecruise by Rarecation Travel System.
+        This is an automated notification by Rarecation Travel System.
     </div>
+
 </div>

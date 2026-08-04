@@ -120,7 +120,6 @@
   }
  ],
  "grid_page_length": 50,
- "index_web_pages_for_search": 1,
  "links": [
   {
    "link_doctype": "Voucher Usage",
@@ -131,7 +130,7 @@
    "link_fieldname": "voucher"
   }
  ],
- "modified": "2026-08-04 08:18:41.870670",
+ "modified": "2026-08-05 02:12:47.549942",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Voucher",
@@ -150,6 +149,15 @@
    "role": "Tour Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1
   }
  ],
  "row_format": "Dynamic",

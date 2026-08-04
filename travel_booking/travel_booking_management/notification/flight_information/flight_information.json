@@ -9,20 +9,21 @@
  "docstatus": 0,
  "doctype": "Notification",
  "document_type": "Booking Reservation",
- "enabled": 0,
+ "enabled": 1,
  "event": "Value Change",
  "filters": "[]",
  "idx": 0,
  "is_standard": 1,
- "message": "<div style=\"font-family: sans-serif; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden; max-width: 550px; margin: 20px auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1);\">\n\n    <div style=\"background-color: #003366; color: #ffffff; padding: 20px; text-align: center;\">\n        <h2 style=\"color: #ffffff; margin: 0; font-size: 20px; letter-spacing: 1px;\">\n            Flight Information For {{doc.full_name}}\n        </h2>\n    </div>\n\n    <div style=\"padding: 25px; color: #444; line-height: 1.6;\">\n        <p>Dear <strong>{{ doc.full_name }}</strong>,</p>\n        <p>Get ready for your adventure ahead! <br/>We are pleased to share with you flight details for your upcoming trip as follow:</p>\n\n        <div style=\"background-color: #f8f9fa; border-left: 4px solid #003366; padding: 15px; margin: 20px 0;\">\n            <p style=\"margin: 5px 0;\"><strong>Group Name:</strong> {{ doc.trip_group }}</p>\n            <p style=\"margin: 5px 0;\"><strong>Booking Number:</strong> {{ doc.pnr_no }}</p>\n            <p style=\"margin: 5px 0;\"><strong>Airline:</strong> {{ doc.airline }}</p>\n            <br/>\n            <p style=\"margin: 5px 0;\"><strong>Flight Itinerary:</strong> <hr/>{{doc.flight_itinerary}}</p>\n        </div>\n\n        <!-- WhatsApp Invitation -->\n        <div style=\"margin:30px 0; text-align:center;\">\n            <h3 style=\"margin:0; color:#003366;\">\ud83d\udcf1 Private Invitation!</h3>\n            <p style=\"margin:10px 0; font-size:14px; color:#555;\">\n                Join our dedicated WhatsApp Group for <strong>{{ doc.trip_group }}</strong> to receive quick updates and announcements.\n            </p>\n            <a href=\"{{ doc.chat_link }}\" \n               style=\"display:inline-block; padding:12px 24px; background:#28a745; color:#fff; \n                      border-radius:6px; font-weight:bold; text-decoration:none; font-size:15px;\">\n               \ud83d\udc49 Join WhatsApp Group {{doc.trip_group}}\n            </a>\n        </div>\n\n        <p>If you have any questions,<br/>\n        please do not hesitate to contact our team at:<br/>\n        <ul>\n            <li><a href=\"mailto:contact@rarecruise.com\">contact@rarecruise.com</a></li>\n            <li><a href=\"https://wa.me/60127789060\">+60127789060 (KL)</a></li>\n            <li><a href=\"https://wa.me/60127789060\">+60127789060 (Singapore)</a></li>\n        </ul>\n        </p>\n\n        <p style=\"margin-top: 30px;\">Best Regards,<br>\n        <strong>RareCruise Team</strong></p>\n    </div>\n\n    <div style=\"background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 11px; color: #999;\">\n        This is an automated notification from Rarecruise by Rarecation Travel System.\n    </div>\n</div>\n",
+ "letter_message_type": "Custom Message",
+ "message": "<div style=\"font-family: sans-serif; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden; max-width: 550px; margin: 20px auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1);\">\n\n    <div style=\"background-color: #409fff; color: #ffffff; padding: 20px; text-align: center;\">\n        <h2 style=\"margin: 0; font-size: 20px; letter-spacing: 1px; color: #ffffff; \"><small>FLIGHT INFORMATION <br/></small>UPDATED</h2>\n    </div>\n\n    <div style=\"padding: 25px; color: #444; line-height: 1.6;\">\n\n        <p>Dear <strong>{{ doc.full_name }}</strong>,</p>\n\n        <p>Get ready for your adventure ahead! We are pleased to share with you flight details for your upcoming trip as follow::</p>\n\n        <div style=\"background-color: #f8f9fa; border-left: 4px solid #ecf6ff; padding: 15px; margin: 20px 0;\">\n            <p style=\"margin: 5px 0;\"><strong>Booking Number:</strong> {{ doc.flight }}</p>\n            <p style=\"margin: 5px 0;\"><strong>Airline:</strong> {{ doc.airline }}</p>\n            <br/>\n            <p style=\"margin: 5px 0;\" ><strong>Flight Itinerary:</strong> <hr/>{{doc.flight_itinerary}}</p>\n        </div>\n\n        <p>For inquiries and updates, our team will keep you on top of our priority for any updates regarding you journey.</p>\n\n        <p style=\"margin-top: 30px;\">Best Regards,<br>\n        <strong>Rarecation Travel</strong></p>\n\n    </div>\n\n    <div style=\"background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 11px; color: #999;\">\n        This is an automated notification by Rarecation Travel System.\n    </div>\n\n</div>",
  "message_type": "HTML",
  "minutes_offset": 10,
- "modified": "2026-08-02 12:36:35.897473",
+ "modified": "2026-08-05 06:21:11.077692",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Flight Information",
  "owner": "Administrator",
- "property_value": "1",
+ "property_value": "",
  "recipients": [
   {
    "receiver_by_document_field": "email"
@@ -33,6 +34,6 @@
  "sender": "",
  "sender_email": "",
  "set_property_after_alert": "flight_info_sent",
- "subject": "Flight Information Update for {{ doc.full_name }}",
- "value_changed": "flight_itinerary"
+ "subject": "RARECATION | Flight Information Update for {{ doc.full_name }}",
+ "value_changed": "flight"
 }

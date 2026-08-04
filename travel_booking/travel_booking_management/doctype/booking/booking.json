@@ -372,26 +372,13 @@
    "link_fieldname": "booking"
   }
  ],
- "modified": "2026-08-04 08:07:01.348576",
+ "modified": "2026-08-05 01:55:43.835440",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking",
  "naming_rule": "By \"Naming Series\" field",
  "owner": "abdsobur.abdahad@gmail.com",
  "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "import": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  },
   {
    "create": 1,
    "delete": 1,
@@ -418,6 +405,7 @@
    "write": 1
   }
  ],
+ "protect_attached_files": 1,
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
  "search_fields": "customer, trip_package",

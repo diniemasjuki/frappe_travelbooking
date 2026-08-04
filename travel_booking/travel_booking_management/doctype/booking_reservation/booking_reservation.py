@@ -14,6 +14,7 @@ class BookingReservation(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
+		airline: DF.Link | None
 		aroya_guest_no: DF.Int
 		arrival_date: DF.Date | None
 		booking: DF.Link | None
@@ -29,6 +30,7 @@ class BookingReservation(Document):
 		departure_point: DF.Data | None
 		document_status: DF.Literal["Pending", "Verified", "Open for Update", "Rejected", "Valid"]
 		flight: DF.Link | None
+		flight_itinerary: DF.TextEditor | None
 		flight_ticket_type: DF.Data | None
 		full_name: DF.Data | None
 		guest_label: DF.Data | None

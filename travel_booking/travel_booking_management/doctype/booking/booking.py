@@ -44,7 +44,7 @@ class Booking(Document):
 
 	
 	@property
-	def cust_phone(self):
+	def get_cust_phone(self):
 		"""Phone customer TERKINI — dikira on-the-fly dari Customer (link
 		field 'customer' di atas) -> Contact (melalui Dynamic Link), BUKAN
 		snapshot yang disimpan semasa booking dicipta. Kalau customer
@@ -52,6 +52,9 @@ class Booking(Document):
 		ikut nilai TERKINI — elak data 'stale'/tak segerak dengan Contact
 		sebenar. Guna get_customer_phone() (_helpers.py) — sumber
 		kebenaran YANG SAMA dipakai send_otp() untuk auto-fill wizard.
+
+		PENTING: nama property (dan fieldname doctype) ialah 'get_cust_phone'
+		(bukan 'cust_phone') — rename disegerakkan dengan skema terkini.
 		"""
 		from travel_booking.api._helpers import get_customer_phone
 		if not self.customer:
@@ -60,8 +63,8 @@ class Booking(Document):
 
 	@property
 	def get_cust_email(self):
-		"""Email customer TERKINI — sama prinsip dengan cust_phone di atas,
-		dikira dari Customer -> Contact (Dynamic Link), bukan snapshot.
+		"""Email customer TERKINI — sama prinsip dengan get_cust_phone di
+		atas, dikira dari Customer -> Contact (Dynamic Link), bukan snapshot.
 		"""
 		from travel_booking.api._helpers import get_customer_email
 		if not self.customer:
@@ -70,28 +73,33 @@ class Booking(Document):
 
 	@property
 	def total_amount(self):
-		"""Jumlah keseluruhan (SEMUA SO — utama + addon) berkaitan booking ni."""
+		"""Jumlah keseluruhan (SEMUA SO — utama + addon) berkaitan booking ni.
+
+		NOTA: "Disable Rounded Total" kini dihidupkan SECARA GLOBAL di
+		Selling Settings — semua SO (wizard mahupun addon manual di Desk)
+		tak lagi guna rounded_total, jadi kita standardize terus ke
+		grand_total sahaja (tak perlu fallback rounded_total or grand_total
+		lagi merentasi seluruh app).
+		"""
 		from travel_booking.api.booking import _get_all_booking_sales_orders
 		total = 0
 		for so_name in _get_all_booking_sales_orders(self.name):
-			so = frappe.db.get_value("Sales Order", so_name, ["grand_total", "rounded_total"], as_dict=True)
-			if so:
-				# rounded_total diutamakan (fallback grand_total) — sepadan
-				# dengan nilai yang customer nampak/bayar sebenarnya, bukan
-				# jumlah mentah sebelum ERPNext bundarkan.
-				total += float(so.rounded_total or so.grand_total or 0)
+			so = frappe.db.get_value("Sales Order", so_name, "grand_total")
+			total += float(so or 0)
 		return total
 
 	@property
 	def balance_amount(self):
-		"""Baki tertunggak (SEMUA SO — utama + addon) berkaitan booking ni."""
+		"""Baki tertunggak (SEMUA SO — utama + addon) berkaitan booking ni.
+		Rujuk nota "Disable Rounded Total" di total_amount().
+		"""
 		from travel_booking.api.booking import _get_all_booking_sales_orders
 		total = 0
 		paid  = 0
 		for so_name in _get_all_booking_sales_orders(self.name):
-			so = frappe.db.get_value("Sales Order", so_name, ["grand_total", "rounded_total", "advance_paid"], as_dict=True)
+			so = frappe.db.get_value("Sales Order", so_name, ["grand_total", "advance_paid"], as_dict=True)
 			if so:
-				total += float(so.rounded_total or so.grand_total or 0)
+				total += float(so.grand_total or 0)
 				paid  += so.advance_paid or 0
 		return max(0, total - paid)
 
@@ -121,11 +129,30 @@ class Booking(Document):
 		# Kumpul ikut cabin — bahagian SEBELUM em dash (\u2014) dalam
 		# item_name (cth "Balcony Cabin (Cabin 1)"), sepadan format
 		# _so_line() dalam api/booking.py yang cipta baris SO ni.
-		cabins    = []
-		cabin_map = {}
+		#
+		# PENTING: baris diskaun (Voucher Discount / Referral Discount, rate
+		# negatif — rujuk confirm_booking() di api/booking.py) TIADA em-dash
+		# langsung dalam item_name dia ("Voucher Discount (KOD)"), sebab ia
+		# bukan pax dalam cabin. Kalau dibiarkan lalui logik split em-dash
+		# yang sama, seluruh nama item tu (termasuk kod voucher) akan
+		# dianggap "cabin_label" tersendiri dan pax_type jadi string kosong
+		# — hasilnya paparan mengelirukan macam ada "cabin" bernama
+		# "Voucher Discount (KOD)" dengan "Cabin Fare: RM -20.50" dan
+		# "Guest 1: — RM -20.50" (label kosong). Kita asingkan baris
+		# diskaun (rate < 0) SEBELUM grouping cabin, papar berasingan di
+		# hujung sebagai baris ringkas — bukan sebagai cabin.
+		cabins         = []
+		cabin_map      = {}
+		discount_lines = []
 
 		for it in items:
 			name = it.item_name or ""
+			rate = float(it.rate or 0)
+
+			if rate < 0:
+				discount_lines.append((name, rate))
+				continue
+
 			if "\u2014" in name:
 				cabin_label, pax_type = name.split("\u2014", 1)
 				cabin_label = cabin_label.strip()
@@ -137,8 +164,7 @@ class Booking(Document):
 				cabin_map[cabin_label] = {"label": cabin_label, "fare": 0.0, "lines": []}
 				cabins.append(cabin_map[cabin_label])
 
-			qty  = int(it.qty or 0)
-			rate = float(it.rate or 0)
+			qty = int(it.qty or 0)
 			cabin_map[cabin_label]["fare"] += qty * rate
 			for _ in range(qty):
 				cabin_map[cabin_label]["lines"].append((pax_type, rate))
@@ -150,6 +176,11 @@ class Booking(Document):
 			for i, (pax_type, rate) in enumerate(c["lines"], start=1):
 				out.append("  Guest {}: {} \u2014 RM {:,.2f}".format(i, pax_type, rate))
 			out.append("")  # baris kosong antara cabin, macam kad berasingan di wizard
+
+		if discount_lines:
+			for name, rate in discount_lines:
+				out.append("{}: RM {:,.2f}".format(name, rate))
+			out.append("")
 
 		return "\n".join(out).rstrip()
 

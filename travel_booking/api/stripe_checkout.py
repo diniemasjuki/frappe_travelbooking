@@ -14,65 +14,52 @@ import stripe
 from travel_booking.api._helpers import get_customer_email
 
 
-def _get_stripe_settings(currency="MYR"):
-    """Cari Payment Gateway Account + Stripe Settings untuk currency ini.
+def _get_stripe_settings():
+    """Selesaikan Stripe Settings (publishable_key/secret_key/webhook signing
+    secret) daripada SATU akaun yang admin tetapkan di Travel Settings —
+    BUKAN lagi ikut currency SO atau flag 'Is Default' pada Payment Gateway
+    Account. Seluruh app (create payment MAHUPUN verify webhook) guna akaun
+    Stripe yang SAMA, tak kira currency SO ("charge always in MYR" — rujuk
+    rancangan multi-currency sedia ada).
 
-    PENTING: nama 'Payment Gateway' (cth "Rarecruise") BOLEH jadi apa-apa
-    label brand admin pilih semasa setup — TAK semestinya bermula dengan
-    "Stripe" (cth "Stripe-USD"), walaupun controller di sebalik gateway
-    tu memang Stripe. Kita TAK BOLEH tekat nama guna LIKE 'Stripe%' —
-    sebaliknya check terus field 'gateway_controller' pada Payment Gateway
-    (yang menyimpan nama SEBENAR Stripe Settings document, cth
-    "Stripe | Rarecruise") untuk kenal pasti Payment Gateway Account mana
-    yang sebenarnya guna Stripe, tak kira apa nama brand yang dipilih admin.
+    Rantaian resolusi:
+      Travel Settings.payment_gateway   (Link -> Payment Gateway Account)
+        -> Payment Gateway Account.payment_gateway  (Link -> Payment Gateway)
+          -> Payment Gateway.gateway_controller      (nama Stripe Settings)
+            -> Stripe Settings (publishable_key / secret_key /
+                                 custom_webhook_signing_secret)
 
-    TEST vs LIVE: boleh wujud LEBIH DARI SATU Payment Gateway Account untuk
-    currency yang sama (cth satu live, satu test/sandbox) — admin switch
-    antara keduanya semata-mata dengan tukar checkbox "Is Default" di Desk,
-    TANPA perlu ubah code ini. Kalau tepat SATU rekod bertanda is_default=1
-    untuk currency ni, itu yang diguna. Kalau BUKAN tepat satu (kosong atau
-    lebih dari satu — dua-dua kes ini admin misconfiguration), kita throw
-    error yang jelas dan TIDAK cuba teka sembarangan yang mana nak diguna —
-    memilih secara senyap boleh punca customer live tercaj ke akaun test,
-    atau sebaliknya.
+    Switch akaun (cth test <-> live, atau tukar currency akaun charge) kini
+    semata-mata tukar Travel Settings.payment_gateway di Desk — TIADA
+    keperluan sentuh site_config.json atau restart bench (frappe.get_cached_doc
+    auto-invalidate lepas Travel Settings disave).
     """
-    gateway_accounts = frappe.db.sql("""
-        SELECT pga.name, pga.payment_gateway, pga.payment_account, pga.is_default, pg.gateway_controller
-        FROM `tabPayment Gateway Account` pga
-        JOIN `tabPayment Gateway` pg ON pg.name = pga.payment_gateway
-        WHERE pga.currency = %(currency)s
-          AND pg.gateway_settings = 'Stripe Settings'
-    """, {"currency": currency}, as_dict=True)
-
-    if not gateway_accounts:
-        frappe.throw("Payment Gateway untuk " + currency + " tidak dikonfigurasikan. Sila hubungi admin.")
-
-    default_accounts = [g for g in gateway_accounts if g.is_default]
-
-    if len(gateway_accounts) == 1:
-        # Hanya satu rekod wujud (kes biasa, tiada test/live berasingan) —
-        # guna terus, tak kira status is_default (elak throw tak perlu untuk
-        # setup ringkas yang admin tak pernah tandakan default secara eksplisit).
-        gateway_account = gateway_accounts[0]
-    elif len(default_accounts) == 1:
-        gateway_account = default_accounts[0]
-    elif len(default_accounts) == 0:
+    settings = frappe.get_cached_doc("Travel Settings")
+    gateway_account_name = getattr(settings, "payment_gateway", None)
+    if not gateway_account_name:
         frappe.throw(
-            "Terdapat " + str(len(gateway_accounts)) + " Payment Gateway Account untuk " +
-            currency + " tetapi TIADA satu pun ditandakan sebagai 'Is Default'. " +
-            "Sila tandakan satu (test ATAU live) sebagai default di Desk > Payment Gateway Account."
-        )
-    else:
-        frappe.throw(
-            "Terdapat " + str(len(default_accounts)) + " Payment Gateway Account untuk " +
-            currency + " yang ditandakan 'Is Default' serentak (patut cuma SATU). " +
-            "Sila padam duplicate default di Desk > Payment Gateway Account."
+            "Payment Gateway Account belum ditetapkan dalam Travel Settings. "
+            "Sila hubungi admin."
         )
 
-    settings_name = gateway_account.gateway_controller
+    gateway_account = frappe.db.get_value(
+        "Payment Gateway Account", gateway_account_name,
+        ["name", "payment_gateway", "payment_account"], as_dict=True
+    )
+    if not gateway_account:
+        frappe.throw(
+            "Payment Gateway Account '" + str(gateway_account_name) +
+            "' (ditetapkan dalam Travel Settings) tidak dijumpai. Sila hubungi admin."
+        )
 
+    settings_name = frappe.db.get_value(
+        "Payment Gateway", gateway_account.payment_gateway, "gateway_controller"
+    )
     if not settings_name or not frappe.db.exists("Stripe Settings", settings_name):
-        frappe.throw("Stripe Settings '" + str(settings_name) + "' tidak dijumpai. Sila hubungi admin.")
+        frappe.throw(
+            "Stripe Settings untuk Payment Gateway Account '" + gateway_account_name +
+            "' tidak dijumpai. Sila hubungi admin."
+        )
 
     ss = frappe.get_doc("Stripe Settings", settings_name)
     return ss, gateway_account
@@ -91,23 +78,19 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     Payment Request TIDAK BOLEH melebihi baki SO rujukannya (ERPNext core
     validate_payment_request_amount() throw kalau begitu).
 
-    PENTING — rounded_total vs grand_total: ERPNext punya
+    NOTA — rounded_total vs grand_total: ERPNext punya
     validate_payment_request_amount() (via get_amount() dalam
     payment_request.py) bandingkan jumlah Payment Request terhadap
     "rounded_total ATAU grand_total" SO — rounded_total DIUTAMAKAN bila ia
-    bukan sifar/kosong. Bila tetapan "Disable Rounded Total" TIDAK
-    dihidupkan, ERPNext bundarkan grand_total (cth RM 5.49) ke integer
-    terdekat untuk rounded_total (cth RM 5.00) — dua nilai ni BOLEH
-    berbeza. Kalau kita cap pr_amount ikut grand_total sahaja (5.49) tapi
-    ERPNext sendiri bandingkan terhadap rounded_total (5.00), throw
-    "Total Payment Request amount cannot be greater than Sales Order
-    amount" walaupun dari sudut kita amount tu sah. Kita kena guna
-    rounded_total SEBAGAI BAKI RUJUKAN bila ia wujud — sama macam ERPNext
-    sendiri buat — supaya pr_amount kita padan 100% dengan apa yang
-    validate_payment_request_amount() akan terima.
+    bukan sifar/kosong. "Disable Rounded Total" kini dihidupkan SECARA
+    GLOBAL di Selling Settings (bukan setakat per-SO lagi), jadi
+    rounded_total SENTIASA 0/kosong untuk semua SO dalam app ni — ERPNext
+    sendiri turut fallback ke grand_total secara automatik di sisi dia.
+    Kita standardize terus ke grand_total sahaja di sini, konsisten dengan
+    apa yang ERPNext core akan banding sebenarnya.
     """
     so = frappe.db.get_value("Sales Order", sales_order,
-                             ["customer", "currency", "grand_total", "rounded_total", "advance_paid"], as_dict=True)
+                             ["customer", "currency", "grand_total", "advance_paid"], as_dict=True)
     if not so:
         frappe.throw("Sales Order tidak ditemui.")
 
@@ -115,22 +98,17 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     if amount <= 0:
         frappe.throw("Amount tidak sah.")
 
-    # Baki rujukan SEBENAR ikut logik ERPNext (rounded_total diutamakan bila
-    # bukan sifar, fallback grand_total) — bukan grand_total semata-mata.
-    effective_so_total = float(so.rounded_total or so.grand_total or 0)
+    # Baki rujukan — standardize ke grand_total (rujuk nota "Disable
+    # Rounded Total" global di atas).
+    effective_so_total = float(so.grand_total or 0)
     outstanding = round(effective_so_total - float(so.advance_paid or 0), 2)
 
-    # PENTING: kalau 'amount' (jumlah SEBENAR caj Stripe) dikira caller
-    # daripada grand_total mentah untuk full payment (cth booking.py's
-    # confirm_booking guna so.grand_total terus), ia boleh sedikit LEBIH
-    # TINGGI dari rounded_total (cth 5.49 vs 5.00). Kalau kita biarkan,
-    # customer akan dicaj kad RM 5.49 tapi Payment Request/Payment Entry
-    # ERPNext cuma boleh rekod RM 5.00 (dicap di bawah) — mismatch RM 0.49
-    # antara apa yang keluar dari akaun customer dan apa yang tercatat
-    # dalam sistem. Kita selaraskan 'amount' SEKALI dengan pr_amount di
-    # bawah bila ia jelas untuk full-payment SO yang sama (amount dalam
-    # jarak dekat dengan grand_total mentah, tapi melebihi baki sebenar) —
-    # supaya caj kad dan rekod ERPNext SENTIASA padan.
+    # Jaring keselamatan float precision: 'amount' (jumlah SEBENAR caj
+    # Stripe) yang caller kira secara berasingan (cth booking.py's
+    # confirm_booking) patut sepadan dengan outstanding grand_total di
+    # sini, tapi kita cap balik ke outstanding sebenar kalau ada lebihan
+    # kecil (cth ralat float) untuk full-payment SO yang sama — supaya caj
+    # kad dan rekod ERPNext SENTIASA padan.
     if amount > outstanding + 0.01 and abs(amount - float(so.grand_total or 0)) < 0.01:
         amount = max(outstanding, 0)
         if amount <= 0:
@@ -140,18 +118,15 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     if pr_amount <= 0:
         frappe.throw("Amount tidak sah.")
 
-    # Cap pr_amount ke baki SEBENAR (bukan grand_total mentah) — elak
-    # validate_payment_request_amount() throw disebabkan pr_amount kita
-    # sedikit melebihi rounded_total walaupun secara logik ia sepatutnya sah
-    # (cth grand_total RM 5.49 dengan rounded_total RM 5.00 — pr_amount
-    # yang cuba dihantar RM 5.49 akan ditolak ERPNext, RM 5.00 diterima).
+    # Cap pr_amount ke baki SEBENAR — elak validate_payment_request_amount()
+    # throw disebabkan pr_amount kita sedikit melebihi baki (ralat float).
     if pr_amount > outstanding + 0.01:
         pr_amount = max(outstanding, 0)
     if pr_amount <= 0:
         frappe.throw("Tiada baki untuk dibayar pada Sales Order ini.")
 
     currency = so.currency or "MYR"
-    ss, gateway_account = _get_stripe_settings(currency)
+    ss, gateway_account = _get_stripe_settings()
 
     email = get_customer_email(so.customer)
 
@@ -295,8 +270,7 @@ def get_checkout_context(pr: str):
     if pr_doc.status == "Paid":
         return {"status": "already_paid"}
 
-    so = frappe.db.get_value("Sales Order", pr_doc.reference_name, "currency")
-    ss, _ = _get_stripe_settings(so or "MYR")
+    ss, _ = _get_stripe_settings()
     stripe.api_key = ss.get_password("secret_key")
 
     # PENTING: cari Payment Intent EKSAK guna cache pr.name -> intent.id yang
@@ -390,55 +364,36 @@ def stripe_webhook():
     """Endpoint webhook Stripe — SUMBER KEBENARAN status bayaran.
     Berjalan server-to-server; tak bergantung pada redirect browser.
 
-    NOTA test vs live: Stripe bagi SECRET BERBEZA untuk setiap webhook
-    endpoint didaftar (Developers > Webhooks) — walaupun URL destinasi
-    yang sama digunakan untuk kedua-dua mod Test dan Live. Jadi endpoint
-    ini boleh terima event yang ditandatangan dengan salah SATU daripada
-    dua secret berbeza. Kita simpan kedua-duanya dalam site_config.json
-    (site_config['stripe_webhook_secret'] untuk live — key asal, dikekalkan
-    untuk backward-compat — dan site_config['stripe_webhook_secret_test']
-    untuk test, opsyenal) dan CUBA verify dengan setiap satu sehingga
-    berjaya. Ini elak keperluan tukar site_config.json setiap kali admin
-    switch antara test/live di Payment Gateway Account.
+    Webhook signing secret dibaca dari Stripe Settings.custom_webhook_signing_secret
+    milik SATU akaun yang ditetapkan di Travel Settings.payment_gateway (rujuk
+    _get_stripe_settings()) — BUKAN lagi site_config.json. Admin switch akaun
+    (test <-> live) semata-mata tukar Travel Settings.payment_gateway di Desk;
+    tiada keperluan sentuh site_config.json atau restart bench.
     """
     payload    = frappe.request.data
     sig_header = frappe.request.headers.get("Stripe-Signature")
 
-    webhook_secrets = [
-        s for s in [
-            frappe.conf.get("stripe_webhook_secret"),
-            frappe.conf.get("stripe_webhook_secret_test"),
-        ] if s
-    ]
+    ss, _ = _get_stripe_settings()
+    webhook_secret = ss.get_password("custom_webhook_signing_secret", raise_exception=False)
 
-    if not webhook_secrets:
-        frappe.log_error("Tiada stripe_webhook_secret / stripe_webhook_secret_test dikonfigurasikan dalam site_config.json",
-                         "Stripe Webhook Config Error")
+    if not webhook_secret:
+        frappe.log_error(
+            "Tiada Webhook Signing Secret dikonfigurasikan pada Stripe Settings '" +
+            ss.name + "' (akaun ditetapkan di Travel Settings.payment_gateway).",
+            "Stripe Webhook Config Error"
+        )
         frappe.local.response.http_status_code = 500
         return {"error": "webhook not configured"}
 
-    event = None
-    last_error = None
-    for webhook_secret in webhook_secrets:
-        try:
-            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
-            break
-        except ValueError as e:
-            # Payload tak sah (bukan JSON betul) — TIADA secret akan berjaya
-            # verify ni, tak perlu cuba secret lain.
-            frappe.log_error("Invalid payload", "Stripe Webhook Error")
-            frappe.local.response.http_status_code = 400
-            return {"error": "invalid payload"}
-        except stripe.error.SignatureVerificationError as e:
-            # Signature tak match secret NI — cuba secret seterusnya
-            # (mungkin event ni dari mod test, secret ni untuk live, atau
-            # sebaliknya) sebelum betul-betul reject.
-            last_error = e
-            continue
-
-    if event is None:
-        frappe.log_error("Invalid signature (cuba " + str(len(webhook_secrets)) + " secret) — " + str(last_error),
-                         "Stripe Webhook Error")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except ValueError:
+        # Payload tak sah (bukan JSON betul).
+        frappe.log_error("Invalid payload", "Stripe Webhook Error")
+        frappe.local.response.http_status_code = 400
+        return {"error": "invalid payload"}
+    except stripe.error.SignatureVerificationError as e:
+        frappe.log_error("Invalid signature — " + str(e), "Stripe Webhook Error")
         frappe.local.response.http_status_code = 400
         return {"error": "invalid signature"}
 
@@ -455,31 +410,57 @@ def stripe_webhook():
     return {"status": "ok"}
 
 
+def _mark_payment_request_paid(pr_name):
+    """Tandakan Payment Request sebagai Paid (cipta Payment Entry via
+    set_as_paid()) — idempotent, selamat dipanggil berulang kali.
+
+    Guna DUA laluan berasingan:
+      1. Webhook Stripe (_handle_payment_succeeded) — laluan UTAMA/normal.
+      2. get_payment_result() sebagai FALLBACK — kalau customer redirect
+         balik dan Stripe API sahkan bayaran 'succeeded', tapi Payment
+         Request kita MASIH belum 'Paid' (webhook mungkin lambat sampai,
+         gagal dihantar Stripe, atau tersekat/gagal diproses server kita
+         atas sebab lain). Tanpa fallback ni, customer nampak "Payment
+         successful" di skrin tapi booking/SO di sistem kita senyap kekal
+         "Pending" — admin tak nampak bayaran ni langsung sehingga
+         disedari secara manual.
+
+    Pulangkan True kalau Payment Request itu SEKARANG "Paid" (sama ada
+    baru sahaja ditandakan, atau memang dah "Paid" sebelum ni) — False
+    kalau gagal/tidak wujud.
+    """
+    if not pr_name or not frappe.db.exists("Payment Request", pr_name):
+        return False
+
+    pr = frappe.get_doc("Payment Request", pr_name)
+    if pr.status == "Paid":
+        return True  # idempotent — dah diproses (webhook boleh berulang dari Stripe)
+
+    # Guna hak Administrator sementara — Guest/customer session (endpoint
+    # allow_guest=True) TIADA akses baca Account (bank/cash default) yang
+    # diperlukan set_as_paid() untuk cipta Payment Entry. Sama pattern
+    # dengan confirm_booking().
+    _original_user = frappe.session.user
+    frappe.set_user("Administrator")
+    try:
+        pr.run_method("set_as_paid")
+        frappe.db.commit()
+        return True
+    except Exception as e:
+        frappe.log_error("set_as_paid gagal untuk " + pr_name + ": " + str(e),
+                         "Stripe Payment Entry Error")
+        return False
+    finally:
+        frappe.set_user(_original_user)
+
+
 def _handle_payment_succeeded(payment_intent):
     pr_name = (payment_intent.get("metadata") or {}).get("payment_request")
     if not pr_name or not frappe.db.exists("Payment Request", pr_name):
         frappe.log_error("Webhook: payment_request tidak dijumpai dalam metadata. PI: " +
                          str(payment_intent.get("id")), "Stripe Webhook")
         return
-
-    pr = frappe.get_doc("Payment Request", pr_name)
-    if pr.status == "Paid":
-        return  # idempotent — dah diproses (webhook boleh berulang dari Stripe)
-
-    # Webhook dipanggil server-to-server oleh Stripe — session semasa biasanya
-    # Guest (endpoint allow_guest=True), yang TIADA akses baca Account (bank/cash
-    # default) yang diperlukan set_as_paid() untuk cipta Payment Entry. Sama
-    # pattern macam confirm_booking() — jalankan sebagai Administrator sementara.
-    _original_user = frappe.session.user
-    frappe.set_user("Administrator")
-    try:
-        pr.run_method("set_as_paid")
-        frappe.db.commit()
-    except Exception as e:
-        frappe.log_error("set_as_paid gagal untuk " + pr_name + ": " + str(e),
-                         "Stripe Webhook - Payment Entry Error")
-    finally:
-        frappe.set_user(_original_user)
+    _mark_payment_request_paid(pr_name)
 
 
 def _handle_payment_failed(payment_intent):
@@ -526,41 +507,20 @@ def get_payment_result(payment_intent: str):
     if not payment_intent:
         frappe.throw("Payment intent tidak ditemui.")
 
-    # payment_intent id tak dedah currency/company terus, jadi cuba MYR dulu
-    # (majoriti kes), fallback cuba semua currency Stripe Settings lain kalau
-    # gagal — currency sebenar akan disahkan semula lepas retrieve berjaya.
-    # NOTA: nama Payment Gateway (cth "Rarecruise") boleh jadi apa-apa label
-    # brand — TAK semestinya bermula dengan "Stripe" — jadi kita kenal pasti
-    # Payment Gateway Account yang guna Stripe melalui gateway_settings pada
-    # Payment Gateway (rujuk juga _get_stripe_settings() di atas), bukan LIKE
-    # 'Stripe%' pada nama.
-    ss = None
-    intent = None
-    last_error = None
-    other_currencies = frappe.db.sql("""
-        SELECT DISTINCT pga.currency
-        FROM `tabPayment Gateway Account` pga
-        JOIN `tabPayment Gateway` pg ON pg.name = pga.payment_gateway
-        WHERE pg.gateway_settings = 'Stripe Settings'
-          AND pga.currency != 'MYR'
-    """, pluck="currency")
-    for currency_guess in ["MYR"] + [c for c in other_currencies if c]:
-        try:
-            ss, _ = _get_stripe_settings(currency_guess)
-            stripe.api_key = ss.get_password("secret_key")
-            intent = stripe.PaymentIntent.retrieve(payment_intent)
-            break
-        except Exception as e:
-            last_error = str(e)
-            continue
-
-    if not intent:
+    # SATU akaun Stripe sahaja untuk seluruh app (Travel Settings.payment_gateway)
+    # — tiada lagi keperluan teka/loop currency untuk cari Stripe Settings yang
+    # betul (rujuk _get_stripe_settings() untuk rantaian resolusi penuh).
+    try:
+        ss, _ = _get_stripe_settings()
+        stripe.api_key = ss.get_password("secret_key")
+        intent = stripe.PaymentIntent.retrieve(payment_intent)
+    except Exception as e:
         # PENTING: log sebab sebenar kegagalan (bukan telan senyap) — supaya
         # admin boleh diagnos kenapa get_payment_result gagal walaupun
         # webhook Stripe sendiri dah berjaya proses PaymentIntent yang sama.
         frappe.log_error(
             "get_payment_result gagal retrieve intent " + str(payment_intent) +
-            ". Last error: " + str(last_error),
+            ". Error: " + str(e),
             "Payment Result Lookup Error"
         )
         return {
@@ -588,8 +548,6 @@ def get_payment_result(payment_intent: str):
             if bk[0].trip_group_name:
                 trip_label = trip_label + " · " + bk[0].trip_group_name
 
-    pr_status = frappe.db.get_value("Payment Request", pr_name, "status") if pr_name else None
-
     # Stripe intent.status ialah SUMBER KEBENARAN sebenar (bukan redirect_status
     # URL). 'succeeded' = bayaran berjaya; 'processing' = masih diproses
     # (jarang untuk kad, biasa untuk kaedah bank tempatan); selainnya = gagal.
@@ -599,6 +557,33 @@ def get_payment_result(payment_intent: str):
         result_status = "processing"
     else:
         result_status = "failed"
+
+    pr_status = frappe.db.get_value("Payment Request", pr_name, "status") if pr_name else None
+
+    # PENTING — JARING KESELAMATAN untuk webhook yang terlepas/gagal sampai:
+    # Stripe sendiri sahkan bayaran 'succeeded', tapi Payment Request kita
+    # MASIH belum 'Paid' (webhook lambat, gagal dihantar Stripe, endpoint
+    # tersekat, signing secret salah dikonfigurasikan tanpa disedari, dsb).
+    # Tanpa semakan ni, customer akan redirect balik dan nampak "Payment
+    # successful" di skrin — SEDANGKAN booking/SO di sistem kita senyap
+    # kekal "Pending" (tiada Payment Entry, admin tak nampak bayaran ni
+    # langsung). Kita panggil set_as_paid() di SINI sebagai fallback —
+    # idempotent (rujuk _mark_payment_request_paid()), jadi selamat
+    # walaupun webhook SEBENARNYA berjaya diproses serentak/lebih awal.
+    if result_status == "succeeded" and pr_name and pr_status != "Paid":
+        if _mark_payment_request_paid(pr_name):
+            pr_status = "Paid"
+        else:
+            # set_as_paid() gagal (rujuk Error Log "Stripe Payment Entry
+            # Error") — jangan sorok kegagalan ni dari customer/admin.
+            # pr_verified akan kekal False dalam response, dan admin
+            # nampak error tercatat untuk siasat manual.
+            frappe.log_error(
+                "get_payment_result: Stripe sahkan 'succeeded' untuk PI " +
+                str(payment_intent) + " tapi set_as_paid() fallback GAGAL " +
+                "untuk Payment Request " + str(pr_name) + ". Perlu semakan manual.",
+                "Payment Result - Webhook Miss Fallback Failed"
+            )
 
     return {
         "status":          result_status,

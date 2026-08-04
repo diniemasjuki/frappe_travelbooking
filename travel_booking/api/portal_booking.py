@@ -232,16 +232,16 @@ def get_booking_data(booking_number: str):
     advance_paid = 0.0
     for so_name in _get_all_booking_sales_orders(booking_name):
         so_vals = frappe.db.get_value("Sales Order", so_name,
-                                      ["grand_total", "rounded_total", "advance_paid"], as_dict=True)
+                                      ["grand_total", "advance_paid"], as_dict=True)
         if so_vals:
-            # PENTING: guna rounded_total (fallback grand_total) — konsisten
-            # dengan get_all_so_payments() (portal_payment.py) dan
+            # NOTA: "Disable Rounded Total" kini global (Selling Settings) —
+            # standardize ke grand_total sahaja, konsisten dengan
+            # get_all_so_payments() (portal_payment.py) dan
             # _recompute_booking_status()/create_payment_request() (booking.py/
             # stripe_checkout.py) supaya payment_status & total yang dipapar
             # di sini SEPADAN dengan apa yang backend guna untuk validate
-            # bayaran sebenar — elak "portal kata ada baki, bayar kata dah
-            # settle" atau payment_status tersangkut salah selama-lamanya.
-            grand_total  += float(so_vals.rounded_total or so_vals.grand_total or 0)
+            # bayaran sebenar.
+            grand_total  += float(so_vals.grand_total or 0)
             advance_paid += float(so_vals.advance_paid or 0)
 
     primary_so = _get_primary_so(booking_name)

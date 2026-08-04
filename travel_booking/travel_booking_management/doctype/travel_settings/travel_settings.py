@@ -25,6 +25,7 @@ class TravelSettings(Document):
 		manual_transfer_cashback_percent: DF.Percent
 		manual_transfer_paid_to_account: DF.Link | None
 		otp_expiry_minutes: DF.Int
+		payment_gateway: DF.Link | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Travel Settings"

@@ -32,6 +32,7 @@ class TripGroupDate(Document):
 		is_a_cruise_trip: DF.Check
 		is_cruise_only: DF.Check
 		max_participants: DF.Int
+		my_url: DF.Data | None
 		naming_series: DF.Literal[None]
 		return_date: DF.Date | None
 		sailing_end: DF.Date | None

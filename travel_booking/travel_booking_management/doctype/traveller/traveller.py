@@ -18,7 +18,7 @@ class Traveller(Document):
 		age: DF.Int
 		age_category: DF.Literal["Adult", "Child", "Infant"]
 		date_of_birth: DF.Date | None
-		dietary_requirements: DF.SmallText | None
+		dietary_requirements: DF.Text | None
 		document_verified: DF.Check
 		email: DF.Data | None
 		emergency_contact_name: DF.Data | None
@@ -28,18 +28,20 @@ class Traveller(Document):
 		full_name: DF.Data | None
 		fullname_format: DF.Literal["First Name + Last Name", "Last Name + First Name"]
 		gender: DF.Literal["Male", "Female"]
-		ic_number: DF.Data | None
+		ic_number: DF.Data
+		ic_number_view: DF.Data | None
 		last_name: DF.Data
-		medical_conditions: DF.SmallText | None
+		medical_conditions: DF.Text | None
+		medicine_treatment: DF.Text | None
 		nationality: DF.Link | None
 		passport_expiry: DF.Date | None
-		passport_image: DF.Attach | None
+		passport_image: DF.AttachImage | None
 		passport_no: DF.Data | None
 		phone: DF.Phone | None
-		special_needs: DF.SmallText | None
 		status: DF.Literal["Pending", "Verified", "Open for Update", "Rejected"]
 		title: DF.Literal["Mr", "Mrs"]
 		visa_photo: DF.Attach | None
+		wheelchair_assistant: DF.Literal["", "Not Required", "Long Walk Only", "All Time"]
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Traveller"

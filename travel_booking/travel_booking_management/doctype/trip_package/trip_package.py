@@ -20,6 +20,7 @@ class TripPackage(Document):
 		currency: DF.Link | None
 		is_a_cruise_trip: DF.Check
 		is_cruise_only: DF.Check
+		my_url: DF.Data | None
 		organizer_link: DF.Link | None
 		package_code: DF.Data | None
 		package_description: DF.TextEditor | None

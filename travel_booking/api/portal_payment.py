@@ -21,7 +21,7 @@ def get_all_so_payments():
     customer_name = _get_customer()
 
     so_rows = frappe.db.sql("""
-        SELECT name, grand_total, rounded_total, advance_paid, status, docstatus
+        SELECT name, grand_total, advance_paid, status, docstatus
         FROM `tabSales Order`
         WHERE customer = %s AND docstatus IN (1, 2)
         ORDER BY creation DESC
@@ -120,7 +120,7 @@ def get_all_so_payments():
         # Sales Invoice (kalau admin dah generate)
         inv_rows = frappe.db.sql("""
             SELECT DISTINCT sii.parent, si.posting_date,
-                   si.grand_total, si.rounded_total, si.status
+                   si.grand_total, si.status
             FROM `tabSales Invoice Item` sii
             JOIN `tabSales Invoice` si ON si.name = sii.parent
             WHERE sii.sales_order = %s AND si.docstatus = 1
@@ -128,22 +128,15 @@ def get_all_so_payments():
         invoices = [{
             "name":         r.parent,
             "posting_date": str(r.posting_date) if r.posting_date else "",
-            # rounded_total diutamakan — sepadan dengan angka pada
-            # dokumen invois SEBENAR yang dicetak/dihantar ke customer.
-            "grand_total":  float(r.rounded_total or r.grand_total or 0),
+            "grand_total":  float(r.grand_total or 0),
             "status":       r.status
         } for r in inv_rows]
 
-        # PENTING: guna rounded_total (fallback grand_total) untuk paparan —
-        # MESTI konsisten dengan create_payment_request()'s outstanding
-        # calc (yang juga guna rounded_total). Kalau tidak, portal boleh
-        # papar baki tertunggak (cth RM 0.49, dari grand_total mentah)
-        # sedangkan backend (guna rounded_total) anggap SO tu dah settle
-        # PENUH — bila customer cuba bayar baki yang dipaparkan tu,
-        # create_payment_request() throw "Tiada baki untuk dibayar"
-        # walhal portal baru sahaja tunjuk ada baki. Rujuk juga nota
-        # lengkap di stripe_checkout.create_payment_intent().
-        effective_total = float(so.rounded_total or so.grand_total or 0)
+        # NOTA: "Disable Rounded Total" kini global (Selling Settings,
+        # terpakai untuk Sales Order & Sales Invoice) — standardize ke
+        # grand_total sahaja, konsisten dengan create_payment_request()'s
+        # outstanding calc.
+        effective_total = float(so.grand_total or 0)
 
         orders.append({
             "name":            so_name,
@@ -208,18 +201,17 @@ def create_payment_request(booking_number: str = None, amount: float = None, sal
             booking_number = frappe.db.get_value("Booking", booking_name_from_so, "booking_number")
 
     so = frappe.db.get_value("Sales Order", so_name,
-                             ["customer", "grand_total", "rounded_total", "advance_paid", "currency"], as_dict=True)
+                             ["customer", "grand_total", "advance_paid", "currency"], as_dict=True)
     if so.customer != customer_name:
         frappe.throw("Akses ditolak.", frappe.PermissionError)
 
-    # PENTING: guna rounded_total (fallback grand_total) sebagai jumlah
-    # rujukan — ERPNext punya validate_payment_request_amount() sendiri
-    # bandingkan Payment Request terhadap rounded_total bila ia bukan
-    # sifar/kosong (rujuk nota lengkap di stripe_checkout.create_payment_intent()).
-    # Kalau kita kira outstanding/min_amount dari grand_total mentah sahaja,
-    # customer boleh nampak baki (cth RM 5.49) yang sebenarnya lebih tinggi
-    # dari apa yang ERPNext akan terima sebagai Payment Request (RM 5.00).
-    grand_total = float(so.rounded_total or so.grand_total or 0)
+    # NOTA: "Disable Rounded Total" kini global (Selling Settings) — semua
+    # SO tak lagi ada rounded_total berlainan dari grand_total (dan ERPNext
+    # punya validate_payment_request_amount() turut fallback ke grand_total
+    # secara automatik di sisi dia untuk SO sebegini). Standardize terus ke
+    # grand_total sahaja (rujuk juga nota lengkap di
+    # stripe_checkout.create_payment_intent()).
+    grand_total = float(so.grand_total or 0)
     paid        = float(so.advance_paid or 0)
     outstanding = grand_total - paid
     if outstanding <= 0:

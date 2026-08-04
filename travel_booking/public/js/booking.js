@@ -945,13 +945,13 @@ function renderRooms() {
         return room.main_guests === 1
           ? fmt(pricing.price_adult_single) + " /pax"
           : fmt(pricing.price_adult) + " /pax";
-      }, stepperRefreshers));
+      }, stepperRefreshers, "12 years old and above"));
       counters.appendChild(mkStepper(room, "extra_beds", "Extra Bed", 0, function() {
         return fmt(pricing.price_upperberth) + " /pax";
       }, stepperRefreshers));
       counters.appendChild(mkStepper(room, "infants", "Infant", 0, function() {
         return fmt(pricing.price_infant) + " /pax";
-      }, stepperRefreshers));
+      }, stepperRefreshers, "6 - 23 months old"));
 
       card.appendChild(typeField);
       card.appendChild(counters);
@@ -975,14 +975,37 @@ function renderRooms() {
   updateTotals();
 }
 
-function mkStepper(room, key, label, max, rateFn, refreshers) {
+function mkStepper(room, key, label, max, rateFn, refreshers, tooltipText) {
   // ------------------------------------------
   var row = document.createElement("div");
   row.className = "rc-counter-row";
   // ------------------------------------------
+  var lblWrap = document.createElement("span");
+  lblWrap.className = "rc-counter-row__label-wrap";
+
   var lbl = document.createElement("span");
   lbl.className = "rc-counter-row__label";
   lbl.textContent = label;
+  lblWrap.appendChild(lbl);
+
+  // Tooltip info (cth had umur "Main Guest"/"Infant") — opsyenal, cuma
+  // dipapar kalau tooltipText dibekalkan. tabindex="0" supaya boleh
+  // diakses papan kekunci/tap-focus (bukan cuma hover tetikus).
+  if (tooltipText) {
+    var tip = document.createElement("span");
+    tip.className = "rc-tooltip";
+    tip.tabIndex = 0;
+    tip.setAttribute("role", "img");
+    tip.setAttribute("aria-label", tooltipText);
+    var tipIcon = document.createElement("i");
+    tipIcon.className = "ti ti-info-circle";
+    var tipBubble = document.createElement("span");
+    tipBubble.className = "rc-tooltip__bubble";
+    tipBubble.textContent = tooltipText;
+    tip.appendChild(tipIcon);
+    tip.appendChild(tipBubble);
+    lblWrap.appendChild(tip);
+  }
   // ------------------------------------------
   var stepper = document.createElement("div");
   stepper.className = "rc-stepper";
@@ -1121,7 +1144,7 @@ function mkStepper(room, key, label, max, rateFn, refreshers) {
   stepper.appendChild(plus);
   stepper.appendChild(rate);
 
-  row.appendChild(lbl);
+  row.appendChild(lblWrap);
   row.appendChild(stepper);
   
   return row;
@@ -1723,6 +1746,18 @@ function renderPaymentSettingsUI() {
   if (typeof updateTotals === "function") updateTotals();
 }
 
+function onVoucherBtnClick() {
+  // Butang TUNGGAL — toggle ikut state semasa. Bila voucher tak aktif,
+  // klik = "Apply" (validate & apply kod dari input). Bila voucher DAH
+  // aktif, klik SAMA butang tu (teks dah bertukar "Remove") = buang kod,
+  // reset totals, unlock input untuk kod baharu.
+  if (state_voucher_code) {
+    removeVoucher();
+  } else {
+    applyVoucher();
+  }
+}
+
 async function applyVoucher() {
   var code = document.getElementById("voucherInput").value.trim().toUpperCase();
   if (!code) return;
@@ -1770,6 +1805,13 @@ async function applyVoucher() {
       document.getElementById("voucherCodeApplied").textContent   = code;
       document.getElementById("voucherDiscountAmt").textContent    = "-" + fmt(result.discount_amount);
 
+      // Kunci input (elak edit kod yang dah aktif) — butang sendiri TAK
+      // dikunci, sebaliknya bertukar fungsi jadi "✕" (buang kod, rujuk
+      // onVoucherBtnClick() — satu butang, dua peranan ikut state).
+      document.getElementById("voucherInput").disabled = true;
+      btn.textContent = "\u2715";
+      btn.classList.add("rc-btn--voucher-applied");
+
       // Show success message
       showVoucherMsg("success", "✓ " + result.message);
 
@@ -1779,22 +1821,52 @@ async function applyVoucher() {
       state_voucher_code     = "";
       state_voucher_discount = 0;
       document.getElementById("voucherDiscountRow").style.display = "none";
+      btn.textContent = "Apply";
       showVoucherMsg("error", result.message);
       updatePaymentUI();
     }
   } catch(e) {
+    btn.textContent = "Apply";
     showVoucherMsg("error", "Failed to validate voucher. Please try again.");
   }
 
   btn.disabled = false;
-  btn.textContent = "Apply";
 }
+
+function removeVoucher() {
+  state_voucher_code     = "";
+  state_voucher_discount = 0;
+
+  document.getElementById("voucherDiscountRow").style.display = "none";
+  document.getElementById("voucherMsg").style.display = "none";
+
+  var input = document.getElementById("voucherInput");
+  input.disabled = false;
+  input.value = "";
+
+  var btn = document.getElementById("voucherBtn");
+  btn.textContent = "Apply";
+  btn.classList.remove("rc-btn--voucher-applied");
+
+  updatePaymentUI();
+}
+
+
 
 function showVoucherMsg(type, msg) {
   var el = document.getElementById("voucherMsg");
   el.style.display = "block";
   el.style.color   = type === "success" ? "var(--rc-green)" : "#CC0000";
   el.textContent   = msg;
+}
+
+function onAffiliateBtnClick() {
+  // Butang TUNGGAL — sama pattern dengan onVoucherBtnClick().
+  if (state_affiliate_code) {
+    removeAffiliateCode();
+  } else {
+    applyAffiliateCode();
+  }
 }
 
 async function applyAffiliateCode() {
@@ -1833,22 +1905,49 @@ async function applyAffiliateCode() {
         document.getElementById("affiliateDiscountRow").style.display = "none";
       }
 
+      // Kunci input (elak edit kod yang dah aktif) — butang sendiri TAK
+      // dikunci, sebaliknya bertukar fungsi jadi "✕" (buang kod, rujuk
+      // onAffiliateBtnClick() — satu butang, dua peranan ikut state).
+      document.getElementById("affiliateInput").disabled = true;
+      btn.textContent = "\u2715";
+      btn.classList.add("rc-btn--voucher-applied");
+
       showAffiliateMsg("success", "✓ " + result.message);
       updatePaymentUI();
     } else {
       state_affiliate_code   = "";
       state_referral_percent = 0;
       document.getElementById("affiliateDiscountRow").style.display = "none";
+      btn.textContent = "Apply";
       showAffiliateMsg("error", result.message);
       updatePaymentUI();
     }
   } catch (e) {
+    btn.textContent = "Apply";
     showAffiliateMsg("error", "Failed to validate referral code. Please try again.");
   }
 
   btn.disabled = false;
-  btn.textContent = "Apply";
 }
+
+function removeAffiliateCode() {
+  state_affiliate_code   = "";
+  state_referral_percent = 0;
+
+  document.getElementById("affiliateDiscountRow").style.display = "none";
+  document.getElementById("affiliateMsg").style.display = "none";
+
+  var input = document.getElementById("affiliateInput");
+  input.disabled = false;
+  input.value = "";
+
+  var btn = document.getElementById("affiliateBtn");
+  btn.textContent = "Apply";
+  btn.classList.remove("rc-btn--voucher-applied");
+
+  updatePaymentUI();
+}
+
 
 function prefillAffiliateCodeFromUrl() {
   // PENTING: guna parameter 'sp' (sales partner), BUKAN 'ref'. 'ref' sudah
