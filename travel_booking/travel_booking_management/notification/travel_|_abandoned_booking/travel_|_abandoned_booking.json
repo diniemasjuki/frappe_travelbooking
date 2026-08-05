@@ -26,12 +26,12 @@
  "owner": "Administrator",
  "recipients": [
   {
-   "receiver_by_document_field": "get_cust_email"
+   "receiver_by_document_field": "cust_email"
   }
  ],
  "send_system_notification": 0,
  "send_to_all_assignees": 0,
- "sender": "Dev Site Outgoing",
- "sender_email": "contact@rpwp.my",
+ "sender": "",
+ "sender_email": "",
  "subject": "Booking Order has been Canceled"
 }

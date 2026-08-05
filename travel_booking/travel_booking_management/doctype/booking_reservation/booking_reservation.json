@@ -347,7 +347,7 @@
    "label": "Aroya"
   },
   {
-   "fetch_from": "booking.get_cust_email",
+   "fetch_from": "booking.cust_email",
    "fieldname": "customer_email",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -398,7 +398,7 @@
  ],
  "grid_page_length": 50,
  "links": [],
- "modified": "2026-08-05 06:18:50.543133",
+ "modified": "2026-08-06 05:16:52.267573",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking Reservation",

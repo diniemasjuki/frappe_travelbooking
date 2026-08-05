@@ -18,7 +18,7 @@
   "column_break_hwbu",
   "customer",
   "get_cust_phone",
-  "get_cust_email",
+  "cust_email",
   "section_break_mhpl",
   "column_break_lfil",
   "trip_name",
@@ -321,12 +321,6 @@
    "label": "Cruise End"
   },
   {
-   "fieldname": "get_cust_email",
-   "fieldtype": "Data",
-   "is_virtual": 1,
-   "label": "Customer Email"
-  },
-  {
    "fieldname": "get_cust_phone",
    "fieldtype": "Phone",
    "is_virtual": 1,
@@ -348,13 +342,19 @@
    "fieldname": "voucher",
    "fieldtype": "Link",
    "label": "Voucher",
-   "options": "Voucher"
+   "options": "Voucher",
+   "search_index": 1
   },
   {
    "fieldname": "voucher_usage",
    "fieldtype": "Link",
    "label": "Voucher Usage",
    "options": "Voucher Usage"
+  },
+  {
+   "fieldname": "cust_email",
+   "fieldtype": "Data",
+   "label": "Customer Email"
   }
  ],
  "grid_page_length": 50,
@@ -372,7 +372,7 @@
    "link_fieldname": "booking"
   }
  ],
- "modified": "2026-08-05 01:55:43.835440",
+ "modified": "2026-08-06 05:08:53.761999",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking",

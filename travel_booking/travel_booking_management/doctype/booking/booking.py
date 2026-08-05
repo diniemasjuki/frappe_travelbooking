@@ -18,6 +18,7 @@ class Booking(Document):
 		booking_number: DF.Data
 		cruise_end: DF.Date | None
 		cruise_start: DF.Date | None
+		cust_email: DF.Data | None
 		customer: DF.Link | None
 		departure_date: DF.Date | None
 		flight: DF.Link | None
