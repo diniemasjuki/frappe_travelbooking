@@ -224,15 +224,14 @@
   {
    "fieldname": "my_url",
    "fieldtype": "Data",
-   "is_virtual": 1,
    "label": "My URL",
-   "options": "\"https://trip.rarecation.com?trip=\" + doc.name"
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "image_field": "trip_image",
  "links": [],
- "modified": "2026-08-05 04:21:42.804032",
+ "modified": "2026-08-05 15:17:17.058268",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Package",
