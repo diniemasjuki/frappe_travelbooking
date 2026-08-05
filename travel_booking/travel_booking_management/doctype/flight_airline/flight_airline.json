@@ -47,7 +47,7 @@
  "links": [
   {
    "link_doctype": "Booking",
-   "link_fieldname": "flight_arrangment"
+   "link_fieldname": "flight"
   },
   {
    "link_doctype": "Booking Reservation",

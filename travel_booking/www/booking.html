@@ -71,7 +71,7 @@ if ('serviceWorker' in navigator) {
           <label class="rc-label">Select Trip</label>
           <div class="rc-select-wrapper">
             <select class="rc-select" id="tripSelect">
-              <option value="">-- Choose a trip --</option>
+              <option value="">Choose your trip</option>
               {% for trip in trips %}
               <option value="{{ trip.name }}">
                 {{ trip.trip_name }}
@@ -257,7 +257,7 @@ if ('serviceWorker' in navigator) {
             <div class="rc-deposit-notice" id="depositNotice" style="display:none">
               <i class="ti ti-alert-triangle"></i>
               <span>
-                <strong>Without full payment, the booking cannot be confirmed.</strong><br>
+                <strong>Without full payment, the booking cannot be processed.</strong><br>
                 Balance of <strong id="balanceAmt">RM 0</strong> due before departure.
               </span>
             </div>
@@ -304,10 +304,7 @@ if ('serviceWorker' in navigator) {
             <div class="rc-form-group" style="margin-top:16px">
               <label class="rc-label">Bank Transfer Reference No. <span class="rc-required">*</span></label>
               <input type="text" class="rc-input" id="bankTransferRefInput"
-                     placeholder="reference number from your bank">
-              <small style="color:var(--rc-text-muted, #888)">
-                Enter the reference/transaction number your bank gave you for this transfer, this helps us match your payment faster.
-              </small>
+                     placeholder="FPX1234567">
             </div>
             <div class="rc-form-group" style="margin-top:16px">
               <label class="rc-label">Upload Payment Receipt <span class="rc-required">*</span></label>

@@ -157,7 +157,7 @@
   },
   {
    "depends_on": "eval:!doc.is_cruise_only",
-   "fetch_from": "booking.flight_arrangment",
+   "fetch_from": "booking.flight",
    "fetch_if_empty": 1,
    "fieldname": "flight",
    "fieldtype": "Link",

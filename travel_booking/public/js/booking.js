@@ -912,7 +912,7 @@ function renderRooms() {
       sel.className = "rc-select";
       var ph = document.createElement("option");
       ph.value = "";
-      ph.textContent = "\u2014 Select cabin type \u2014";
+      ph.textContent = " Select cabin type ";
       if (!room.room_category) ph.selected = true;
       sel.appendChild(ph);
       avail.forEach(function(cab) {
@@ -1604,12 +1604,32 @@ function buildOrderSummary() {
 
   var totalPax = activeRooms.reduce(function(a, r) { return a + r.main_guests + r.extra_beds + r.infants; }, 0);
 
-  // Maklumat trip (Trip / Trip Group Date / Trip Package) — sentiasa
-  // kelihatan (walaupun collapsed) supaya customer tahu dia bayar untuk
-  // trip yang mana, sebab kad ni jauh dari banner navy di Step 1/2.
+  // Maklumat trip (Trip / Tarikh Berlepas / Jenis Package) — sentiasa
+  // kelihatan supaya customer tahu dia bayar untuk trip yang mana.
+  //
+  // PENTING: SENGAJA tak guna state.group_name / state.package_label
+  // terus — dua-dua field admin-authored tu (Trip Group Date.trip_group_name,
+  // Trip Package.package_title) masing-masing DAH mengandungi nama trip +
+  // tarikh + jenis package bertindih sendiri (cth "2026-09-30 : TRIP12 :
+  // Fly Cruise" dan "3N Yanbu Cruise / Fly Cruise / KUL") — gabung
+  // ketiga-tiga terus jadi keliru/berulang untuk customer (nama trip &
+  // "Fly Cruise" muncul 2-3 kali, kod dalaman "TRIP12" tak bermakna untuk
+  // customer). Sebaliknya bina terus dari field ATOMIC yang bersih:
+  // trip_name (dropdown), departure_date (Trip Group Date), package_type
+  // (Trip Package — enum bersih: "Fly Cruise"/"Cruise Only"/dsb).
   var tripEl = document.getElementById("orderSummaryTrip");
   if (tripEl) {
-    var tripParts = [state.trip_name, state.group_name, state.package_label].filter(Boolean);
+    var grpForSummary = (trip_group_dateS[state.trip_master] || []).find(function(g) {
+      return g.name === state.trip_group_date;
+    });
+    var pkgForSummary = (TRIP_PACKAGES[state.trip_group_date] || []).find(function(p) {
+      return p.name === state.trip_package;
+    });
+    var tripParts = [
+      state.trip_name,
+      grpForSummary ? fmtDate(grpForSummary.departure_date) : "",
+      pkgForSummary ? pkgForSummary.package_type : "",
+    ].filter(Boolean);
     tripEl.textContent = tripParts.join(" \u00b7 ");
   }
 
@@ -1744,7 +1764,7 @@ function renderSalesPersonRows() {
     sel.className = "rc-select";
     var ph = document.createElement("option");
     ph.value = "";
-    ph.textContent = "— None —";
+    ph.textContent = " Select Sales Person ";
     if (!row.value) ph.selected = true;
     sel.appendChild(ph);
     state_sales_persons_available.forEach(function(sp) {
