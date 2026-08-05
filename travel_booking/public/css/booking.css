@@ -1719,6 +1719,54 @@ body {
   white-space: nowrap;
 }
 
+/* ─── CABIN TYPE INFO (gambar + description) ──────────────────────── */
+.rc-cabin-type-info {
+  padding: 10px 0 16px;
+  border-bottom: 1px solid var(--rc-gray-100);
+}
+
+.rc-cabin-type-info__image {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  display: block;
+  background: var(--rc-gray-100);
+}
+
+.rc-cabin-type-info__desc {
+  font-size: 13px;
+  color: var(--rc-gray-600);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.rc-cabin-type-info__desc p {
+  margin: 0;
+}
+
+.rc-cabin-type-info__desc p + p {
+  margin-top: 8px;
+}
+
+.rc-cabin-type-info__desc--clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.rc-cabin-type-info__readmore {
+  display: none;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--rc-black);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* ─── COUNTER ROW LABEL TOOLTIP (Main Guest / Infant age info) ────── */
 .rc-counter-row__label-wrap {
   display: inline-flex;

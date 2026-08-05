@@ -13,6 +13,20 @@
 </head>
 <body>
 
+<script>
+// CLEANUP: PWA/Service Worker dipause buat sementara (sw.js dah dipadam
+// dari codebase) — unregister SEMUA SW yang mungkin masih aktif pada
+// browser customer sedia ada, tak kira scope (rujuk diskusi bug "counter
+// tak refresh ikut capacity" — SW site-wide lama punca page ni
+// tersajikan booking.js VERSI LAMA dari cache walaupun server dah ada
+// versi terkini).
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    regs.forEach(function(reg) { reg.unregister(); });
+  });
+}
+</script>
+
 <!-- WIZARD (top center) -->
 <div class="rc-wizard">
   <div class="rc-wizard__inner">
@@ -57,7 +71,7 @@
           <label class="rc-label">Select Trip</label>
           <div class="rc-select-wrapper">
             <select class="rc-select" id="tripSelect">
-              <option value="">-- Choose a trip --</option>
+              <option value=""> Choose a trip </option>
               {% for trip in trips %}
               <option value="{{ trip.name }}">
                 {{ trip.trip_name }}
@@ -364,9 +378,9 @@
         <div class="rc-form-group" style="margin-top:16px">
           <label class="rc-label">Bank Transfer Reference No. <span class="rc-required">*</span></label>
           <input type="text" class="rc-input" id="bankTransferRefInput"
-                 placeholder="reference number from your bank">
+                 placeholder="FPX123456789">
           <small style="color:var(--rc-text-muted, #888)">
-            Enter the reference/transaction number your bank gave you for this transfer, this helps us match your payment faster.
+            Enter the reference number your bank gave you for this transfer.
           </small>
         </div>
         <div class="rc-form-group" style="margin-top:16px">
@@ -435,7 +449,7 @@
 
 <!-- Page data dari Frappe — elak Jinja syntax dalam JS -->
 <script id="pageData" type="application/json">
-{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}"}
+{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "csrf_token": "{{ csrf_token }}"}
 </script>
 
 <!-- intl-tel-input — dial-code + bendera negara, SAMA library dengan fieldtype

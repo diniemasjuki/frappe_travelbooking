@@ -36,6 +36,7 @@
   "wheelchair_assistant",
   "column_break_vfsb",
   "dietary_requirements",
+  "special_needs",
   "section_break_vaio",
   "medical_conditions",
   "column_break_sbym",
@@ -323,6 +324,11 @@
    "fieldname": "others_tab",
    "fieldtype": "Tab Break",
    "label": "More"
+  },
+  {
+   "fieldname": "special_needs",
+   "fieldtype": "Text",
+   "label": "Special Needs"
   }
  ],
  "grid_page_length": 50,
@@ -333,7 +339,7 @@
    "link_fieldname": "traveller"
   }
  ],
- "modified": "2026-08-05 02:00:58.108072",
+ "modified": "2026-08-05 16:28:30.535917",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Traveller",

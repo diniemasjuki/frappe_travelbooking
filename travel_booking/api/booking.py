@@ -163,6 +163,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             tpc.capacity,
             tpc.max_capacity,
             tpc.description,
+            tpc.room_profile,
             tpp.price_adult_single,
             tpp.price_adult,
             tpp.price_upperberth,
@@ -186,6 +187,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             "capacity":      row.capacity or 2,
             "max_capacity":  row.max_capacity or row.capacity or 2,
             "description":   row.description or "",
+            "room_image":    row.room_profile or "",
             "pricing": {
                 "price_adult_single":     float(row.price_adult_single     or 0),
                 "price_adult":            float(row.price_adult           or 0),
@@ -195,6 +197,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             "available":    available,
             "is_available": available > 0,
         })
+
 
     return {
         "trip": {

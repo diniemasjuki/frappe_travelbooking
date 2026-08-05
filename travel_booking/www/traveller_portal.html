@@ -3,12 +3,6 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <link rel="manifest" href="/assets/travel_booking/manifest-customer.json"/>
-  <meta name="theme-color" content="#F5C518"/>
-  <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
-  <meta name="apple-mobile-web-app-title" content="Rarecation"/>
-  <link rel="apple-touch-icon" href="/assets/travel_booking/img/icon-rarecation-192.png"/>
   <title>Rarecation Portal</title>
   <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
   <link rel="stylesheet" href="/assets/travel_booking/css/portal.css"/>
@@ -639,10 +633,11 @@
 <script src="/assets/travel_booking/js/portal_traveller.js"></script>
 <script src="/assets/travel_booking/js/portal_wizard.js"></script>
 <script>
+
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js')
-    .then(() => console.log('SW registered'))
-    .catch(err => console.log('SW error:', err));
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    regs.forEach(function(reg) { reg.unregister(); });
+  });
 }
 </script>
 </body>

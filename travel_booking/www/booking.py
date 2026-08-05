@@ -1,5 +1,6 @@
 # travel_booking/www/booking.py
 import frappe
+import frappe.sessions
 import json
 
 
@@ -10,11 +11,35 @@ def get_context(context):
     trip_master     = frappe.form_dict.get("trip_master")
     trip_group_date = frappe.form_dict.get("trip_group_date")
 
+    # "Ready" = Trip Active DAN ada sekurang-kurangnya SATU Trip Group Date
+    # yang juga Active, tarikh akan datang (belum lepas), DAN ada Trip
+    # Package Active untuk group date tu. Trip yang belum lengkap disetup
+    # (tiada group date, atau ada group date tapi tiada package lagi)
+    # SENGAJA tak dipapar — customer tak patut nampak trip yang "belum
+    # ready", elak dead-end di step seterusnya.
+    #
+    # EXISTS (bukan JOIN) sebab kita cuma perlu tahu "ada ke tidak" — lebih
+    # efisien (berhenti scan sebaik jumpa satu match) dan elak duplicate
+    # row yang perlukan DISTINCT tambahan.
     trips = frappe.db.sql("""
-        SELECT name, trip_name
-        FROM `tabTrip`
-        WHERE status = 'Active'
-        ORDER BY trip_name
+        SELECT DISTINCT t.name, t.trip_name
+        FROM `tabTrip` t
+        WHERE t.status = 'Active'
+          AND EXISTS (
+              SELECT 1
+              FROM `tabTrip Group Date` td
+              WHERE td.trip = t.name
+                AND td.status = 'Active'
+                AND td.departure_date >= CURDATE()
+                AND EXISTS (
+                    SELECT 1
+                    FROM `tabTrip Package Group Date Select` sel
+                    JOIN `tabTrip Package` tp ON tp.name = sel.parent
+                    WHERE sel.trip_group_date = td.name
+                      AND tp.status = 'Active'
+                )
+          )
+        ORDER BY t.trip_name
     """, as_dict=True)
 
     trip_group_dates = {}
@@ -22,13 +47,27 @@ def get_context(context):
     if trips:
         trip_names = [t.name for t in trips]
 
+        # SAMA syarat "ready" (package Active wujud) DAN tarikh akan datang
+        # diterapkan di sini juga (cascade) — elak keadaan Trip lepas
+        # filter atas (sebab ADA satu date yang ready), tapi grid "Select
+        # Departure Date" tetap papar date LAIN untuk trip yang sama yang
+        # sebenarnya belum ready/dah lepas tarikh (dead-end di "Select
+        # Package" nanti, grid kosong).
         dates = frappe.db.sql("""
-            SELECT name, trip, trip_group_name, trip_group_code,
-                   departure_date, return_date, total_days, total_nights
-            FROM `tabTrip Group Date`
-            WHERE trip IN %(trips)s
-              AND status = 'Active'
-            ORDER BY departure_date ASC
+            SELECT td.name, td.trip, td.trip_group_name, td.trip_group_code,
+                   td.departure_date, td.return_date, td.total_days, td.total_nights
+            FROM `tabTrip Group Date` td
+            WHERE td.trip IN %(trips)s
+              AND td.status = 'Active'
+              AND td.departure_date >= CURDATE()
+              AND EXISTS (
+                  SELECT 1
+                  FROM `tabTrip Package Group Date Select` sel
+                  JOIN `tabTrip Package` tp ON tp.name = sel.parent
+                  WHERE sel.trip_group_date = td.name
+                    AND tp.status = 'Active'
+              )
+            ORDER BY td.departure_date ASC
         """, {"trips": trip_names}, as_dict=True)
 
         for d in dates:
@@ -83,3 +122,7 @@ def get_context(context):
     context.trip_group_date  = trip_group_date or ""
     context.no_cache         = 1
     context.title            = "Book Your Cruise — Rarecation"
+
+    context.csrf_token = (
+        frappe.sessions.get_csrf_token() if frappe.session.user != "Guest" else ""
+    )

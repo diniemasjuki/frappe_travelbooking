@@ -15,6 +15,11 @@ const trip_group_dateS    = _data.trip_group_dates;
 const TRIP_PACKAGES = _data.trip_packages;
 const INIT_TRIP   = _data.trip_master;
 const INIT_DATE   = _data.trip_group_date;
+// Kosong untuk Guest (customer biasa, tak login) — cookie kosong dah
+// cukup selamat untuk endpoint allow_guest (rujuk apiCall()). Terisi
+// HANYA kalau session semasa authenticated (repeat customer baru login
+// /traveller_portal, atau admin/staff Desk) — rujuk www/booking.py.
+const CSRF_TOKEN  = _data.csrf_token || "";
 
 // ─── STATE ────────────────────────────────────────────────
 const state = {
@@ -132,11 +137,23 @@ async function apiCall(method, args, useGet) {
     url     = url + "?" + params.toString();
     options = { method: "GET", headers: { "Accept": "application/json" } };
   } else {
-    // POST request — urlencoded. Cookie Frappe sebenar dipanggil
-    // 'csrftoken' (bukan 'csrf_token') — kosong untuk guest baru (tiada
-    // session lagi), yang selamat sebab endpoint wizard semua allow_guest.
-    const match = document.cookie.match(/csrftoken=([^;]+)/);
-    const token = match ? decodeURIComponent(match[1]) : "";
+    // POST request — urlencoded.
+    //
+    // Keutamaan token: CSRF_TOKEN (dari pageData, rujuk www/booking.py)
+    // dulu — ini SATU-SATUNYA sumber yang boleh dipercayai bila session
+    // semasa authenticated (repeat customer baru login /traveller_portal
+    // dalam tab/session sama, atau admin/staff Desk buka /booking terus).
+    // Tanpa ni, request POST akan kena reject "invalid request" (403 CSRF)
+    // walaupun customer/staff tu sah — sebab Frappe WAJIBKAN token padan
+    // untuk authenticated session, tak macam Guest yang di-skip terus.
+    //
+    // Fallback ke cookie 'csrftoken' (bukan 'csrf_token') kalau CSRF_TOKEN
+    // kosong — ini kes Guest biasa (customer baru, tak login terus), cookie
+    // kosong pun selamat sebab endpoint wizard semua allow_guest.
+    const token = CSRF_TOKEN || (function() {
+      const match = document.cookie.match(/csrftoken=([^;]+)/);
+      return match ? decodeURIComponent(match[1]) : "";
+    })();
     const body  = Object.keys(args).map(function(k) {
       const v = typeof args[k] === "object" ? JSON.stringify(args[k]) : args[k];
       return encodeURIComponent(k) + "=" + encodeURIComponent(v);
@@ -228,7 +245,10 @@ function renderPackages(TripGroupDate) {
     var btn = document.createElement("button");
     btn.className    = "rc-date-btn";
     btn.dataset.name = p.name;
-    btn.innerHTML = '<span class="rc-date-btn__name"> From: ' + p.flight_label + '</span>';
+    var label = p.flight_label === "No Flight"
+      ? "Cruise Only"
+      : "From: " + p.flight_label;
+    btn.innerHTML = '<span class="rc-date-btn__name">' + label + '</span>';
     btn.addEventListener("click", function() {
       packageGrid.querySelectorAll(".rc-date-btn").forEach(function(b) { b.classList.remove("selected"); });
       this.classList.add("selected");
@@ -892,7 +912,7 @@ function renderRooms() {
       sel.className = "rc-select";
       var ph = document.createElement("option");
       ph.value = "";
-      ph.textContent = "\u2014 Select cabin type \u2014";
+      ph.textContent = " Select cabin type ";
       if (!room.room_category) ph.selected = true;
       sel.appendChild(ph);
       avail.forEach(function(cab) {
@@ -918,6 +938,62 @@ function renderRooms() {
       selWrap.appendChild(typeChev);
       typeField.appendChild(typeLbl);
       typeField.appendChild(selWrap);
+
+      // Cabin Type Info — gambar (room_profile) + description dari Trip
+      // Price Category, papar terus lepas customer pilih cabin type,
+      // SEBELUM senarai counter pax. Refresh automatik bila room_category
+      // ditukar (renderRooms() dipanggil semula pada 'change' listener
+      // dropdown di atas), tiada API call tambahan diperlukan.
+      var cabinInfo = null;
+      if (c && (c.description || c.room_image)) {
+        cabinInfo = document.createElement("div");
+        cabinInfo.className = "rc-cabin-type-info";
+
+        if (c.room_image) {
+          var cabinImg = document.createElement("img");
+          cabinImg.className = "rc-cabin-type-info__image";
+          cabinImg.src = c.room_image;
+          cabinImg.alt = c.room_name || "Cabin";
+          cabinImg.loading = "lazy";
+          cabinInfo.appendChild(cabinImg);
+        }
+
+        if (c.description) {
+          // PENTING: 'description' ialah Text Editor (rich text HTML),
+          // BUKAN plain text — kena innerHTML supaya formatting admin
+          // (bold/senarai/perenggan) dipapar betul, bukan tag mentah.
+          // Content ditulis admin sendiri di Desk (bukan input customer),
+          // sama risiko macam content CMS lain — tak perlu sanitize
+          // tambahan.
+          var descText = document.createElement("div");
+          descText.className = "rc-cabin-type-info__desc rc-cabin-type-info__desc--clamped";
+          descText.innerHTML = c.description;
+          cabinInfo.appendChild(descText);
+
+          // "Read more" / "Read less" — cuma dipapar kalau teks BENAR-
+          // BENAR terpotong (scrollHeight > clientHeight lepas clamp 2
+          // baris). requestAnimationFrame supaya browser sempat render
+          // dulu sebelum measurement diambil (elak baca 0/salah semasa
+          // elemen baru di-attach).
+          var readMoreBtn = document.createElement("span");
+          readMoreBtn.className = "rc-cabin-type-info__readmore";
+          readMoreBtn.textContent = "Read more";
+          readMoreBtn.style.display = "none";
+          var descExpanded = false;
+          readMoreBtn.addEventListener("click", function() {
+            descExpanded = !descExpanded;
+            descText.classList.toggle("rc-cabin-type-info__desc--clamped", !descExpanded);
+            readMoreBtn.textContent = descExpanded ? "Read less" : "Read more";
+          });
+          cabinInfo.appendChild(readMoreBtn);
+
+          requestAnimationFrame(function() {
+            if (descText.scrollHeight > descText.clientHeight + 1) {
+              readMoreBtn.style.display = "inline-block";
+            }
+          });
+        }
+      }
 
       // Vertical counter list: Main Guest / Extra Bed / Infant. Had setiap
       // counter dikira SEMULA secara dinamik dalam mkStepper()'s capFor()
@@ -954,6 +1030,7 @@ function renderRooms() {
       }, stepperRefreshers, "6 - 23 months old"));
 
       card.appendChild(typeField);
+      if (cabinInfo) card.appendChild(cabinInfo);
       card.appendChild(counters);
     }
 
@@ -1667,7 +1744,7 @@ function renderSalesPersonRows() {
     sel.className = "rc-select";
     var ph = document.createElement("option");
     ph.value = "";
-    ph.textContent = "— None —";
+    ph.textContent = " Select Sales Person ";
     if (!row.value) ph.selected = true;
     sel.appendChild(ph);
     state_sales_persons_available.forEach(function(sp) {
