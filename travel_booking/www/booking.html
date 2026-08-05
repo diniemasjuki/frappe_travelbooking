@@ -71,7 +71,7 @@ if ('serviceWorker' in navigator) {
           <label class="rc-label">Select Trip</label>
           <div class="rc-select-wrapper">
             <select class="rc-select" id="tripSelect">
-              <option value=""> Choose a trip </option>
+              <option value="">-- Choose a trip --</option>
               {% for trip in trips %}
               <option value="{{ trip.name }}">
                 {{ trip.trip_name }}
@@ -223,24 +223,126 @@ if ('serviceWorker' in navigator) {
 
   <!-- ══ STEP 3: PAYMENT ══ -->
   <section class="rc-section" id="step3">
-    <div class="rc-container rc-container--narrow">
+    <div class="rc-container rc-container--rooms">
       <div class="rc-section__header">
         <h1>Payment</h1>
         <p>Review your order and complete payment</p>
       </div>
 
-      <!-- Order Summary — collapsible: collapsed = ringkasan + Total sahaja;
-           expand = breakdown penuh + voucher/referral code. -->
-      <div class="rc-card rc-card--summary">
-        <div class="rc-order-summary__head" id="orderSummaryHead">
-          <div>
-            <h3 class="rc-card__title" style="margin-bottom:2px">Order Summary</h3>
-            <p class="rc-order-summary__trip" id="orderSummaryTrip"></p>
-            <p class="rc-order-summary__sub" id="orderSummarySub"></p>
+      <div class="rc-rooms-grid">
+        <!-- LEFT COLUMN: Payment Amount, Payment Method -->
+        <div class="rc-rooms-list-col">
+
+          <!-- Payment Amount (custom amount: min deposit 20%, max full) -->
+          <div class="rc-card" id="paymentAmountCard">
+            <h3 class="rc-card__title">Payment Amount</h3>
+            <div class="rc-pay-amount">
+              <span class="rc-pay-amount__prefix">RM</span>
+              <input type="number" class="rc-pay-amount__input" id="payAmountInput" inputmode="decimal" step="50" placeholder="0">
+              <i class="ti ti-pencil rc-pay-amount__icon"></i>
+            </div>
+            <p class="rc-pay-amount__hint">Tap to enter a custom amount</p>
+            <div class="rc-pay-quick">
+              <button type="button" class="rc-pay-chip" id="payDepositChip">
+                <span class="rc-pay-chip__label" id="payDepositChipLabel">Deposit (20%)</span>
+                <span id="chipDeposit" class="rc-pay-chip__amount">RM 0</span>
+              </button>
+              <button type="button" class="rc-pay-chip" id="payFullChip">
+                <span class="rc-pay-chip__label">Pay in full</span>
+                <span id="chipFull" class="rc-pay-chip__amount">RM 0</span>
+              </button>
+            </div>
+
+            <div class="rc-pay-error" id="payAmountError" style="display:none"></div>
+            <div class="rc-deposit-notice" id="depositNotice" style="display:none">
+              <i class="ti ti-alert-triangle"></i>
+              <span>
+                <strong>Without full payment, the booking cannot be confirmed.</strong><br>
+                Balance of <strong id="balanceAmt">RM 0</strong> due before departure.
+              </span>
+            </div>
           </div>
-          <i class="ti ti-chevron-down rc-order-summary__chev" id="orderSummaryChev"></i>
+
+          <!-- Payment Method: Online or Manual -->
+          <div class="rc-card">
+            <h3 class="rc-card__title">Payment Method</h3>
+            <div class="rc-radio-group">
+              <label class="rc-radio-option selected" id="labelOnline">
+                <input type="radio" name="paymentMethod" value="Online Payment" checked onchange="onPaymentMethodChange(this)">
+                <div class="rc-radio-option__content">
+                  <span class="rc-radio-option__label"><i class="ti ti-credit-card"></i> Online Payment</span>
+                </div>
+              </label>
+              <label class="rc-radio-option" id="labelManual">
+                <input type="radio" name="paymentMethod" value="Manual Transfer" onchange="onPaymentMethodChange(this)">
+                <div class="rc-radio-option__content">
+                  <span class="rc-radio-option__label">
+                    <i class="ti ti-building-bank"></i> Manual Bank Transfer
+                    <span class="rc-cashback-badge" id="cashbackBadge">5% cashback</span>
+                  </span>
+                  <small class="rc-cashback-note" id="cashbackNote">Get 5% cashback when you pay via bank transfer</small>
+                </div>
+              </label>
+              <label class="rc-radio-option" id="labelPayLater">
+                <input type="radio" name="paymentMethod" value="Pay Later" onchange="onPaymentMethodChange(this)">
+                <div class="rc-radio-option__content">
+                  <span class="rc-radio-option__label"><i class="ti ti-clock"></i> Pay Later</span>
+                  <small class="rc-cashback-note">Secure your booking now, pay anytime via your portal</small>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Manual Transfer -->
+          <div class="rc-card" id="manualTransferCard" style="display:none">
+            <h3 class="rc-card__title"><i class="ti ti-building-bank"></i> Bank Transfer Details</h3>
+            <div class="rc-bank-details">
+              <div class="rc-bank-row"><span>Bank</span><strong id="bankNameDisplay">Maybank</strong></div>
+              <div class="rc-bank-row"><span>Account Name</span><strong id="bankAccountNameDisplay">Rarecation Sdn Bhd</strong></div>
+              <div class="rc-bank-row"><span>Account No</span><strong id="bankAccountNumberDisplay">1234 5678 9012</strong></div>
+            </div>
+            <div class="rc-form-group" style="margin-top:16px">
+              <label class="rc-label">Bank Transfer Reference No. <span class="rc-required">*</span></label>
+              <input type="text" class="rc-input" id="bankTransferRefInput"
+                     placeholder="reference number from your bank">
+              <small style="color:var(--rc-text-muted, #888)">
+                Enter the reference/transaction number your bank gave you for this transfer, this helps us match your payment faster.
+              </small>
+            </div>
+            <div class="rc-form-group" style="margin-top:16px">
+              <label class="rc-label">Upload Payment Receipt <span class="rc-required">*</span></label>
+              <div class="rc-file-upload" id="receiptUploadArea">
+                <input type="file" id="receiptFile" accept="image/*,.pdf" style="display:none" onchange="onReceiptSelected(this)">
+                <div class="rc-file-upload__inner" onclick="document.getElementById('receiptFile').click()">
+                  <i class="ti ti-upload"></i>
+                  <p>Click to upload receipt</p>
+                  <small>JPG, PNG or PDF — max 5MB</small>
+                </div>
+              </div>
+              <div id="receiptFileName" style="display:none;margin-top:8px;font-size:12px;color:var(--rc-green)">
+                <i class="ti ti-check"></i> <span id="receiptFileNameText"></span>
+              </div>
+            </div>
+            <div class="rc-notice rc-notice--info" style="margin-top:12px">
+              <i class="ti ti-clock"></i>
+              <span>Your booking will be confirmed within 1-2 business days after payment verification.</span>
+            </div>
+          </div>
+
         </div>
-        <div class="rc-order-summary__body" id="orderSummaryBody" style="display:none">
+
+        <!-- RIGHT COLUMN: Order Summary (senarai penuh, tiada collapse) +
+             Sales Person + Total — sticky, sepadan pattern "Payment
+             Summary" di Step 1 (Rooms & Passengers). Dibungkus rc-card
+             (putih) supaya rc-summary-panel (grey) NAMPAK kontras — tanpa
+             ni ia duduk terus atas body background yang SAMA warna grey,
+             jadi tak nampak langsung. -->
+        <div class="rc-card rc-summary-card-wrap">
+        <div class="rc-summary-panel rc-summary-panel--flat">
+          <h4 class="rc-summary-panel__title">Order Summary</h4>
+          <p class="rc-order-summary__trip" id="orderSummaryTrip"></p>
+          <p class="rc-order-summary__sub" id="orderSummarySub"></p>
+
           <div id="orderLines"></div>
 
           <div class="rc-voucher-row" id="voucherDiscountRow" style="display:none">
@@ -261,13 +363,12 @@ if ('serviceWorker' in navigator) {
             </span>
             <span id="cashbackDiscountAmt" style="color:var(--rc-green)">-RM 0</span>
           </div>
-          <div class="rc-order-total">
-            <span>Total</span>
-            <strong id="orderGrandTotal">RM 0</strong>
-          </div>
 
-          <div class="rc-voucher-block" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--rc-gray-100)">
-            <div class="rc-voucher-row">
+          <!-- Voucher + Referral — dipindah ke Order Summary (sepadan Sales
+               Person di bawah), bukan card berasingan di lajur kiri. -->
+          <div style="border-top:1px solid var(--rc-gray-100);margin-top:14px;padding-top:14px">
+            <p class="rc-card__title" style="margin-bottom:8px;font-size:13px">Voucher Code</p>
+            <div class="rc-voucher-row" style="margin-bottom:12px">
               <input type="text" class="rc-input rc-input--voucher" id="voucherInput"
                      placeholder="Enter voucher code" autocomplete="off"
                      onkeydown="if(event.key==='Enter') onVoucherBtnClick()"
@@ -276,10 +377,9 @@ if ('serviceWorker' in navigator) {
                 Apply
               </button>
             </div>
-            <div id="voucherMsg" style="display:none;margin-top:8px;font-size:12px"></div>
-          </div>
+            <div id="voucherMsg" style="display:none;margin-bottom:12px;font-size:12px"></div>
 
-          <div class="rc-voucher-block" style="margin-top:10px">
+            <p class="rc-card__title" style="margin-bottom:8px;font-size:13px">Referral Code</p>
             <div class="rc-voucher-row">
               <input type="text" class="rc-input rc-input--voucher" id="affiliateInput"
                      placeholder="Enter referral code" autocomplete="off"
@@ -291,115 +391,27 @@ if ('serviceWorker' in navigator) {
             </div>
             <div id="affiliateMsg" style="display:none;margin-top:8px;font-size:12px"></div>
           </div>
-        </div>
-      </div>
 
-      <!-- Sales Person — optional, boleh tambah lebih dari satu. Cuma nama
-           disimpan; peratus/komisen (Contribution %, dll) biarkan kosong
-           untuk admin isi sendiri di Desk kalau perlu (sekadar tracking). -->
-      <div class="rc-card">
-        <div class="rc-rooms-header">
-          <h3 class="rc-card__title" style="margin-bottom:0">Sales Person <span class="rc-optional">(Optional)</span></h3>
-          <button class="rc-add-room" id="addSalesPersonBtn" type="button">
-            <i class="ti ti-plus"></i> Add another
-          </button>
-        </div>
-        <div id="salesPersonList"></div>
-      </div>
-
-      <!-- Payment Amount (custom amount: min deposit 20%, max full) -->
-      <div class="rc-card" id="paymentAmountCard">
-        <h3 class="rc-card__title">Payment Amount</h3>
-        <div class="rc-pay-amount">
-          <span class="rc-pay-amount__prefix">RM</span>
-          <input type="number" class="rc-pay-amount__input" id="payAmountInput" inputmode="decimal" step="50" placeholder="0">
-          <i class="ti ti-pencil rc-pay-amount__icon"></i>
-        </div>
-        <p class="rc-pay-amount__hint">Tap to enter a custom amount</p>
-        <div class="rc-pay-quick">
-          <button type="button" class="rc-pay-chip" id="payDepositChip">
-            <span class="rc-pay-chip__label" id="payDepositChipLabel">Deposit (20%)</span>
-            <span id="chipDeposit" class="rc-pay-chip__amount">RM 0</span>
-          </button>
-          <button type="button" class="rc-pay-chip" id="payFullChip">
-            <span class="rc-pay-chip__label">Pay in full</span>
-            <span id="chipFull" class="rc-pay-chip__amount">RM 0</span>
-          </button>
-        </div>
-
-        <div class="rc-pay-error" id="payAmountError" style="display:none"></div>
-        <div class="rc-deposit-notice" id="depositNotice" style="display:none">
-          <i class="ti ti-alert-triangle"></i>
-          <span>
-            <strong>Without full payment, the booking cannot be confirmed.</strong><br>
-            Balance of <strong id="balanceAmt">RM 0</strong> due before departure.
-          </span>
-        </div>
-      </div>
-
-      <!-- Payment Method: Online or Manual -->
-      <div class="rc-card">
-        <h3 class="rc-card__title">Payment Method</h3>
-        <div class="rc-radio-group">
-          <label class="rc-radio-option selected" id="labelOnline">
-            <input type="radio" name="paymentMethod" value="Online Payment" checked onchange="onPaymentMethodChange(this)">
-            <div class="rc-radio-option__content">
-              <span class="rc-radio-option__label"><i class="ti ti-credit-card"></i> Online Payment</span>
+          <!-- Sales Person — optional, boleh tambah lebih dari satu. Cuma
+               nama disimpan; peratus/komisen (Contribution %, dll) biarkan
+               kosong untuk admin isi sendiri di Desk kalau perlu (sekadar
+               tracking). Dipindah ke sini (dalam Order Summary) — sepadan
+               reka bentuk baharu. -->
+          <div style="border-top:1px solid var(--rc-gray-100);margin-top:14px;padding-top:14px">
+            <div class="rc-rooms-header">
+              <h3 class="rc-card__title" style="margin-bottom:0;font-size:13px">Sales Person <span class="rc-optional">(Optional)</span></h3>
+              <button class="rc-add-room" id="addSalesPersonBtn" type="button">
+                <i class="ti ti-plus"></i> Add another
+              </button>
             </div>
-          </label>
-          <label class="rc-radio-option" id="labelManual">
-            <input type="radio" name="paymentMethod" value="Manual Transfer" onchange="onPaymentMethodChange(this)">
-            <div class="rc-radio-option__content">
-              <span class="rc-radio-option__label">
-                <i class="ti ti-building-bank"></i> Manual Bank Transfer
-                <span class="rc-cashback-badge" id="cashbackBadge">5% cashback</span>
-              </span>
-              <small class="rc-cashback-note" id="cashbackNote">Get 5% cashback when you pay via bank transfer</small>
-            </div>
-          </label>
-          <label class="rc-radio-option" id="labelPayLater">
-            <input type="radio" name="paymentMethod" value="Pay Later" onchange="onPaymentMethodChange(this)">
-            <div class="rc-radio-option__content">
-              <span class="rc-radio-option__label"><i class="ti ti-clock"></i> Pay Later</span>
-              <small class="rc-cashback-note">Secure your booking now, pay anytime via your portal</small>
-            </div>
-          </label>
-        </div>
-      </div>
-
-      <!-- Manual Transfer -->
-      <div class="rc-card" id="manualTransferCard" style="display:none">
-        <h3 class="rc-card__title"><i class="ti ti-building-bank"></i> Bank Transfer Details</h3>
-        <div class="rc-bank-details">
-          <div class="rc-bank-row"><span>Bank</span><strong id="bankNameDisplay">Maybank</strong></div>
-          <div class="rc-bank-row"><span>Account Name</span><strong id="bankAccountNameDisplay">Rarecation Sdn Bhd</strong></div>
-          <div class="rc-bank-row"><span>Account No</span><strong id="bankAccountNumberDisplay">1234 5678 9012</strong></div>
-        </div>
-        <div class="rc-form-group" style="margin-top:16px">
-          <label class="rc-label">Bank Transfer Reference No. <span class="rc-required">*</span></label>
-          <input type="text" class="rc-input" id="bankTransferRefInput"
-                 placeholder="FPX123456789">
-          <small style="color:var(--rc-text-muted, #888)">
-            Enter the reference number your bank gave you for this transfer.
-          </small>
-        </div>
-        <div class="rc-form-group" style="margin-top:16px">
-          <label class="rc-label">Upload Payment Receipt <span class="rc-required">*</span></label>
-          <div class="rc-file-upload" id="receiptUploadArea">
-            <input type="file" id="receiptFile" accept="image/*,.pdf" style="display:none" onchange="onReceiptSelected(this)">
-            <div class="rc-file-upload__inner" onclick="document.getElementById('receiptFile').click()">
-              <i class="ti ti-upload"></i>
-              <p>Click to upload receipt</p>
-              <small>JPG, PNG or PDF — max 5MB</small>
-            </div>
+            <div id="salesPersonList"></div>
           </div>
-          <div id="receiptFileName" style="display:none;margin-top:8px;font-size:12px;color:var(--rc-green)">
-            <i class="ti ti-check"></i> <span id="receiptFileNameText"></span>
+
+          <div class="rc-order-total" style="border-top:1px solid var(--rc-gray-100);margin-top:14px;padding-top:14px">
+            <span>Total</span>
+            <strong id="orderGrandTotal">RM 0</strong>
           </div>
         </div>
-        <div class="rc-notice rc-notice--info" style="margin-top:12px">
-          <i class="ti ti-clock"></i>
-          <span>Your booking will be confirmed within 1-2 business days after payment verification.</span>
         </div>
       </div>
 

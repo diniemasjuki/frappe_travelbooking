@@ -1499,6 +1499,14 @@ body {
 
 @media (max-width: 680px) {
   .rc-rooms-grid { grid-template-columns: 1fr; }
+
+  /* Step Payment sahaja — Order Summary muncul DULU di mobile, baru
+     Payment Amount/Method di bawah dia. Guna CSS 'order' (bukan ubah
+     susunan HTML) supaya desktop kekal tak terjejas (grid 2 lajur biasa
+     ikut source order — kiri/kanan macam sekarang). Rooms & Passengers
+     (guna class rc-rooms-grid yang sama) TIDAK terjejas — selector ni
+     scoped khusus #step3. */
+  #step3 .rc-summary-card-wrap { order: -1; }
 }
 
 .rc-summary-panel {
@@ -1506,6 +1514,14 @@ body {
   border-radius: var(--rc-radius-lg);
   padding: 14px 14px;
   min-width: 0;
+}
+
+/* Order Summary di Step Payment — buang grey box dalaman, biar putih
+   sahaja (outer .rc-card dah bagi background putih + padding sendiri,
+   .rc-summary-panel--flat cuma reset supaya tak double-layer grey). */
+.rc-summary-panel--flat {
+  background: transparent;
+  padding: 0;
 }
 
 .rc-summary-panel__title {
@@ -1986,7 +2002,7 @@ body {
   padding: 10px 12px;
   border: 1.5px solid var(--rc-gray-200);
   border-radius: var(--rc-radius);
-  background: var(--rc-white);
+  background: var(--rc-gray-100);
   font-family: "Archivo", sans-serif;
   cursor: pointer;
   transition: all var(--rc-transition);

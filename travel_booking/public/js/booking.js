@@ -912,7 +912,7 @@ function renderRooms() {
       sel.className = "rc-select";
       var ph = document.createElement("option");
       ph.value = "";
-      ph.textContent = " Select cabin type ";
+      ph.textContent = "\u2014 Select cabin type \u2014";
       if (!room.room_category) ph.selected = true;
       sel.appendChild(ph);
       avail.forEach(function(cab) {
@@ -1744,7 +1744,7 @@ function renderSalesPersonRows() {
     sel.className = "rc-select";
     var ph = document.createElement("option");
     ph.value = "";
-    ph.textContent = " Select Sales Person ";
+    ph.textContent = "— None —";
     if (!row.value) ph.selected = true;
     sel.appendChild(ph);
     state_sales_persons_available.forEach(function(sp) {
@@ -1775,16 +1775,6 @@ function renderSalesPersonRows() {
 }
 
 document.getElementById("addSalesPersonBtn").addEventListener("click", addSalesPersonRow);
-
-// Order Summary collapse toggle — collapsed by default (ringkasan + Total
-// sahaja); klik head untuk expand/collapse breakdown + voucher/referral.
-document.getElementById("orderSummaryHead").addEventListener("click", function() {
-  var body = document.getElementById("orderSummaryBody");
-  var chev = document.getElementById("orderSummaryChev");
-  var open = body.style.display === "block";
-  body.style.display = open ? "none" : "block";
-  chev.classList.toggle("rc-order-summary__chev--open", !open);
-});
 
 function renderPaymentSettingsUI() {
   var s = state_payment_settings;
