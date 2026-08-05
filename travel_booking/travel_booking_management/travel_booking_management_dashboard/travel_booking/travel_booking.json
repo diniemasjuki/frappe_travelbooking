@@ -2,7 +2,7 @@
  "cards": [],
  "charts": [
   {
-   "chart": "Booking Enrollment",
+   "chart": "Traveller Enrollment",
    "width": "Full"
   }
  ],
@@ -10,10 +10,10 @@
  "dashboard_name": "Travel Booking",
  "docstatus": 0,
  "doctype": "Dashboard",
- "idx": 0,
+ "idx": 1,
  "is_default": 1,
  "is_standard": 1,
- "modified": "2026-08-04 09:52:48.746895",
+ "modified": "2026-08-05 13:52:27.543667",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Booking",

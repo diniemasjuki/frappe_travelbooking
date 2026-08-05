@@ -22,7 +22,7 @@ class TripCruiseSchedule(Document):
 
 		cabin_rates: DF.Table[TripPackagePrice]
 		cruise_line_company: DF.Link | None
-		naming_series: DF.Literal[".ship_code.-.YY.###"]
+		naming_series: DF.Literal[".ship_code.-.YY.#"]
 		port_end: DF.Link
 		port_start: DF.Link
 		sail_end: DF.Date

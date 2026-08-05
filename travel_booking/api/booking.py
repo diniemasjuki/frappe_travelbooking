@@ -147,7 +147,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
 
     trip = frappe.db.get_value(
         "Trip", td.trip,
-        ["name", "trip_name", "trip_code", "description", "is_a_cruise_trip"],
+        ["name", "trip_name", "description", "is_a_cruise_trip"],
         as_dict=True
     )
     if not trip:
@@ -200,7 +200,6 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
         "trip": {
             "name":             trip.name,
             "trip_name":        trip.trip_name,
-            "trip_code":        trip.trip_code,
             "description":      trip.description or "",
             "is_a_cruise_trip": bool(trip.is_a_cruise_trip),
         },

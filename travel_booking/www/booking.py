@@ -11,7 +11,7 @@ def get_context(context):
     trip_group_date = frappe.form_dict.get("trip_group_date")
 
     trips = frappe.db.sql("""
-        SELECT name, trip_name, trip_code
+        SELECT name, trip_name
         FROM `tabTrip`
         WHERE status = 'Active'
         ORDER BY trip_name

@@ -20,7 +20,7 @@
  "label": "Trip Booking Management",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-08-05 03:56:55.316923",
+ "modified": "2026-08-05 13:54:30.166867",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Booking Management",
@@ -56,20 +56,6 @@
  "sequence_id": 37.0,
  "shortcuts": [],
  "sidebar_items": [
-  {
-   "child": 0,
-   "collapsible": 1,
-   "default_workspace": 0,
-   "icon": "house-heart",
-   "indent": 0,
-   "keep_closed": 0,
-   "label": "Home",
-   "link_type": "URL",
-   "open_in_new_tab": 0,
-   "show_arrow": 0,
-   "type": "Link",
-   "url": "/desk/trip-booking"
-  },
   {
    "child": 0,
    "collapsible": 0,
