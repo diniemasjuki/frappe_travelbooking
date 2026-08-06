@@ -33,7 +33,29 @@ const _CACHE = {
 };
 
 /* ── API helpers ── */
-const _csrfToken = () => document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+// Token dari pageData (rujuk www/traveller_portal.py) — SATU-SATUNYA sumber
+// boleh dipercayai bila session semasa authenticated (customer login via
+// magic link, atau link terus dari emel yang assume session sedia ada dari
+// tab lain — cookie session dikongsi across SEMUA tab dalam browser yang
+// sama). Cookie 'csrftoken' browser TAK reliable disegerakkan lepas
+// login_manager.login_as() dalam magic-link flow kita — baca dia je punca
+// semua POST (check_session, get_google_login_url, dsb) gagal "invalid
+// request" walaupun customer sah login, portal salah anggap "belum login".
+//
+// Fallback ke cookie kalau CSRF_TOKEN kosong — ini kes Guest tulen
+// (customer belum login langsung), cookie kosong pun selamat sebab
+// endpoint portal semua allow_guest.
+const _pageData = (function() {
+  try {
+    var el = document.getElementById('pageData');
+    return el ? JSON.parse(el.textContent) : {};
+  } catch (e) {
+    return {};
+  }
+})();
+const CSRF_TOKEN = _pageData.csrf_token || '';
+
+const _csrfToken = () => CSRF_TOKEN || (document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '');
 
 const _post = (path, body) =>
   fetch(path, {

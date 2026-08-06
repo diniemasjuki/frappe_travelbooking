@@ -617,6 +617,10 @@
   </div>
 </div>
 
+<script id="pageData" type="application/json">
+{"csrf_token": "{{ csrf_token }}"}
+</script>
+
 <script src="/assets/travel_booking/js/portal.js"></script>
 <script src="/assets/travel_booking/js/portal_booking.js"></script>
 <script src="/assets/travel_booking/js/portal_payment.js"></script>
@@ -633,7 +637,12 @@
 <script src="/assets/travel_booking/js/portal_traveller.js"></script>
 <script src="/assets/travel_booking/js/portal_wizard.js"></script>
 <script>
-
+// PWA/Service Worker DIPAUSE buat sementara (sw.js, manifest-customer.json
+// dan icon PWA dah dipadam dari codebase). Cuma unregister — TIADA
+// register semula — supaya browser customer sedia ada yang dah ada SW
+// aktif (scope betul MAHUPUN salah, rujuk diskusi bug counter sebelum
+// ni) dibersihkan sepenuhnya. Bila PWA disusun semula nanti, tambah
+// balik registration di sini dengan scope eksplisit dari awal.
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then(function(regs) {
     regs.forEach(function(reg) { reg.unregister(); });
