@@ -38,7 +38,7 @@
   --font-display: 'DM Serif Display', serif;
 
   /* ── Radii ── */
-  --radius-sm: 8px;
+  --radius-sm: 5px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
@@ -674,3 +674,41 @@ select option { background: var(--bg-primary); }
   font-family: var(--font-body);
 }
 .iti__selected-country { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+
+.magiclink-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Roboto', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #4285F4; /* Google Blue */
+  color: #fff;
+  font-family: 'Roboto', sans-serif;
+  font-weight: 500;
+  font-size: 14px;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.google-btn:hover {
+  background-color: #357ae8; /* darker hover */
+}
+
+.google-btn:active {
+  background-color: #2a65d6;
+}
