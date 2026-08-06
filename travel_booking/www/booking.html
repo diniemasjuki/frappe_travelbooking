@@ -63,14 +63,14 @@ if ('serviceWorker' in navigator) {
   <section class="rc-section active" id="step0">
     <div class="rc-container rc-container--narrow">
       <div class="rc-section__header">
-        <h1>Book Your Cruise</h1>
-        <p>Select your preferred trip and departure date to begin</p>
+        <h1>Plan Your Journey</h1>
+        <p>Select your preferred destination and departure date to begin</p>
       </div>
       <div class="rc-card">
         <div class="rc-form-group">
           <label class="rc-label">Select Trip</label>
           <div class="rc-select-wrapper">
-            <select class="rc-select" id="tripSelect">
+            <select class="rc-select" id="tripSelect" style="background:#FBF5E6; border-bottom: 1px solid var(--rc-gold);">
               <option value="">Choose your trip</option>
               {% for trip in trips %}
               <option value="{{ trip.name }}">
@@ -215,7 +215,7 @@ if ('serviceWorker' in navigator) {
           <i class="ti ti-arrow-left"></i> Back
         </button>
         <button class="rc-btn rc-btn--primary" id="step2Next" disabled>
-          Continue to Payment <i class="ti ti-arrow-right"></i>
+          Continue <i class="ti ti-arrow-right"></i>
         </button>
       </div>
     </div>

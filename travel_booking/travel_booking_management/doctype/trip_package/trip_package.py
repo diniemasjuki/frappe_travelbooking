@@ -61,9 +61,10 @@ class TripPackage(Document):
 
 		if not self.currency:
 			self.currency = "MYR"
-
-		if package_type == "GP":
+			
+		if package_type == "CO" or package_type == "GP":
 			self.airport_form = None
+			airport = None
 					
 		if not self.package_code:
 			self.package_code = (self.trip_link + " / " + package_type + airport ).upper().replace(" ","").replace("/",":").strip()

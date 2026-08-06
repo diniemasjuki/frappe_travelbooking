@@ -40,7 +40,8 @@ const state = {
 // ─── HELPERS ──────────────────────────────────────────────
 function fmtDate(iso) {
   if (!iso) return "";
-  var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  var months = ["Jan","Feb","Mac","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  // var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   var parts = String(iso).split("-");
   if (parts.length !== 3) return iso;
   return parseInt(parts[2],10) + " " + (months[parseInt(parts[1],10)-1] || "") + " " + parts[0];
@@ -242,13 +243,16 @@ function renderPackages(TripGroupDate) {
   }
   packageGroup.style.display = "block";
   pkgs.forEach(function(p) {
+    
     var btn = document.createElement("button");
     btn.className    = "rc-date-btn";
     btn.dataset.name = p.name;
+
     var label = p.flight_label === "No Flight"
       ? "Cruise Only"
-      : "From: " + p.flight_label;
-    btn.innerHTML = '<span class="rc-date-btn__name">' + label + '</span>';
+      : "<p class=\"rc-date-btn__dates\" style=\"font-weight:100; font-size: 10px;\">" + p.flight_label + "</p><p class=\"rc-date-btn__name\">Fly from <b>" + p.flight + "</b></p>";
+    
+      btn.innerHTML = '<span class="rc-date-btn__name">' + label + '</span>';
     btn.addEventListener("click", function() {
       packageGrid.querySelectorAll(".rc-date-btn").forEach(function(b) { b.classList.remove("selected"); });
       this.classList.add("selected");
@@ -288,21 +292,23 @@ tripSelect.addEventListener("change", function() {
 
     //detecting Cruise Trip Package
     var a = g.trip_group_name.split(" : ");
-    if(a.length == 3){ var cruise = a[2] ; 
-      if(cruise == "Tour Trip") { cruise = ""; } else { cruise = " <br/>(" + cruise + ")"; }
+    if(a.length == 3){ 
+      var cruise = a[2] ; 
+      if(cruise == "Cruise Only" || cruise == "Fly Cruise") { cruise = cruise + " for ";  }
+      else{ cruise = ""; }
     } else { var cruise = ""; }
     
-    var durTxt = (g.total_days ? (g.total_days + "D") : "") + (g.total_nights ? (" " + g.total_nights + "N") : "");
+    var durTxt = (g.total_days ? (g.total_days + " Day ") : "") + (g.total_nights ? (" " + g.total_nights + " Night") : "");
+
     btn.innerHTML    =
-      '<span class="rc-date-btn__name">' + fmtDate(g.departure_date) + ' \u2013 ' + fmtDate(g.return_date) + cruise + '</span>' +
-      (durTxt ? '<span class="rc-date-btn__dates">' + durTxt + '</span>' : '');    
+      (durTxt ? '<span class="rc-date-btn__dates">' + cruise + durTxt + '</span>' : '')
+      + '<span class="rc-date-btn__name">' + fmtDate(g.departure_date) + '  \u2013  ' + fmtDate(g.return_date) + '</span>';    
       btn.addEventListener("click", function() {
       dateGrid.querySelectorAll(".rc-date-btn").forEach(function(b) { b.classList.remove("selected"); });
       this.classList.add("selected");
       selectedGroup = g;
       renderPackages(g.name);
     });
-
     dateGrid.appendChild(btn);
   });
 });
@@ -1017,17 +1023,24 @@ function renderRooms() {
       // capFor() semula bila Infant yang berubah.
       var stepperRefreshers = [];
 
-      counters.appendChild(mkStepper(room, "main_guests", "Main Guest", capacity, function() {
+      console.log(pricing);
+      counters.appendChild(mkStepper(room, "main_guests", "Main Guest (Adults 12 years old and above)", capacity, function() {
+        if(!pricing.price_adult ){ pricing.price_adult = 0; }
         return room.main_guests === 1
           ? fmt(pricing.price_adult_single) + " /pax"
           : fmt(pricing.price_adult) + " /pax";
-      }, stepperRefreshers, "12 years old and above"));
-      counters.appendChild(mkStepper(room, "extra_beds", "Extra Bed", 0, function() {
+      }, stepperRefreshers));
+      // }, stepperRefreshers, "12 years old and above"));
+
+      counters.appendChild(mkStepper(room, "extra_beds", "Extra Bed ", 0, function() {
+        if(!pricing.price_upperberth ){ pricing.price_upperberth = 0; }
         return fmt(pricing.price_upperberth) + " /pax";
       }, stepperRefreshers));
-      counters.appendChild(mkStepper(room, "infants", "Infant", 0, function() {
+
+      counters.appendChild(mkStepper(room, "infants", "Infant (6-23 months old)", 0, function() {
+        if(!pricing.price_infant ){ pricing.price_infant = 0; }
         return fmt(pricing.price_infant) + " /pax";
-      }, stepperRefreshers, "6 - 23 months old"));
+      }, stepperRefreshers));
 
       card.appendChild(typeField);
       if (cabinInfo) card.appendChild(cabinInfo);

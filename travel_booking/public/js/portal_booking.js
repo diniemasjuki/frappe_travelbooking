@@ -14,6 +14,9 @@ function renderBookingList() {
   }
 
   container.innerHTML = SESSION.bookings.map(bk => {
+
+    console.log('renderBookingList: booking', bk);
+
     const bref        = bk.booking_number || bk.name;
     const isCancelled = bk.booking_status === 'Cancelled';
     const locked      = isCancelled;
@@ -70,7 +73,7 @@ function renderBookingList() {
       "Completed":  { bg: "#DCFCE7", fg: "#166534", label: "Completed" },
     };
     const sb = statusBadgeMap[bk.booking_status] || { bg: "#F0EDE7", fg: "#5C5850", label: bk.booking_status || "-" };
-    const statusHtml = `<span style="font-size:11px;font-weight:600;padding:4px 12px;border-radius:20px;background:${sb.bg};color:${sb.fg};white-space:nowrap">${sb.label}</span>`;
+    const statusHtml = `<span style="font-size:11px;font-weight:600;padding:4px 12px;border-radius:20px;background:${sb.bg};color:${sb.fg};white-space:nowrap; line-height:1.1"><span style="font-size:8px; font-weight:100;">Booking</span><br/> ${sb.label}</span>`;
 
     return `
       <div onclick="openPortal('${bref}')" style="

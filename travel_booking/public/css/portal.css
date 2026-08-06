@@ -551,23 +551,6 @@ select option { background: var(--bg-primary); }
 }
 .dl-btn:hover { background: var(--c-accent-mid); border-color: var(--c-accent); }
 
-/* ── Responsive ── */
-@media (max-width: 600px) {
-  .g2 { grid-template-columns: 1fr; }
-  .stat2 { grid-template-columns: 1fr; }
-  .login-box { padding: 28px 24px; }
-  .body { padding: 20px 16px; }
-  .nav { padding: 0 16px; height: auto; min-height: 52px; flex-wrap: nowrap; gap: 8px; }
-  .nav-sub { padding: 7px 16px; }
-  .tabs { padding: 0 16px; }
-  .tab { padding: 12px 14px; font-size: 12px; }
-  .trip-hero, .card { padding: 16px 18px; }
-  .logo img { height: 28px; }
-  .nav-nm { font-size: 11px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .nav-right { gap: 8px; flex-shrink: 0; min-width: 0; }
-  .btn-logout { font-size: 11px; padding: 5px 10px; white-space: nowrap; }
-  .av { width: 28px; height: 28px; font-size: 10px; flex-shrink: 0; }
-}
 /* ══════════════════════════════════════════════
    Slot Cards & Booking Cards (merged from customer.css)
    ══════════════════════════════════════════════ */
@@ -676,7 +659,7 @@ select option { background: var(--bg-primary); }
 .iti__selected-country { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
 
 .magiclink-btn {
-  display: flex;
+  display: inline;
   align-items: center;
   justify-content: center;
   font-family: 'Roboto', sans-serif;
@@ -690,7 +673,7 @@ select option { background: var(--bg-primary); }
 }
 
 .google-btn {
-  display: flex;
+  display: inline;
   align-items: center;
   justify-content: center;
   background-color: #4285F4; /* Google Blue */
@@ -712,3 +695,46 @@ select option { background: var(--bg-primary); }
 .google-btn:active {
   background-color: #2a65d6;
 }
+
+
+
+
+/* ── Responsive : tablet ── */
+@media (max-width: 800px) {
+  .g2 { grid-template-columns: 1fr; }
+  .stat2 { grid-template-columns: 1fr; }
+  .login-box { padding: 28px 24px; }
+  .body { padding: 20px 16px; }
+  .nav { padding: 0 16px; height: auto; min-height: 52px; flex-wrap: nowrap; gap: 8px; }
+  /* .nav-sub { padding: 7px 16px; } */
+  .tabs { padding: 0 16px; }
+  .tab { padding: 12px 14px; font-size: 12px; }
+  .trip-hero, .card { padding: 16px 18px; }
+  .logo img { height: 28px; }
+  .nav-nm { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-right { gap: 8px; flex-shrink: 0; min-width: 0; }
+  .btn-logout { font-size: 11px; padding: 5px 10px; white-space: nowrap; }
+  .av { width: 28px; height: 28px; font-size: 10px; flex-shrink: 0; }
+}
+
+
+/* ── Responsive : phone ── */
+@media (max-width: 500px) {
+  .g2 { grid-template-columns: 1fr; }
+  .stat2 { grid-template-columns: 1fr; }
+  .login-box { padding: 28px 24px; }
+  .body { padding: 20px 16px; }
+  .nav { padding: 0 16px; height: auto; min-height: 52px; flex-wrap: nowrap; gap: 8px; display:block; padding:15px; }
+  .tabs { padding: 0 16px; }
+  .tab { padding: 12px 14px; font-size: 12px; }
+  .trip-hero, .card { padding: 16px 18px; }
+  .logo img { height: 28px; }
+  .nav-nm { font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nav-right { gap: 8px; flex-shrink: 0; min-width: 0; justify-content: left; margin-top:10px; }
+  .btn-logout { font-size: 11px; padding: 5px 10px; white-space: nowrap; position: absolute; top: 25px; right: 10px; }
+  .av { display:none; }
+  .nav-sub { display:none; }
+}
+
+/* dinie custom */
+.nav-sub{display:none;}

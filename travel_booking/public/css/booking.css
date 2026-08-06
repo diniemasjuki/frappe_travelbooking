@@ -130,9 +130,7 @@ body {
   display: none;
 }
 
-@media (min-width: 600px) {
-  .rc-step span { display: inline; }
-}
+
 
 .rc-step__line {
   width: 20px;
@@ -250,7 +248,7 @@ body {
 }
 
 /* ─── FORM ─────────────────────────────────────────────── */
-.rc-form-group { margin-bottom: 16px; }
+.rc-form-group { margin-bottom: 32px; }
 .rc-form-group:last-child { margin-bottom: 0; }
 
 .rc-form-row {
@@ -259,14 +257,12 @@ body {
   gap: 16px;
 }
 
-@media (max-width: 480px) {
-  .rc-form-row { grid-template-columns: 1fr; }
-}
+
 
 .rc-label {
   display: block;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 800;
   color: var(--rc-black);
   margin-bottom: 6px;
 }
@@ -338,13 +334,15 @@ body {
 .rc-select {
   width: 100%;
   height: 44px;
-  border: 1.5px solid var(--rc-gray-200);
+  border:0;
+  border-bottom: 1.5px solid var(--rc-gray-200);
   border-radius: var(--rc-radius);
   padding: 0 40px 0 14px;
   font-family: "Archivo", sans-serif;
   font-size: 14px;
   color: var(--rc-black);
-  background: var(--rc-white);
+  /* background: var(--rc-white); */
+  background: #fef5e6;
   appearance: none;
   cursor: pointer;
   outline: none;
@@ -408,8 +406,10 @@ body {
 }
 
 .rc-date-btn {
-  background: var(--rc-white);
-  border: 1.5px solid var(--rc-gray-200);
+  /* background: var(--rc-white); */
+  background: #fafafa;
+  border:0;
+  border-bottom: 1px solid var(--rc-gray-200);
   border-radius: var(--rc-radius);
   padding: 12px 14px;
   text-align: left;
@@ -426,21 +426,23 @@ body {
 .rc-date-btn.selected {
   border-color: var(--rc-gold);
   background: #FBF5E6;
-  box-shadow: 0 0 0 3px rgba(201,168,76,0.15);
+  /* box-shadow: 0 0 0 3px rgba(201,168,76,0.15); */
 }
 
 .rc-date-btn__name {
   display: block;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 15px;
+  /* font-weight: 600; */
   color: var(--rc-black);
-  margin-bottom: 3px;
+  margin-bottom: 0px;
+  line-height: 1;
 }
 
 .rc-date-btn__dates {
   display: block;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--rc-gray-600);
+  margin-bottom:5px;
 }
 
 /* ─── TRIP BANNER ──────────────────────────────────────── */
@@ -1446,10 +1448,6 @@ body {
   margin: 0 6px;
 }
 
-@media (max-width: 680px) {
-  .rc-wstep__label { display: none; }
-  .rc-wstep.active .rc-wstep__label { display: inline; }
-}
 
 /* ─── ROOMS & PAX (STEP 1) ──────────────────────────────── */
 .rc-rooms-header {
@@ -1497,17 +1495,6 @@ body {
   align-items: start;
 }
 
-@media (max-width: 680px) {
-  .rc-rooms-grid { grid-template-columns: 1fr; }
-
-  /* Step Payment sahaja — Order Summary muncul DULU di mobile, baru
-     Payment Amount/Method di bawah dia. Guna CSS 'order' (bukan ubah
-     susunan HTML) supaya desktop kekal tak terjejas (grid 2 lajur biasa
-     ikut source order — kiri/kanan macam sekarang). Rooms & Passengers
-     (guna class rc-rooms-grid yang sama) TIDAK terjejas — selector ni
-     scoped khusus #step3. */
-  #step3 .rc-summary-card-wrap { order: -1; }
-}
 
 .rc-summary-panel {
   background: var(--rc-gray-100);
@@ -1552,7 +1539,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  /* margin-bottom: 14px; */
   cursor: pointer;
 }
 
@@ -1614,9 +1601,7 @@ body {
   grid-column: 1 / -1;
 }
 
-@media (max-width: 440px) {
-  .rc-room__grid { grid-template-columns: 1fr; }
-}
+
 
 .rc-field {
   display: flex;
@@ -1629,6 +1614,7 @@ body {
   font-size: 12px;
   font-weight: 500;
   color: var(--rc-gray-600);
+  margin-top:35px;
 }
 
 .rc-field .rc-select-wrapper .rc-select {
@@ -1881,6 +1867,7 @@ body {
 
 .rc-rooms-list-col #addRoomBtn {
   margin-top: 16px;
+  width:auto;
 }
 
 .rc-totals {
@@ -2047,4 +2034,32 @@ body {
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid var(--rc-gray-200);
+}
+
+
+
+@media (max-width: 800px) {
+  .rc-rooms-grid { grid-template-columns: 1fr; }
+
+  /* Step Payment sahaja — Order Summary muncul DULU di mobile, baru
+     Payment Amount/Method di bawah dia. Guna CSS 'order' (bukan ubah
+     susunan HTML) supaya desktop kekal tak terjejas (grid 2 lajur biasa
+     ikut source order — kiri/kanan macam sekarang). Rooms & Passengers
+     (guna class rc-rooms-grid yang sama) TIDAK terjejas — selector ni
+     scoped khusus #step3. */
+  #step3 .rc-summary-card-wrap { order: -1; }
+
+  .rc-wstep__label { display: none; }
+  .rc-wstep.active .rc-wstep__label { display: inline; }
+  .rc-step span { display: inline; }
+}
+
+@media (max-width: 500px) {
+  .rc-room__grid { grid-template-columns: 1fr; }
+  .rc-rooms-grid{ display:block; }
+  .rc-rooms-list-col{ margin-bottom:20px;}
+  .rc-counter-row, .rc-counter-row__label-wrap, .rc-counter-row__label { display: inline-block; margin:3px 0; width:100%; }
+  .rc-form-row { grid-template-columns: 1fr; }
+  .rc-input { width: 100%; margin-bottom:5px; }
+  .rc-input-with-status{ display:unset; margin-bottom:3px; }
 }
