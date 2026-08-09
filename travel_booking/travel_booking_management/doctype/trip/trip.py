@@ -3,10 +3,10 @@
 
 import frappe
 import re
-from frappe.model.document import Document
+from frappe.website.website_generator import WebsiteGenerator
 
 
-class Trip(Document):
+class Trip(WebsiteGenerator):
 	# begin: auto-generated types
 	# This code is auto-generated. Do not modify anything in this block.
 
@@ -19,6 +19,8 @@ class Trip(Document):
 		description: DF.TextEditor | None
 		destination_list: DF.TableMultiSelect[TripDestinationPointSelect]
 		is_a_cruise_trip: DF.Check
+		published: DF.Check
+		route: DF.Data | None
 		status: DF.Literal["Pending Review", "Active", "Completed", "Cancelled"]
 		trip_image: DF.AttachImage | None
 		trip_name: DF.Data
@@ -27,7 +29,11 @@ class Trip(Document):
 
 	_DOCTYPE_NAME = "Trip"
 
+
 	# def validate(self):
+
+		# if not self.route:
+		# 	self.route = "/trip/" + self.trip_name.lower().replace(" ", "-")
 
 
 	# def before_save(self):

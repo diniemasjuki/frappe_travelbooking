@@ -158,37 +158,19 @@ async function openPortal(bookingName) {
 
   sw('S-portal');
 
-  const cached = _CACHE.get('booking_' + bookingName);
-  if (cached) {
-    PORTAL_DATA = cached;
-    renderPortalBookingInfo(cached);
-    renderTravellerSlots(cached);
-    // PENTING: mesti render SEMULA selepas data terkini sampai — sebelum
-    // ni, .then() cuma update PORTAL_DATA/_CACHE secara senyap tanpa
-    // render, jadi skrin kekal papar snapshot LAMA (cth 3 traveller slot)
-    // sehingga customer navigate keluar-masuk tab ni semula. Ini punca
-    // Booking Reservation BAHARU yang admin cipta secara manual di Desk
-    // (contoh slot ke-4) tak muncul serta-merta di portal walaupun query
-    // backend (WHERE res.booking = booking_number) sebenarnya dah betul
-    // kira rekod tu — cuma paparan yang belum refresh.
-    API_BK('get_booking_data', { booking_number: bookingName })
-      .then(fresh => {
-        PORTAL_DATA = fresh;
-        _CACHE.set('booking_' + bookingName, fresh, _CACHE.TTL.booking);
-        renderPortalBookingInfo(fresh);
-        renderTravellerSlots(fresh);
-      })
-      .catch(() => {});
-    return;
-  }
-
+  // SENGAJA tiada cache — fetch fresh SETIAP KALI booking ni dibuka (sama
+  // prinsip dengan portal_payment.js). Booking Reservation baharu yang
+  // admin cipta manual di Desk, atau apa-apa perubahan lain, patut
+  // SENTIASA nampak terus — bukan bergantung pada background-refresh yang
+  // boleh gagal senyap (.catch kosong, tiada retry), punca customer
+  // sebelum ni terpaksa logout/login semula untuk nampak data terkini.
   try {
     const data = await API_BK('get_booking_data', { booking_number: bookingName });
     PORTAL_DATA = data;
-    _CACHE.set('booking_' + bookingName, data, _CACHE.TTL.booking);
     renderPortalBookingInfo(data);
     renderTravellerSlots(data);
   } catch (e) {
+    console.error('loadBookingDetail gagal:', e);
     document.getElementById('traveller-slots-container').innerHTML =
       `<div style="font-size:13px;color:#991B1B;padding:8px 0">Failed to load data: ${e.message}</div>`;
   }
@@ -443,7 +425,6 @@ async function goBackToPortal() {
   try {
     const fresh = await API_BK('get_booking_data', { booking_number: BOOKING });
     PORTAL_DATA = fresh;
-    _CACHE.set('booking_' + BOOKING, fresh, _CACHE.TTL.booking);
     renderPortalBookingInfo(fresh);
     renderTravellerSlots(fresh);
     if (SESSION && SESSION.bookings) {
@@ -467,10 +448,8 @@ async function requestDocumentUpdate(slotName) {
   if (!ok) return;
   try {
     await API_TV('request_document_update', { slot_name: slotName });
-    _CACHE.del('booking_' + BOOKING);
     const fresh = await API_BK('get_booking_data', { booking_number: BOOKING });
     PORTAL_DATA = fresh;
-    _CACHE.set('booking_' + BOOKING, fresh, _CACHE.TTL.booking);
     renderTravellerSlots(fresh);
   } catch(e) {
     alert('Failed to submit request. Please try again.');

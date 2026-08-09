@@ -19,6 +19,12 @@ frappe.ui.form.on("Trip Cruise Schedule", {
         }
     },
 
+    port_start: function(frm) {
+        if(frm.doc.port_end == null) {
+            frm.set_value("port_end", frm.doc.port_start );
+        }
+    },
+
 
 });
 

@@ -20,13 +20,14 @@ class FlightAirport(Document):
 		airport_country: DF.Link | None
 		airport_name: DF.Data
 		currency: DF.Link | None
+		enable: DF.Check
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Flight Airport"
 
 	def validate(self):
 		
-		self.airport_name = (self.airport_name).upper().strip()
+		# self.airport_name = (self.airport_name).title().strip()
 
 		self.airport_code = (re.sub(r'[^a-zA-Z0-9]', '', self.airport_code)).upper().replace(" ","")
 

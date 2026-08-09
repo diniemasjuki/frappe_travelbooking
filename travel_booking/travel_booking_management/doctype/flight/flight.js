@@ -8,13 +8,13 @@ frappe.ui.form.on("Flight", {
 
     departure_date: function(frm) {
         if((frm.doc.arrival_date == null) || ( frm.doc.departure_date > frm.doc.arrival_date )) { 
-            frm.set_value("arrival_date", frappe.datetime.add_days(frm.doc.departure_date, 7 ));
+            frm.set_value("arrival_date", frappe.datetime.add_days(frm.doc.departure_date, 14 ));
         }
     },
 
     arrival_date: function(frm) {
         if((frm.doc.departure_date == null) || ( frm.doc.departure_date > frm.doc.arrival_date )) {
-            frm.set_value("departure_date", frappe.datetime.add_days(frm.doc.arrival_date, -7 ));
+            frm.set_value("departure_date", frappe.datetime.add_days(frm.doc.arrival_date, -14 ));
         }
     },
 

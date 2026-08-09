@@ -12,7 +12,8 @@
  "field_order": [
   "airline_code",
   "airline_name",
-  "airline_country_origin"
+  "airline_country_origin",
+  "enabled"
  ],
  "fields": [
   {
@@ -40,6 +41,12 @@
    "length": 2,
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
   }
  ],
  "grid_page_length": 50,
@@ -54,7 +61,7 @@
    "link_fieldname": "flight"
   }
  ],
- "modified": "2026-08-05 01:58:04.964762",
+ "modified": "2026-08-07 06:52:47.723382",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Flight Airline",

@@ -48,7 +48,6 @@
   "pre_discount_total",
   "column_break_qemr",
   "voucher",
-  "voucher_usage",
   "details_information_section",
   "total_pax",
   "column_break_gige",
@@ -346,15 +345,10 @@
    "search_index": 1
   },
   {
-   "fieldname": "voucher_usage",
-   "fieldtype": "Link",
-   "label": "Voucher Usage",
-   "options": "Voucher Usage"
-  },
-  {
    "fieldname": "cust_email",
    "fieldtype": "Data",
-   "label": "Customer Email"
+   "label": "Customer Email",
+   "options": "Email"
   }
  ],
  "grid_page_length": 50,
@@ -372,7 +366,7 @@
    "link_fieldname": "booking"
   }
  ],
- "modified": "2026-08-06 05:08:53.761999",
+ "modified": "2026-08-07 07:25:11.419074",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking",

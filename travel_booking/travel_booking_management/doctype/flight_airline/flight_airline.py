@@ -18,13 +18,14 @@ class FlightAirline(Document):
 		airline_code: DF.Data
 		airline_country_origin: DF.Link | None
 		airline_name: DF.Data
+		enabled: DF.Check
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Flight Airline"
 
 	def validate(self):
 		
-		self.airline_name = (self.airline_name).upper().strip()
+		# self.airline_name = (self.airline_name).title().strip()
 
 		self.airline_code = (re.sub(r'[^a-zA-Z0-9]', '', self.airline_code)).upper().replace(" ","")
 

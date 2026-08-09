@@ -6,6 +6,13 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "tab_information",
+  "data_flow_information_section",
+  "column_break_hpzn",
+  "selling_operation_data_table",
+  "column_break_bvku",
+  "html_apxx",
+  "tab_config",
   "bank_accounts_section",
   "bank_name",
   "account_name",
@@ -56,6 +63,7 @@
    "reqd": 1
   },
   {
+   "description": "For Accounting Purpose : Account to manage manual transfer record in payment entry",
    "fieldname": "manual_transfer_paid_to_account",
    "fieldtype": "Link",
    "label": "Manual Transfer - Paid To Account",
@@ -136,12 +144,46 @@
    "fieldtype": "Link",
    "label": "Payment Gateway",
    "options": "Payment Gateway Account"
+  },
+  {
+   "fieldname": "html_apxx",
+   "fieldtype": "HTML",
+   "label": "Booking Operation Data Table",
+   "options": "<h3 style=\"text-align:center; margin:25px auto\" >Operation Data</h3>\n\n<img style=\"width:100%\" src=\"../assets/travel_booking/img/BookingSystemOperation.png\"/>"
+  },
+  {
+   "fieldname": "data_flow_information_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_hpzn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "selling_operation_data_table",
+   "fieldtype": "HTML",
+   "label": "Selling Operation Data Table",
+   "options": "<h3 style=\"text-align:center; margin:25px auto\" >Preparing & Selling Data</h3>\n\n<img style=\"width:100%\" src=\"../assets/travel_booking/img/BookingSystemSelling.png\"/>"
+  },
+  {
+   "fieldname": "column_break_bvku",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "tab_information",
+   "fieldtype": "Tab Break",
+   "label": "Information"
+  },
+  {
+   "fieldname": "tab_config",
+   "fieldtype": "Tab Break",
+   "label": "App Configurations"
   }
  ],
  "grid_page_length": 50,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-05 02:28:08.850412",
+ "modified": "2026-08-07 10:38:56.577177",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Settings",
@@ -156,6 +198,20 @@
    "role": "System Manager",
    "share": 1,
    "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Tour Manager",
+   "share": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Tour Operator",
+   "share": 1
   }
  ],
  "protect_attached_files": 1,

@@ -1,6 +1,4 @@
 # travel_booking/api/booking.py
-# Booking Wizard API — Public Landing Page
-# ─────────────────────────────────────────
 
 import frappe
 import json
@@ -961,6 +959,13 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         # guna terus di sini tanpa syarat tambahan.
         "affiliate":            sales_partner,
         "pre_discount_total":   pre_discount_total,
+        # SNAPSHOT email pada masa booking dicipta — SENGAJA bukan field
+        # virtual/live (beza dari get_cust_phone yang live-compute dari
+        # Contact). Kalau customer tukar email Contact mereka kemudian
+        # (cth via portal), Booking lama ni KEKAL papar email asal yang
+        # digunakan masa booking dibuat — rekod sejarah/audit trail, bukan
+        # rujukan "terkini".
+        "cust_email":           email,
     })
     booking.insert(ignore_permissions=True)
 
@@ -987,14 +992,18 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     res_created = 0  # dicipta bila Confirmed (hook Payment Entry)
 
     if voucher_code and voucher_discount > 0:
-        used_voucher_name, used_voucher_usage_name = _use_voucher(
+        # PENTING: 'voucher_usage' TIDAK disimpan pada Booking — field ni
+        # dah dibuang dari schema Booking (rujukan cepat lama, sebelum
+        # Voucher Usage jadi doctype standalone). Rekod Voucher Usage
+        # sebenar masih wujud (dicipta oleh _use_voucher() di bawah,
+        # dikesan semula melalui filter {"booking": booking_name} bila
+        # perlu — rujuk _release_voucher_for_booking()) — cuma Booking
+        # sendiri tak simpan Link terus ke rekod tu lagi.
+        used_voucher_name, _used_voucher_usage_name = _use_voucher(
             voucher_code, customer_name, booking.name, voucher_discount
         )
         if used_voucher_name:
-            frappe.db.set_value("Booking", booking.name, {
-                "voucher":       used_voucher_name,
-                "voucher_usage": used_voucher_usage_name,
-            })
+            frappe.db.set_value("Booking", booking.name, {"voucher": used_voucher_name})
 
     # Online Payment → jana Stripe payment URL (bayar ikut payment_type: deposit/full)
     # PENTING: emel "Pending" TIDAK dihantar di sini untuk Online Payment.
@@ -1466,6 +1475,110 @@ def _recompute_booking_status(so_name):
     if new_payment_status in ("Partially Paid", "Paid") and not had_any_payment:
         _activate_booking(b.name)
 
+    # Auto-invoice — SENGAJA berasingan dari new_payment_status di atas.
+    # new_payment_status tu peringkat BOOKING (agregat SEMUA SO berkaitan
+    # booking — utama + addon). Auto-invoice pula per-SO INDEPENDENT (satu
+    # SO addon settle tak tunggu SO utama settle juga, atau sebaliknya) —
+    # jadi perlu check terus status bayaran SO ni SENDIRI, bukan agregat.
+    _maybe_auto_invoice_so(so_name)
+
+
+def _maybe_auto_invoice_so(so_name):
+    """Auto-cipta Sales Invoice untuk SO ni sebaik ia fully paid (per-SO
+    independent — TIDAK tunggu SO lain untuk booking yang sama settle
+    sekali). Guna mekanisme ERPNext standard 'Get Advances Received' yang
+    SAMA dengan yang admin guna manual (rujuk portal_payment.py punya
+    nota tentang mekanisme ni) — supaya SEMUA Payment Entry sedia ada
+    (deposit + baki, kalau berasingan) betul-betul di-allocate ke invois
+    baharu, bukan reka logik allocation sendiri.
+
+    Auto-invoice kegagalan TIDAK patahkan flow payment/booking — dibungkus
+    try/except, log error untuk admin siasat/generate manual sebagai
+    fallback, sebab bayaran & status booking dah SAH walau invois gagal
+    auto-generate.
+    """
+    so = frappe.db.get_value(
+        "Sales Order", so_name,
+        ["grand_total", "advance_paid", "docstatus"], as_dict=True
+    )
+    if not so or so.docstatus != 1:
+        return  # SO tak wujud atau belum/tak lagi submitted — tiada apa nak invois
+
+    so_payment_status = _compute_payment_status(so.advance_paid or 0, float(so.grand_total or 0))
+    if so_payment_status != "Paid":
+        return  # SO ni sendiri belum fully paid — belum masa untuk invois
+
+    # Guard idempotency — SI sedia ada untuk SO ni? (query sama pattern
+    # dengan get_all_so_payments() di portal_payment.py)
+    existing_si = frappe.db.get_value(
+        "Sales Invoice Item", {"sales_order": so_name}, "parent"
+    )
+    if existing_si:
+        return  # dah ada invois (auto atau manual) — jangan buat lagi satu
+
+    try:
+        # PENTING: make_sales_invoice() dipindah lokasi dalam ERPNext v17 —
+        # dari erpnext.selling.doctype.sales_order.sales_order (lokasi lama,
+        # versi sebelumnya) ke erpnext.selling.doctype.sales_order.mapper
+        # (refactor ERPNext v17). Import dari lokasi lama akan crash
+        # ImportError ("cannot import name 'make_sales_invoice'") — disahkan
+        # server dev.rpwp.my jalan ERPNext 17.0.0-dev (rujuk `git describe`/
+        # erpnext/__init__.py). Signature fungsi KEKAL SAMA (source_name
+        # sebagai parameter pertama), cuma path import yang berubah.
+        from erpnext.selling.doctype.sales_order.mapper import make_sales_invoice
+
+        _original_user = frappe.session.user
+        frappe.set_user("Administrator")
+        try:
+            si = make_sales_invoice(so_name)
+            si.flags.ignore_permissions = True
+            si.set_posting_time = 1
+            si.posting_date = frappe.utils.today()
+
+            # "Get Advances Received" — mekanisme ERPNext standard yang
+            # SAMA dipanggil bila admin klik butang tu manual. Cari &
+            # allocate SEMUA Payment Entry belum-reconcile untuk SO/
+            # customer ni secara automatik (deposit + baki, kalau
+            # berasingan — SEMUA ditarik, bukan sekadar satu).
+            si.set_advances()
+
+            # PENTING — SAHKAN set_advances() betul-betul berjaya, jangan
+            # percaya buta. Kalau ia gagal senyap cari Payment Entry yang
+            # patut (mismatch party/currency, atau quirk versi ERPNext —
+            # rujuk juga isu import path di atas, tanda versi ERPNext boleh
+            # berubah tingkah laku), si.advances akan KOSONG/TAK LENGKAP —
+            # SI akan submit dengan outstanding PENUH/salah walhal SO ni
+            # dah fully paid. Ini bertentangan terus dengan tujuan
+            # automation ni ("pastikan dapat advance receives semua") —
+            # jadi kita check jumlah allocated PADAN dengan advance_paid SO
+            # sebelum benarkan submit. Toleransi RM0.01 untuk floating-
+            # point rounding.
+            allocated_total = sum(float(a.allocated_amount or 0) for a in (si.advances or []))
+            expected_total  = float(so.advance_paid or 0)
+
+            if abs(allocated_total - expected_total) > 0.01:
+                frappe.log_error(
+                    "Auto-invoice: set_advances() tak berjaya allocate SEMUA bayaran "
+                    "untuk SO " + so_name + " — dijangka RM" + str(expected_total) +
+                    ", cuma berjaya allocate RM" + str(allocated_total) + ". "
+                    "SI TIDAK disubmit (dibiarkan draft/tak dicipta) — perlu siasat "
+                    "manual (semak Payment Entry party/currency untuk SO ni) sebelum "
+                    "generate invois secara manual.",
+                    "Auto Sales Invoice - Advance Mismatch"
+                )
+                return  # JANGAN submit — biar admin uruskan manual
+
+            si.insert(ignore_permissions=True)
+            si.submit()
+        finally:
+            frappe.set_user(_original_user)
+
+    except Exception as e:
+        frappe.log_error(
+            "Auto-invoice gagal untuk SO " + so_name + ": " + str(e),
+            "Auto Sales Invoice Error"
+        )
+
 
 def on_payment_entry_submit(doc, method=None):
     """Hook: Payment Entry submit → resit + kemas kini status booking + cipta reservation.
@@ -1555,8 +1668,9 @@ def _release_voucher_for_booking(booking_name):
     — tiada field counter berasingan untuk decrement, dan TIADA perlu
     load/lock/save Voucher induk (tiada child table untuk disegerakkan
     lagi — jauh lebih ringkas dari pendekatan lama). Turut kosongkan
-    Booking.voucher/voucher_usage (field rujukan cepat BAHARU) supaya
-    tak tinggal rujukan ke rekod yang dah dipadam.
+    Booking.voucher (field rujukan cepat) supaya tak tinggal rujukan ke
+    rekod yang dah dipadam. (Booking.voucher_usage TIDAK wujud dalam
+    schema — dibuang semasa restructuring, jangan tambah balik di sini.)
     """
     for u in frappe.db.get_all("Voucher Usage",
                                filters={"booking": booking_name},
@@ -1565,7 +1679,7 @@ def _release_voucher_for_booking(booking_name):
             frappe.delete_doc("Voucher Usage", u, ignore_permissions=True)
         except Exception:
             pass
-    frappe.db.set_value("Booking", booking_name, {"voucher": None, "voucher_usage": None})
+    frappe.db.set_value("Booking", booking_name, {"voucher": None})
 
 
 def _cancel_booking_cascade(booking_doc):
@@ -1620,11 +1734,6 @@ def _use_voucher(code, customer_name, booking_name, discount_amount=0):
     akhirnya melebihi max_usage. Lock paksa request kedua tunggu sehingga
     request pertama selesai (commit), baru boleh teruskan — insert
     berlaku SELEPAS lock diperoleh, dalam transaksi yang sama.
-
-    Pulangkan (voucher_name, usage_name) — atau (None, None) kalau gagal
-    — supaya caller boleh isi Booking.voucher/voucher_usage (field Link
-    BAHARU pada Booking, rujukan cepat tanpa perlu query Voucher Usage
-    berasingan setiap kali).
     """
     try:
         code = (code or "").strip().upper()
@@ -1724,17 +1833,6 @@ def _send_set_password_email(email, first_name):
     """Emel BERASINGAN "Set Your Password" — dihantar SEKALI SAHAJA, terus
     selepas User portal baru dicipta (_ensure_portal_user() pulangkan True),
     TAK KIRA payment method atau status booking pertama customer tu.
-
-    Reka bentuk ni sengaja dipermudah (bukan lagi cuba sertakan pautan set-
-    password ke DALAM emel status booking pertama, ikut is_new_user flag) —
-    pendekatan lama tu rapuh: setiap laluan yang boleh trigger emel status
-    PERTAMA (Manual Transfer -> Pending, Online Payment berjaya -> Accepted,
-    webhook gagal -> Pending, checkout timeout -> Pending) kena masing-
-    masing ingat hantar is_new_user dengan betul — 1 daripada 4 laluan tu
-    pernah tersasar (Accepted, bila _recompute_booking_status() panggil
-    _send_status_email() tanpa is_new_user), customer terlepas pautan set-
-    password. Emel berasingan ni tak bergantung pada status booking langsung
-    — dihantar terus lepas User dicipta, penuh, sendiri.
     """
     try:
         context = {

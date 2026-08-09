@@ -3,7 +3,6 @@
 
 import frappe
 from frappe.model.document import Document
-from urllib.parse import urlparse
 
 
 class TripPackage(Document):
@@ -64,15 +63,14 @@ class TripPackage(Document):
 			
 		if package_type == "CO" or package_type == "GP":
 			self.airport_form = None
-			airport = None
+			airport = ""
 					
 		if not self.package_code:
-			self.package_code = (self.trip_link + " / " + package_type + airport ).upper().replace(" ","").replace("/",":").strip()
+			self.package_code = (self.trip_link + " : " + package_type + airport ).upper().replace(" ","").strip()
 
 		if not self.package_title:
-			self.package_title = (self.trip_name or "") + " / " + (self.package_type or "") + airport
+			self.package_title = (self.trip_name or "") + " : " + (self.package_type or "") + airport
 
-		# Generate the my_url field based on the current domain and trip name
-		url = frappe.request.url
-		domain = domain = urlparse(url).hostname
-		self.my_url = "https://" + domain + "/booking/?trip=" + self.name
+	
+		domain = frappe.utils.get_url()
+		self.my_url = domain + "/booking/?trip=" + self.name

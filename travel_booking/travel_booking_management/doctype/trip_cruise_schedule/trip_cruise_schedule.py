@@ -22,7 +22,7 @@ class TripCruiseSchedule(Document):
 
 		cabin_rates: DF.Table[TripPackagePrice]
 		cruise_line_company: DF.Link | None
-		naming_series: DF.Literal[".ship_code.-.YY.#"]
+		naming_series: DF.Literal[".ship_code.YY.#"]
 		port_end: DF.Link
 		port_start: DF.Link
 		sail_end: DF.Date
@@ -44,11 +44,9 @@ class TripCruiseSchedule(Document):
 		if self.trip_code:
 			self.trip_code = self.trip_code.upper().strip()
 			code = self.trip_code
-		else:
-			code = self.name
 
 		if self.sail_start and self.sail_end:
-			self.schedule_code = ( frappe.utils.getdate(self.sail_start).strftime("%Y-%m-%d") + " : " + code ).upper().strip()
+			self.schedule_code = ( self.ship_code + " : " + frappe.utils.getdate(self.sail_start).strftime("%Y-%m-%d") ).upper().strip()
 
 		if self.sail_start and self.sail_end:
 

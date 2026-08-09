@@ -284,7 +284,6 @@ async function saveTraveller() {
 
     const freshData = await API_BK('get_booking_data', { booking_number: BOOKING });
     PORTAL_DATA = freshData;
-    _CACHE.set('booking_' + BOOKING, freshData, _CACHE.TTL.booking);
 
     if (SESSION && SESSION.bookings) {
       const idx = SESSION.bookings.findIndex(b => (b.booking_number || b.name) === BOOKING);

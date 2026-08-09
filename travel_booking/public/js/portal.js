@@ -14,8 +14,12 @@ let _passportFile = null;
 let _visaPhotoFile = null;
 
 /* ── Cache (sessionStorage + TTL) ── */
+// NOTA: 'booking'/'payments' TTL dibuang — data tu sekarang SENTIASA
+// fetch fresh (tiada cache), elak isu customer terpaksa logout/login
+// untuk nampak perubahan terkini dari Desk. 'session' (profile/nama
+// customer) kekal di-cache — data ni jarang berubah dalam satu sesi.
 const _CACHE = {
-  TTL: { session: 10 * 60 * 1000, booking: 5 * 60 * 1000, payments: 5 * 60 * 1000 },
+  TTL: { session: 10 * 60 * 1000 },
   get(key) {
     try {
       const raw = sessionStorage.getItem('rc_' + key);
@@ -270,7 +274,6 @@ function renderPaymentResult(result) {
 }
 
 function _returnToBookingsFromPaymentResult() {
-  _CACHE.del('payments');
   _allOrders = [];
   if (SESSION) {
     renderNav();

@@ -79,10 +79,23 @@ def get_all_so_payments():
         # yang dah "dialihkan" ni akan senyap HILANG dari portal walaupun
         # bayaran tu masih sah — inilah punca "payment history hilang
         # bila dah create Sales Invoice".
+        #
+        # PENTING JUGA: guna SUM(per.allocated_amount) — BUKAN pe.paid_amount.
+        # Admin boleh cipta SATU Payment Entry (dari Desk) yang allocate ke
+        # BANYAK Sales Order sekaligus (customer bayar borong beberapa trip
+        # dalam satu transaksi bank) — pe.paid_amount ialah jumlah PENUH
+        # Payment Entry tu (cth RM15,000 untuk 3 SO), BUKAN jumlah yang
+        # betul-betul di-allocate ke SO NI sahaja (cth RM5,000). Guna
+        # pe.paid_amount di sini akan papar jumlah PENUH yang mengelirukan
+        # pada senarai payment history SETIAP SO (nampak macam overpayment/
+        # bayaran salah), walhal advance_paid (jumlah agregat, di bawah)
+        # sendiri betul (ERPNext kira allocated_amount dengan tepat).
+        # GROUP BY + SUM elakkan double-count kalau satu PE ada >1 baris
+        # reference untuk SO/SI yang sama (jarang, tapi selamat).
         pe_rows = frappe.db.sql("""
-            SELECT DISTINCT pe.name, pe.paid_amount, pe.reference_date,
-                   pe.mode_of_payment, pe.reference_no,
-                   pe.docstatus,
+            SELECT pe.name, SUM(per.allocated_amount) AS allocated_amount,
+                   pe.reference_date, pe.mode_of_payment, pe.reference_no,
+                   pe.docstatus, pe.creation,
                    CASE pe.docstatus
                      WHEN 1 THEN 'Verified'
                      WHEN 2 THEN 'Cancelled'
@@ -96,6 +109,8 @@ def get_all_so_payments():
                      FROM `tabSales Invoice Item` sii
                      WHERE sii.sales_order = %(so_name)s
                    ))
+            GROUP BY pe.name, pe.reference_date, pe.mode_of_payment,
+                     pe.reference_no, pe.docstatus, pe.creation
             ORDER BY pe.creation DESC
         """, {"so_name": so_name}, as_dict=True)
 
@@ -108,7 +123,7 @@ def get_all_so_payments():
             ) or ""
             payments.append({
                 "name":             r.name,
-                "paid_amount":      float(r.paid_amount or 0),
+                "paid_amount":      float(r.allocated_amount or 0),
                 "payment_date":     str(r.reference_date) if r.reference_date else "",
                 "mode_of_payment":  r.mode_of_payment or "",
                 "reference_no":     r.reference_no or "",

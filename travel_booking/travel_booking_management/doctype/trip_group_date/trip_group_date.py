@@ -6,7 +6,6 @@ import frappe
 import re
 from frappe.utils import getdate
 from frappe.utils import date_diff
-
 from frappe.model.document import Document
 
 
@@ -22,6 +21,7 @@ class TripGroupDate(Document):
 		cruise_code: DF.Data | None
 		cruise_days: DF.Int
 		cruise_schedule: DF.Link | None
+		cruise_schedule_title: DF.Data | None
 		cruise_trip: DF.Data | None
 		current_participants: DF.Int
 		departure_date: DF.Date | None
@@ -51,17 +51,27 @@ class TripGroupDate(Document):
 
 	_DOCTYPE_NAME = "Trip Group Date"
 
+
+
+
 	
 	def validate(self):
 
-		# setting kalau trip ini CRUISE ONLY
+
+		"""
+		Setting kalau trip ini CRUISE ONLY:
+		DEPARTURE DATE akan SAMA dengan SAILING START 
+		"""
 		if self.is_cruise_only == 1:
 			if self.sailing_start:
 				self.departure_date = self.sailing_start
 			if self.sailing_end:
 				self.return_date = self.sailing_end
 
-		# -- variable date
+
+		""" 
+		Convert Date Format into string-to-time format for logical processing
+		"""
 		if self.sailing_start:
 			sailing_start = getdate(self.sailing_start)
 		if self.sailing_end:
@@ -72,8 +82,9 @@ class TripGroupDate(Document):
 			return_date = getdate(self.return_date)
 
 
-		# -- date checking
-
+		"""
+		Date validation process 
+		"""
 		if self.departure_date and self.return_date:
 
 			if departure_date > return_date:
@@ -96,45 +107,23 @@ class TripGroupDate(Document):
 				frappe.throw("RETURN DATE must earlier then SAILING END DATE" )
 
 
-
-		
 		# -- trip group name
 
-		date_range = str(self.departure_date) # + " to " + str(self.return_date)
-
+		# this is for FLY CRUISE trip = group title use sailing date
 		if (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (not self.is_cruise_only or self.is_cruise_only == 0):
-			self.trip_group_name = date_range + (" : " + self.trip or "") + " : Fly Cruise"
-			package_type = "FC"
-			groupinfo = self.trip
-		
+			self.trip_group_name = str(self.departure_date) + (" : " + self.trip or "") + " : Fly Cruise"
+			self.trip_group_code = (str(self.departure_date) + ":" + self.trip + ":" + "FC").replace("-","")
+
+		# this is for CRUISE ONLY trip
 		elif (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (self.is_cruise_only is True or self.is_cruise_only == 1) :
-			self.trip_group_name = date_range + (" : " + self.trip or "") + " : Cruise Only"
-			package_type = "CO"
-			groupinfo = self.trip
+			self.trip_group_name = str(self.sailing_start) + (" : " + self.trip or "") + " : Cruise Only"
+			self.trip_group_code = (str(self.sailing_start) + ":" + self.trip + ":" + "CO").replace("-","")
 
+		# this is for RARECATION / NON-CRUISE trip
 		else:
-			self.trip_group_name = date_range + (" : " + self.trip or "") + (" : " + self.name or "") 
-			package_type = "CU"
-			groupinfo = self.name
+			self.trip_group_name = str(self.departure_date) + (" : " + self.trip or "") + (" : " + self.name or "") 
+			self.trip_group_code = (str(self.departure_date) + ":" + self.trip + ":" + self.name).replace("-","")
 
-
-		# -- trip group code 
-
-		# if not self.trip_group_code or self.trip_group_code == "":
-		self.trip_group_code = (date_range.replace("-","") + ":" + groupinfo + ":" + package_type).upper()
-		
-
-		# -- update trip_link in Trip Cruise Schedule if this is a cruise trip
-		if self.cruise_schedule and not self.cruise_trip:
-			frappe.db.set_value(
-				"Trip Cruise Schedule", # nama doctype
-				self.cruise_schedule,   # id atau name Trip Cruise Schedule yang nak diupdate
-				{
-					"trip_link" : self.trip,
-					"trip_name" : self.trip_name
-				}
-			)
-		
 
 
 	def refresh_bookings(self):
@@ -146,7 +135,6 @@ class TripGroupDate(Document):
 			WHERE b.trip_date = %s
 				AND b.status != 'Cancelled'
 		""", self.name)[0][0] or 0
-
 		frappe.db.set_value("Trip Group Date", self.name, "current_participants", total,update_modified=False)
 
 	@property

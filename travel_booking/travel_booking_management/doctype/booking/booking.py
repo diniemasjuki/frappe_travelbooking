@@ -38,7 +38,6 @@ class Booking(Document):
 		trip_package_status: DF.ReadOnly | None
 		trip_status: DF.ReadOnly | None
 		voucher: DF.Link | None
-		voucher_usage: DF.Link | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Booking"
@@ -61,16 +60,6 @@ class Booking(Document):
 		if not self.customer:
 			return ""
 		return get_customer_phone(self.customer) or ""
-
-	@property
-	def get_cust_email(self):
-		"""Email customer TERKINI — sama prinsip dengan get_cust_phone di
-		atas, dikira dari Customer -> Contact (Dynamic Link), bukan snapshot.
-		"""
-		from travel_booking.api._helpers import get_customer_email
-		if not self.customer:
-			return ""
-		return get_customer_email(self.customer) or ""
 
 	@property
 	def total_amount(self):
@@ -127,21 +116,6 @@ class Booking(Document):
 		if not items:
 			return ""
 
-		# Kumpul ikut cabin — bahagian SEBELUM em dash (\u2014) dalam
-		# item_name (cth "Balcony Cabin (Cabin 1)"), sepadan format
-		# _so_line() dalam api/booking.py yang cipta baris SO ni.
-		#
-		# PENTING: baris diskaun (Voucher Discount / Referral Discount, rate
-		# negatif — rujuk confirm_booking() di api/booking.py) TIADA em-dash
-		# langsung dalam item_name dia ("Voucher Discount (KOD)"), sebab ia
-		# bukan pax dalam cabin. Kalau dibiarkan lalui logik split em-dash
-		# yang sama, seluruh nama item tu (termasuk kod voucher) akan
-		# dianggap "cabin_label" tersendiri dan pax_type jadi string kosong
-		# — hasilnya paparan mengelirukan macam ada "cabin" bernama
-		# "Voucher Discount (KOD)" dengan "Cabin Fare: RM -20.50" dan
-		# "Guest 1: — RM -20.50" (label kosong). Kita asingkan baris
-		# diskaun (rate < 0) SEBELUM grouping cabin, papar berasingan di
-		# hujung sebagai baris ringkas — bukan sebagai cabin.
 		cabins         = []
 		cabin_map      = {}
 		discount_lines = []

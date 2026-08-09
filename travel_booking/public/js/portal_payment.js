@@ -9,33 +9,20 @@ let _allOrders  = [];
 async function loadAllPayments() {
   const c = document.getElementById('so-list-container');
 
-  const cached = _CACHE.get('payments');
-  if (cached) {
-    _allOrders = cached;
-    renderSoList(_allOrders);
-    // PENTING: mesti renderSoList() SEMULA selepas data terkini sampai —
-    // sebelum ni, .then() cuma update _allOrders/_CACHE secara senyap
-    // tanpa render, jadi skrin kekal papar data LAMA sehingga customer
-    // navigate keluar-masuk tab ni semula (waktu itu barulah data dari
-    // fetch senyap SEBELUM ni terpapar — nampak macam "kena refresh
-    // beberapa kali" walhal data sebenarnya dah sedia dari tadi).
-    API_PM('get_all_so_payments', {})
-      .then(data => {
-        _allOrders = data.orders || [];
-        _CACHE.set('payments', _allOrders, _CACHE.TTL.payments);
-        renderSoList(_allOrders);
-      })
-      .catch(() => {});
-    return;
-  }
-
+  // SENGAJA tiada cache — fetch fresh SETIAP KALI tab ni dibuka. Data
+  // bayaran/booking boleh berubah bila-bila dari Desk (admin buat Payment
+  // Entry, cipta Sales Invoice, dll) — customer patut SENTIASA nampak
+  // keadaan terkini, bukan cache lama yang boleh tersangkut kalau
+  // background-refresh (pendekatan lama) gagal senyap (.catch kosong,
+  // tiada retry) — punca customer terpaksa logout/login semula untuk
+  // nampak data terkini.
   if (c) c.innerHTML = '<div style="font-size:13px;color:#B0AC9F;padding:8px 0">Loading...</div>';
   try {
     const data = await API_PM('get_all_so_payments', {});
     _allOrders = data.orders || [];
-    _CACHE.set('payments', _allOrders, _CACHE.TTL.payments);
     renderSoList(_allOrders);
   } catch (e) {
+    console.error('loadAllPayments gagal:', e);
     if (c) c.innerHTML = `<div style="font-size:13px;color:#991B1B">${e.message}</div>`;
   }
 }
@@ -177,18 +164,9 @@ async function loadBookingPayments() {
 
   if (subEl) subEl.textContent = BOOKING;
 
-  // PENTING: JANGAN reuse _allOrders secara kekal hanya sebab ia dah ada
-  // data (dari tab Transactions atau booking LAIN sebelum ni). Sebelum
-  // ni, function ni cuma check `if (!_allOrders.length)` — bermakna
-  // SEBAIK SAHAJA _allOrders terisi (dari mana-mana panggilan sebelum
-  // ni, untuk booking APA PUN), ia kekal snapshot LAMA untuk SELURUH
-  // sesi browser — receipt/invois BAHARU yang admin jana selepas tu
-  // TAK AKAN muncul, walau berapa kali customer refresh (dalam window
-  // TTL _CACHE 5 minit pun sama masalah). Sekarang: papar cache/snapshot
-  // SEDIA ADA serta-merta (kalau ada) untuk rasa pantas, tapi SENTIASA
-  // fetch data TERKINI dari server di background dan RE-RENDER selepas
-  // dapat — supaya customer nampak status betul-betul terkini, bukan
-  // snapshot dari lawatan pertama tab ni dalam sesi semasa.
+  // SENGAJA tiada cache — fetch fresh SETIAP KALI tab ni dibuka (sama
+  // prinsip dengan loadAllPayments()). Data receipt/invois boleh berubah
+  // bila-bila dari Desk — customer patut SENTIASA nampak keadaan terkini.
   const renderForBooking = (allOrders) => {
     const bookingOrders = allOrders.filter(so =>
       (so.booking_numbers || []).includes(BOOKING)
@@ -202,25 +180,14 @@ async function loadBookingPayments() {
       bookingOrders.map(so => renderSoCard(so)).join('');
   };
 
-  const cached = _allOrders.length ? _allOrders : _CACHE.get('payments');
-  if (cached) {
-    _allOrders = cached;
-    renderForBooking(_allOrders);
-  } else {
-    container.innerHTML = '<div style="font-size:13px;color:#B0AC9F;padding:8px 0">Loading...</div>';
-  }
-
+  container.innerHTML = '<div style="font-size:13px;color:#B0AC9F;padding:8px 0">Loading...</div>';
   try {
     const data = await API_PM('get_all_so_payments', {});
     _allOrders = data.orders || [];
-    _CACHE.set('payments', _allOrders, _CACHE.TTL.payments);
     renderForBooking(_allOrders);
   } catch (e) {
-    if (!cached) {
-      container.innerHTML = `<div class="card"><div style="font-size:13px;color:#991B1B">${e.message}</div></div>`;
-    }
-    // Kalau ada cache, kekalkan paparan cache (lebih baik dari error
-    // kosong) — customer tetap nampak data terkini yang kita ada.
+    console.error('loadBookingPayments gagal:', e);
+    container.innerHTML = `<div class="card"><div style="font-size:13px;color:#991B1B">${e.message}</div></div>`;
   }
 }
 
@@ -238,32 +205,41 @@ function renderBookingOverview(orders) {
   const pct         = grandTotal > 0 ? Math.min((totalPaid / grandTotal) * 100, 100) : 0;
   const isPaid      = outstanding <= 0;
 
+  // 
+  // payment invoice dashboard total summmary per booking page
+  //
   return `
-    <div style="background:var(--color-background-primary,#fff);border:0.5px solid var(--color-border-tertiary,#EAE7E0);border-radius:12px;padding:20px;margin-bottom:16px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
-        <div>
-          <div style="font-size:11px;color:var(--color-text-secondary,#B0AC9F);margin-bottom:4px">Booking summary</div>
+
+    <div style="font-size:13px;color:var(--color-text-secondary,#B0AC9F);margin-bottom:5px;text-align:right; line-height:1.1; ">${pct.toFixed(0)}% <small>paid</small></div>
+    <div style="height:8px;background:var(--color-background-secondary,#e7e3da); border:0.5px solid #dfdfdf; border-radius:5px; overflow:hidden; margin:0; ">
+      <div style="height:100%;width:${pct.toFixed(1)}%;background:${isPaid ? '#0F6E56' : '#D4A312'};border-radius: 5px "></div>
+    </div>
+
+    <div style=" margin:25px 0px "> 
+    
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px; border-radius:10px; border:0.5px solid #dfdfdf; overflow:hidden; margin:15px 0 0 0; ">
+
+        <div style="padding:12px">
+          <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#B0AC9F);margin-bottom:4px">No. Bill</div>
           <div style="font-size:16px;font-weight:500;color:var(--color-text-primary,#1E1C18)">${orders.length} order${orders.length > 1 ? 's' : ''}</div>
         </div>
-        <div style="text-align:right">
-          <div style="font-size:11px;color:var(--color-text-secondary,#B0AC9F);margin-bottom:2px">Total</div>
-          <div style="font-size:18px;font-weight:500;color:var(--color-text-primary,#1E1C18)">RM ${fmt(grandTotal)}</div>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--color-border-tertiary,#EAE7E0);border-radius:8px;overflow:hidden;margin-bottom:14px">
-        <div style="background:var(--color-background-secondary,#FAFAF8);padding:12px">
-          <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#B0AC9F);margin-bottom:4px">Paid</div>
+
+        <div style="padding:12px; text-align:right;">
+          <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#B0AC9F);margin-bottom:4px">Total Paid</div>
           <div style="font-size:15px;font-weight:500;color:#0F6E56">RM ${fmt(totalPaid)}</div>
         </div>
-        <div style="background:var(--color-background-secondary,#FAFAF8);padding:12px">
-          <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#B0AC9F);margin-bottom:4px">Balance due</div>
-          <div style="font-size:15px;font-weight:500;color:${isPaid ? '#0F6E56' : '#991B1B'}">${isPaid ? 'Settled ✓' : 'RM ' + fmt(outstanding)}</div>
+
+        <div style="padding:12px;">
+          <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#B0AC9F);margin-bottom:4px">Total Billed</div>
+          <div style="font-size:18px;font-weight:500;color:var(--color-text-primary,#1E1C18)">RM ${fmt(grandTotal)}</div>
         </div>
-      </div>
-      <div style="height:5px;background:var(--color-background-secondary,#F5F3EE);border-radius:3px;overflow:hidden">
-        <div style="height:100%;width:${pct.toFixed(1)}%;background:${isPaid ? '#0F6E56' : '#D4A312'};border-radius:3px"></div>
-      </div>
-      <div style="font-size:11px;color:var(--color-text-secondary,#B0AC9F);margin-top:5px;text-align:right">${pct.toFixed(0)}% paid</div>
+        
+        <div style="padding:12px; text-align:right;">
+          <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#B0AC9F);margin-bottom:4px">Balance due</div>
+            <div style="font-size:15px;font-weight:500;color:${isPaid ? '#0F6E56' : '#991B1B'}">${isPaid ? 'Paid ✓' : 'RM ' + fmt(outstanding)}</div>
+          </div>
+        </div>
+
     </div>`;
 }
 
@@ -327,7 +303,7 @@ function renderSoCard(so) {
     : '<div style="font-size:13px;color:var(--color-text-secondary,#B0AC9F);padding:14px 0">No payment records yet.</div>';
 
   const invoicesHtml = (so.invoices || []).length > 0 ? `
-    <div style="border-top:0.5px solid var(--color-border-tertiary,#EAE7E0);padding-top:16px;margin-top:16px">
+    <div style="border-top:0px solid var(--color-border-tertiary,#EAE7E0);padding-top:16px;margin-top:16px">
       <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#B0AC9F);margin-bottom:10px">Invoices</div>
       ${(so.invoices || []).map((inv, idx, arr) => `
       <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;${idx < arr.length - 1 ? 'border-bottom:0.5px solid var(--color-border-tertiary,#EAE7E0)' : ''}">
@@ -366,7 +342,7 @@ function renderSoCard(so) {
 
       <div onclick="toggleSoCard('${soId}')" style="padding:16px 20px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px">
         <div style="min-width:0">
-          <div style="font-size:11px;color:var(--color-text-secondary,#B0AC9F);margin-bottom:3px">Booking order</div>
+          <div style="font-size:11px;color:var(--color-text-secondary,#B0AC9F);margin-bottom:3px">Bill Number</div>
           <div style="font-size:14px;font-weight:500;font-family:monospace;color:var(--color-text-primary,#1E1C18)">${so.name}</div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
@@ -380,27 +356,11 @@ function renderSoCard(so) {
         </div>
       </div>
 
-      <div id="so-body-${soId}" style="display:none;padding:0 20px 20px">
-
-      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--color-border-tertiary,#EAE7E0);border-radius:8px;overflow:hidden;margin-bottom:14px">
-        <div style="background:var(--color-background-secondary,#FAFAF8);padding:12px">
-          <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#B0AC9F);margin-bottom:4px">Paid</div>
-          <div style="font-size:15px;font-weight:500;color:#0F6E56">RM ${fmt(paid)}</div>
-        </div>
-        <div style="background:var(--color-background-secondary,#FAFAF8);padding:12px">
-          <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#B0AC9F);margin-bottom:4px">Balance due</div>
-          <div style="font-size:15px;font-weight:500;color:${isPaid ? '#0F6E56' : '#991B1B'}">${isPaid ? 'Settled ✓' : 'RM ' + fmt(outstanding)}</div>
-        </div>
-      </div>
-      <div style="height:5px;background:var(--color-background-secondary,#F5F3EE);border-radius:3px;overflow:hidden">
-        <div style="height:100%;width:${pct.toFixed(1)}%;background:${isPaid ? '#0F6E56' : '#D4A312'};border-radius:3px"></div>
-      </div>
-      <div style="font-size:11px;color:var(--color-text-secondary,#B0AC9F);margin-top:5px;text-align:right">${pct.toFixed(0)}% paid</div>
-      ${invoicesHtml}
+      <div id="so-body-${soId}" style="display:none;padding:20px; background:#fffef5; border-top:1px solid #efefef;">
 
       ${(so.items || []).length > 0 ? `
-      <div style="border-top:0.5px solid var(--color-border-tertiary,#EAE7E0);padding-top:16px;margin-top:16px">
-        <div style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#7D7A70);margin-bottom:10px">Line items</div>
+      <div style="border-top:0.px solid var(--color-border-tertiary,#EAE7E0);">
+        <div style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#7D7A70);margin-bottom:10px; font-size:smaller;">Line items</div>
         ${(so.items || []).map(item => {
           const amt        = parseFloat(item.amount || 0);
           const isDiscount = amt < 0;
@@ -421,13 +381,21 @@ function renderSoCard(so) {
               </div>
             </div>`;
         }).join('')}
-        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:4px;border-top:0.5px solid var(--color-border-secondary,#D3D1C7)">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:-1px;border-top:3px solid var(--color-border-secondary,#D3D1C7)">
           <div style="font-size:13px;font-weight:500;color:var(--color-text-primary,#1E1C18)">Total</div>
           <div style="font-size:13px;font-weight:500;color:#D4A312">RM ${total.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         </div>
       </div>` : ''}
+      
+      
+      <div style="font-size:15px;font-weight:500;color:#0F6E56">Amount Paid: RM ${fmt(paid)}</div>
+      <div style="display:none; height:10px;background:var(--color-background-secondary,#F5F3EE);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${pct.toFixed(1)}%;background:${isPaid ? '#0F6E56' : '#D4A312'};border-radius:3px"></div>
+      </div>
 
-      <div style="border-top:0.5px solid var(--color-border-tertiary,#EAE7E0);padding-top:16px;margin-top:16px">
+      ${invoicesHtml}
+
+      <div style="border-top:2px solid var(--color-border-tertiary,#EAE7E0);padding-top:16px;margin-top:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
           <div style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#7D7A70)">Payment history</div>
           ${payButtonsHtml}
