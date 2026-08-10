@@ -297,11 +297,17 @@ tripSelect.addEventListener("change", function() {
       if(cruise == "Cruise Only" || cruise == "Fly Cruise") { cruise = cruise + " for ";  }
       else{ cruise = ""; }
     } else { var cruise = ""; }
+
+    if (cruise==""){
+      var this_is_group_no = " for group : " + a[2];
+    }else{
+      var this_is_group_no = "";
+    }
     
     var durTxt = (g.total_days ? (g.total_days + " Day ") : "") + (g.total_nights ? (" " + g.total_nights + " Night") : "");
 
     btn.innerHTML    =
-      (durTxt ? '<span class="rc-date-btn__dates">' + cruise + durTxt + '</span>' : '')
+      (durTxt ? '<span class="rc-date-btn__dates">' + cruise + durTxt + this_is_group_no + '</span>' : '')
       + '<span class="rc-date-btn__name">' + fmtDate(g.departure_date) + '  \u2013  ' + fmtDate(g.return_date) + '</span>';    
       btn.addEventListener("click", function() {
       dateGrid.querySelectorAll(".rc-date-btn").forEach(function(b) { b.classList.remove("selected"); });
@@ -906,21 +912,29 @@ function renderRooms() {
     card.appendChild(head);
 
     if (isOpen) {
+
       // Room Type dropdown
       var typeField = document.createElement("div");
       typeField.className = "rc-field";
+      
       var typeLbl = document.createElement("label");
       typeLbl.className = "rc-field__label";
       typeLbl.textContent = "Cabin Type";
+      
       var selWrap = document.createElement("div");
       selWrap.className = "rc-select-wrapper";
+      
       var sel = document.createElement("select");
       sel.className = "rc-select";
+      
       var ph = document.createElement("option");
       ph.value = "";
       ph.textContent = " Select cabin type ";
+      
       if (!room.room_category) ph.selected = true;
+      
       sel.appendChild(ph);
+      
       avail.forEach(function(cab) {
         var opt = document.createElement("option");
         opt.value = cab.room_category;
@@ -931,6 +945,7 @@ function renderRooms() {
         if (cab.room_category === room.room_category) opt.selected = true;
         sel.appendChild(opt);
       });
+      
       sel.addEventListener("change", function() {
         room.room_category = this.value;
         room.main_guests = 0;
@@ -938,6 +953,7 @@ function renderRooms() {
         room.infants     = 0;
         renderRooms();
       });
+      
       var typeChev = document.createElement("i");
       typeChev.className = "ti ti-chevron-down";
       selWrap.appendChild(sel);
@@ -1023,7 +1039,7 @@ function renderRooms() {
       // capFor() semula bila Infant yang berubah.
       var stepperRefreshers = [];
 
-      console.log(pricing);
+
       counters.appendChild(mkStepper(room, "main_guests", "Main Guest (Adults 12 years old and above)", capacity, function() {
         if(!pricing.price_adult ){ pricing.price_adult = 0; }
         return room.main_guests === 1
@@ -1122,6 +1138,7 @@ function mkStepper(room, key, label, max, rateFn, refreshers, tooltipText) {
     var c = cabinByCategory(room.room_category);
     var capacity    = c ? (c.capacity || 0) : 0;
     var maxCapacity = c ? (c.max_capacity || capacity) : 0;
+
 
     if (key === "main_guests") {
       // PENTING: bukan cuma capped oleh 'capacity' sendiri — Main Guest

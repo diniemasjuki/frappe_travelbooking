@@ -1,0 +1,297 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "creation": "2026-08-09 14:02:01.598267",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "room_arrangement_section",
+  "voyage_no",
+  "ship",
+  "column_break_pfpk",
+  "sail_date_from",
+  "sail_date_to",
+  "package_type",
+  "column_break_mpoq",
+  "stateroom_category",
+  "stateroom_no",
+  "column_break_yryc",
+  "delegrate_no",
+  "guest_no",
+  "reservation_contact",
+  "section_break_qzui",
+  "last_name",
+  "first_name",
+  "column_break_hwdk",
+  "gender",
+  "birthdate",
+  "section_break_doxq",
+  "residency",
+  "email",
+  "column_break_glyb",
+  "int_code",
+  "intcode_country",
+  "column_break_flip",
+  "telephone",
+  "misc_section",
+  "language",
+  "country_of_birth",
+  "column_break_cblp",
+  "city",
+  "state",
+  "column_break_bkdd",
+  "localized_first_name",
+  "localized_last_name",
+  "column_break_qgsy",
+  "sms_can_contact",
+  "section_break_korz",
+  "cruise_schedule",
+  "traveller_link"
+ ],
+ "fields": [
+  {
+   "fieldname": "room_arrangement_section",
+   "fieldtype": "Section Break",
+   "label": "Room Arrangement"
+  },
+  {
+   "fieldname": "stateroom_category",
+   "fieldtype": "Data",
+   "label": "Stateroom Category",
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "stateroom_no",
+   "fieldtype": "Data",
+   "label": "Stateroom No",
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "delegrate_no",
+   "fieldtype": "Data",
+   "label": "Delegrate No",
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "guest_no",
+   "fieldtype": "Data",
+   "label": "Guest No",
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "column_break_mpoq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "misc_section",
+   "fieldtype": "Section Break",
+   "label": "Misc"
+  },
+  {
+   "default": "ENGLISH",
+   "fieldname": "language",
+   "fieldtype": "Data",
+   "label": "Language"
+  },
+  {
+   "fieldname": "country_of_birth",
+   "fieldtype": "Data",
+   "label": "Country of Birth"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Data",
+   "label": "State"
+  },
+  {
+   "fieldname": "localized_first_name",
+   "fieldtype": "Data",
+   "label": "Localized First Name"
+  },
+  {
+   "fieldname": "localized_last_name",
+   "fieldtype": "Data",
+   "label": "Localized Last Name"
+  },
+  {
+   "default": "FALSE",
+   "fieldname": "sms_can_contact",
+   "fieldtype": "Data",
+   "label": "SMS Can Contact"
+  },
+  {
+   "fieldname": "section_break_doxq",
+   "fieldtype": "Section Break",
+   "label": "Contact"
+  },
+  {
+   "fieldname": "residency",
+   "fieldtype": "Data",
+   "label": "Residency"
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "label": "Email"
+  },
+  {
+   "default": "FALSE",
+   "fieldname": "reservation_contact",
+   "fieldtype": "Data",
+   "label": "Reservation Contact"
+  },
+  {
+   "default": "FALSE",
+   "fieldname": "int_code",
+   "fieldtype": "Data",
+   "label": "Int Code"
+  },
+  {
+   "default": "FALSE",
+   "fieldname": "intcode_country",
+   "fieldtype": "Data",
+   "label": "Int.Code Country"
+  },
+  {
+   "default": "FALSE",
+   "fieldname": "telephone",
+   "fieldtype": "Data",
+   "label": "Telephone"
+  },
+  {
+   "default": "1",
+   "fieldname": "voyage_no",
+   "fieldtype": "Data",
+   "label": "Voyage",
+   "set_only_once": 1
+  },
+  {
+   "default": "AC01",
+   "fieldname": "ship",
+   "fieldtype": "Data",
+   "label": "Ship",
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "sail_date_from",
+   "fieldtype": "Date",
+   "label": "Sail Date From"
+  },
+  {
+   "fieldname": "sail_date_to",
+   "fieldtype": "Date",
+   "label": "Sail Date To"
+  },
+  {
+   "default": "AC01",
+   "fieldname": "package_type",
+   "fieldtype": "Data",
+   "label": "Package Type",
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "section_break_qzui",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "last_name",
+   "fieldtype": "Data",
+   "label": "Last Name"
+  },
+  {
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "label": "First Name"
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Data",
+   "label": "Gender"
+  },
+  {
+   "fieldname": "birthdate",
+   "fieldtype": "Date",
+   "label": "Birth Date"
+  },
+  {
+   "fieldname": "column_break_pfpk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_yryc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_hwdk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_glyb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_flip",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_cblp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_bkdd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_qgsy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_korz",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cruise_schedule",
+   "fieldtype": "Link",
+   "label": "Cruise Schedule",
+   "options": "Trip Cruise Schedule"
+  },
+  {
+   "fieldname": "traveller_link",
+   "fieldtype": "Link",
+   "label": "Traveller Reservation Link",
+   "options": "Booking Reservation"
+  }
+ ],
+ "grid_page_length": 50,
+ "links": [],
+ "modified": "2026-08-09 16:15:34.319626",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Rooming Aroya",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

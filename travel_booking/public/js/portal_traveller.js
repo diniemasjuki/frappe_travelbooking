@@ -16,8 +16,7 @@ async function _loadTravellerForm(slot, passportReset = false) {
   const isRejected      = slot && slot.document_status === 'Rejected';
   const canEdit         = !isVerified || isOpenForUpdate || isRejected;
 
-  document.getElementById('tvl-form-breadcrumb').textContent =
-    `${ACTIVE_SLOT.slot_label} · ${BOOKING}`;
+  // document.getElementById('tvl-form-breadcrumb').textContent = `${ACTIVE_SLOT.slot_label} · ${BOOKING}`;
 
   document.getElementById('tvl-ic').value        = slot?.ic_number      || '';
   document.getElementById('tvl-firstname').value = slot?.first_name     || '';

@@ -15,8 +15,6 @@ function renderBookingList() {
 
   container.innerHTML = SESSION.bookings.map(bk => {
 
-    console.log('renderBookingList: booking', bk);
-
     const bref        = bk.booking_number || bk.name;
     const isCancelled = bk.booking_status === 'Cancelled';
     const locked      = isCancelled;

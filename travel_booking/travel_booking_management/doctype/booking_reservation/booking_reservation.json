@@ -8,11 +8,11 @@
  "engine": "InnoDB",
  "field_order": [
   "reservation_info_section",
+  "naming_series",
   "booking",
   "booking_number",
   "customer",
   "customer_email",
-  "naming_series",
   "column_break_wcmg",
   "status",
   "document_status",
@@ -27,13 +27,14 @@
   "trip_organizer",
   "departure_point",
   "reservation_section",
+  "column_break_bsxx",
   "date_selection",
   "is_a_cruise",
   "is_cruise_only",
-  "column_break_bsxx",
+  "trip_cruise_schedule",
+  "column_break_neqr",
   "departure_date",
   "arrival_date",
-  "column_break_srnx",
   "cruise_start",
   "cruise_end",
   "traveller_information_tab",
@@ -233,7 +234,7 @@
   {
    "fieldname": "reservation_section",
    "fieldtype": "Section Break",
-   "label": "Reservation"
+   "label": "Reservation Date"
   },
   {
    "fetch_from": "booking.trip_date",
@@ -241,7 +242,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Date Selection",
+   "label": "Trip Date Group Selection",
    "options": "Trip Group Date"
   },
   {
@@ -261,23 +262,22 @@
    "label": "Arrival Date"
   },
   {
-   "fieldname": "column_break_srnx",
-   "fieldtype": "Column Break"
-  },
-  {
    "default": "0",
    "fetch_from": "booking.is_a_cruise_trip",
    "fieldname": "is_a_cruise",
    "fieldtype": "Check",
-   "label": "is a cruise"
+   "label": "is a cruise",
+   "mandatory_depends_on": "eval:doc.is_a_cruise"
   },
   {
+   "depends_on": "eval:doc.is_a_cruise",
    "fetch_from": "date_selection.sailing_start",
    "fieldname": "cruise_start",
    "fieldtype": "Date",
    "label": "Cruise Start"
   },
   {
+   "depends_on": "eval:doc.is_a_cruise",
    "fetch_from": "date_selection.sailing_end",
    "fieldname": "cruise_end",
    "fieldtype": "Date",
@@ -306,6 +306,7 @@
   },
   {
    "default": "0",
+   "depends_on": "eval:doc.is_a_cruise",
    "fetch_from": "booking.is_cruise_only",
    "fieldname": "is_cruise_only",
    "fieldtype": "Check",
@@ -394,11 +395,25 @@
    "fieldtype": "Link",
    "label": "Flight Airline",
    "options": "Flight Airline"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise",
+   "fetch_from": "date_selection.cruise_schedule",
+   "fieldname": "trip_cruise_schedule",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trip Cruise Schedule",
+   "options": "Trip Cruise Schedule"
+  },
+  {
+   "fieldname": "column_break_neqr",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "links": [],
- "modified": "2026-08-06 05:16:52.267573",
+ "modified": "2026-08-09 16:54:47.926081",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking Reservation",

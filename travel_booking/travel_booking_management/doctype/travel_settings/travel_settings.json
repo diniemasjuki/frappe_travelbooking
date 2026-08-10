@@ -149,7 +149,7 @@
    "fieldname": "html_apxx",
    "fieldtype": "HTML",
    "label": "Booking Operation Data Table",
-   "options": "<h3 style=\"text-align:center; margin:25px auto\" >Operation Data</h3>\n\n<img style=\"width:100%\" src=\"../assets/travel_booking/img/BookingSystemOperation.png\"/>"
+   "options": "<h3 style=\"text-align:center; margin:25px auto\" >Operation Data</h3>\n\n<img style=\"width:100%\" src=\"/../assets/travel_booking/img/BookingSystemOperation.png\"/>"
   },
   {
    "fieldname": "data_flow_information_section",
@@ -163,7 +163,7 @@
    "fieldname": "selling_operation_data_table",
    "fieldtype": "HTML",
    "label": "Selling Operation Data Table",
-   "options": "<h3 style=\"text-align:center; margin:25px auto\" >Preparing & Selling Data</h3>\n\n<img style=\"width:100%\" src=\"../assets/travel_booking/img/BookingSystemSelling.png\"/>"
+   "options": "<h3 style=\"text-align:center; margin:25px auto\" >Preparing & Selling Data</h3>\n\n<img style=\"width:100%\" src=\"/../assets/travel_booking/img/BookingSystemSelling.png\"/>"
   },
   {
    "fieldname": "column_break_bvku",
@@ -183,7 +183,7 @@
  "grid_page_length": 50,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-07 10:38:56.577177",
+ "modified": "2026-08-09 19:05:22.312455",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Settings",

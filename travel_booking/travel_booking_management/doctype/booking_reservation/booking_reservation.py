@@ -44,6 +44,7 @@ class BookingReservation(Document):
 		stateroom_no: DF.Data | None
 		status: DF.Literal["Pending Review", "Confirmed", "Cancelled"]
 		traveller: DF.Link | None
+		trip_cruise_schedule: DF.Link | None
 		trip_link: DF.Data | None
 		trip_name: DF.Data | None
 		trip_organizer: DF.Data | None
