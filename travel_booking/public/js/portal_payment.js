@@ -42,6 +42,11 @@ function renderSoList(orders) {
 
   orders.forEach(so => {
     const bookingLabel = (so.bookings || []).join(' · ') || so.name;
+    // MULTI-CURRENCY: simbol currency SO ni sendiri (rujuk currency_symbol
+    // dari get_all_so_payments() backend, sumber asal doctype Currency
+    // ERPNext) — SETIAP transaksi papar simbol currency SO masing-masing,
+    // bukan "RM" hardcode (booking boleh dalam MYR/SGD/BND berlainan).
+    const soSymbol = so.currency_symbol || 'RM';
 
     (so.payments || []).forEach(p => {
       txns.push({
@@ -51,6 +56,7 @@ function renderSoList(orders) {
                      (p.status === 'Pending' ? ' (pending review)' : ''),
         subtitle:    bookingLabel + ' · ' + so.name,
         amount:      parseFloat(p.paid_amount || 0),
+        symbol:      soSymbol,
         statusLabel: p.status === 'Verified' ? 'Verified'
                    : p.status === 'Cancelled' ? 'Cancelled' : 'Pending',
         statusBg:    p.status === 'Verified' ? '#E1F5EE' : p.status === 'Cancelled' ? '#FEE2E2' : '#F5F3EE',
@@ -68,6 +74,7 @@ function renderSoList(orders) {
         title:       'Invoice ' + inv.name,
         subtitle:    bookingLabel + ' · ' + so.name,
         amount:      parseFloat(inv.grand_total || 0),
+        symbol:      soSymbol,
         statusLabel: null,
         onClick:     `downloadDocument(this,'Sales Invoice','${inv.name}')`,
         actionLabel: 'Download',
@@ -108,7 +115,7 @@ function renderSoList(orders) {
           <div style="font-size:12px;color:#B0AC9F;margin-top:2px">${t.subtitle}${t.sortDate ? ' · ' + t.sortDate : ''}</div>
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:14px;font-weight:600;color:${amountColor}">RM ${t.amount.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+          <div style="font-size:14px;font-weight:600;color:${amountColor}">${t.symbol} ${t.amount.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
           <div style="margin-top:4px;display:flex;align-items:center;gap:6px;justify-content:flex-end">
             ${t.statusLabel ? `<span style="font-size:11px;font-weight:600;padding:2px 10px;border-radius:14px;background:${t.statusBg};color:${t.statusColor}">${t.statusLabel}</span>` : ''}
             ${t.onClick ? `<button onclick="${t.onClick}" style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:6px;border:0.5px solid #D3D1C7;background:transparent;color:#5C5850;cursor:pointer">${t.actionLabel}</button>` : ''}
@@ -204,6 +211,13 @@ function renderBookingOverview(orders) {
   const outstanding = Math.max(grandTotal - totalPaid, 0);
   const pct         = grandTotal > 0 ? Math.min((totalPaid / grandTotal) * 100, 100) : 0;
   const isPaid      = outstanding <= 0;
+  // MULTI-CURRENCY: jumlah di atas SUM merentasi SEMUA SO untuk booking
+  // (utama + addon) — ini SELAMAT sebab SEMUA SO untuk SATU booking WAJIB
+  // currency yang sama (guardrail reka bentuk multi-currency, rujuk
+  // dokumen reka bentuk Seksyen 3), jadi ambil symbol dari SO PERTAMA
+  // sahaja sebagai wakil (semua SO dalam array ni sepatutnya currency
+  // yang sama).
+  const symbol = (orders[0] && orders[0].currency_symbol) || 'RM';
 
   // 
   // payment invoice dashboard total summmary per booking page
@@ -226,17 +240,17 @@ function renderBookingOverview(orders) {
 
         <div style="padding:12px; text-align:right;">
           <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#B0AC9F);margin-bottom:4px">Total Paid</div>
-          <div style="font-size:15px;font-weight:500;color:#0F6E56">RM ${fmt(totalPaid)}</div>
+          <div style="font-size:15px;font-weight:500;color:#0F6E56">${symbol} ${fmt(totalPaid)}</div>
         </div>
 
         <div style="padding:12px;">
           <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#B0AC9F);margin-bottom:4px">Total Billed</div>
-          <div style="font-size:18px;font-weight:500;color:var(--color-text-primary,#1E1C18)">RM ${fmt(grandTotal)}</div>
+          <div style="font-size:18px;font-weight:500;color:var(--color-text-primary,#1E1C18)">${symbol} ${fmt(grandTotal)}</div>
         </div>
         
         <div style="padding:12px; text-align:right;">
           <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--color-text-secondary,#B0AC9F);margin-bottom:4px">Balance due</div>
-            <div style="font-size:15px;font-weight:500;color:${isPaid ? '#0F6E56' : '#991B1B'}">${isPaid ? 'Paid ✓' : 'RM ' + fmt(outstanding)}</div>
+            <div style="font-size:15px;font-weight:500;color:${isPaid ? '#0F6E56' : '#991B1B'}">${isPaid ? 'Paid ✓' : symbol + ' ' + fmt(outstanding)}</div>
           </div>
         </div>
 
@@ -258,6 +272,9 @@ function renderSoCard(so) {
   const fmt         = n => parseFloat(n || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const onlineMin   = paid <= 0 ? Math.round(total * 0.2 * 100) / 100 : 1;
   const onlineMax   = outstanding;
+  // MULTI-CURRENCY: symbol currency SO ni sendiri — rujuk get_all_so_payments()
+  // backend (so.currency_symbol, sumber asal doctype Currency ERPNext).
+  const symbol      = so.currency_symbol || 'RM';
 
   const cardIcon = `<div style="width:36px;height:36px;border-radius:10px;background:#E1F5EE;display:flex;align-items:center;justify-content:center;flex-shrink:0">
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -292,7 +309,7 @@ function renderSoCard(so) {
               <div style="font-size:12px;color:var(--color-text-secondary,#7D7A70)">${p.payment_date || '-'} · Ref: ${p.reference_no || '-'}</div>
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
-              <div style="font-size:13px;font-weight:500;color:${isVerified ? '#0F6E56' : 'var(--color-text-primary,#1E1C18)'}">RM ${fmt(p.paid_amount)}</div>
+              <div style="font-size:13px;font-weight:500;color:${isVerified ? '#0F6E56' : 'var(--color-text-primary,#1E1C18)'}">${symbol} ${fmt(p.paid_amount)}</div>
               <div style="display:flex;align-items:center;gap:6px">
                 <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;background:${sc.bg};color:${sc.color}">${sc.label}</span>
                 ${isVerified ? `<button onclick="downloadDocument(this,'Payment Entry','${p.name}')" style="font-size:11px;font-weight:500;padding:4px 10px;border-radius:6px;border:0.5px solid var(--color-border-secondary,#D3D1C7);background:transparent;color:var(--color-text-secondary,#5C5850);cursor:pointer">↓ Receipt</button>` : ''}
@@ -317,7 +334,7 @@ function renderSoCard(so) {
           </div>
           <div>
             <div style="font-size:13px;font-weight:500;color:var(--color-text-primary,#1E1C18)">${inv.name}</div>
-            <div style="font-size:11px;color:var(--color-text-tertiary,#B0AC9F);margin-top:1px">${inv.posting_date || '-'} · RM ${parseFloat(inv.grand_total || 0).toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+            <div style="font-size:11px;color:var(--color-text-tertiary,#B0AC9F);margin-top:1px">${inv.posting_date || '-'} · ${symbol} ${parseFloat(inv.grand_total || 0).toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
           </div>
         </div>
         <button onclick="downloadDocument(this,'Sales Invoice','${inv.name}')"
@@ -347,7 +364,7 @@ function renderSoCard(so) {
         </div>
         <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
           <div style="text-align:right">
-            <div style="font-size:15px;font-weight:500;color:var(--color-text-primary,#1E1C18)">RM ${fmt(total)}</div>
+            <div style="font-size:15px;font-weight:500;color:var(--color-text-primary,#1E1C18)">${symbol} ${fmt(total)}</div>
             <span style="display:inline-block;margin-top:3px;font-size:10px;font-weight:500;padding:2px 8px;border-radius:20px;background:${isPaid ? '#E1F5EE' : '#FEF3C7'};color:${isPaid ? '#085041' : '#92400E'}">${isPaid ? 'Settled' : pct.toFixed(0) + '% paid'}</span>
           </div>
           <svg id="so-chevron-${soId}" width="16" height="16" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;transform:rotate(0deg);transition:transform .2s">
@@ -377,18 +394,18 @@ function renderSoCard(so) {
                 ${label}${qty > 1 ? ' <span style="color:var(--color-text-tertiary,#B0AC9F)">&times;' + qty.toFixed(0) + '</span>' : ''}
               </div>
               <div style="font-size:12px;font-weight:500;color:${isDiscount ? '#0F6E56' : 'var(--color-text-primary,#1E1C18)'};white-space:nowrap;padding-left:12px">
-                ${isDiscount ? '-' : ''}RM ${Math.abs(amt).toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}
+                ${isDiscount ? '-' : ''}${symbol} ${Math.abs(amt).toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}
               </div>
             </div>`;
         }).join('')}
         <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:-1px;border-top:3px solid var(--color-border-secondary,#D3D1C7)">
           <div style="font-size:13px;font-weight:500;color:var(--color-text-primary,#1E1C18)">Total</div>
-          <div style="font-size:13px;font-weight:500;color:#D4A312">RM ${total.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
+          <div style="font-size:13px;font-weight:500;color:#D4A312">${symbol} ${total.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2})}</div>
         </div>
       </div>` : ''}
       
       
-      <div style="font-size:15px;font-weight:500;color:#0F6E56">Amount Paid: RM ${fmt(paid)}</div>
+      <div style="font-size:15px;font-weight:500;color:#0F6E56">Amount Paid: ${symbol} ${fmt(paid)}</div>
       <div style="display:none; height:10px;background:var(--color-background-secondary,#F5F3EE);border-radius:3px;overflow:hidden">
         <div style="height:100%;width:${pct.toFixed(1)}%;background:${isPaid ? '#0F6E56' : '#D4A312'};border-radius:3px"></div>
       </div>
@@ -405,7 +422,7 @@ function renderSoCard(so) {
           <div class="g2">
             <div class="f"><label class="lbl">Payment date</label>
               <input type="date" id="pay-date-${soId}" value="${new Date().toISOString().split('T')[0]}"/></div>
-            <div class="f"><label class="lbl">Amount (RM)</label>
+            <div class="f"><label class="lbl">Amount (${symbol})</label>
               <input type="number" id="pay-amount-${soId}" placeholder="0.00" step="0.01"/></div>
           </div>
           <div class="g2">
@@ -426,14 +443,14 @@ function renderSoCard(so) {
           </button>
         </div>
         <div id="pay-online-${soId}" style="display:none;margin-top:16px;padding-top:16px;border-top:0.5px solid var(--color-border-tertiary,#F0EDE7)">
-          <div class="f"><label class="lbl">Amount to pay (RM)</label>
+          <div class="f"><label class="lbl">Amount to pay (${symbol})</label>
             <input type="number" id="pay-online-amount-${soId}" placeholder="0.00" step="0.01" value="${onlineMax.toFixed(2)}"/></div>
           <div style="font-size:11px;color:var(--color-text-tertiary,#B0AC9F);margin-top:4px">
-            Min RM ${fmt(onlineMin)} · Max RM ${fmt(onlineMax)} (balance)${paid <= 0 ? ' · first payment must be at least 20% deposit' : ''}
+            Min ${symbol} ${fmt(onlineMin)} · Max ${symbol} ${fmt(onlineMax)} (balance)${paid <= 0 ? ' · first payment must be at least 20% deposit' : ''}
           </div>
           <div id="pay-online-err-${soId}" style="font-size:11px;color:#C0392B;margin-top:4px;display:none"></div>
           <button class="btn btn-p" id="pay-online-submit-${soId}"
-                  onclick="submitOnlinePayment('${soId}','${so.name}',${onlineMin},${onlineMax})"
+                  onclick="submitOnlinePayment('${soId}','${so.name}',${onlineMin},${onlineMax},'${symbol}')"
                   style="width:100%;margin-top:10px">
             Proceed to Payment →
           </button>
@@ -471,14 +488,15 @@ function toggleOnlineForm(soId, btn) {
   btn.style.color       = open ? 'var(--text-secondary,#5C5850)' : '#fff';
 }
 
-async function submitOnlinePayment(soId, soName, minAmt, maxAmt) {
+async function submitOnlinePayment(soId, soName, minAmt, maxAmt, symbol) {
+  symbol = symbol || 'RM';
   const err = document.getElementById(`pay-online-err-${soId}`);
   const val = parseFloat(document.getElementById(`pay-online-amount-${soId}`).value || 0);
   err.style.display = 'none';
   const showErr = m => { err.textContent = m; err.style.display = 'block'; };
   if (!val || val <= 0)     { showErr('Please enter an amount.'); return; }
-  if (val < minAmt - 0.001) { showErr(`Minimum is RM ${minAmt.toLocaleString('en-MY',{minimumFractionDigits:2, maximumFractionDigits:2})}.`); return; }
-  if (val > maxAmt + 0.001) { showErr(`Maximum is RM ${maxAmt.toLocaleString('en-MY',{minimumFractionDigits:2, maximumFractionDigits:2})} (balance).`); return; }
+  if (val < minAmt - 0.001) { showErr(`Minimum is ${symbol} ${minAmt.toLocaleString('en-MY',{minimumFractionDigits:2, maximumFractionDigits:2})}.`); return; }
+  if (val > maxAmt + 0.001) { showErr(`Maximum is ${symbol} ${maxAmt.toLocaleString('en-MY',{minimumFractionDigits:2, maximumFractionDigits:2})} (balance).`); return; }
 
   const btn = document.getElementById(`pay-online-submit-${soId}`);
   btn.textContent = 'Redirecting...'; btn.disabled = true;

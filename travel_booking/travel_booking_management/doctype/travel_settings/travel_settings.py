@@ -13,11 +13,13 @@ class TravelSettings(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
+		from travel_booking.travel_booking_management.doctype.travel_currency_account.travel_currency_account import TravelCurrencyAccount
 
 		account_name: DF.Data
 		account_number: DF.Data
 		bank_name: DF.Link
 		cashback_discount_account: DF.Link | None
+		currency_accounts: DF.Table[TravelCurrencyAccount]
 		default_deposit_percent: DF.Percent
 		default_referral_discount_percent: DF.Percent
 		email_verified_session_minutes: DF.Int

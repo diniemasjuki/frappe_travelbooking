@@ -40,6 +40,7 @@
   "cruise_end",
   "payment_section",
   "column_break_betz",
+  "currency",
   "total_amount",
   "balance_amount",
   "column_break_jnes",
@@ -133,6 +134,7 @@
    "fieldtype": "Currency",
    "is_virtual": 1,
    "label": "Total Amount",
+   "options": "currency",
    "precision": "2"
   },
   {
@@ -140,6 +142,7 @@
    "fieldtype": "Currency",
    "is_virtual": 1,
    "label": "Balance Amount",
+   "options": "currency",
    "precision": "2"
   },
   {
@@ -162,6 +165,7 @@
    "fieldname": "pre_discount_total",
    "fieldtype": "Currency",
    "label": "Pre-Discount Total",
+   "options": "currency",
    "read_only": 1
   },
   {
@@ -349,6 +353,13 @@
    "fieldtype": "Data",
    "label": "Customer Email",
    "options": "Email"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Data",
+   "is_virtual": 1,
+   "label": "Currency",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
@@ -366,7 +377,7 @@
    "link_fieldname": "booking"
   }
  ],
- "modified": "2026-08-07 07:25:11.419074",
+ "modified": "2026-08-12 05:04:55.489253",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking",

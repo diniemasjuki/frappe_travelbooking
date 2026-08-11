@@ -18,10 +18,10 @@
  "message": "<div style=\"font-family: sans-serif; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden; max-width: 550px; margin: 20px auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1);\">\n\n    <div style=\"background-color: #409fff; color: #ffffff; padding: 20px; text-align: center;\">\n        <h2 style=\"margin: 0; font-size: 20px; letter-spacing: 1px; color: #ffffff; \"><small>FLIGHT INFORMATION <br/></small>UPDATED</h2>\n    </div>\n\n    <div style=\"padding: 25px; color: #444; line-height: 1.6;\">\n\n        <p>Dear <strong>{{ doc.full_name }}</strong>,</p>\n\n        <p>Get ready for your adventure ahead! We are pleased to share with you flight details for your upcoming trip as follow::</p>\n\n        <div style=\"background-color: #f8f9fa; border-left: 4px solid #ecf6ff; padding: 15px; margin: 20px 0;\">\n            <p style=\"margin: 5px 0;\"><strong>Booking Number:</strong> {{ doc.flight }}</p>\n            <p style=\"margin: 5px 0;\"><strong>Airline:</strong> {{ doc.airline }}</p>\n            <br/>\n            <p style=\"margin: 5px 0;\" ><strong>Flight Itinerary:</strong> <hr/>{{doc.flight_itinerary}}</p>\n        </div>\n\n        <p>For inquiries and updates, our team will keep you on top of our priority for any updates regarding you journey.</p>\n\n        <p style=\"margin-top: 30px;\">Best Regards,<br>\n        <strong>Rarecation Travel</strong></p>\n\n    </div>\n\n    <div style=\"background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 11px; color: #999;\">\n        This is an automated notification by Rarecation Travel System.\n    </div>\n\n</div>",
  "message_type": "HTML",
  "minutes_offset": 10,
- "modified": "2026-08-05 06:21:11.077692",
+ "modified": "2026-08-11 11:17:24.993127",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
- "name": "Flight Information",
+ "name": "RARECATION | FLIGHT UPDATE",
  "owner": "Administrator",
  "property_value": "",
  "recipients": [
@@ -34,6 +34,6 @@
  "sender": "",
  "sender_email": "",
  "set_property_after_alert": "flight_info_sent",
- "subject": "RARECATION | Flight Information Update for {{ doc.full_name }}",
- "value_changed": "flight"
+ "subject": "RARECATION | FLIGHT UPDATE | {{ doc.full_name }}",
+ "value_changed": "flight_itinerary"
 }

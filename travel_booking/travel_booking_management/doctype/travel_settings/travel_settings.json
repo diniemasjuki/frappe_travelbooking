@@ -19,6 +19,8 @@
   "account_number",
   "column_break_acfc",
   "manual_transfer_paid_to_account",
+  "multi_currency_account_section",
+  "currency_accounts",
   "deposit_and_payment_section",
   "payment_gateway",
   "default_deposit_percent",
@@ -178,12 +180,23 @@
    "fieldname": "tab_config",
    "fieldtype": "Tab Break",
    "label": "App Configurations"
+  },
+  {
+   "fieldname": "multi_currency_account_section",
+   "fieldtype": "Section Break",
+   "label": "Multi Currency Account"
+  },
+  {
+   "fieldname": "currency_accounts",
+   "fieldtype": "Table",
+   "label": "Currency Accounts",
+   "options": "Travel Currency Account"
   }
  ],
  "grid_page_length": 50,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-09 19:05:22.312455",
+ "modified": "2026-08-10 23:14:08.205621",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Settings",

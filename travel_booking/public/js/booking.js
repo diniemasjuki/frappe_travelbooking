@@ -29,6 +29,8 @@ const state = {
   trip_package: "",
   trip_name:    "",
   group_name:   "",
+  package_currency: "MYR",
+  package_symbol:   "RM",
   cabins:       [],
   rooms:        [],
   selections:   {},
@@ -57,7 +59,14 @@ function fmt(n) {
   // Payment Request) sentiasa dibundarkan ke 2 titik perpuluhan (sen) di
   // backend. Percanggahan paparan vs caj sebenar ni boleh buat customer
   // fikir mereka dicaj lebih/kurang dari yang sepatutnya.
-  return "RM " + Number(n).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  //
+  // MULTI-CURRENCY: prefix simbol BUKAN lagi hardcode "RM " — baca terus
+  // dari state.package_symbol (diisi dari currency_symbol package yang
+  // dipilih customer, sumber asal doctype Currency ERPNext — rujuk
+  // www/booking.py). Fallback "RM" untuk fmt() dipanggil SEBELUM customer
+  // pilih Trip/Package lagi (cth Step 0, belum ada currency ditentukan).
+  var symbol = (typeof state !== "undefined" && state.package_symbol) ? state.package_symbol : "RM";
+  return symbol + " " + Number(n).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function showLoading(msg) {
@@ -91,6 +100,8 @@ function saveState() {
       trip_name:    state.trip_name,
       group_name:   state.group_name,
       package_label: state.package_label,
+      package_currency: state.package_currency,
+      package_symbol:   state.package_symbol,
       rooms:        state.rooms,
       billing:      billing,
       otp_verified: state.otp_verified,
@@ -327,6 +338,14 @@ step0Next.addEventListener("click", async function() {
   state.trip_name    = tripSelect.options[tripSelect.selectedIndex].text;
   state.group_name   = selectedGroup.trip_group_name;
   state.package_label = selectedPackage.package_name;
+  // MULTI-CURRENCY: simpan currency package yang dipilih — dipakai untuk
+  // paparan harga (fmt) DAN pilih bank details/pilihan payment method
+  // yang betul di Step Payment (rujuk renderPaymentSettingsUI()/
+  // dokumen reka bentuk multi-currency). Fallback "MYR" untuk package
+  // lama yang mungkin belum diisi currency-nya.
+  state.package_currency = selectedPackage.currency || "MYR";
+  state.package_symbol   = selectedPackage.currency_symbol || state.package_currency;
+  if (typeof renderPaymentSettingsUI === "function") renderPaymentSettingsUI();
   await loadCabins();
   showStep(1);
 });
@@ -345,6 +364,8 @@ function restoreWizard() {
   state.trip_name    = snap.trip_name || "";
   state.group_name   = snap.group_name || "";
   state.package_label = snap.package_label || "";
+  state.package_currency = snap.package_currency || "MYR";
+  state.package_symbol   = snap.package_symbol || "RM";
   if (snap.billing) state.billing = snap.billing;
   state.otp_verified = !!snap.otp_verified;
   if (tripSelect) {
@@ -1719,10 +1740,19 @@ var state_receipt_data   = null;
 
 // Diisi oleh loadPaymentSettings() dari Travel Settings — nilai default di
 // bawah ni hanya fallback sekiranya API gagal (network/server error).
+// MULTI-CURRENCY: bank_accounts ialah dict {currency: {bank_name,
+// account_name, account_number}} — dipilih ikut state.package_currency
+// bila render (rujuk renderPaymentSettingsUI()), sebab currency sebenar
+// booking BELUM diketahui semasa loadPaymentSettings() jalan (page load,
+// sebelum customer pilih Trip/Package).
 var state_payment_settings = {
-  bank_name:                 "Maybank",
-  account_name:              "Rarecation Sdn Bhd",
-  account_number:            "1234 5678 9012",
+  bank_accounts: {
+    MYR: {
+      bank_name:      "Maybank",
+      account_name:   "Rarecation Sdn Bhd",
+      account_number: "1234 5678 9012",
+    }
+  },
   cashback_enabled:          true,
   cashback_percent:          5,
   default_deposit_percent:   20,
@@ -1733,9 +1763,8 @@ async function loadPaymentSettings() {
     var result = await apiCall("travel_booking.api.booking.get_payment_settings", {}, true);
     if (result && !result.exc) {
       state_payment_settings = {
-        bank_name:               result.bank_name || state_payment_settings.bank_name,
-        account_name:            result.account_name || state_payment_settings.account_name,
-        account_number:          result.account_number || state_payment_settings.account_number,
+        bank_accounts:           (result.bank_accounts && Object.keys(result.bank_accounts).length)
+                                    ? result.bank_accounts : state_payment_settings.bank_accounts,
         cashback_enabled:        !!result.cashback_enabled,
         cashback_percent:        result.cashback_percent || 0,
         default_deposit_percent: result.default_deposit_percent || 20
@@ -1829,19 +1858,52 @@ document.getElementById("addSalesPersonBtn").addEventListener("click", addSalesP
 function renderPaymentSettingsUI() {
   var s = state_payment_settings;
 
+  // MULTI-CURRENCY: pilih bank details ikut currency package yang
+  // DIPILIH customer (state.package_currency, default "MYR" sebelum
+  // Trip/Package dipilih) — bukan satu set flat macam sebelum ni.
+  var currency = state.package_currency || "MYR";
+  var bankInfo = (s.bank_accounts && s.bank_accounts[currency]) || null;
+
   // Bank transfer details
   var bankNameEl = document.getElementById("bankNameDisplay");
   var acctNameEl = document.getElementById("bankAccountNameDisplay");
   var acctNoEl   = document.getElementById("bankAccountNumberDisplay");
-  if (bankNameEl) bankNameEl.textContent = s.bank_name;
-  if (acctNameEl) acctNameEl.textContent = s.account_name;
-  if (acctNoEl)   acctNoEl.textContent   = s.account_number;
+  if (bankNameEl) bankNameEl.textContent = bankInfo ? bankInfo.bank_name : "";
+  if (acctNameEl) acctNameEl.textContent = bankInfo ? bankInfo.account_name : "";
+  if (acctNoEl)   acctNoEl.textContent   = bankInfo ? bankInfo.account_number : "";
 
-  // Cashback badge — sembunyi terus kalau admin matikan cashback
+  // Sembunyikan pilihan "Manual Bank Transfer" sepenuhnya kalau admin
+  // belum konfigurasikan Bank Account untuk currency package ni (rujuk
+  // dokumen reka bentuk multi-currency: "sembunyikan pilihan payment,
+  // bukan fallback senyap ke MYR" — elak customer transfer duit currency
+  // asing ke bank yang salah/tak ditrack betul).
+  var labelManualEl = document.getElementById("labelManual");
+  if (labelManualEl) {
+    if (bankInfo) {
+      labelManualEl.style.display = "";
+    } else {
+      labelManualEl.style.display = "none";
+      // Kalau customer TERLANJUR dah pilih Manual Transfer sebelum tukar
+      // ke currency yang tiada Manual Transfer — paksa balik ke Online
+      // Payment (satu-satunya pilihan yang pasti sah untuk semua currency,
+      // rujuk "Pilihan A" — satu akaun Stripe untuk semua currency).
+      var manualRadio = labelManualEl.querySelector("input[type=radio]");
+      if (manualRadio && manualRadio.checked) {
+        var onlineRadio = document.querySelector('input[name="paymentMethod"][value="Online Payment"]');
+        if (onlineRadio) {
+          onlineRadio.checked = true;
+          onPaymentMethodChange(onlineRadio);
+        }
+      }
+    }
+  }
+
+  // Cashback badge — sembunyi terus kalau admin matikan cashback ATAU
+  // Manual Transfer sendiri tak available untuk currency ni (tiada bank
+  // untuk terima transfer = tiada cashback untuk ditawarkan).
   var badge = document.getElementById("cashbackBadge");
   var note  = document.getElementById("cashbackNote");
-  var labelManualEl = document.getElementById("labelManual");
-  if (s.cashback_enabled && s.cashback_percent > 0) {
+  if (bankInfo && s.cashback_enabled && s.cashback_percent > 0) {
     if (badge) { badge.textContent = s.cashback_percent + "% cashback"; badge.style.display = ""; }
     if (note)  { note.textContent  = "Get " + s.cashback_percent + "% cashback when you pay via bank transfer"; note.style.display = ""; }
   } else {
@@ -2158,6 +2220,13 @@ function updatePaymentUI() {
   var min = getMinPay(), max = getMaxPay();
   document.getElementById("chipDeposit").textContent = fmt(min);
   document.getElementById("chipFull").textContent    = fmt(max);
+
+  // MULTI-CURRENCY: prefix input "Payment Amount" (cth "RM"/"SGD") — ini
+  // TERLEPAS pandang semasa Fasa 3 sebab ia HTML statik, bukan melalui
+  // fmt() macam chip Deposit/Pay in full sebelah dia. Guna symbol package
+  // yang dipilih (state.package_symbol), sama sumber dengan fmt().
+  var prefixEl = document.getElementById("payAmountPrefix");
+  if (prefixEl) prefixEl.textContent = state.package_symbol || "RM";
 
   var inp = document.getElementById("payAmountInput");
   inp.min = min; inp.max = max;

@@ -15,6 +15,7 @@ class Booking(Document):
 		from frappe.types import DF
 
 		affiliate: DF.Link | None
+		balance_amount: DF.Currency
 		booking_number: DF.Data
 		cruise_end: DF.Date | None
 		cruise_start: DF.Date | None
@@ -31,6 +32,7 @@ class Booking(Document):
 		referral_code_used: DF.Data | None
 		return_date: DF.Date | None
 		status: DF.Literal["Pending", "Processing", "Accepted", "Confirmed", "Completed", "Abandoned", "Cancelled"]
+		total_amount: DF.Currency
 		trip_date: DF.Link | None
 		trip_date_group_status: DF.ReadOnly | None
 		trip_name: DF.Link | None
@@ -60,6 +62,23 @@ class Booking(Document):
 		if not self.customer:
 			return ""
 		return get_customer_phone(self.customer) or ""
+
+	@property
+	def currency(self):
+		"""Currency booking ni (SEMUA SO — utama + addon — WAJIB currency
+		yang sama, rujuk guardrail dokumen reka bentuk multi-currency
+		Seksyen 3), untuk field 'Currency' fieldtype lain (total_amount/
+		balance_amount/pre_discount_total) papar symbol yang BETUL di
+		Desk (bukan default currency asas company/MYR — rujuk 'options'
+		field-field tu di booking.json, semua rujuk 'currency' ni).
+		Fallback MYR kalau tiada SO lagi (booking baru dicipta).
+		"""
+		from travel_booking.api.booking import _get_all_booking_sales_orders
+		for so_name in _get_all_booking_sales_orders(self.name):
+			so_currency = frappe.db.get_value("Sales Order", so_name, "currency")
+			if so_currency:
+				return so_currency
+		return "MYR"
 
 	@property
 	def total_amount(self):
@@ -110,6 +129,13 @@ class Booking(Document):
 		if not primary_so:
 			return ""
 
+		# MULTI-CURRENCY: symbol currency SO ni sendiri (rujuk dokumen
+		# reka bentuk multi-currency) — SENGAJA baca dari doctype Currency
+		# ERPNext (bukan hardcode "RM"), supaya order_summary papar betul
+		# tak kira currency SO (MYR/SGD/BND/dsb).
+		so_currency = frappe.db.get_value("Sales Order", primary_so, "currency") or "MYR"
+		symbol = frappe.db.get_value("Currency", so_currency, "symbol") or so_currency
+
 		items = frappe.db.get_all("Sales Order Item",
 									filters={"parent": primary_so},
 									fields=["item_name", "qty", "rate"], order_by="idx")
@@ -147,14 +173,14 @@ class Booking(Document):
 		out = []
 		for c in cabins:
 			out.append(c["label"])
-			out.append("  Cabin Fare: RM {:,.2f}".format(c["fare"]))
+			out.append("  Cabin Fare: {} {:,.2f}".format(symbol, c["fare"]))
 			for i, (pax_type, rate) in enumerate(c["lines"], start=1):
-				out.append("  Guest {}: {} \u2014 RM {:,.2f}".format(i, pax_type, rate))
+				out.append("  Guest {}: {} \u2014 {} {:,.2f}".format(i, pax_type, symbol, rate))
 			out.append("")  # baris kosong antara cabin, macam kad berasingan di wizard
 
 		if discount_lines:
 			for name, rate in discount_lines:
-				out.append("{}: RM {:,.2f}".format(name, rate))
+				out.append("{}: {} {:,.2f}".format(name, symbol, rate))
 			out.append("")
 
 		return "\n".join(out).rstrip()

@@ -91,10 +91,11 @@ def get_context(context):
             date_names = [d.name for d in dates]
             pkgs = frappe.db.sql("""
                 SELECT tp.name, sel.trip_group_date, tp.package_title, tp.package_type,
-                       tp.airport_form, ap.airport_name
+                       tp.airport_form, ap.airport_name, tp.currency, cur.symbol AS currency_symbol
                 FROM `tabTrip Package` tp
                 JOIN `tabTrip Package Group Date Select` sel ON sel.parent = tp.name
                 LEFT JOIN `tabFlight Airport` ap ON ap.name = tp.airport_form
+                LEFT JOIN `tabCurrency` cur ON cur.name = tp.currency
                 WHERE sel.trip_group_date IN %(dates)s
                   AND tp.status = 'Active'
                 ORDER BY tp.package_type ASC, tp.package_title ASC
@@ -113,6 +114,20 @@ def get_context(context):
                     "package_type": p.package_type or "",
                     "flight":       p.airport_form or "",
                     "flight_label": flight_label,
+                    # PENTING (multi-currency): currency package ni — customer
+                    # BOLEH pilih trip yang currency BERBEZA (cth "3N Yanbu
+                    # Cruise" MYR vs "Switzerland : SIN" SGD, rujuk dokumen
+                    # reka bentuk multi-currency). Frontend guna field ni
+                    # untuk papar harga + bank details Manual Transfer ikut
+                    # currency package yang DIPILIH, bukan MYR hardcode.
+                    "currency":     p.currency or "MYR",
+                    # currency_symbol dari doctype Currency ERPNext SENDIRI
+                    # (field 'symbol' native, cth "RM"/"S$"/"B$") — SENGAJA
+                    # bukan hardcode senarai {MYR:"RM", SGD:"S$", ...} dalam
+                    # kod kita, supaya currency BAHARU (mana-mana pun) terus
+                    # berfungsi sebaik admin cipta rekod Currency di ERPNext
+                    # — tiada keperluan tambah code setiap kali currency baharu.
+                    "currency_symbol": p.currency_symbol or (p.currency or "MYR"),
                 })
 
     context.trips            = trips

@@ -14,33 +14,69 @@ import stripe
 from travel_booking.api._helpers import get_customer_email
 
 
-def _get_stripe_settings():
+def _get_stripe_settings(currency=None):
     """Selesaikan Stripe Settings (publishable_key/secret_key/webhook signing
-    secret) daripada SATU akaun yang admin tetapkan di Travel Settings —
-    BUKAN lagi ikut currency SO atau flag 'Is Default' pada Payment Gateway
-    Account. Seluruh app (create payment MAHUPUN verify webhook) guna akaun
-    Stripe yang SAMA, tak kira currency SO ("charge always in MYR" — rujuk
-    rancangan multi-currency sedia ada).
+    secret) + Payment Gateway Account daripada Travel Settings.currency_accounts
+    (child table "Travel Currency Account" — satu baris per currency yang
+    disokong: MYR, SGD, BND, dsb — rujuk dokumen reka bentuk multi-currency).
 
-    Rantaian resolusi:
-      Travel Settings.payment_gateway   (Link -> Payment Gateway Account)
+    PENTING — "Pilihan A" (satu akaun Stripe untuk SEMUA currency, bukan
+    banyak Stripe Settings berasingan): setiap baris currency_accounts
+    ada payment_gateway_account SENDIRI (untuk payment_account/ledger
+    perakaunan yang betul ikut currency), tapi SEMUA baris tu sepatutnya
+    berkongsi Payment Gateway (dan Stripe Settings — API key/webhook
+    secret) yang SAMA. Jadi:
+
+    - currency DIBEKALKAN (cth create_payment_intent, perlukan ledger
+      account yang TEPAT untuk currency SO tu) -> cari baris currency_accounts
+      yang currency-nya PADAN.
+    - currency TIADA dibekalkan (webhook, checkout context, payment result
+      — semua tempat yang cuma perlukan API key/webhook secret KONGSI,
+      bukan ledger account spesifik) -> guna baris PERTAMA yang ada
+      payment_gateway_account (mana-mana pun sepatutnya beri Stripe
+      Settings yang SAMA, sebab kongsi Payment Gateway).
+
+    Rantaian resolusi (sama macam sebelum ni, cuma sumber gateway_account
+    sekarang dari child table, bukan field payment_gateway tunggal):
+      Travel Settings.currency_accounts[i].payment_gateway_account
         -> Payment Gateway Account.payment_gateway  (Link -> Payment Gateway)
           -> Payment Gateway.gateway_controller      (nama Stripe Settings)
             -> Stripe Settings (publishable_key / secret_key /
                                  custom_webhook_signing_secret)
 
-    Switch akaun (cth test <-> live, atau tukar currency akaun charge) kini
-    semata-mata tukar Travel Settings.payment_gateway di Desk — TIADA
-    keperluan sentuh site_config.json atau restart bench (frappe.get_cached_doc
-    auto-invalidate lepas Travel Settings disave).
+    Tambah currency baharu = tambah baris baharu di Travel Settings (Desk),
+    TIADA keperluan code/deploy — konsisten dengan keperluan "reka bentuk
+    sebarang currency" (bukan hardcode SGD/BND).
     """
     settings = frappe.get_cached_doc("Travel Settings")
-    gateway_account_name = getattr(settings, "payment_gateway", None)
-    if not gateway_account_name:
+    rows = settings.get("currency_accounts") or []
+    if not rows:
         frappe.throw(
-            "Payment Gateway Account belum ditetapkan dalam Travel Settings. "
-            "Sila hubungi admin."
+            "Tiada Currency Account dikonfigurasikan dalam Travel Settings "
+            "(bahagian 'Multi Currency Account'). Sila hubungi admin."
         )
+
+    gateway_account_name = None
+    if currency:
+        for row in rows:
+            if row.currency == currency and row.payment_gateway_account:
+                gateway_account_name = row.payment_gateway_account
+                break
+        if not gateway_account_name:
+            frappe.throw(
+                "Payment Gateway Account tidak dikonfigurasikan untuk currency '" +
+                str(currency) + "' dalam Travel Settings. Sila hubungi admin."
+            )
+    else:
+        for row in rows:
+            if row.payment_gateway_account:
+                gateway_account_name = row.payment_gateway_account
+                break
+        if not gateway_account_name:
+            frappe.throw(
+                "Tiada Payment Gateway Account dikonfigurasikan dalam mana-mana "
+                "baris Currency Account di Travel Settings. Sila hubungi admin."
+            )
 
     gateway_account = frappe.db.get_value(
         "Payment Gateway Account", gateway_account_name,
@@ -126,7 +162,7 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
         frappe.throw("Tiada baki untuk dibayar pada Sales Order ini.")
 
     currency = so.currency or "MYR"
-    ss, gateway_account = _get_stripe_settings()
+    ss, gateway_account = _get_stripe_settings(currency)
 
     email = get_customer_email(so.customer)
 

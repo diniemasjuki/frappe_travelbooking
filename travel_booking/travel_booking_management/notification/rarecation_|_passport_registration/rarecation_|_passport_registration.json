@@ -1,0 +1,41 @@
+{
+ "attach_files": "From Field",
+ "attach_print": 0,
+ "channel": "Email",
+ "condition_type": "Filters",
+ "creation": "2026-03-09 17:53:51.616139",
+ "days_in_advance": 0,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Traveller",
+ "enabled": 1,
+ "event": "New",
+ "filters": "[]",
+ "from_attach_field": "passport_image",
+ "idx": 0,
+ "is_standard": 1,
+ "letter": "",
+ "letter_message_type": "Custom Message",
+ "message": "<div style=\"font-family: sans-serif; border: 1px solid #e0e0e0; border-radius: 12px; overflow: hidden; max-width: 550px; margin: 20px auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1);\">\n\n    <div style=\"background-color: #409fff; color: #ffffff; padding: 20px; text-align: center;\">\n        <h2 style=\"margin: 0; font-size: 20px; letter-spacing: 1px; color: #ffffff; \"><small>PASSPORT REGISTRATION <br/></small>RECEIVED</h2>\n    </div>\n\n    <div style=\"padding: 25px; color: #444; line-height: 1.6;\">\n\n        <p>Dear <strong>{{ doc.full_name }}</strong>,</p>\n\n        <p>We have successfully received your passport details for your upcoming journey. Here is a summary of the information submitted:</p>\n\n        <div style=\"background-color: #f8f9fa; border-left: 4px solid #ecf6ff; padding: 15px; margin: 20px 0;\">\n            <p style=\"margin: 5px 0;\"><strong>First Name:</strong> {{ doc.first_name }}</p>\n            <p style=\"margin: 5px 0;\"><strong>Last Name:</strong> {{ doc.last_name }}</p>\n            <p style=\"margin: 5px 0;\"><strong>ID/IC/Mykad:</strong> {{ doc.ic_number }}</p>\n            <p style=\"margin: 5px 0;\"><strong>Date of Birth:</strong> {{ doc.date_of_birth }}</p>\n            <p style=\"margin: 25px 0 0 0;\"><strong>Passport Information</strong></p>\n            <p style=\"margin: 5px 0;\"><strong>Passport No:</strong> {{ doc.passport_no }}</p>\n            <p style=\"margin: 5px 0;\"><strong>Passport Expiry:</strong> {{ doc.passport_expiry }}</p>\n            <p style=\"margin: 5px 0;\"><strong>Nationality:</strong> {{ doc.nationality }}</p>\n            <p style=\"margin: 25px 0 0 0;\"><strong>Contact Information</strong></p>\n            <p style=\"margin: 5px 0;\"><strong>Phone No.:</strong> {{ doc.phone }}</p>\n            <p style=\"margin: 5px 0;\"><strong>Email:</strong> {{ doc.email }}</p>\n        </div>\n\n        <p>Our team now reviewing your documents. We will notify you if any further action is required.</p>\n\n        <p style=\"margin-top: 30px;\">Best Regards,<br>\n        <strong>Rarecation Travel</strong></p>\n\n    </div>\n\n    <div style=\"background-color: #f1f1f1; padding: 10px; text-align: center; font-size: 11px; color: #999;\">\n        This is an automated notification by Rarecation Travel System.\n    </div>\n\n</div>\n",
+ "message_type": "Markdown",
+ "minutes_offset": 0,
+ "modified": "2026-08-11 06:50:02.664722",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "RARECATION | PASSPORT REGISTRATION",
+ "owner": "syahinabdul@gmail.com",
+ "recipients": [
+  {
+   "bcc": "",
+   "cc": "",
+   "condition": "",
+   "receiver_by_document_field": "email",
+   "receiver_by_role": ""
+  }
+ ],
+ "send_system_notification": 0,
+ "send_to_all_assignees": 0,
+ "sender": "",
+ "sender_email": "",
+ "subject": "RARECATION | PASSPORT REGISTRATION  | {{ doc.full_name }}"
+}

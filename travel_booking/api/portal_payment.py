@@ -21,10 +21,12 @@ def get_all_so_payments():
     customer_name = _get_customer()
 
     so_rows = frappe.db.sql("""
-        SELECT name, grand_total, advance_paid, status, docstatus
-        FROM `tabSales Order`
-        WHERE customer = %s AND docstatus IN (1, 2)
-        ORDER BY creation DESC
+        SELECT so.name, so.grand_total, so.advance_paid, so.status, so.docstatus,
+               so.currency, cur.symbol AS currency_symbol
+        FROM `tabSales Order` so
+        LEFT JOIN `tabCurrency` cur ON cur.name = so.currency
+        WHERE so.customer = %s AND so.docstatus IN (1, 2)
+        ORDER BY so.creation DESC
     """, customer_name, as_dict=True)
 
     orders = []
@@ -163,7 +165,15 @@ def get_all_so_payments():
             "booking_numbers": booking_numbers,
             "items":           items,
             "payments":        payments,
-            "invoices":        invoices
+            "invoices":        invoices,
+            # MULTI-CURRENCY: rujuk dokumen reka bentuk — setiap SO boleh
+            # currency BERBEZA (utama MYR, addon SGD, dsb — sepatutnya
+            # jarang, guardrail "single currency per booking" masih
+            # berkuatkuasa DALAM satu booking, tapi across booking BERBEZA
+            # customer boleh ada currency lain-lain). Frontend guna field
+            # ni untuk papar simbol yang BETUL untuk card SO ni.
+            "currency":        so.currency or "MYR",
+            "currency_symbol": so.currency_symbol or (so.currency or "MYR"),
         })
 
     return {"orders": orders}
@@ -243,10 +253,16 @@ def create_payment_request(booking_number: str = None, amount: float = None, sal
     min_amount = round(grand_total * (default_deposit_percent / 100), 2) if paid <= 0 else 1.0
     if req_amount < min_amount - 0.01:
         if paid <= 0:
-            frappe.throw("Bayaran pertama mesti sekurang-kurangnya deposit {:.0f}% (RM {:,.2f}).".format(default_deposit_percent, min_amount))
+            from travel_booking.api.booking import fmt_currency
+            frappe.throw(
+                "Bayaran pertama mesti sekurang-kurangnya deposit {:.0f}% ({}).".format(
+                    default_deposit_percent, fmt_currency(min_amount, so.currency)
+                )
+            )
         frappe.throw("Amount tidak sah.")
     if req_amount > outstanding + 0.01:
-        frappe.throw("Amount melebihi baki tertunggak (RM {:,.2f}).".format(outstanding))
+        from travel_booking.api.booking import fmt_currency
+        frappe.throw("Amount melebihi baki tertunggak ({}).".format(fmt_currency(outstanding, so.currency)))
 
     result = create_payment_intent(
         sales_order=so_name,
@@ -311,18 +327,33 @@ def submit_manual_payment(amount: float, payment_date: str,
     try:
         company = so.company or frappe.db.get_single_value("Global Defaults", "default_company")
 
-        # PENTING: guna Travel Settings.manual_transfer_paid_to_account
-        # (configurable di Desk) kalau admin dah tetapkan — sama fix
-        # dengan _create_manual_payment_entry() (api/booking.py), elak
-        # bergantung pada "Account jenis Bank PERTAMA yang jumpa".
-        paid_to = frappe.db.get_single_value("Travel Settings", "manual_transfer_paid_to_account")
+        # MULTI-CURRENCY: sama fix dengan _create_manual_payment_entry()
+        # (api/booking.py) — cari paid_to account KHUSUS untuk currency SO
+        # ni dari Travel Settings.currency_accounts, bukan single field lama.
+        paid_to = None
+        travel_settings = frappe.get_cached_doc("Travel Settings")
+        for row in (travel_settings.get("currency_accounts") or []):
+            if row.currency == so.currency and row.manual_transfer_paid_to_account:
+                paid_to = row.manual_transfer_paid_to_account
+                break
         if not paid_to:
+            frappe.log_error(
+                "Manual Transfer paid_to account tiada konfigurasi untuk currency '" +
+                str(so.currency) + "' (SO " + target_so + "). Guna fallback Account " +
+                "jenis Bank pertama untuk company — sila konfigurasikan di Travel " +
+                "Settings > Multi Currency Account.",
+                "Manual Transfer - Currency Account Missing"
+            )
             paid_to = frappe.db.get_value(
                 "Account",
                 {"account_type": "Bank", "company": company, "is_group": 0},
                 "name"
             )
         party_account = get_party_account("Customer", customer_name, company)
+        # MULTI-CURRENCY — DIRINGKASKAN, sama dengan _create_manual_payment_entry()
+        # (api/booking.py): akaun Debtors DEFAULT company selamat diguna
+        # terus untuk apa-apa currency SO, sejak Accounts Settings "Allow
+        # multi-currency invoices against single party account" dihidupkan.
 
         pe = frappe.new_doc("Payment Entry")
         pe.payment_type    = "Receive"
