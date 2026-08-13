@@ -10,8 +10,10 @@
   "data_flow_information_section",
   "column_break_hpzn",
   "selling_operation_data_table",
-  "column_break_bvku",
+  "section_break_whxn",
   "html_apxx",
+  "section_break_kdna",
+  "trip_package",
   "tab_config",
   "bank_accounts_section",
   "bank_name",
@@ -168,10 +170,6 @@
    "options": "<h3 style=\"text-align:center; margin:25px auto\" >Preparing & Selling Data</h3>\n\n<img style=\"width:100%\" src=\"/../assets/travel_booking/img/BookingSystemSelling.png\"/>"
   },
   {
-   "fieldname": "column_break_bvku",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "tab_information",
    "fieldtype": "Tab Break",
    "label": "Information"
@@ -191,12 +189,26 @@
    "fieldtype": "Table",
    "label": "Currency Accounts",
    "options": "Travel Currency Account"
+  },
+  {
+   "fieldname": "trip_package",
+   "fieldtype": "HTML",
+   "label": "Package Structure",
+   "options": "<h3 style=\"text-align:center; margin:25px auto\" >Operation Data</h3>\n\n<img style=\"width:100%\" src=\"/../assets/travel_booking/img/BookingSystemTripPackage.png\"/>"
+  },
+  {
+   "fieldname": "section_break_kdna",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "section_break_whxn",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-10 23:14:08.205621",
+ "modified": "2026-08-13 08:05:45.358184",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Settings",

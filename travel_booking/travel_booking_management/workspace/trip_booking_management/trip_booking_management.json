@@ -1,5 +1,5 @@
 {
- "app": "travel_booking",
+ "app": "erpnext",
  "charts": [
   {
    "chart_name": "Traveller Enrollment",
@@ -20,7 +20,7 @@
  "label": "Trip Booking Management",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-08-05 13:54:30.166867",
+ "modified": "2026-08-13 10:42:26.735622",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Booking Management",

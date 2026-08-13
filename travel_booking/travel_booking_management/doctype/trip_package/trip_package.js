@@ -67,7 +67,6 @@ frappe.ui.form.on("Trip Package", {
         // frappe.msgprint("Data imported from Doctype B!");
     },
 
-
     // TRIGGER IF TRIP VALUE CHANGES
     trip_link: function(frm) {
 
@@ -82,6 +81,7 @@ frappe.ui.form.on("Trip Package", {
     is_cruise_only: function(frm){
 
         frm.set_value("select_group_by_date", null);
+        frm.set_value("airport_form", null);
 
         set_filter_group_date(frm);
 

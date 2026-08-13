@@ -1,5 +1,5 @@
 {
- "app": "travel_booking",
+ "app": "erpnext",
  "charts": [],
  "content": "[]",
  "creation": "2026-07-25 17:07:57.533923",
@@ -15,7 +15,7 @@
  "label": "Trip Management",
  "link_type": "DocType",
  "links": [],
- "modified": "2026-08-05 13:59:39.315973",
+ "modified": "2026-08-13 10:42:41.375603",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Management",

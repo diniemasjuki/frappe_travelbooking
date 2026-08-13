@@ -27,31 +27,56 @@
   "trip_organizer",
   "departure_point",
   "reservation_section",
-  "column_break_bsxx",
+  "column_break_neqr",
   "date_selection",
+  "trip_cruise_schedule",
   "is_a_cruise",
   "is_cruise_only",
-  "trip_cruise_schedule",
-  "column_break_neqr",
+  "departure_schedule_column",
   "departure_date",
   "arrival_date",
+  "column_break_vbvj",
   "cruise_start",
   "cruise_end",
   "traveller_information_tab",
-  "traveller_details_section",
-  "column_break_egqo",
   "traveller",
+  "traveller_details_section",
   "column_break_cedq",
-  "full_name",
+  "traveller_full_name",
+  "traveller_ic",
+  "traveller_gender",
+  "traveller_datebirth",
+  "html_hxcj",
+  "traveller_nationality",
+  "traveller_passportno",
+  "traveller_passportexpiry",
+  "column_break_egqo",
+  "html_gwqb",
+  "traveller_passportimg",
+  "image_zvys",
   "rooming_and_flight_tab",
-  "room_and_flight_section",
+  "flight_announcement_section",
+  "flight_announcement",
+  "flight_info_lock",
+  "section_break_brlm",
   "column_break_depl",
   "flight",
-  "column_break_wblj",
+  "room_and_flight_section",
   "flight_ticket_type",
   "airline",
+  "column_break_wblj",
+  "flight_departure_airport",
+  "flight_departure_date",
+  "column_break_cnux",
+  "flight_destination_airport",
+  "flight_return_date",
+  "section_break_exjx",
   "flight_itinerary",
   "cabin_arrangement_tab",
+  "html_qodw",
+  "section_break_uvat",
+  "cabin_is_confirmed",
+  "section_break_cakg",
   "rooming_column",
   "room_category",
   "guest_label",
@@ -60,8 +85,7 @@
   "aroya_column",
   "stateroom_no",
   "delegate_no",
-  "aroya_guest_no",
-  "column_break_wmuo"
+  "aroya_guest_no"
  ],
  "fields": [
   {
@@ -112,44 +136,38 @@
    "label": "Traveller Details"
   },
   {
-   "fetch_from": "traveller.full_name",
-   "fieldname": "full_name",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Full Name",
-   "options": "Name",
-   "read_only": 1
-  },
-  {
    "fieldname": "column_break_egqo",
    "fieldtype": "Column Break"
   },
   {
    "fieldname": "room_and_flight_section",
-   "fieldtype": "Section Break",
-   "label": "Room And Flight"
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "room_category",
    "fieldtype": "Link",
    "label": "Room Category",
-   "options": "Trip Price Category"
+   "options": "Trip Price Category",
+   "read_only_depends_on": "eval:doc.cabin_is_confirmed"
   },
   {
    "fieldname": "stateroom_no",
    "fieldtype": "Data",
-   "label": "Stateroom No"
+   "label": "Stateroom No",
+   "read_only_depends_on": "eval:doc.cabin_is_confirmed"
   },
   {
    "fieldname": "aroya_guest_no",
    "fieldtype": "Int",
    "in_list_view": 1,
-   "label": "Aroya Guest No"
+   "label": "Aroya Guest No",
+   "read_only_depends_on": "eval:doc.cabin_is_confirmed"
   },
   {
    "fieldname": "delegate_no",
    "fieldtype": "Data",
-   "label": "Delegate No"
+   "label": "Delegate No",
+   "read_only_depends_on": "eval:doc.cabin_is_confirmed"
   },
   {
    "depends_on": "eval:!doc.is_cruise_only",
@@ -157,13 +175,13 @@
    "fieldtype": "Column Break"
   },
   {
-   "depends_on": "eval:!doc.is_cruise_only",
    "fetch_from": "booking.flight",
    "fetch_if_empty": 1,
    "fieldname": "flight",
    "fieldtype": "Link",
    "label": "Flight",
    "options": "Flight",
+   "read_only_depends_on": "eval:doc.flight_info_lock",
    "search_index": 1
   },
   {
@@ -193,12 +211,14 @@
    "fetch_from": "trip_package.trip_link",
    "fieldname": "trip_link",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Trip Code"
   },
   {
    "fetch_from": "trip_package.trip_name",
    "fieldname": "trip_name",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Trip Name"
   },
   {
@@ -211,24 +231,29 @@
    "fetch_from": "trip_package.airport_form",
    "fieldname": "departure_point",
    "fieldtype": "Data",
+   "hidden": 1,
+   "in_list_view": 1,
    "label": "Departure Point"
   },
   {
    "fetch_from": "trip_package.package_code",
    "fieldname": "trip_package_code",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Trip Package Code"
   },
   {
    "fetch_from": "trip_package.package_title",
    "fieldname": "package_title",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Package TItle"
   },
   {
    "fetch_from": "trip_package.package_type",
    "fieldname": "package_type",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Package Type"
   },
   {
@@ -246,10 +271,6 @@
    "options": "Trip Group Date"
   },
   {
-   "fieldname": "column_break_bsxx",
-   "fieldtype": "Column Break"
-  },
-  {
    "fetch_from": "date_selection.departure_date",
    "fieldname": "departure_date",
    "fieldtype": "Date",
@@ -263,6 +284,7 @@
   },
   {
    "default": "0",
+   "depends_on": "eval:doc.is_a_cruise",
    "fetch_from": "booking.is_a_cruise_trip",
    "fieldname": "is_a_cruise",
    "fieldtype": "Check",
@@ -284,9 +306,11 @@
    "label": "Cruise End"
   },
   {
+   "description": "\"Traveller 1,2,3,..\"",
    "fieldname": "guest_label",
    "fieldtype": "Data",
-   "label": "Guest / Slot Label"
+   "label": "Guest / Slot Label",
+   "read_only_depends_on": "eval:doc.cabin_is_confirmed"
   },
   {
    "default": ".{booking}.-.#",
@@ -306,7 +330,7 @@
   },
   {
    "default": "0",
-   "depends_on": "eval:doc.is_a_cruise",
+   "depends_on": "eval:doc.is_cruise_only",
    "fetch_from": "booking.is_cruise_only",
    "fieldname": "is_cruise_only",
    "fieldtype": "Check",
@@ -323,6 +347,7 @@
    "fetch_from": "booking.booking_number",
    "fieldname": "booking_number",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Booking No"
   },
   {
@@ -331,21 +356,23 @@
    "label": "Rooming"
   },
   {
-   "description": "Cabin 1 - 8",
+   "description": "Sequence Number like \"1,2,3,....\"",
    "fieldname": "cabin_no",
    "fieldtype": "Int",
-   "label": "Cabin Sequence (in order)"
+   "label": "Cabin Sequence (in order)",
+   "read_only_depends_on": "eval:doc.cabin_is_confirmed"
   },
   {
    "fieldname": "pax_type",
    "fieldtype": "Select",
-   "label": "Passenger / Bed Type",
-   "options": "Main Guest\nExtra Bed\nInfant"
+   "label": "Passenger / Bed Type Label",
+   "options": "Main Guest\nExtra Bed\nInfant",
+   "read_only_depends_on": "eval:doc.cabin_is_confirmed"
   },
   {
    "fieldname": "aroya_column",
    "fieldtype": "Column Break",
-   "label": "Aroya"
+   "label": "Cruise Arrangement"
   },
   {
    "fetch_from": "booking.cust_email",
@@ -370,17 +397,13 @@
    "depends_on": "eval:!doc.is_cruise_only",
    "fieldname": "rooming_and_flight_tab",
    "fieldtype": "Tab Break",
-   "label": "Flight Info"
+   "label": "Flight"
   },
   {
    "depends_on": "eval:doc.is_a_cruise",
    "fieldname": "cabin_arrangement_tab",
    "fieldtype": "Tab Break",
-   "label": "Cabin Arrangement"
-  },
-  {
-   "fieldname": "column_break_wmuo",
-   "fieldtype": "Column Break"
+   "label": "Room & Cabin"
   },
   {
    "fetch_from": "flight.flight_itinerary",
@@ -408,12 +431,174 @@
   },
   {
    "fieldname": "column_break_neqr",
+   "fieldtype": "Column Break",
+   "label": "Schedule Link"
+  },
+  {
+   "fieldname": "section_break_exjx",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "flight_announcement_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "No Action",
+   "fieldname": "flight_announcement",
+   "fieldtype": "Select",
+   "label": "Flight Announcement",
+   "options": "No Action\nFlight Confirmation\nFlight Retime\nFlight eTicket"
+  },
+  {
+   "fetch_from": "flight.home_airport",
+   "fieldname": "flight_departure_airport",
+   "fieldtype": "Link",
+   "label": "Departure Airport",
+   "options": "Flight Airport"
+  },
+  {
+   "fetch_from": "flight.departure_date",
+   "fieldname": "flight_departure_date",
+   "fieldtype": "Date",
+   "label": "Departure Date"
+  },
+  {
+   "default": "0",
+   "fieldname": "flight_info_lock",
+   "fieldtype": "Check",
+   "label": "Flight Info Lock"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise",
+   "fieldname": "column_break_vbvj",
+   "fieldtype": "Column Break",
+   "label": "Cruise Schedule"
+  },
+  {
+   "fieldname": "departure_schedule_column",
+   "fieldtype": "Column Break",
+   "label": "Departure Schedule"
+  },
+  {
+   "fieldname": "section_break_brlm",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_cnux",
    "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "flight.destination_airport",
+   "fieldname": "flight_destination_airport",
+   "fieldtype": "Link",
+   "label": "Destination Airport",
+   "options": "Flight Airport"
+  },
+  {
+   "fetch_from": "flight.arrival_date",
+   "fieldname": "flight_return_date",
+   "fieldtype": "Date",
+   "label": "Return Date"
+  },
+  {
+   "fieldname": "html_qodw",
+   "fieldtype": "HTML",
+   "options": "<h3>Cruise Note:</h3>\n<p>Total days require from sail date : ?? days</p>\n<br/>&nbsp;<br/>"
+  },
+  {
+   "fieldname": "section_break_cakg",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "section_break_uvat",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "cabin_is_confirmed",
+   "fieldtype": "Check",
+   "label": "Cabin Arrangement Confirmed"
+  },
+  {
+   "fetch_from": "traveller.full_name",
+   "fieldname": "traveller_full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Full Name",
+   "options": "Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "traveller.nationality",
+   "fieldname": "traveller_nationality",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Nationality",
+   "options": "Country",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "traveller.ic_number",
+   "fieldname": "traveller_ic",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "ID / IC / Mykad",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "traveller.passport_no",
+   "fetch_if_empty": 1,
+   "fieldname": "traveller_passportno",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Passport No"
+  },
+  {
+   "fetch_from": "traveller.gender",
+   "fieldname": "traveller_gender",
+   "fieldtype": "Select",
+   "label": "Gender",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "traveller.date_of_birth",
+   "fieldname": "traveller_datebirth",
+   "fieldtype": "Date",
+   "label": "Date of Birth",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "traveller.passport_expiry",
+   "fieldname": "traveller_passportexpiry",
+   "fieldtype": "Date",
+   "label": "Passport Expiry",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "traveller.passport_image",
+   "fieldname": "traveller_passportimg",
+   "fieldtype": "Attach Image",
+   "label": "Passport Attachment"
+  },
+  {
+   "fieldname": "image_zvys",
+   "fieldtype": "Image",
+   "options": "traveller_passportimg"
+  },
+  {
+   "fieldname": "html_gwqb",
+   "fieldtype": "HTML",
+   "options": "<style>form > div.frappe-control > div > img.img-responsive{min-width:100%;}</style>"
+  },
+  {
+   "fieldname": "html_hxcj",
+   "fieldtype": "HTML",
+   "options": "<br/>\n<hr/>\n<br/>"
   }
  ],
  "grid_page_length": 50,
  "links": [],
- "modified": "2026-08-09 16:54:47.926081",
+ "modified": "2026-08-13 10:33:08.690863",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking Reservation",

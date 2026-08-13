@@ -17,7 +17,7 @@ class TripPackage(Document):
 		from travel_booking.travel_booking_management.doctype.trip_package_price.trip_package_price import TripPackagePrice
 
 		airport_form: DF.Link | None
-		currency: DF.Link | None
+		currency: DF.Link
 		is_a_cruise_trip: DF.Check
 		is_cruise_only: DF.Check
 		my_url: DF.Data | None
@@ -63,14 +63,16 @@ class TripPackage(Document):
 			
 		if package_type == "CO" or package_type == "GP":
 			self.airport_form = None
-			airport = ""
+			airport = self.currency
 					
 		if not self.package_code:
-			self.package_code = (self.trip_link + " : " + package_type + airport ).upper().replace(" ","").strip()
+			self.package_code = (self.trip_link + " : " + package_type + " : " + airport ).upper().replace(" ","").strip()
 
 		if not self.package_title:
-			self.package_title = (self.trip_name or "") + " : " + (self.package_type or "") + airport
+			self.package_title = (self.trip_name or "") + " : " + (self.package_type or "") + " : " + airport
 
 	
 		domain = frappe.utils.get_url()
 		self.my_url = domain + "/booking/?trip=" + self.name
+
+		

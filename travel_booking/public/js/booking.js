@@ -259,9 +259,11 @@ function renderPackages(TripGroupDate) {
     btn.className    = "rc-date-btn";
     btn.dataset.name = p.name;
 
-    var label = p.flight_label === "No Flight"
-      ? "Cruise Only"
-      : "<p class=\"rc-date-btn__dates\" style=\"font-weight:100; font-size: 10px;\">" + p.flight_label + "</p><p class=\"rc-date-btn__name\">Fly from <b>" + p.flight + "</b></p>";
+  if (p.flight_label === "No Flight"){
+      var label = p.package_type + " (" + p.currency + ")";
+  }else{
+    var label = "<p class=\"rc-date-btn__dates\" style=\"font-weight:100; font-size: 10px;\">" + p.flight_label + "</p><p class=\"rc-date-btn__name\">Fly from <b>" + p.flight + "</b></p>";
+  }
     
       btn.innerHTML = '<span class="rc-date-btn__name">' + label + '</span>';
     btn.addEventListener("click", function() {
@@ -440,7 +442,7 @@ function renderConfirmStatusBadge(bookingStatus) {
   var b = STATUS_BADGE_MAP[bookingStatus];
   if (!b) { el.innerHTML = ""; return; }
   el.innerHTML =
-    '<span style="display:inline-block;font-size:12px;font-weight:700;padding:5px 16px;' +
+    '<span style="display:inline-block;font-size:12px;margin-bottom:20px;font-weight:700;padding:5px 16px;' +
     'border-radius:20px;background:' + b.bg + ';color:' + b.fg + ';' +
     'letter-spacing:0.03em;text-transform:uppercase">' + b.label + '</span>';
 }

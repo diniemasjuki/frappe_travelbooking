@@ -19,6 +19,7 @@ class BookingReservation(Document):
 		arrival_date: DF.Date | None
 		booking: DF.Link | None
 		booking_number: DF.Data | None
+		cabin_is_confirmed: DF.Check
 		cabin_no: DF.Int
 		cruise_end: DF.Date | None
 		cruise_start: DF.Date | None
@@ -30,9 +31,14 @@ class BookingReservation(Document):
 		departure_point: DF.Data | None
 		document_status: DF.Literal["Pending", "Verified", "Open for Update", "Rejected", "Valid"]
 		flight: DF.Link | None
+		flight_announcement: DF.Literal["No Action", "Flight Confirmation", "Flight Retime", "Flight eTicket"]
+		flight_departure_airport: DF.Link | None
+		flight_departure_date: DF.Date | None
+		flight_destination_airport: DF.Link | None
+		flight_info_lock: DF.Check
 		flight_itinerary: DF.TextEditor | None
+		flight_return_date: DF.Date | None
 		flight_ticket_type: DF.Data | None
-		full_name: DF.Data | None
 		guest_label: DF.Data | None
 		is_a_cruise: DF.Check
 		is_cruise_only: DF.Check
@@ -44,6 +50,14 @@ class BookingReservation(Document):
 		stateroom_no: DF.Data | None
 		status: DF.Literal["Pending Review", "Confirmed", "Cancelled"]
 		traveller: DF.Link | None
+		traveller_datebirth: DF.Date | None
+		traveller_full_name: DF.Data | None
+		traveller_gender: DF.Literal[None]
+		traveller_ic: DF.Data | None
+		traveller_nationality: DF.Link | None
+		traveller_passportexpiry: DF.Date | None
+		traveller_passportimg: DF.AttachImage | None
+		traveller_passportno: DF.Data | None
 		trip_cruise_schedule: DF.Link | None
 		trip_link: DF.Data | None
 		trip_name: DF.Data | None
