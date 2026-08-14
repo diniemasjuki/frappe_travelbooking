@@ -486,13 +486,38 @@ function checkStripeReturn() {
   var params = new URLSearchParams(window.location.search);
   if (params.get("step") !== "confirm") return false;
 
-  var bookingNumber = params.get("ref");
-  var prName        = params.get("pr");
+  var bookingNumber   = params.get("ref");
+  var prName          = params.get("pr");
+  var paymentIntentId = params.get("payment_intent"); // Stripe auto-append selepas redirect
   if (!bookingNumber) return false;
 
   showLoading("Confirming your payment...");
-  pollWizardConfirmation(bookingNumber, prName, 0);
+
+  // FALLBACK VERIFICATION — jangan bergantung pada webhook Stripe semata-
+  // mata. get_payment_result() semak status PaymentIntent TERUS dari
+  // Stripe dan (kalau 'succeeded' tapi Payment Request kita masih belum
+  // 'Paid') trigger set_as_paid() server-side SEGERA. Tanpa ni, webhook
+  // yang lambat >18 saat buat screen confirm papar "Pending" +
+  // "Amount Paid RM 0.00" walaupun bayaran sebenar dah berjaya —
+  // inilah punca paparan sifar pada screen pengesahan bayaran.
+  // Silent-fail (catch kosong) — polling di bawah tetap jalan walau apa
+  // pun hasil verification ni.
+  var verifyFirst = paymentIntentId ? verifyPaymentIntent(paymentIntentId) : Promise.resolve();
+  verifyFirst.then(function() {
+    pollWizardConfirmation(bookingNumber, prName, 0);
+  });
   return true;
+}
+
+// Sahkan PaymentIntent guna backend (bukan percaya redirect_status URL —
+// parameter tu boleh dipalsukan). Endpoint ni sama yang portal guna,
+// dah ada rate limiting + ownership check server-side.
+function verifyPaymentIntent(paymentIntentId) {
+  return apiCall(
+    "travel_booking.api.stripe_checkout.get_payment_result",
+    { payment_intent: paymentIntentId },
+    true // GET
+  ).catch(function() { /* senyap — polling get_wizard_confirmation sambung */ });
 }
 
 // Webhook Stripe berjalan server-to-server & mungkin ambil beberapa saat
@@ -551,11 +576,23 @@ function renderStripeReturnConfirmation(bookingNumber, result, isSettled) {
   renderConfirmActions(bookingStatus, bookingNumber);
 
   if (result) {
+    // "Amount Paid" dipapar untuk SEMUA status settled (Paid & Partially
+    // Paid) — bukan Partially Paid sahaja macam sebelum ni (bila customer
+    // bayar penuh, row Amount Paid hilang terus — nampak macam tiada
+    // pengesahan bayaran). Bila deposit (Partially Paid), tambah row
+    // "Balance Due" supaya customer nampak baki tertunggak jelas.
     var amountPaidRow = "";
-    if (result.payment_status === "Partially Paid") {
+    var balanceDueRow = "";
+    if (result.payment_status === "Paid" || result.payment_status === "Partially Paid") {
       amountPaidRow =
         '<div class="rc-confirm-row"><span>Amount Paid</span><strong style="color:#166534">' +
         fmt(result.advance_paid || 0) + '</strong></div>';
+      if (result.payment_status === "Partially Paid") {
+        var balanceDue = Math.max(0, (result.grand_total || 0) - (result.advance_paid || 0));
+        balanceDueRow =
+          '<div class="rc-confirm-row"><span>Balance Due</span><strong>' +
+          fmt(balanceDue) + '</strong></div>';
+      }
     }
     var paymentStatusRow = "";
     if (result.payment_status && bookingStatus !== "Accepted") {
@@ -567,7 +604,7 @@ function renderStripeReturnConfirmation(bookingNumber, result, isSettled) {
       '<div class="rc-confirm-row"><span>Trip</span><strong>' + (result.trip_name || "") + '</strong></div>' +
       '<div class="rc-confirm-row"><span>Departure</span><strong>' + (result.group_name || "") + '</strong></div>' +
       '<div class="rc-confirm-row"><span>Total</span><strong>' + fmt(result.grand_total || 0) + '</strong></div>' +
-      amountPaidRow + paymentStatusRow +
+      amountPaidRow + balanceDueRow + paymentStatusRow +
       '<div class="rc-confirm-row"><span>Booking Ref</span><strong>' + bookingNumber + '</strong></div>';
   } else {
     document.getElementById("confirmDetails").innerHTML =
@@ -2472,7 +2509,6 @@ function showConfirmation(booking) {
   document.getElementById("confirmDetails").innerHTML =
     '<div class="rc-confirm-row"><span>Trip</span><strong>' + state.trip_name + '</strong></div>' +
     '<div class="rc-confirm-row"><span>Departure</span><strong>' + state.group_name + '</strong></div>' +
-    '<div class="rc-confirm-row"><span>Subtotal</span><strong>' + fmt(calcGrandTotal()) + '</strong></div>' +
     voucherRowHtml + referralRowHtml + cashbackRowHtml +
     '<div class="rc-confirm-row"><span>Total</span><strong>' + fmt(totalAmt) + '</strong></div>' +
     '<div class="rc-confirm-row"><span>Booking Ref</span><strong>' + booking.booking_number + '</strong></div>';
