@@ -106,6 +106,16 @@ def check_session():
     jadi keadaan "ada role tapi tiada Customer" hanya berlaku untuk
     akaun yang role-nya diberi terus di Desk (staff/testing), bukan
     customer yang betul-betul buat booking.
+
+    DIAGNOSTIC: jika user AUTHENTICATED (bukan Guest) tetapi tiada rekod
+    Customer link (cth Contact putus, admin edit di Desk, data migrate)
+    pulang status "no_customer_link" BUKAN no_customer. no_customer
+    (logged_in: False) HANYA untuk user yang TIADA role Traveller dan
+    TIADA Customer — kemungkinan akaun separuh jadi. Sebelum ni, customer
+    yang login sah tapi Contact putus dapat skrin login berulang
+    (logged_in: False) — mengelirukan sebab mereka MEMANG dah login,
+    cuba login semula tetap gagal sebab punca sebenar ialah link data,
+    bukan authentication.
     """
     frappe.flags.ignore_permissions = True
 
@@ -126,7 +136,20 @@ def check_session():
                 "email":         user_email,
                 "bookings":      [],
             }
-        return {"status": "no_customer", "logged_in": False}
+        # User authenticated tapi BUKAN Guest, tiada Customer, tiada role
+        # Traveller. Pulang status diagnostic + logged_in: True (jangan
+        # tipu frontend yang customer "belum login" — session Frappe
+        # valid). Frontend tunjuk mesej hubungi sokongan, BUKAN skrin
+        # login yang buat customer rasa perlu login semula.
+        return {
+            "status":    "no_customer_link",
+            "logged_in": True,
+            "email":     user_email,
+            "message":   (
+                "You are signed in, but no customer record was found. "
+                "Please contact support to review your account."
+            ),
+        }
 
     customer = frappe.db.get_value(
         "Customer", customer_name,
@@ -134,7 +157,14 @@ def check_session():
         as_dict=True
     )
     if not customer:
-        return {"status": "no_customer", "logged_in": False}
+        # Rekod Customer wujud pada link tapi docname tak jumpa (data
+        # integrity issue). Sama — diagnostic, bukan login screen.
+        return {
+            "status":    "no_customer_link",
+            "logged_in": True,
+            "email":     user_email,
+            "message":   "No customer record found. Please contact support.",
+        }
 
     bookings = _fetch_bookings(customer.name)
     return {
@@ -154,10 +184,10 @@ def check_session():
 @frappe.whitelist(allow_guest=True)
 def set_password(key: str, email: str, new_password: str):
     if not key or not email or not new_password:
-        frappe.throw("Maklumat tidak lengkap.")
+        frappe.throw("Incomplete information.")
 
     if len(new_password) < 8:
-        frappe.throw("Password mestilah sekurang-kurangnya 8 aksara.")
+        frappe.throw("Password must be at least 8 characters.")
 
     user = frappe.db.get_value(
         "User",
@@ -165,13 +195,13 @@ def set_password(key: str, email: str, new_password: str):
         "name"
     )
     if not user:
-        frappe.throw("Link telah tamat tempoh atau tidak sah. Sila minta link baru.")
+        frappe.throw("This link has expired or is invalid. Please request a new link.")
 
     from frappe.utils.password import update_password
     update_password(user, new_password)
     frappe.db.set_value("User", user, "reset_password_key", "")
     frappe.db.commit()
-    return {"status": "ok", "message": "Password berjaya ditetapkan. Sila log in."}
+    return {"status": "ok", "message": "Password set successfully. Please log in."}
 
 
 # ══════════════════════════════════════════════
@@ -181,14 +211,22 @@ def set_password(key: str, email: str, new_password: str):
 @frappe.whitelist(allow_guest=True)
 def forgot_password(email: str):
     if not email:
-        frappe.throw("Sila masukkan alamat email.")
+        frappe.throw("Please enter your email address.")
 
-    user = frappe.db.get_value("User", {"email": email}, "name")
+    user = frappe.db.get_value("User", {"email": email, "enabled": 1}, "name")
     if not user:
-        return {"status": "ok", "message": "Jika email ini berdaftar, link akan dihantar."}
+        return {"status": "ok", "message": "If this email is registered, a link will be sent."}
 
-    if not get_customer_by_email(email):
-        return {"status": "ok", "message": "Jika email ini berdaftar, link akan dihantar."}
+    # Benarkan reset jika user ada Customer link ATAU ada role "Traveller"
+    # (staff/admin yang diberi role secara manual). Sebelum ni, hanya user
+    # dgn Customer link dibenarkan reset — user dgn role Traveller tapi
+    # tiada Customer (path staff, rujuk check_session()) TERKUNCI tanpa
+    # cara reset password (dpt mesej "jika email ini berdaftar" tapi tiada
+    # link dihantar). Ini bug: user authenticated sah tak boleh reset.
+    is_customer   = bool(get_customer_by_email(email))
+    is_traveller  = "Traveller" in frappe.get_roles(user)
+    if not is_customer and not is_traveller:
+        return {"status": "ok", "message": "If this email is registered, a link will be sent."}
 
     reset_key = frappe.generate_hash(length=32)
     frappe.db.set_value("User", user, "reset_password_key", reset_key)
@@ -202,19 +240,19 @@ def forgot_password(email: str):
         # Sender TIDAK di-hardcode — biar Frappe guna default Outgoing
         # Email Account. Hardcode domain lain dari domain sebenar site
         # punca email silently gagal/masuk spam (SPF/DKIM mismatch).
-        subject="Rarecation Portal — Reset Password Anda",
+        subject="Rarecation Portal — Reset Your Password",
         message="""
-            <p>Anda telah meminta untuk reset password portal Rarecation.</p>
-            <p>Klik link di bawah untuk set password baru:</p>
+            <p>You requested to reset your Rarecation portal password.</p>
+            <p>Click the link below to set a new password:</p>
             <p><a href=\"""" + reset_link + """\" style="background:#D4A312;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;">Reset Password &rarr;</a></p>
-            <p style="color:#888;font-size:12px;">Link ini sah selama 24 jam.</p>
-            <p style="color:#888;font-size:12px;">Jika anda tidak meminta reset ini, abaikan email ini.</p>
+            <p style="color:#888;font-size:12px;">This link is valid for 24 hours.</p>
+            <p style="color:#888;font-size:12px;">If you did not request this reset, please ignore this email.</p>
         """,
         now=True
     )
 
     frappe.db.commit()
-    return {"status": "ok", "message": "Jika email ini berdaftar, link akan dihantar."}
+    return {"status": "ok", "message": "If this email is registered, a link will be sent."}
 
 
 @frappe.whitelist(allow_guest=True)
@@ -227,28 +265,30 @@ def send_magic_link_by_email(email: str):
     generic sahaja (elak bocor maklumat sama ada email tu wujud)."""
     email = (email or "").strip().lower()
     if not email:
-        frappe.throw("Sila masukkan alamat email.")
+        frappe.throw("Please enter your email address.")
 
-    generic_msg = "Jika email ini berdaftar, anda akan menerima link log masuk."
+    generic_msg = "If this email is registered, you will receive a login link."
 
     user = frappe.db.get_value("User", {"email": email, "enabled": 1}, "name")
     if not user:
         return {"status": "ok", "message": generic_msg}
 
-    if not get_customer_by_email(email):
+    # Sama macam forgot_password(): benarkan magic link kalau ada Customer
+    # link ATAU ada role "Traveller" — jangan kunci staff/testing user.
+    is_customer  = bool(get_customer_by_email(email))
+    is_traveller = "Traveller" in frappe.get_roles(user)
+    if not is_customer and not is_traveller:
         return {"status": "ok", "message": generic_msg}
 
     expiry_minutes = 30
     key = frappe.generate_hash(length=32)
     # Cache key custom kita SENDIRI (bukan "one_time_login_key:" Frappe) —
-    # sengaja berasingan, sebab endpoint kita (login_via_portal_key,
-    # di bawah) TIDAK delete key selepas guna (boleh reuse dalam tempoh
-    # sah), berbeza dari Frappe punya frappe.www.login.login_via_key
-    # yang one-time by design (delete-after-use, hardcoded dalam
-    # framework core — tak boleh kita ubah dari sini). Guna endpoint
-    # Frappe punya juga bermasalah sebab ia TIDAK baca parameter
-    # redirect-to untuk destinasi Website User — ia ikut Website
-    # Settings > Home Page sahaja (redirect_post_login()).
+    # sengaja berasingan supaya redirect selepas login pergi ke
+    # /traveller_portal (bukan Website Settings Home Page macam Frappe
+    # punya login_via_key). Sekarang ONE-TIME: login_via_portal_key
+    # delete key selepas guna (sebelum ni ia reusable selama 30 minit —
+    # risiko: sesiapa capai link boleh login semula). Expiry 30 minit
+    # kekal sebagai had TAMAT TEMPOH (sebelum link pertama di klik).
     frappe.cache().set_value(
         "portal_login_key:" + key,
         email,
@@ -264,27 +304,27 @@ def send_magic_link_by_email(email: str):
     frappe.sendmail(
         recipients=[email],
         # Sender TIDAK di-hardcode — rujuk nota di forgot_password().
-        subject="Rarecation Portal — Log Masuk",
+        subject="Rarecation Portal — Sign In",
         message="""
             <div style="font-family:'DM Sans',sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
                 <p style="font-size:15px;font-weight:500;color:#1E1C18;margin-bottom:8px">
                     Hi """ + first_name + """,
                 </p>
                 <p style="font-size:14px;color:#5C5850;margin-bottom:24px;line-height:1.6">
-                    Klik butang di bawah untuk log masuk ke portal Rarecation anda.
-                    Link ini sah selama <strong>""" + str(expiry_minutes) + """ minit</strong>.
+                    Click the button below to sign in to your Rarecation portal.
+                    This link is valid for <strong>""" + str(expiry_minutes) + """ minutes</strong>.
                 </p>
                 <p style="margin-bottom:32px">
                     <a href=\"""" + magic_url + """\"
                        style="display:inline-block;background:#D4A312;color:#1E1C18;
                               font-weight:600;font-size:14px;padding:12px 28px;
                               border-radius:8px;text-decoration:none">
-                        Log Masuk ke Portal &rarr;
+                        Sign In to Portal &rarr;
                     </a>
                 </p>
                 <p style="font-size:12px;color:#B0AC9F;line-height:1.6">
-                    Jika anda tidak membuat permintaan ini, abaikan email ini.<br>
-                    Link ini akan tamat dalam """ + str(expiry_minutes) + """ minit.
+                    If you did not make this request, please ignore this email.<br>
+                    This link is valid for a single use and expires in """ + str(expiry_minutes) + """ minutes.
                 </p>
             </div>
         """,
@@ -297,21 +337,31 @@ def send_magic_link_by_email(email: str):
     return {
         "status":  "ok",
         "masked":  masked,
-        "message": "Link log masuk dihantar ke " + masked + "."
+        "message": "Login link sent to " + masked + "."
     }
 
 
 @frappe.whitelist(allow_guest=True)
 def login_via_portal_key(key: str):
     """Custom magic-link login — pengganti frappe.www.login.login_via_key.
-    Dua sebab kenapa perlu custom (bukan guna Frappe punya built-in):
-      1. Expiry-only, BUKAN one-time — key TIDAK dipadam selepas guna,
-         jadi boleh diguna berkali-kali sehingga tamat tempoh (30 minit).
-      2. Redirect terus ke /traveller_portal — Frappe punya login_via_key
-         mengabaikan sebarang parameter redirect-to untuk destinasi
-         Website User (guna redirect_post_login() -> Website Settings
-         Home Page sahaja), jadi customer akan tersasar ke home page
-         default site (bukan portal kita) kalau guna endpoint asal.
+    Sebab kenapa perlu custom (bukan guna Frappe punya built-in):
+      Redirect terus ke /traveller_portal — Frappe punya login_via_key
+      mengabaikan sebarang parameter redirect-to untuk destinasi
+      Website User (guna redirect_post_login() -> Website Settings
+      Home Page sahaja), jadi customer akan tersasar ke home page
+      default site (bukan portal kita) kalau guna endpoint asal.
+
+    KESELAMATAN (pembetulan): key kini ONE-TIME — dipadam SEGERA selepas
+    login berjaya. Sebelum ni key kekal reusable selama 30 minit, yang
+    bermaksud sesiapa yang capai link (email diforward, screenshot,
+    history browser) boleh login semula sebagai customer berulang kali.
+    Frappe punya login_via_key juga one-time (delete-after-use) atas
+    sebab keselamatan sama — kita ikut pattern tu sekarang.
+
+    AUDIT TRAIL: berbeza dari login_as() polos, kita juga rekod info
+    login standard (last_login, login time, IP) supaya admin nampak
+    customer login via magic-link dalam sejarah User dan Active Sessions
+    — sebelum ni login magic-link tiada jejak sama sekali.
     """
     cache_key = "portal_login_key:" + key
     email = frappe.cache().get_value(cache_key)
@@ -319,12 +369,68 @@ def login_via_portal_key(key: str):
     if not email:
         frappe.respond_as_web_page(
             "Link Expired",
-            "This login link is invalid or has expired. Please request a new link.",
+            "This login link is invalid, has expired, or has already been used. "
+            "Please request a new link.",
+            http_status_code=403,
+            indicator_color="red"
+        )
+        return
+
+    # Padam key SEKARANG (one-time) — sebelum login_as, supaya kalau
+    # login_as throw (cth User disabled), key tetap dah dibuang dan tidak
+    # boleh dipakai semula. Lebih selamat: gagal-gagal pun, attacker tak
+    # dapat reuse.
+    frappe.cache().delete_value(cache_key)
+
+    # Sahkan User masih enabled SEBELUM login — elak login_as() silently
+    # cipta session untuk User yang baru dilumpuhkan admin di Desk.
+    if not frappe.db.get_value("User", email, "enabled", cache=True):
+        frappe.respond_as_web_page(
+            "Account Disabled",
+            "Your account has been disabled. Please contact support.",
             http_status_code=403,
             indicator_color="red"
         )
         return
 
     frappe.local.login_manager.login_as(email)
+
+    # Rekod audit trail — login_as() polos TIDAK rekod last_login/IP,
+    # jadi admin tidak nampak bila/how customer masuk. Kita lengkapkan
+    # secara manual (pattern sama dengan frappe.login_manager.post_login,
+    # tanpa percubaan brute-force tracking yang tak relevan untuk magic
+    # link yang sudah verified via email ownership).
+    _record_login_audit(email)
+
     frappe.local.response["type"]     = "redirect"
     frappe.local.response["location"] = "/traveller_portal"
+
+
+def _record_login_audit(email: str):
+    """Rekod info login standard supaya magic-link login nampak dalam
+    User history dan Active Sessions (login_as() polos skip semua ni).
+
+    Kita TIDAK boleh pakai login_manager.post_login() penuh sebab ia
+    expect full credential flow (termasuk check_consecutive_failed).
+    Sebaliknya rekod field penting sahaja — konsisten dengan apa yang
+    Frappe rekod untuk login normal.
+    """
+    try:
+        user_doc = frappe.get_doc("User", email)
+        login_time = frappe.utils.now()
+
+        # last_login + last_active — sama field yang Frappe update untuk
+        # login biasa, jadi Active Sessions / User list konsisten.
+        user_doc.last_login = login_time
+        user_doc.last_ip    = frappe.local.request_ip if getattr(frappe.local, "request_ip", None) else None
+        user_doc.db_update()
+
+        # Session entry (tabSessions) diurus Frappe sendiri lepas
+        # login_as(), jadi customer muncul dalam "Active Sessions" —
+        # kita cuma lengkapkan metadata User di atas.
+    except Exception as e:
+        # Audit recording tak boleh gagalkan login — log sahaja.
+        frappe.log_error(
+            "Magic-link audit record failed for {0}: {1}".format(email, str(e)),
+            "Portal Login Audit"
+        )

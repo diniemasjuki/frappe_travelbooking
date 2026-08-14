@@ -99,7 +99,7 @@
           // lagi di page yang sama. Emel "Pending" untuk kegagalan RASMI
           // (payment_intent.payment_failed) dihantar oleh webhook server-side,
           // bukan dari sini — elak spam emel setiap kali retry gagal.
-          errBox.textContent = result.error.message || "Payment gagal. Sila cuba lagi.";
+          errBox.textContent = result.error.message || "Payment failed. Please try again.";
           errBox.style.display = "block";
           btn.disabled = false;
           btn.textContent = submitBtnOriginalText;

@@ -82,15 +82,15 @@ async function doSetPassword() {
     return;
   }
   if (!pw || !pwConf) {
-    showError('Sila isi kedua-dua field password.');
+    showError('Please fill in both password fields.');
     return;
   }
   if (pw.length < 8) {
-    showError('Password mestilah sekurang-kurangnya 8 aksara.');
+    showError('Password must be at least 8 characters.');
     return;
   }
   if (pw !== pwConf) {
-    showError('Password tidak sepadan. Sila cuba semula.');
+    showError('Passwords do not match. Please try again.');
     return;
   }
 
@@ -104,10 +104,10 @@ async function doSetPassword() {
     setTimeout(() => { window.location.href = '/traveller_portal'; }, 2000);
   } catch (e) {
     const msg = e.message || '';
-    if (msg.includes('tamat tempoh') || msg.includes('tidak sah') || msg.includes('expired')) {
+    if (msg.includes('expired') || msg.includes('invalid') || msg.includes('Invalid')) {
       showInvalid();
     } else {
-      showError(msg || 'Ralat berlaku. Sila cuba semula.');
+      showError(msg || 'An error occurred. Please try again.');
     }
     btn.textContent = 'Set password →';
     btn.disabled    = false;

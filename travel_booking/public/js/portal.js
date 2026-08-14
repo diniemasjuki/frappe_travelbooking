@@ -68,7 +68,37 @@ const _post = (path, body) =>
     credentials: 'include',
     body: JSON.stringify(body)
   }).then(async r => {
-    const d = await r.json();
+    // Body dibaca SEKALI sahaja (response stream tak boleh re-consume).
+    // Kita parse dulu, then guna utk semua logic (CSRF check, error, success).
+    const d = await r.json().catch(() => ({}));
+
+    // CSRF/Session tamat: Frappe balas 403 (kasar) atau mesej "Invalid
+    // request token" bila token CSRF lapuk (tab dibiarkan lama) ATAU bila
+    // session Frappe dah expire. Sebelum ni, situasi ni kelirukan: POST
+    // (save traveller, payment) gagal dgn "invalid request" walaupun
+    // dashboard masih nampak. Sekarang kita detect dan refresh page
+    // supaya server embed CSRF token baru + re-evaluate session.
+    //
+    // Mesej user-friendly: set flag supaya skrin login tunjuk sebab
+    // (session tamat), bukan sekadar "log masuk" tanpa konteks.
+    if (r.status === 403) {
+      const txt = (d && (d.message || (d._server_messages && JSON.stringify(d._server_messages)))) || '';
+      // Hanya treat sebagai CSRF/session issue kalau mesej explicitly
+      // sebut keyword ATAU body kosong (Frappe CSRF failure biasanya
+      // body kosong/teks pendek). JANGAN trigger untuk PermissionError
+      // business logic (cth "Akses ditolak" dari get_payment_result) —
+      // itu error sah, bukan session tamat.
+      if (/csrf|token|session|expired|invalid request/i.test(txt) || !txt) {
+        _CACHE.del('session');
+        try { sessionStorage.setItem('rc_session_expired', '1'); } catch {}
+        if (!sessionStorage.getItem('rc_csrf_reload')) {
+          sessionStorage.setItem('rc_csrf_reload', '1');
+          window.location.reload();
+          return new Promise(() => {}); // tunggu reload
+        }
+      }
+    }
+
     if (!r.ok || d.exc) {
       const raw = d._server_messages || d.exc || '';
       let msg = raw;
@@ -76,8 +106,10 @@ const _post = (path, body) =>
         const p = JSON.parse(raw);
         msg = Array.isArray(p) ? JSON.parse(p[0]).message : p.message || raw;
       } catch {}
-      throw new Error(msg || 'Ralat berlaku.');
+      throw new Error(msg || 'An error occurred.');
     }
+    // POST berjaya — reset reload guard (token sekarang valid).
+    sessionStorage.removeItem('rc_csrf_reload');
     return d.message;
   });
 
@@ -147,11 +179,11 @@ async function doLogin() {
       credentials: 'include',
       body: formData
     });
-    if (!loginRes.ok) throw new Error('Email atau password tidak sah.');
+    if (!loginRes.ok) throw new Error('Invalid email or password.');
     window.location.reload();
   } catch (e) {
     const msg = e.message || '';
-    showLoginError(msg.includes('tidak sah') || msg.includes('Invalid')
+    showLoginError(msg.includes('Invalid') || msg.includes('invalid')
       ? 'Invalid email or password. Please try again.'
       : msg || 'An error occurred. Please try again.');
   } finally {
@@ -162,7 +194,7 @@ async function doLogin() {
 
 async function doForgotPassword() {
   const email = document.getElementById('forgot-em').value.trim();
-  if (!email) { alert('Sila masukkan email anda.'); return; }
+  if (!email) { alert('Please enter your email.'); return; }
   const btn = document.getElementById('forgot-btn');
   btn.textContent = 'Sending...';
   btn.disabled = true;
@@ -288,51 +320,95 @@ function _returnToBookingsFromPaymentResult() {
 document.addEventListener('DOMContentLoaded', async () => {
   const cameFromPayment = await _checkPaymentReturn();
 
-  try {
-    const cachedSession = _CACHE.get('session');
-    if (cachedSession) {
-      SESSION = cachedSession;
-      renderNav();
-      renderBookingList();
-      if (!cameFromPayment) sw('S-select');
-      // Silent background refresh
-      fetch('/api/method/travel_booking.api.portal_auth.check_session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': _csrfToken() },
-        credentials: 'include',
-        body: JSON.stringify({})
-      }).then(r => r.json()).then(data => {
-        if (data.message && data.message.logged_in) {
-          SESSION = data.message;
-          _CACHE.set('session', SESSION, _CACHE.TTL.session);
-          renderBookingList();
-        }
-      }).catch(() => {});
-      return;
-    }
+  // PENTING: kita TIDAK lagi guna cache session untuk render dashboard
+  // TERUS tanpa verify. Sebelum ni, customer yang dilog keluar paksa
+  // (admin dari Desk, atau session expire) nampak dashboard lapuk dari
+  // sessionStorage selama beberapa saat — tetingkap di mana sebarang
+  // POST (save/bayar) gagal dgn ralat keliru sebab session Frappe
+  // sebenar dah tamat. Sekarang: cache hanya diguna sebagai HINT untuk
+  // skip skrin login SEKETIKA, tetapi check_session() server sentiasa
+  // dipanggil dan hasil server (bukan cache) yang menentukan UI akhir.
+  const cachedSession = _CACHE.get('session');
 
-    const res  = await fetch('/api/method/travel_booking.api.portal_auth.check_session', {
+  // Cek flag sesi tamat (dari _post 403 handler) — tunjuk skrin login
+  // dgn mesej jelas supaya customer tahu KENAPA mereka kena login semula
+  // (bukan skrin login kosong yang mengelirukan — "saya tak pernah logout!").
+  const expiredFlag = sessionStorage.getItem('rc_session_expired');
+  if (expiredFlag) {
+    sessionStorage.removeItem('rc_session_expired');
+    _CACHE.del('session');
+  }
+
+  try {
+    const res = await fetch('/api/method/travel_booking.api.portal_auth.check_session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': _csrfToken() },
       credentials: 'include',
       body: JSON.stringify({})
     });
     const data = await res.json();
-    if (data.message && data.message.logged_in) {
-      SESSION = data.message;
+    const s = data.message;
+
+    if (s && s.logged_in && s.status === 'ok') {
+      SESSION = s;
       _CACHE.set('session', SESSION, _CACHE.TTL.session);
       renderNav();
       renderBookingList();
       if (!cameFromPayment) sw('S-select');
       return;
     }
-  } catch {}
-  if (!cameFromPayment) sw('S-login');
+
+    if (s && s.status === 'no_customer_link') {
+      // Customer AUTHENTICATED (session Frappe valid) tapi rekod Customer
+      // tak jumpa — JANGAN tunjuk skrin login (mengelirukan). Cache session
+      // dibuang supaya next visit re-check. Tunjuk mesej hubungi sokongan.
+      _CACHE.del('session');
+      _showAccountIssue(s.message || 'Your account could not be found. Please contact support.');
+      return;
+    }
+
+    // logged_in: false, atau status guest/no_customer → skrin login biasa
+    _CACHE.del('session');
+  } catch (e) {
+    // Ralat network/server — kalau ada cache valid, guna sebagai fallback
+    // supaya customer tak tergantung (offline-friendly), tetapi tetap
+    // label sebagai data mungkin lapuk.
+    if (cachedSession && cachedSession.status === 'ok') {
+      SESSION = cachedSession;
+      renderNav();
+      renderBookingList();
+      if (!cameFromPayment) sw('S-select');
+      return;
+    }
+  }
+  if (!cameFromPayment) {
+    sw('S-login');
+    // Kalau sesi tamat (bukan customer sengaja tak login), tunjuk mesej
+    // jelas supaya mereka faham situasi — bukan skrin login kosong.
+    if (expiredFlag) {
+      showLoginError('Your session has expired. Please sign in again to continue.');
+    }
+  }
 });
+
+/* ── Account issue screen (rekod Customer putus, bukan auth failure) ── */
+function _showAccountIssue(msg) {
+  const el = document.getElementById('S-account-issue');
+  if (!el) {
+    // Skrin tidak wujud dalam HTML — fallback ke login screen dgn mesej
+    // di kotak error login supaya customer tetap nampak ada masalah.
+    showLoginError(msg);
+    sw('S-login');
+    return;
+  }
+  const msgEl = document.getElementById('account-issue-msg');
+  if (msgEl) msgEl.textContent = msg;
+  sw('S-account-issue');
+}
 
 async function doMagicLink() {
   const email = (document.getElementById('magic-em').value || '').trim();
-  if (!email) { showMagicError('Sila masukkan alamat email.'); return; }
+  if (!email) { showMagicError('Please enter your email address.'); return; }
 
   const btn = document.getElementById('magic-btn');
   btn.disabled = true;
@@ -341,12 +417,12 @@ async function doMagicLink() {
   try {
     const r = await API('send_magic_link_by_email', { email });
     document.getElementById('magic-success-msg').textContent =
-      r.message || 'Link dihantar. Semak email anda.';
+      r.message || 'Link sent. Check your email.';
     document.getElementById('magic-success').style.display = 'block';
     document.getElementById('magic-error').style.display   = 'none';
     document.getElementById('magic-em').value = '';
   } catch(e) {
-    showMagicError(e.message || 'Ralat. Sila cuba semula.');
+    showMagicError(e.message || 'An error occurred. Please try again.');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Send login link';

@@ -62,6 +62,32 @@
   </div>
 </div>
 
+<!-- ══ SCREEN: ACCOUNT ISSUE (authenticated, but Customer record missing) ══
+     Customer MEMANG dah log masuk (session Frappe valid), tapi rekod
+     pelanggan tidak dijumpai (cth Contact link putus, admin edit di Desk,
+     atau data migration issue). JANGAN papar skrin login di sini —
+     mengelirukan sebab customer akan cuba login semula dan tetap gagal
+     (punca sebenar ialah data, bukan authentication). Tunjuk mesej jelas
+     supaya customer tahu mengapa dan boleh hubungi sokongan. -->
+<div class="sc" id="S-account-issue">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div class="login-box" style="max-width:420px;text-align:center">
+      <div style="width:56px;height:56px;border-radius:50%;background:#FEF3C7;margin:0 auto 20px;display:flex;align-items:center;justify-content:center">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#D4A312" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div style="font-size:18px;font-weight:600;color:#1E1C18;margin-bottom:12px">Account requires review</div>
+      <p id="account-issue-msg" style="font-size:13px;color:#5C5850;line-height:1.6;margin-bottom:24px">
+        You are signed in, but no customer record was found.
+        Please contact support to review your account.
+      </p>
+      <button class="btn btn-p btn-full" onclick="location.href='/api/method/logout'">Log out</button>
+      <p style="font-size:12px;color:#B0AC9F;margin-top:16px;line-height:1.7">
+        Still having trouble? Contact our support with your email address.
+      </p>
+    </div>
+  </div>
+</div>
+
 <!-- ══ SCREEN: SIGN IN WITH EMAIL (magic link) ══ -->
 <div class="sc" id="S-magic">
   <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">

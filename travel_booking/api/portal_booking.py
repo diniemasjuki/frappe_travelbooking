@@ -6,13 +6,35 @@ from travel_booking.api._helpers import get_customer_by_email
 
 
 def _get_customer():
+    """Pulang nama Customer untuk user yang sedang login, atau throw.
+
+    KONSISTEN dgn check_session() (portal_auth.py): staff/admin dengan
+    role "Traveller" TANPA rekod Customer dibenarkan masuk portal
+    (dashboard kosong) — tetapi mereka TIDAK ada customer untuk buka
+    booking/payment. Jadi untuk endpoint yang spesifik perlukan Customer
+    (cth get_booking_data, save_traveller), kita throw dgn mesej JELAS
+    (bukan generic "AuthenticationError" yang seolah-olah mereka belum
+    login). Sebelum ni, staff Traveller nampak "anda login" (dashboard)
+    tapi setiap klik dapat AuthenticationError — mengelirukan.
+
+    Mesej sekarang: penjelasan "anda tiada rekod customer" supaya
+    frontend/user faham ia bukan masalah session/auth.
+    """
     user_email = frappe.session.user
     if not user_email or user_email == "Guest":
-        frappe.throw("Sila log in untuk meneruskan.", frappe.AuthenticationError)
+        frappe.throw("Please log in to continue.", frappe.AuthenticationError)
 
     customer_name = get_customer_by_email(user_email)
     if not customer_name:
-        frappe.throw("Akaun customer tidak ditemui.", frappe.AuthenticationError)
+        # Boleh jadi: (a) staff Traveller (sah, tiada Customer), atau
+        # (b) customer sebenar yang Contact-nya putus (bug data). Mesej
+        # neutral untuk kedua-dua kes — bukan AuthenticationError (yang
+        # mengelirukan: user sebenarnya SAH login).
+        frappe.throw(
+            "No customer record found for this account. "
+            "Access to bookings/transactions requires a customer record.",
+            frappe.PermissionError
+        )
 
     return customer_name
 
@@ -35,11 +57,11 @@ def get_booking_data(booking_number: str):
     """, booking_number, as_dict=True)
 
     if not booking:
-        frappe.throw("Booking tidak ditemui.")
+        frappe.throw("Booking not found.")
     booking = booking[0]
 
     if booking.customer != customer_name:
-        frappe.throw("Akses ditolak.", frappe.PermissionError)
+        frappe.throw("Access denied.", frappe.PermissionError)
 
     # Kunci akses ikut status (Accepted/Cancelled) DIBUANG — semua booking
     # (tak kira status atau payment_status) boleh dibuka & dilihat customer

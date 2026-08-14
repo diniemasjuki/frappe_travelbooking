@@ -861,7 +861,7 @@ function addRoom() {
   var avail = availableCabins();
   if (!avail.length) return;
   if (state.rooms.length >= MAX_CABINS_PER_BOOKING) {
-    alert("Maksimum " + MAX_CABINS_PER_BOOKING + " cabin dibenarkan untuk satu booking. Sila hubungi kami terus untuk tempahan lebih besar.");
+    alert("Maximum " + MAX_CABINS_PER_BOOKING + " cabins allowed per booking. Please contact us directly for larger reservations.");
     return;
   }
   // Collapse cabin sedia ada supaya customer fokus isi cabin baharu.
@@ -1097,7 +1097,7 @@ function renderRooms() {
     var atMax = state.rooms.length >= MAX_CABINS_PER_BOOKING;
     addRoomBtnEl.disabled = atMax;
     addRoomBtnEl.title    = atMax
-      ? "Maksimum " + MAX_CABINS_PER_BOOKING + " cabin setiap booking"
+      ? "Maximum " + MAX_CABINS_PER_BOOKING + " cabins per booking"
       : "";
   }
 

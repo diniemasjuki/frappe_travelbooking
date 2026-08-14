@@ -52,8 +52,8 @@ def _get_stripe_settings(currency=None):
     rows = settings.get("currency_accounts") or []
     if not rows:
         frappe.throw(
-            "Tiada Currency Account dikonfigurasikan dalam Travel Settings "
-            "(bahagian 'Multi Currency Account'). Sila hubungi admin."
+            "No Currency Account configured in Travel Settings "
+            "(under 'Multi Currency Account'). Please contact admin."
         )
 
     gateway_account_name = None
@@ -64,8 +64,8 @@ def _get_stripe_settings(currency=None):
                 break
         if not gateway_account_name:
             frappe.throw(
-                "Payment Gateway Account tidak dikonfigurasikan untuk currency '" +
-                str(currency) + "' dalam Travel Settings. Sila hubungi admin."
+                "No Payment Gateway Account configured for currency '" +
+                str(currency) + "' in Travel Settings. Please contact admin."
             )
     else:
         for row in rows:
@@ -74,8 +74,8 @@ def _get_stripe_settings(currency=None):
                 break
         if not gateway_account_name:
             frappe.throw(
-                "Tiada Payment Gateway Account dikonfigurasikan dalam mana-mana "
-                "baris Currency Account di Travel Settings. Sila hubungi admin."
+                "No Payment Gateway Account configured in any "
+                "Currency Account row in Travel Settings. Please contact admin."
             )
 
     gateway_account = frappe.db.get_value(
@@ -85,7 +85,7 @@ def _get_stripe_settings(currency=None):
     if not gateway_account:
         frappe.throw(
             "Payment Gateway Account '" + str(gateway_account_name) +
-            "' (ditetapkan dalam Travel Settings) tidak dijumpai. Sila hubungi admin."
+            "' (set in Travel Settings) not found. Please contact admin."
         )
 
     settings_name = frappe.db.get_value(
@@ -93,8 +93,8 @@ def _get_stripe_settings(currency=None):
     )
     if not settings_name or not frappe.db.exists("Stripe Settings", settings_name):
         frappe.throw(
-            "Stripe Settings untuk Payment Gateway Account '" + gateway_account_name +
-            "' tidak dijumpai. Sila hubungi admin."
+            "Stripe Settings for Payment Gateway Account '" + gateway_account_name +
+            "' not found. Please contact admin."
         )
 
     ss = frappe.get_doc("Stripe Settings", settings_name)
@@ -128,11 +128,11 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     so = frappe.db.get_value("Sales Order", sales_order,
                              ["customer", "currency", "grand_total", "advance_paid"], as_dict=True)
     if not so:
-        frappe.throw("Sales Order tidak ditemui.")
+        frappe.throw("Sales Order not found.")
 
     amount = float(amount)
     if amount <= 0:
-        frappe.throw("Amount tidak sah.")
+        frappe.throw("Invalid amount.")
 
     # Baki rujukan — standardize ke grand_total (rujuk nota "Disable
     # Rounded Total" global di atas).
@@ -148,18 +148,18 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     if amount > outstanding + 0.01 and abs(amount - float(so.grand_total or 0)) < 0.01:
         amount = max(outstanding, 0)
         if amount <= 0:
-            frappe.throw("Tiada baki untuk dibayar pada Sales Order ini.")
+            frappe.throw("No balance to pay on this Sales Order.")
 
     pr_amount = float(pr_amount) if pr_amount is not None else amount
     if pr_amount <= 0:
-        frappe.throw("Amount tidak sah.")
+        frappe.throw("Invalid amount.")
 
     # Cap pr_amount ke baki SEBENAR — elak validate_payment_request_amount()
     # throw disebabkan pr_amount kita sedikit melebihi baki (ralat float).
     if pr_amount > outstanding + 0.01:
         pr_amount = max(outstanding, 0)
     if pr_amount <= 0:
-        frappe.throw("Tiada baki untuk dibayar pada Sales Order ini.")
+        frappe.throw("No balance to pay on this Sales Order.")
 
     currency = so.currency or "MYR"
     ss, gateway_account = _get_stripe_settings(currency)
@@ -300,7 +300,7 @@ def get_checkout_context(pr: str):
     Tak dedah secret_key — hanya client_secret (selamat untuk frontend, ikut design Stripe).
     """
     if not frappe.db.exists("Payment Request", pr):
-        frappe.throw("Payment request tidak ditemui.")
+        frappe.throw("Payment request not found.")
 
     pr_doc = frappe.get_doc("Payment Request", pr)
     if pr_doc.status == "Paid":
@@ -541,7 +541,7 @@ def get_payment_result(payment_intent: str):
     Payment Request/Sales Order kita untuk paparan yang boleh dipercayai.
     """
     if not payment_intent:
-        frappe.throw("Payment intent tidak ditemui.")
+        frappe.throw("Payment intent not found.")
 
     # SATU akaun Stripe sahaja untuk seluruh app (Travel Settings.payment_gateway)
     # — tiada lagi keperluan teka/loop currency untuk cari Stripe Settings yang
@@ -561,12 +561,40 @@ def get_payment_result(payment_intent: str):
         )
         return {
             "status": "unknown",
-            "message": "Payment tidak dapat disahkan. Sila semak dalam Transactions atau hubungi admin.",
+            "message": "Payment could not be verified. Please check under Transactions or contact admin.",
         }
 
     pr_name = (intent.metadata or {}).get("payment_request")
     so_name = (intent.metadata or {}).get("sales_order")
     booking_number = (intent.metadata or {}).get("booking_number") or ""
+
+    # KESELAMATAN — verify pemilikan: endpoint ni allow_guest=True (Stripe
+    # redirect balik bawa payment_intent di URL, customer MUNGKIN belum
+    # login lagi selepas redirect). payment_intent id sendiri adalah rahsia
+    # Stripe (27-char, tak boleh diteka) — jadi untuk Guest (redirect
+    # langsung dari Stripe, sesi mungkin tak hadir selepas redirect cookies
+    # tak sync), kita benarkan lookup kerana memiliki id = bukti indirect
+    # pemilikan (hanya customer yang memulakan checkout tahu id).
+    #
+    # TAPI untuk user AUTHENTICATED yang cuba akses payment_intent ORANG
+    # LAIN (cth admin/staff yang login, atau customer cuba teka id),
+    # kita verify pemilikan via SO.custom_booking -> Booking.customer.
+    # Ini elak pengguna yang authenticated "menyiasat" pembayaran customer
+    # lain walaupun mereka tak patut nampak.
+    user_email = frappe.session.user
+    if user_email and user_email != "Guest" and so_name:
+        from travel_booking.api._helpers import get_customer_by_email
+        owner_customer = get_customer_by_email(user_email)
+        so_customer = frappe.db.get_value("Sales Order", so_name, "customer") if frappe.db.exists("Sales Order", so_name) else None
+        if owner_customer and so_customer and so_customer != owner_customer:
+            frappe.log_error(
+                "Akses ditolak get_payment_result: user {0} (customer={1}) cuba akses "
+                "payment_intent {2} milik customer={3}".format(
+                    user_email, owner_customer, payment_intent, so_customer
+                ),
+                "Payment Result Access Denied"
+            )
+            frappe.throw("Access denied.", frappe.PermissionError)
 
     trip_label = ""
     if so_name:

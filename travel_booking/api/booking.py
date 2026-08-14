@@ -110,7 +110,7 @@ def get_wizard_confirmation(booking_number: str, pr: str = None):
     """, booking_number, as_dict=True)
 
     if not booking:
-        frappe.throw("Booking tidak ditemui.")
+        frappe.throw("Booking not found.")
     booking = booking[0]
 
     primary_so = _get_primary_so(booking.name)
@@ -118,7 +118,7 @@ def get_wizard_confirmation(booking_number: str, pr: str = None):
     if pr:
         pr_so = frappe.db.get_value("Payment Request", pr, "reference_name")
         if pr_so and pr_so != primary_so:
-            frappe.throw("Rujukan tidak sah.", frappe.PermissionError)
+            frappe.throw("Invalid reference.", frappe.PermissionError)
 
     # NOTA: "Disable Rounded Total" kini global (Selling Settings) — semua
     # SO (wizard/addon) tak lagi guna rounded_total, standardize ke
@@ -161,7 +161,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
         as_dict=True
     )
     if not td:
-        frappe.throw("Trip Group Date tidak ditemui.")
+        frappe.throw("Trip Group Date not found.")
 
     trip = frappe.db.get_value(
         "Trip", td.trip,
@@ -169,7 +169,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
         as_dict=True
     )
     if not trip:
-        frappe.throw("Trip tidak ditemui.")
+        frappe.throw("Trip not found.")
 
     # Pricing rows dari Trip Package Price (child Trip Package), JOIN
     # Trip Price Category untuk dapatkan maklumat kategori bilik/kabin.
@@ -247,7 +247,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
 def send_otp(email: str):
     email = (email or "").strip().lower()
     if not email:
-        frappe.throw("Sila masukkan alamat email.")
+        frappe.throw("Please enter your email address.")
 
     # ── Rate limiting IKUT IP — WAJIB berlaku SEBELUM sebarang cawangan
     # logik lain (termasuk check existing customer di bawah). ──
@@ -274,7 +274,7 @@ def send_otp(email: str):
     ip_rate_key = "send_otp_ip_" + client_ip
     ip_count = frappe.cache().get_value(ip_rate_key)
     if ip_count and int(ip_count) >= 30:
-        frappe.throw("Terlalu banyak permintaan. Sila cuba lagi sebentar.")
+        frappe.throw("Too many requests. Please try again shortly.")
     frappe.cache().set_value(ip_rate_key, str(int(ip_count or 0) + 1), expires_in_sec=60)
 
     # PENTING: check kewujudan "User" (akaun portal login), BUKAN
@@ -300,7 +300,7 @@ def send_otp(email: str):
             phone     = get_customer_phone(customer_name) or ""
         return {
             "verified":  True,
-            "message":   "Email disahkan.",
+            "message":   "Email verified.",
             "full_name": full_name,
             "phone":     phone,
         }
@@ -310,7 +310,7 @@ def send_otp(email: str):
     # "Resend" berturut-turut serta-merta).
     cooldown_key = "booking_otp_cooldown_" + email
     if frappe.cache().get_value(cooldown_key):
-        frappe.throw("Sila tunggu sebentar sebelum minta OTP sekali lagi.")
+        frappe.throw("Please wait a moment before requesting the OTP again.")
 
     # Lapisan 2: had maksimum 5 request sejam per email. Simpan timestamp
     # permintaan PERTAMA dalam tetingkap semasa (bukan cuma counter) —
@@ -330,7 +330,7 @@ def send_otp(email: str):
             # Tetingkap 1 jam dah tamat — mula semula dari permintaan ni.
             first_ts, count, remaining = now_ts, 0, 3600
         elif count >= 5:
-            frappe.throw("Terlalu banyak permintaan OTP untuk email ini. Sila cuba lagi selepas 1 jam.")
+            frappe.throw("Too many OTP requests for this email. Please try again after 1 hour.")
     else:
         first_ts, count, remaining = now_ts, 0, 3600
 
@@ -348,18 +348,18 @@ def send_otp(email: str):
             # Email Account (Settings > Email Account) macam function email
             # lain dalam app ni. Hardcode domain lain dari domain sebenar
             # site punca email silently gagal/masuk spam (SPF/DKIM mismatch).
-            subject="Rarecation Booking — Kod Pengesahan",
+            subject="Rarecation Booking — Verification Code",
             message="""
             <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-                <h2 style="color: #B8860B;">Kod Pengesahan Booking</h2>
-                <p>Gunakan kod berikut untuk mengesahkan email anda:</p>
+                <h2 style="color: #B8860B;">Booking Verification Code</h2>
+                <p>Use the following code to verify your email:</p>
                 <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px;
                             color: #B8860B; margin: 24px 0; text-align: center;">
                     """ + otp + """
                 </div>
-                <p style="color: #666;">Kod ini akan tamat dalam """ + str(otp_expiry_minutes) + """ minit.</p>
+                <p style="color: #666;">This code will expire in """ + str(otp_expiry_minutes) + """ minutes.</p>
                 <p style="color: #666; font-size: 12px;">
-                    Jika anda tidak membuat permintaan ini, abaikan email ini.
+                    If you did not make this request, please ignore this email.
                 </p>
             </div>
             """,
@@ -370,7 +370,7 @@ def send_otp(email: str):
         # yang tak pernah sampai ke inbox.
         frappe.cache().delete_value("booking_otp_" + email)
         frappe.log_error("OTP email failed: " + str(e), "Booking OTP Error")
-        frappe.throw("Gagal menghantar OTP. Sila cuba lagi sebentar, atau hubungi kami.")
+        frappe.throw("Failed to send OTP. Please try again shortly, or contact us.")
 
     # Emel berjaya dihantar — SEKARANG baru set cooldown & kemas kini counter
     # sejam (bukan sebelum sendmail), supaya kegagalan hantar emel tak
@@ -379,7 +379,7 @@ def send_otp(email: str):
     frappe.cache().set_value(hourly_key, str(first_ts) + "|" + str(count + 1),
                              expires_in_sec=int(remaining))
 
-    return {"verified": False, "message": "OTP dihantar ke email anda."}
+    return {"verified": False, "message": "OTP sent to your email."}
 
 
 # ══════════════════════════════════════════════
@@ -393,9 +393,9 @@ def verify_otp(email: str, otp: str):
     stored    = frappe.cache().get_value(cache_key)
 
     if not stored:
-        frappe.throw("OTP telah tamat tempoh. Sila minta semula.")
+        frappe.throw("OTP has expired. Please request a new one.")
     if stored != otp.strip():
-        frappe.throw("OTP tidak sah. Sila cuba semula.")
+        frappe.throw("Invalid OTP. Please try again.")
 
     settings = frappe.get_cached_doc("Travel Settings")
     session_minutes = int(settings.email_verified_session_minutes or 30)
@@ -404,7 +404,7 @@ def verify_otp(email: str, otp: str):
     frappe.cache().set_value(
         "booking_email_verified_" + email, True, expires_in_sec=session_minutes * 60
     )
-    return {"success": True, "message": "Email berjaya disahkan."}
+    return {"success": True, "message": "Email verified successfully."}
 
 
 # ══════════════════════════════════════════════
@@ -682,16 +682,16 @@ def _validate_selection_capacity(selections, cabin_info_map):
     # frontend dah disable butang "Add another room" bila cecah had).
     if len(selections) > MAX_CABINS_PER_BOOKING:
         frappe.throw(
-            "Maksimum " + str(MAX_CABINS_PER_BOOKING) +
-            " cabin dibenarkan untuk satu booking. Sila hubungi kami " +
-            "terus untuk tempahan lebih besar."
+            "Maximum " + str(MAX_CABINS_PER_BOOKING) +
+            " cabins allowed per booking. Please contact us " +
+            "directly for larger reservations."
         )
 
     for sel in selections:
         room_category = sel.get("room_category")
         info = cabin_info_map.get(room_category)
         if not info:
-            frappe.throw("Kategori bilik tidak sah: " + str(room_category))
+            frappe.throw("Invalid room category: " + str(room_category))
 
         capacity     = int(info.get("capacity") or 0)
         max_capacity = int(info.get("max_capacity") or capacity)
@@ -711,15 +711,15 @@ def _validate_selection_capacity(selections, cabin_info_map):
         max_infant = max(0, max_capacity - mg - eb)
 
         if mg < 1 or mg > capacity:
-            frappe.throw("Main Guest untuk " + str(room_category) + " mesti antara 1 dan " + str(capacity) + ".")
+            frappe.throw("Main Guest for " + str(room_category) + " must be between 1 and " + str(capacity) + ".")
         if eb > 0 and mg != capacity:
-            frappe.throw("Extra Bed hanya dibenarkan bila Main Guest sudah penuh (" + str(capacity) + ") untuk " + str(room_category) + ".")
+            frappe.throw("Extra Bed is only allowed when Main Guest is full (" + str(capacity) + ") for " + str(room_category) + ".")
         if eb > max_extra:
-            frappe.throw("Extra Bed untuk " + str(room_category) + " melebihi had (" + str(max_extra) + ").")
+            frappe.throw("Extra Bed for " + str(room_category) + " exceeds the limit (" + str(max_extra) + ").")
         if inf > 0 and mg < 1:
-            frappe.throw("Infant hanya dibenarkan bila Main Guest sekurang-kurangnya 1 untuk " + str(room_category) + ".")
+            frappe.throw("Infant is only allowed when Main Guest is at least 1 for " + str(room_category) + ".")
         if inf > max_infant:
-            frappe.throw("Infant untuk " + str(room_category) + " melebihi had (" + str(max_infant) + ").")
+            frappe.throw("Infant for " + str(room_category) + " exceeds the limit (" + str(max_infant) + ").")
 
 
 # ══════════════════════════════════════════════
@@ -745,7 +745,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         # penyata bank semasa verify manual. Wajib diisi di frontend
         # (booking.html/js), tapi disahkan semula di sini supaya panggilan
         # terus ke API (skip frontend) tak boleh langkau keperluan ni.
-        frappe.throw("Sila masukkan nombor rujukan transfer bank anda.")
+        frappe.throw("Please enter your bank transfer reference number.")
 
     # PENTING: gate OTP ni MESTI konsisten dengan send_otp()'s logic
     # (check User/akaun portal, bukan Customer) — kalau tidak, boleh
@@ -756,12 +756,26 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # akan cover kes tu). existing_customer (rekod Customer, kalau ada)
     # kekal diguna BERASINGAN semata-mata untuk elak cipta Customer
     # berganda — bukan untuk tentukan sama ada OTP diperlukan.
+    #
+    # DESYNC DIENDALI: dua sumber "sahkan email" yang boleh putus:
+    #   (a) is_verified cache (TTL 30 min dari email_verified_session_minutes)
+    #   (b) has_portal_user (User wujud — bermaksud customer PERNAH verify
+    #       email pada booking terdahulu, rekod kekal dalam DB)
+    # Customer yang ada akaun portal (b) TIDAK perlu OTP lagi — dia dah
+    # disahkan sekali sewaktu pendaftaran. Hanya customer BARU (tiada
+    # User) yang perlu OTP segar (a) dalam tetingkap 30 minit. Jika cache
+    # (a) dah tamat untuk customer baru, mesej jelas suruh re-verify
+    # (bukan "email belum disahkan" yang mengelirukan — seolah-olah
+    # customer tak pernah verify langsung, padahal verify, cuma tamat).
     is_verified       = frappe.cache().get_value("booking_email_verified_" + email)
     has_portal_user   = bool(frappe.db.exists("User", email))
     existing_customer = get_customer_by_email(email)
 
     if not has_portal_user and not is_verified:
-        frappe.throw("Email belum disahkan. Sila verify OTP dahulu.")
+        frappe.throw(
+            "Your email verification session has expired (30 minutes). "
+            "Please request a new OTP code and verify again to continue your booking."
+        )
 
     customer_name = existing_customer or _create_customer(billing)
 
@@ -769,11 +783,11 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     td = frappe.db.get_value("Trip Group Date", trip_group_date,
                              ["trip", "trip_group_name", "departure_date"], as_dict=True)
     if not td:
-        frappe.throw("Trip Group Date tidak ditemui.")
+        frappe.throw("Trip Group Date not found.")
     trip_name = frappe.db.get_value("Trip", td.trip, "trip_name") or ""
 
     if not trip_package:
-        frappe.throw("Sila pilih pakej terlebih dahulu.")
+        frappe.throw("Please select a package first.")
 
     # Backend pricing (dari Trip Package yang dipilih)
     pricing_map = _get_pricing_map(trip_package)
@@ -894,9 +908,9 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
             # SALAH sepenuhnya, jumlah jadi RM0). Berhenti terus dengan
             # mesej jelas untuk admin, bukan crash generic ERPNext.
             frappe.throw(
-                "Tiada exchange rate untuk " + package_currency + " ke " + company_currency +
-                ". Sila cipta rekod 'Currency Exchange' di Desk, atau sahkan sambungan "
-                "internet server untuk auto-fetch rate."
+                "No exchange rate for " + package_currency + " to " + company_currency +
+                ". Please create a 'Currency Exchange' record in Desk, or verify the "
+                "server's internet connection for auto-fetching the rate."
             )
 
     # Sales Order — insert & submit sebagai Administrator (elak isu permission
@@ -972,7 +986,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
                 so_payload["sales_team"] = rows
         if cashback_percent > 0:
             if not settings.cashback_discount_account:
-                frappe.throw("Cashback Discount Account belum ditetapkan dalam Travel Settings.")
+                frappe.throw("Cashback Discount Account is not set in Travel Settings.")
             so_payload.update({
                 "apply_discount_on":              "Grand Total",
                 "additional_discount_percentage": cashback_percent,
@@ -1193,10 +1207,10 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
                 break
         if not paid_to:
             frappe.log_error(
-                "Manual Transfer paid_to account tiada konfigurasi untuk currency '" +
-                str(so.currency) + "' (SO " + so_name + "). Guna fallback Account " +
-                "jenis Bank pertama untuk company — sila konfigurasikan di Travel " +
-                "Settings > Multi Currency Account.",
+                "Manual Transfer paid_to account not configured for currency '" +
+                str(so.currency) + "' (SO " + so_name + "). Using fallback to the " +
+                "first Bank-type Account for the company — please configure it in " +
+                "Travel Settings > Multi Currency Account.",
                 "Manual Transfer - Currency Account Missing"
             )
             paid_to = frappe.db.get_value("Account",
@@ -1235,7 +1249,7 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
             "reference_name":    so_name,
             "allocated_amount":  float(amount),
         })
-        pe.remarks = "Manual transfer (booking) untuk " + so_name + \
+        pe.remarks = "Manual transfer (booking) for " + so_name + \
                      (". Ref: " + bank_transfer_ref if bank_transfer_ref else "") + \
                      ". Pending verification."
         pe.insert(ignore_permissions=True)
@@ -1329,7 +1343,7 @@ def _build_so_items(selections, pricing_map, trip_name="", group_label=""):
 
         price = pricing_map.get(room_category)
         if not price:
-            frappe.throw("Harga tidak ditemui untuk kategori: " + str(room_category))
+            frappe.throw("Price not found for category: " + str(room_category))
 
         if main_guests == 1:
             items.append(_so_line(default_item, room_category, "Main Guest (Single)",
@@ -1720,13 +1734,13 @@ def _maybe_auto_invoice_so(so_name):
 
             if abs(allocated_total - expected_total) > 0.01:
                 frappe.log_error(
-                    "Auto-invoice: set_advances() tak berjaya allocate SEMUA bayaran "
-                    "untuk SO " + so_name + " — dijangka " + str(expected_total) +
-                    ", cuma berjaya allocate " + str(allocated_total) + " (basis: " +
+                    "Auto-invoice: set_advances() failed to allocate ALL payments "
+                    "for SO " + so_name + " — expected " + str(expected_total) +
+                    ", but only allocated " + str(allocated_total) + " (basis: " +
                     ("company currency" if si.get("party_account_currency") == company_currency else "SO currency") +
-                    "). SI TIDAK disubmit (dibiarkan draft/tak dicipta) — perlu siasat "
-                    "manual (semak Payment Entry party/currency untuk SO ni) sebelum "
-                    "generate invois secara manual.",
+                    "). SI NOT submitted (left as draft/not created) — requires manual "
+                    "investigation (check Payment Entry party/currency for this SO) before "
+                    "generating the invoice manually.",
                     "Auto Sales Invoice - Advance Mismatch"
                 )
                 return  # JANGAN submit — biar admin uruskan manual
@@ -1996,6 +2010,15 @@ def _send_set_password_email(email, first_name):
     """Emel BERASINGAN "Set Your Password" — dihantar SEKALI SAHAJA, terus
     selepas User portal baru dicipta (_ensure_portal_user() pulangkan True),
     TAK KIRA payment method atau status booking pertama customer tu.
+
+    KESELAMATAN KEGAGALAN: jika emel set-password gagal dihantar (cth emel
+    masuk spam, SMTP bounce, template hilang), customer TERKUNCI tanpa
+    cara set password — akaun mereka wujud tapi password random tidak
+    diketahui. Sebelum ni, kegagalan cuma diam log (frappe.log_error)
+    yang admin jarang semak, jadi customer komplen "tak boleh login"
+    tanpa siapa-siapa tahu punca sebenar. Sekarang: (a) cipta TODO utk
+    admin supaya nampak kegagalan dalamDesk, dan (b) log dh dengan tahap
+    lebih ketara.
     """
     try:
         context = {
@@ -2016,8 +2039,40 @@ def _send_set_password_email(email, first_name):
             message=message,
             now=True
         )
+        return True
     except Exception as e:
-        frappe.log_error("Set Your Password email failed: " + str(e), "Booking Email Error")
+        # Kegagalan dihantar emel set-password = customer berkemungkinan
+        # TERKUNCI (User wujud, password random tak diketahui, tiada link
+        # set-password sampai). Ini perlu perhatian admin SEGERA, bukan
+        # sekadar log tersorok.
+        frappe.log_error(
+            "Set Your Password email FAILED for {0}: {1}\n"
+            "Customer may be unable to log in to the portal. "
+            "Alternative: send a manual magic link or set a new reset_password_key."
+            .format(email, str(e)),
+            "Booking Set-Password Email FAILED"
+        )
+        # Cipta TODO utk admin supaya nampak dalam Desk daily check.
+        try:
+            todo = frappe.get_doc({
+                "doctype":  "ToDo",
+                "status":   "Open",
+                "priority": "High",
+                "subject":  "Set Password email failed for {0}".format(email),
+                "description": (
+                    "The 'Set Your Password' email failed to send after a new booking.\n"
+                    "Email: {0}\nError: {1}\n\n"
+                    "Action: Contact the customer, or generate a magic link / "
+                    "new reset_password_key from the portal forgot-password page."
+                ).format(email, str(e)),
+            })
+            todo.flags.ignore_permissions = True
+            todo.insert()
+        except Exception:
+            # Kalau TODO pun gagal, jangan crash booking — log_error di
+            # atas dah cukup sebagai fallback record.
+            pass
+        return False
 
 
 # ══════════════════════════════════════════════
