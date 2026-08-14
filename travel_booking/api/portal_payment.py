@@ -4,6 +4,7 @@
 
 import frappe
 from travel_booking.api.portal_booking import _get_customer
+from travel_booking.api.constants import PRINT_FORMAT_RECEIPT
 
 
 # ══════════════════════════════════════════════
@@ -210,7 +211,7 @@ def create_payment_request(booking_number: str = None, amount: float = None, sal
         booking_name_lookup = frappe.db.get_value("Booking", {"booking_number": booking_number}, "name")
         so_name = _get_primary_so(booking_name_lookup) if booking_name_lookup else None
     if not so_name:
-        frappe.throw("Sales Order tidak ditemui untuk booking ini.")
+        frappe.throw("Sales Order not found for this booking.")
 
     # Derive booking_number dari SO (arah SEBALIKNYA) kalau caller cuma
     # hantar sales_order sahaja (macam portal_payment.js — klik "Pay Now"
@@ -228,7 +229,7 @@ def create_payment_request(booking_number: str = None, amount: float = None, sal
     so = frappe.db.get_value("Sales Order", so_name,
                              ["customer", "grand_total", "advance_paid", "currency"], as_dict=True)
     if so.customer != customer_name:
-        frappe.throw("Akses ditolak.", frappe.PermissionError)
+        frappe.throw("Access denied.", frappe.PermissionError)
 
     # NOTA: "Disable Rounded Total" kini global (Selling Settings) — semua
     # SO tak lagi ada rounded_total berlainan dari grand_total (dan ERPNext
@@ -240,7 +241,7 @@ def create_payment_request(booking_number: str = None, amount: float = None, sal
     paid        = float(so.advance_paid or 0)
     outstanding = grand_total - paid
     if outstanding <= 0:
-        frappe.throw("Tiada baki untuk dibayar.")
+        frappe.throw("No balance to pay.")
 
     req_amount = float(amount) if amount else outstanding
 
@@ -255,14 +256,14 @@ def create_payment_request(booking_number: str = None, amount: float = None, sal
         if paid <= 0:
             from travel_booking.api.booking import fmt_currency
             frappe.throw(
-                "Bayaran pertama mesti sekurang-kurangnya deposit {:.0f}% ({}).".format(
+                "First payment must be at least the deposit of {:.0f}% ({}).".format(
                     default_deposit_percent, fmt_currency(min_amount, so.currency)
                 )
             )
-        frappe.throw("Amount tidak sah.")
+        frappe.throw("Invalid amount.")
     if req_amount > outstanding + 0.01:
         from travel_booking.api.booking import fmt_currency
-        frappe.throw("Amount melebihi baki tertunggak ({}).".format(fmt_currency(outstanding, so.currency)))
+        frappe.throw("Amount exceeds the outstanding balance ({}).".format(fmt_currency(outstanding, so.currency)))
 
     result = create_payment_intent(
         sales_order=so_name,
@@ -278,7 +279,7 @@ def create_payment_request(booking_number: str = None, amount: float = None, sal
         "min_amount":      min_amount,
         "outstanding":     outstanding,
         "payment_url":     result.get("checkout_url", ""),
-        "message":         "Sila teruskan ke pembayaran.",
+        "message":         "Please proceed to payment.",
     }
 
 # ══════════════════════════════════════════════
@@ -313,12 +314,12 @@ def submit_manual_payment(amount: float, payment_date: str,
         booking_name_lookup = frappe.db.get_value("Booking", {"booking_number": booking_number}, "name")
         target_so = _get_primary_so(booking_name_lookup) if booking_name_lookup else None
     if not target_so:
-        frappe.throw("Sales Order tidak ditemui.")
+        frappe.throw("Sales Order not found.")
 
     so = frappe.db.get_value("Sales Order", target_so,
                              ["customer", "company", "currency"], as_dict=True)
     if so.customer != customer_name:
-        frappe.throw("Akses ditolak.", frappe.PermissionError)
+        frappe.throw("Access denied.", frappe.PermissionError)
 
     # --- Naikkan hak ke sistem untuk cipta Payment Entry ---
     # (customer dah verified atas; dokumen kewangan dicipta dgn hak sistem)
@@ -338,10 +339,10 @@ def submit_manual_payment(amount: float, payment_date: str,
                 break
         if not paid_to:
             frappe.log_error(
-                "Manual Transfer paid_to account tiada konfigurasi untuk currency '" +
-                str(so.currency) + "' (SO " + target_so + "). Guna fallback Account " +
-                "jenis Bank pertama untuk company — sila konfigurasikan di Travel " +
-                "Settings > Multi Currency Account.",
+                "Manual Transfer paid_to account is not configured for currency '" +
+                str(so.currency) + "' (SO " + target_so + "). Using fallback to the " +
+                "first Bank-type Account for the company — please configure it in " +
+                "Travel Settings > Multi Currency Account.",
                 "Manual Transfer - Currency Account Missing"
             )
             paid_to = frappe.db.get_value(
@@ -375,7 +376,7 @@ def submit_manual_payment(amount: float, payment_date: str,
             "allocated_amount":  float(amount),
         })
 
-        pe.remarks = notes or ("Manual transfer untuk " + target_so + ". Pending verification.")
+        pe.remarks = notes or ("Manual transfer for " + target_so + ". Pending verification.")
         pe.insert(ignore_permissions=True)   # draft
 
         if filedata and filename:
@@ -399,7 +400,7 @@ def submit_manual_payment(amount: float, payment_date: str,
     return {
         "status":     "ok",
         "submission": pe_name,
-        "message":    "Bukti bayaran diterima. Admin akan verify dalam masa terdekat."
+        "message":    "Payment proof received. Admin will verify shortly."
     }
 
 
@@ -407,7 +408,9 @@ def submit_manual_payment(amount: float, payment_date: str,
 # DOWNLOAD DOCUMENT PDF
 # ══════════════════════════════════════════════
 
-PRINT_FORMAT_RECEIPT = "Rarecation Receipt"
+# PRINT_FORMAT_RECEIPT diimport dari constants.py (sumber tunggal).
+# PRINT_FORMAT_INVOICE kekal di sini sebab ia cuma dipakai di portal_payment
+# sahaja buat masa ni (belum dikongsi dengan modul lain).
 PRINT_FORMAT_INVOICE = "Rarecation Invoice"
 
 
@@ -424,7 +427,7 @@ def get_document_pdf(doctype: str, docname: str):
         """, (docname, customer_name), as_dict=True)
         if not pe:
             frappe.response["http_status_code"] = 403
-            return {"status": "error", "message": "Dokumen tidak dijumpai."}
+            return {"status": "error", "message": "Document not found."}
         print_format = PRINT_FORMAT_RECEIPT
 
     elif doctype == "Sales Invoice":
@@ -437,11 +440,11 @@ def get_document_pdf(doctype: str, docname: str):
         """, (docname, customer_name), as_dict=True)
         if not inv:
             frappe.response["http_status_code"] = 403
-            return {"status": "error", "message": "Dokumen tidak dijumpai."}
+            return {"status": "error", "message": "Document not found."}
         print_format = PRINT_FORMAT_INVOICE
     else:
         frappe.response["http_status_code"] = 400
-        return {"status": "error", "message": "Jenis dokumen tidak sah."}
+        return {"status": "error", "message": "Invalid document type."}
 
     try:
         pf = frappe.db.get_value(
@@ -450,7 +453,7 @@ def get_document_pdf(doctype: str, docname: str):
         )
         if not pf or not pf.get("html"):
             frappe.response["http_status_code"] = 404
-            return {"status": "error", "message": "Print format tidak dijumpai."}
+            return {"status": "error", "message": "Print format not found."}
 
         doc       = frappe.get_doc(doctype, docname)
         html      = frappe.render_template(pf["html"], {"doc": doc, "frappe": frappe})
@@ -463,7 +466,7 @@ def get_document_pdf(doctype: str, docname: str):
     except Exception:
         frappe.log_error(frappe.get_traceback(), "get_document_pdf error")
         frappe.response["http_status_code"] = 500
-        return {"status": "error", "message": "PDF tidak dapat dijana."}
+        return {"status": "error", "message": "PDF could not be generated."}
 
     frappe.response.update({
         "filename":     docname.replace("/", "-") + ".pdf",

@@ -92,12 +92,12 @@ def save_booking_traveller(booking_number: str, slot_name: str,
     # saveTraveller), sebab client-side sahaja boleh dipintas (contoh
     # panggil API terus). Email/Phone/Health (dietary/medical/special
     # needs) KEKAL opsyenal — tak divalidate di sini.
-    if not first_name:  frappe.throw("Nama pertama wajib diisi.")
-    if not last_name:   frappe.throw("Nama akhir wajib diisi.")
-    if not ic_number:   frappe.throw("IC Number wajib diisi.")
-    if not nationality: frappe.throw("Kewarganegaraan wajib diisi.")
-    if not date_of_birth: frappe.throw("Tarikh lahir wajib diisi.")
-    if not gender:       frappe.throw("Jantina wajib dipilih.")
+    if not first_name:  frappe.throw("First name is required.")
+    if not last_name:   frappe.throw("Last name is required.")
+    if not ic_number:   frappe.throw("IC Number is required.")
+    if not nationality: frappe.throw("Nationality is required.")
+    if not date_of_birth: frappe.throw("Date of birth is required.")
+    if not gender:       frappe.throw("Gender is required.")
 
     # Nombor telefon (Phone/Emergency Contact Phone) — semak minimum panjang
     # digit SEBELUM sampai ke validation Frappe (fieldtype Phone guna library
@@ -106,25 +106,25 @@ def save_booking_traveller(booking_number: str, slot_name: str,
     # "is not valid" yang kurang jelas). Ini bagi mesej yang lebih membantu.
     import re
     if phone and len(re.sub(r"\D", "", phone)) < 7:
-        frappe.throw("Nombor telefon nampak terlalu pendek. Sila masukkan nombor penuh.")
+        frappe.throw("The phone number seems too short. Please enter the full number.")
     if emergency_contact_phone and len(re.sub(r"\D", "", emergency_contact_phone)) < 7:
-        frappe.throw("Nombor telefon kenalan kecemasan nampak terlalu pendek. Sila masukkan nombor penuh.")
+        frappe.throw("The emergency contact phone number seems too short. Please enter the full number.")
 
-    if not emergency_contact_name:         frappe.throw("Nama kenalan kecemasan wajib diisi.")
-    if not emergency_contact_phone:        frappe.throw("Nombor telefon kenalan kecemasan wajib diisi.")
-    if not emergency_contact_relationship: frappe.throw("Hubungan kenalan kecemasan wajib diisi.")
-    if not passport_no:      frappe.throw("Nombor pasport wajib diisi.")
-    if not passport_expiry:  frappe.throw("Tarikh luput pasport wajib diisi.")
+    if not emergency_contact_name:         frappe.throw("Emergency contact name is required.")
+    if not emergency_contact_phone:        frappe.throw("Emergency contact phone is required.")
+    if not emergency_contact_relationship: frappe.throw("Emergency contact relationship is required.")
+    if not passport_no:      frappe.throw("Passport number is required.")
+    if not passport_expiry:  frappe.throw("Passport expiry date is required.")
     if not full_name:
-        frappe.throw("Nama wajib diisi.")
+        frappe.throw("Full name is required.")
 
     # Verify booking milik customer
     booking = frappe.db.get_value("Booking", {"booking_number": booking_number},
                                   ["name", "customer", "status"], as_dict=True)
     if not booking:
-        frappe.throw("Booking tidak ditemui.")
+        frappe.throw("Booking not found.")
     if booking.customer != customer_name:
-        frappe.throw("Akses ditolak.", frappe.PermissionError)
+        frappe.throw("Access denied.", frappe.PermissionError)
 
     # Kunci "Traveller Details di-lock sehingga Confirmed/Completed" DIBUANG —
     # traveller details boleh diisi bila-bila masa, tak kira status booking
@@ -137,11 +137,11 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         ["name", "booking", "document_status"], as_dict=True
     )
     if not slot or slot.booking != booking.name:
-        frappe.throw("Slot tidak ditemui.")
+        frappe.throw("Slot not found.")
 
     LOCKED_STATUSES = ["Verified"]
     if slot.document_status in LOCKED_STATUSES:
-        frappe.throw("Slot ini telah disahkan oleh admin dan tidak boleh diedit.")
+        frappe.throw("This slot has been verified by admin and cannot be edited.")
 
     # Get or create Traveller
     existing = frappe.db.get_value("Traveller", {"ic_number": ic_number}, "name")
@@ -156,8 +156,8 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         )
         if conflict:
             frappe.throw(
-                "IC Number ini telah digunakan untuk traveller lain dalam booking ini "
-                "(" + conflict + "). Sila semak semula \u2014 setiap traveller mesti IC berlainan."
+                "This IC Number has already been used for another traveller in this booking "
+                "(" + conflict + "). Please check again \u2014 each traveller must have a different IC."
             )
 
     # Mandatory: passport copy wajib (baru upload ATAU sudah wujud) — TERMASUK
@@ -274,7 +274,7 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         "traveller_id": traveller_name,
         "doc_status":   "Pending",
         "all_filled":   filled_count >= total_slots and total_slots > 0,
-        "message":      "Maklumat traveller berjaya disimpan."
+        "message":      "Traveller information saved successfully."
     }
 
 

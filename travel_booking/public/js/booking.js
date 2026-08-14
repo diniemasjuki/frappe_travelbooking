@@ -42,7 +42,7 @@ const state = {
 // ─── HELPERS ──────────────────────────────────────────────
 function fmtDate(iso) {
   if (!iso) return "";
-  var months = ["Jan","Feb","Mac","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   // var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   var parts = String(iso).split("-");
   if (parts.length !== 3) return iso;

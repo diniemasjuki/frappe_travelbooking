@@ -9,7 +9,7 @@ def get_context(context):
     ref     = frappe.form_dict.get("ref", "")
 
     if not pr_name or not frappe.db.exists("Payment Request", pr_name):
-        frappe.throw("Payment request tidak ditemui.", frappe.DoesNotExistError)
+        frappe.throw("Payment request not found.", frappe.DoesNotExistError)
 
     pr = frappe.get_doc("Payment Request", pr_name)
 

@@ -14,6 +14,25 @@ import stripe
 from travel_booking.api._helpers import get_customer_email
 
 
+def _rate_limit(scope, max_requests, window_sec):
+    """Rate limiting generik per-IP guna Redis cache (frappe.cache()).
+
+    Pulangkan True kalau request ini DIBENARKAN (bawah had), False kalau
+    dah melebihi had (caller patut frappe.throw atau return ignored).
+
+    Corak ni sama dengan send_otp() di otp.py — key berasaskan scope + IP,
+    counter + TTL eksplisit (bukan bergantung pada tingkah laku Redis SET
+    yang tak jelas didokumenkan untuk TTL retention).
+    """
+    client_ip = frappe.local.request_ip or "unknown"
+    key = "rate_" + scope + "_" + client_ip
+    count = frappe.cache().get_value(key)
+    if count and int(count) >= max_requests:
+        return False
+    frappe.cache().set_value(key, str(int(count or 0) + 1), expires_in_sec=window_sec)
+    return True
+
+
 def _get_stripe_settings(currency=None):
     """Selesaikan Stripe Settings (publishable_key/secret_key/webhook signing
     secret) + Payment Gateway Account daripada Travel Settings.currency_accounts
@@ -191,7 +210,7 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
             old_pr.cancel()
         except Exception as e:
             frappe.log_error(
-                "Gagal cancel Payment Request lama " + old_pr_name + " untuk " + sales_order + ": " + str(e),
+                "Failed to cancel old Payment Request " + old_pr_name + " for " + sales_order + ": " + str(e),
                 "Payment Request Cleanup Error"
             )
 
@@ -375,6 +394,15 @@ def mark_checkout_timeout(pr: str):
     Tak sentuh Payment Request/PaymentIntent Stripe — ia kekal, akan
     digantikan automatik bila customer cuba bayar semula dari portal.
     """
+    # Rate limiting per-IP — endpoint ni allow_guest=True, jadi sesiapa boleh
+    # panggil. Idempotent memang (booking yang dah Accepted diabaikan), tapi
+    # tanpa had kadar, bot boleh flood trigger panggilan DB + email untuk
+    # beribu-ribu Payment Request name yang teka. Had 5/minit/IP cukup untuk
+    # customer sebenar (satu checkout = satu timeout) tapi cukup ketat untuk
+    # block abuse. Corak sama dengan send_otp() di otp.py.
+    if not _rate_limit("checkout_timeout", max_requests=5, window_sec=60):
+        frappe.throw("Too many requests. Please try again shortly.")
+
     if not pr or not frappe.db.exists("Payment Request", pr):
         return {"status": "ignored"}
 
@@ -390,7 +418,7 @@ def mark_checkout_timeout(pr: str):
     if status != "Pending":
         return {"status": "ignored"}
 
-    from travel_booking.api.booking import _send_status_email
+    from travel_booking.api.email_service import _send_status_email
     _send_status_email(booking_name, "Pending")
     return {"status": "ok"}
 
@@ -414,8 +442,8 @@ def stripe_webhook():
 
     if not webhook_secret:
         frappe.log_error(
-            "Tiada Webhook Signing Secret dikonfigurasikan pada Stripe Settings '" +
-            ss.name + "' (akaun ditetapkan di Travel Settings.payment_gateway).",
+            "No Webhook Signing Secret is configured on Stripe Settings '" +
+            ss.name + "' (account set in Travel Settings.payment_gateway).",
             "Stripe Webhook Config Error"
         )
         frappe.local.response.http_status_code = 500
@@ -483,7 +511,7 @@ def _mark_payment_request_paid(pr_name):
         frappe.db.commit()
         return True
     except Exception as e:
-        frappe.log_error("set_as_paid gagal untuk " + pr_name + ": " + str(e),
+        frappe.log_error("set_as_paid failed for " + pr_name + ": " + str(e),
                          "Stripe Payment Entry Error")
         return False
     finally:
@@ -493,7 +521,7 @@ def _mark_payment_request_paid(pr_name):
 def _handle_payment_succeeded(payment_intent):
     pr_name = (payment_intent.get("metadata") or {}).get("payment_request")
     if not pr_name or not frappe.db.exists("Payment Request", pr_name):
-        frappe.log_error("Webhook: payment_request tidak dijumpai dalam metadata. PI: " +
+        frappe.log_error("Webhook: payment_request not found in metadata. PI: " +
                          str(payment_intent.get("id")), "Stripe Webhook")
         return
     _mark_payment_request_paid(pr_name)
@@ -502,7 +530,7 @@ def _handle_payment_succeeded(payment_intent):
 def _handle_payment_failed(payment_intent):
     pr_name = (payment_intent.get("metadata") or {}).get("payment_request")
     frappe.log_error(
-        "Payment gagal untuk Payment Request " + str(pr_name) +
+        "Payment failed for Payment Request " + str(pr_name) +
         " (PI: " + str(payment_intent.get("id")) + ")",
         "Stripe Payment Failed"
     )
@@ -526,7 +554,7 @@ def _notify_booking_pending_if_unpaid(payment_intent):
     if not booking or booking.status != "Pending":
         return
 
-    from travel_booking.api.booking import _send_status_email
+    from travel_booking.api.email_service import _send_status_email
     _send_status_email(booking.name, "Pending")
 
 
@@ -540,6 +568,16 @@ def get_payment_result(payment_intent: str):
     disertakan Stripe dalam URL selepas redirect), lalu padankan dengan
     Payment Request/Sales Order kita untuk paparan yang boleh dipercayai.
     """
+    # Rate limiting per-IP — endpoint ni allow_guest=True dan setiap panggilan
+    # retrieve PaymentIntent dari Stripe API (network request keluar). Tanpa
+    # had, bot boleh flood Stripe API guna payment_intent id yang teka/wujud,
+    # buang kuota rate limit Stripe kita + beban server. Had 15/minit/IP
+    # longgar cukup untuk customer sebenar (redirect status page mungkin
+    # poll beberapa kali), tapi ketat cukup untuk block abuse. Corak sama
+    # dengan send_otp() di otp.py.
+    if not _rate_limit("payment_result", max_requests=15, window_sec=60):
+        frappe.throw("Too many requests. Please try again shortly.")
+
     if not payment_intent:
         frappe.throw("Payment intent not found.")
 
@@ -555,7 +593,7 @@ def get_payment_result(payment_intent: str):
         # admin boleh diagnos kenapa get_payment_result gagal walaupun
         # webhook Stripe sendiri dah berjaya proses PaymentIntent yang sama.
         frappe.log_error(
-            "get_payment_result gagal retrieve intent " + str(payment_intent) +
+            "get_payment_result failed to retrieve intent " + str(payment_intent) +
             ". Error: " + str(e),
             "Payment Result Lookup Error"
         )
@@ -588,8 +626,8 @@ def get_payment_result(payment_intent: str):
         so_customer = frappe.db.get_value("Sales Order", so_name, "customer") if frappe.db.exists("Sales Order", so_name) else None
         if owner_customer and so_customer and so_customer != owner_customer:
             frappe.log_error(
-                "Akses ditolak get_payment_result: user {0} (customer={1}) cuba akses "
-                "payment_intent {2} milik customer={3}".format(
+                "Access denied in get_payment_result: user {0} (customer={1}) attempted to access "
+                "payment_intent {2} belonging to customer={3}".format(
                     user_email, owner_customer, payment_intent, so_customer
                 ),
                 "Payment Result Access Denied"
@@ -643,9 +681,9 @@ def get_payment_result(payment_intent: str):
             # pr_verified akan kekal False dalam response, dan admin
             # nampak error tercatat untuk siasat manual.
             frappe.log_error(
-                "get_payment_result: Stripe sahkan 'succeeded' untuk PI " +
-                str(payment_intent) + " tapi set_as_paid() fallback GAGAL " +
-                "untuk Payment Request " + str(pr_name) + ". Perlu semakan manual.",
+                "get_payment_result: Stripe confirmed 'succeeded' for PI " +
+                str(payment_intent) + " but set_as_paid() fallback FAILED " +
+                "for Payment Request " + str(pr_name) + ". Manual review required.",
                 "Payment Result - Webhook Miss Fallback Failed"
             )
 

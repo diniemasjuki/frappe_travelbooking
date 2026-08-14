@@ -1,0 +1,368 @@
+# travel_booking/api/pricing.py
+#
+# Bahagian 0, 1 & 6 dari booking.py asal:
+#   - Tetapan bayaran + maklumat bank (get_payment_settings)
+#   - Butiran trip/kabin untuk wizard (get_wizard_confirmation,
+#     get_booking_details, get_sales_persons)
+#   - Kiraan harga backend (fmt_currency, _get_pricing_map,
+#     _price_selection, _validate_selection_capacity)
+#
+# Tiada _send_status_email atau penciptaan dokumen di sini — modul ni
+# baca sahaja (read-only) terhadap data, jadi selamat dari masalah
+# import membulat (circular import).
+
+import frappe
+
+from travel_booking.api.constants import MAX_CABINS_PER_BOOKING
+from travel_booking.api.so_helpers import _get_primary_so, _compute_payment_status
+
+
+# ══════════════════════════════════════════════
+# 0. GET PAYMENT SETTINGS (Bank Account + Cashback)
+# ══════════════════════════════════════════════
+
+@frappe.whitelist(allow_guest=True)
+def get_payment_settings():
+    """Bank account & cashback info untuk papar di booking.html.
+
+    MULTI-CURRENCY (rujuk dokumen reka bentuk): dipanggil AWAL wizard
+    (page load, SEBELUM customer pilih Trip/Package) — currency booking
+    BELUM diketahui pada ketika ni. Jadi pulangkan bank details untuk
+    SEMUA currency yang dikonfigurasikan sekaligus (dict keyed currency,
+    cth {"MYR": {...}, "SGD": {...}}) — frontend pilih currency yang
+    BETUL bila customer sampai Step Payment (ikut currency package yang
+    dipilih, rujuk state.trip_package's currency di booking.js).
+
+    PENTING: guna getattr()/get() (bukan attribute access terus) untuk
+    field yang mungkin dah dibuang/diubah struktur di doctype — elak
+    AttributeError yang boleh crash endpoint ni sepenuhnya untuk customer.
+    """
+    settings = frappe.get_cached_doc("Travel Settings")
+
+    bank_accounts_by_currency = {}
+    for row in (settings.get("currency_accounts") or []):
+        if not row.currency:
+            continue
+        bank_display_name = ""
+        account_name = ""
+        account_number = ""
+        if row.bank_account:
+            try:
+                ba = frappe.db.get_value(
+                    "Bank Account", row.bank_account,
+                    ["bank", "account_name", "bank_account_no"], as_dict=True
+                )
+                if ba:
+                    bank_display_name = ba.bank or ""
+                    account_name = ba.account_name or ""
+                    account_number = ba.bank_account_no or ""
+            except Exception:
+                pass
+        bank_accounts_by_currency[row.currency] = {
+            "bank_name":      bank_display_name,
+            "account_name":   account_name,
+            "account_number": account_number,
+        }
+
+    return {
+        # dict {currency: {bank_name, account_name, account_number}} —
+        # KOSONG ({}) untuk currency yang admin belum konfigurasikan
+        # Bank Account (Manual Transfer patut disembunyikan/dilumpuhkan
+        # di frontend untuk currency macam ni — rujuk dokumen reka
+        # bentuk, "sembunyikan pilihan payment, bukan fallback senyap").
+        "bank_accounts":                    bank_accounts_by_currency,
+        "cashback_enabled":                 bool(getattr(settings, "manual_transfer_cashback_enabled", 0)),
+        "cashback_percent":                 float(getattr(settings, "manual_transfer_cashback_percent", 0) or 0),
+        "default_deposit_percent":          float(getattr(settings, "default_deposit_percent", 20) or 20),
+        "support_email":                    getattr(settings, "support_email", "") or "",
+        "support_phone":                    getattr(settings, "support_phone", "") or "",
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def get_sales_persons():
+    """Senarai Sales Person aktif (staff dalaman RareCruise) untuk dropdown
+    optional di wizard booking. Customer boleh pilih staff yang uruskan
+    booking dia — disimpan terus dalam Sales Order punya child table
+    'Sales Team' sahaja (bukan Booking doctype).
+
+    NOTA: 'Sales Person' adalah Tree doctype (macam Item Group/Territory) —
+    ada node 'Group' (folder organisasi, cth root 'Sales Team') yang BUKAN
+    staff sebenar. is_group=0 elak folder ni tersalah masuk sebagai pilihan.
+    """
+    return frappe.get_all(
+        "Sales Person",
+        filters={"enabled": 1, "is_group": 0},
+        fields=["name", "sales_person_name"],
+        order_by="sales_person_name ASC",
+    )
+
+
+# ══════════════════════════════════════════════
+# 1. GET BOOKING DETAILS
+# ══════════════════════════════════════════════
+
+@frappe.whitelist(allow_guest=True)
+def get_wizard_confirmation(booking_number: str, pr: str = None):
+    """Data ringan untuk papar step Confirm selepas redirect dari checkout (Stripe).
+    Tiada data sensitif traveller — hanya untuk paparan status booking.
+    Loose-token check via 'pr' (Payment Request) untuk elak sesiapa teka booking_number.
+    """
+    booking = frappe.db.sql("""
+        SELECT
+            b.name, b.booking_number, b.status,
+            tm.trip_name, td.trip_group_name, td.departure_date, td.return_date
+        FROM `tabBooking` b
+        LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
+        LEFT JOIN `tabTrip` tm ON tm.name = td.trip
+        WHERE b.booking_number = %s
+    """, booking_number, as_dict=True)
+
+    if not booking:
+        frappe.throw("Booking not found.")
+    booking = booking[0]
+
+    primary_so = _get_primary_so(booking.name)
+
+    if pr:
+        pr_so = frappe.db.get_value("Payment Request", pr, "reference_name")
+        if pr_so and pr_so != primary_so:
+            frappe.throw("Invalid reference.", frappe.PermissionError)
+
+    # NOTA: "Disable Rounded Total" kini global (Selling Settings) — semua
+    # SO (wizard/addon) tak lagi guna rounded_total, standardize ke
+    # grand_total sahaja merentasi app (rujuk juga nota di confirm_booking()).
+    grand_total = 0
+    advance_paid = 0
+    if primary_so:
+        so = frappe.db.get_value("Sales Order", primary_so,
+                                 ["grand_total", "advance_paid"], as_dict=True)
+        if so:
+            grand_total  = float(so.grand_total or 0)
+            advance_paid = float(so.advance_paid or 0)
+
+    return {
+        "booking_number":  booking.booking_number,
+        "booking_status":  booking.status,
+        "trip_name":       booking.trip_name or "",
+        "group_name":      booking.trip_group_name or "",
+        "departure_date":  str(booking.departure_date) if booking.departure_date else "",
+        "return_date":     str(booking.return_date) if booking.return_date else "",
+        "grand_total":     grand_total,
+        "advance_paid":    advance_paid,
+        "payment_status":  _compute_payment_status(advance_paid, grand_total),
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def get_booking_details(trip_group_date: str, trip_package: str = None):
+    """Return trip + sailing info + cabin categories with pricing.
+    Pricing dibaca dari Trip Package Price (child Trip Package), setiap
+    row berkait dengan satu Trip Price Category (kategori bilik/kabin).
+    Room Availability dibuang — inventori bilik diurus manual oleh admin.
+    """
+    td = frappe.db.get_value(
+        "Trip Group Date", trip_group_date,
+        ["name", "trip", "trip_group_name", "trip_group_code", "status",
+         "departure_date", "return_date", "sailing_start", "sailing_end",
+         "ship_name", "ship_code", "total_days", "total_nights",
+         "embarkation_port", "disembarkation_port"],
+        as_dict=True
+    )
+    if not td:
+        frappe.throw("Trip Group Date not found.")
+
+    trip = frappe.db.get_value(
+        "Trip", td.trip,
+        ["name", "trip_name", "description", "is_a_cruise_trip"],
+        as_dict=True
+    )
+    if not trip:
+        frappe.throw("Trip not found.")
+
+    # Pricing rows dari Trip Package Price (child Trip Package), JOIN
+    # Trip Price Category untuk dapatkan maklumat kategori bilik/kabin.
+    pricing_rows = frappe.db.sql("""
+        SELECT
+            tpp.pricing_for_class AS room_category,
+            tpc.category_name,
+            tpc.room_type,
+            tpc.capacity,
+            tpc.max_capacity,
+            tpc.description,
+            tpc.room_profile,
+            tpp.price_adult_single,
+            tpp.price_adult,
+            tpp.price_upperberth,
+            tpp.price_infant
+        FROM `tabTrip Package Price` tpp
+        JOIN `tabTrip Price Category` tpc ON tpc.name = tpp.pricing_for_class
+        WHERE tpp.parent = %s AND tpp.parenttype = 'Trip Package'
+        ORDER BY tpp.idx ASC
+    """, trip_package, as_dict=True)
+
+    cabins = []
+    for row in pricing_rows:
+        # Room Availability doctype dibuang — semua kategori dianggap available.
+        # Kawalan bilik sebenar diurus admin (order batch dari Aroya).
+        available = 1
+
+        cabins.append({
+            "room_category": row.room_category,
+            "room_name":     row.category_name or row.room_category,
+            "room_type":     row.room_type,
+            "capacity":      row.capacity or 2,
+            "max_capacity":  row.max_capacity or row.capacity or 2,
+            "description":   row.description or "",
+            "room_image":    row.room_profile or "",
+            "pricing": {
+                "price_adult_single":     float(row.price_adult_single     or 0),
+                "price_adult":            float(row.price_adult           or 0),
+                "price_upperberth": float(row.price_upperberth or 0),
+                "price_infant":           float(row.price_infant          or 0),
+            },
+            "available":    available,
+            "is_available": available > 0,
+        })
+
+
+    return {
+        "trip": {
+            "name":             trip.name,
+            "trip_name":        trip.trip_name,
+            "description":      trip.description or "",
+            "is_a_cruise_trip": bool(trip.is_a_cruise_trip),
+        },
+        "trip_group_date": {
+            "name":             td.name,
+            "trip_group_name":  td.trip_group_name or "",
+            "trip_group_code":  td.trip_group_code or "",
+            "departure_date":   str(td.departure_date) if td.departure_date else "",
+            "return_date":      str(td.return_date)    if td.return_date    else "",
+            "total_days":       td.total_days or 0,
+            "total_nights":     td.total_nights or 0,
+            "ship_name":        td.ship_name or "",
+            "ship_code":        td.ship_code or "",
+        },
+        "cabins": cabins,
+    }
+
+
+# ══════════════════════════════════════════════
+# 6. PRICING — BACKEND CALCULATION
+# ══════════════════════════════════════════════
+
+def fmt_currency(amount, currency=None):
+    """Format amount dengan symbol currency yang BETUL — SENGAJA baca
+    terus dari doctype Currency ERPNext (field 'symbol' native), BUKAN
+    hardcode "RM " (rujuk dokumen reka bentuk multi-currency, prinsip
+    "reka bentuk sebarang currency" — currency baharu terus berfungsi
+    tanpa perlu tambah code setiap kali admin cipta rekod Currency baharu).
+
+    Fallback ke "RM" kalau currency tak dibekalkan (backward-compat untuk
+    caller lama yang belum diupdate) atau currency tu tiada rekod Currency
+    sepadan (data tak konsisten — jarang berlaku, tapi elak crash).
+    """
+    symbol = "RM"
+    if currency:
+        symbol = frappe.db.get_value("Currency", currency, "symbol") or currency
+    return "{} {:,.2f}".format(symbol, float(amount))
+
+
+def _get_pricing_map(trip_package):
+    """Return {pricing_for_class: {...}} dari Trip Package Price (child
+    Trip Package). Setiap row berkait dengan satu Trip Price Category
+    (kategori bilik/kabin) melalui field 'pricing_for_class'.
+    """
+    rows = frappe.db.sql("""
+        SELECT pricing_for_class AS room_category,
+               price_adult_single, price_adult, price_upperberth,
+               price_children, price_toddler, price_infant
+        FROM `tabTrip Package Price`
+        WHERE parent = %s AND parenttype = 'Trip Package'
+    """, trip_package, as_dict=True)
+    return {r.room_category: r for r in rows}
+
+
+def _price_selection(price, main_guests, extra_beds, infants):
+    """Kira harga satu selection — model SLOT (posisi dalam bilik), bukan
+    kategori umur:
+      - main_guests == 1  -> price_adult_single (satu org, single occupancy)
+      - main_guests >= 2  -> price_adult x setiap org (twin/multi occupancy)
+      - extra_beds        -> price_upperberth x setiap org, flat
+                             (tak kira umur), hanya sah bila main_guests
+                             sudah capai capacity (max) bilik tu
+      - infants           -> price_infant x setiap org (harga SEBENAR dari
+                             pakej, BUKAN percuma) — tak dikira dalam
+                             capacity bilik (Main Guest + Extra Bed)
+    """
+    mg = int(main_guests or 0)
+    eb = int(extra_beds  or 0)
+    inf = int(infants    or 0)
+
+    total = 0.0
+    if mg == 1:
+        total += float(price.price_adult_single or 0)
+    elif mg >= 2:
+        total += float(price.price_adult or 0) * mg
+
+    total += float(price.price_upperberth or 0) * eb
+    total += float(price.price_infant or 0) * inf
+    return round(total, 2)
+
+
+def _validate_selection_capacity(selections, cabin_info_map):
+    """Sahkan setiap selection ikut had SLOT (server-side) — jangan percaya
+    client-side JS je, sebab payload boleh dimanipulasi.
+      - main_guests: 1..capacity
+      - extra_beds : 0..(max_capacity - capacity), hanya sah bila
+                     main_guests == capacity (bilik penuh Main Guest dulu)
+      - infants    : 0..(max_capacity - main_guests - extra_beds), hanya
+                     sah bila main_guests >= 1. Had DINAMIK (bukan formula
+                     tetap max_capacity//2) — sepadan tepat dengan capFor()
+                     dalam booking.js (frontend).
+    cabin_info_map: {room_category: {"capacity":.., "max_capacity":..}}
+    """
+    # PENTING: had maksimum cabin — check DULU sebelum apa-apa, sebab
+    # 'selections' terus dari payload customer (boleh dimanipulasi walau
+    # frontend dah disable butang "Add another room" bila cecah had).
+    if len(selections) > MAX_CABINS_PER_BOOKING:
+        frappe.throw(
+            "Maximum " + str(MAX_CABINS_PER_BOOKING) +
+            " cabins allowed per booking. Please contact us " +
+            "directly for larger reservations."
+        )
+
+    for sel in selections:
+        room_category = sel.get("room_category")
+        info = cabin_info_map.get(room_category)
+        if not info:
+            frappe.throw("Invalid room category: " + str(room_category))
+
+        capacity     = int(info.get("capacity") or 0)
+        max_capacity = int(info.get("max_capacity") or capacity)
+        max_extra    = max(0, max_capacity - capacity)
+
+        mg  = int(sel.get("main_guests", 0))
+        eb  = int(sel.get("extra_beds", 0))
+        inf = int(sel.get("infants", 0))
+
+        # max_infant DINAMIK — sama formula dengan capFor() frontend
+        # (maxCapacity - main_guests - extra_beds). SEBELUM NI guna formula
+        # TETAP (max_capacity // 2) yang tak ambil kira berapa ruang
+        # main_guests/extra_beds DAH guna — boleh terlalu ketat (tolak
+        # selection sah, cth Main Guest=1 patut boleh Infant=3 dalam cabin
+        # 4-pax, tapi formula lama cap kat 2) atau dalam kes lain terlalu
+        # longgar berbanding apa frontend sebenarnya benarkan.
+        max_infant = max(0, max_capacity - mg - eb)
+
+        if mg < 1 or mg > capacity:
+            frappe.throw("Main Guest for " + str(room_category) + " must be between 1 and " + str(capacity) + ".")
+        if eb > 0 and mg != capacity:
+            frappe.throw("Extra Bed is only allowed when Main Guest is full (" + str(capacity) + ") for " + str(room_category) + ".")
+        if eb > max_extra:
+            frappe.throw("Extra Bed for " + str(room_category) + " exceeds the limit (" + str(max_extra) + ").")
+        if inf > 0 and mg < 1:
+            frappe.throw("Infant is only allowed when Main Guest is at least 1 for " + str(room_category) + ".")
+        if inf > max_infant:
+            frappe.throw("Infant for " + str(room_category) + " exceeds the limit (" + str(max_infant) + ").")

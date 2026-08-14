@@ -4,6 +4,8 @@
 import frappe
 from frappe.model.document import Document
 
+from travel_booking.api.constants import get_max_cabins
+
 
 class BookingReservation(Document):
 	# begin: auto-generated types
@@ -68,11 +70,15 @@ class BookingReservation(Document):
 
 	_DOCTYPE_NAME = "Booking Reservation"
 
-	# Had maksimum cabin per booking — MESTI disegerakkan dengan
-	# MAX_CABINS_PER_BOOKING dalam booking.js (frontend) dan
-	# MAX_CABINS_PER_BOOKING dalam api/booking.py (_validate_selection_capacity),
-	# supaya konsisten merentasi website wizard DAN admin manual di Desk.
-	MAX_CABINS_PER_BOOKING = 8
+	# Had maksimum cabin per booking — kini disumber-tunggu dari
+	# travel_booking.api.constants.get_max_cabins() (bukan hardcoded di sini),
+	# supaya admin boleh tukar nilai di Travel Settings tanpa sentuh kod.
+	# Sebelum ni, nilai 8 diduplikasi di booking_reservation.py, booking.py,
+	# dan booking.js — tiga tempat perlu dikemas kini serentak.
+	#
+	# booking.js (frontend) kekal hardcoded buat sementara — ia dimuat sebelum
+	# sebarang panggilan API. Admin yang tukar nilai di Travel Settings perlu
+	# kemaskini booking.js sekali buat masa ni.
 
 	def validate(self):
 		self.validate_cabin_capacity()
@@ -92,11 +98,11 @@ class BookingReservation(Document):
 		if not (self.booking and self.cabin_no and self.pax_type and self.room_category):
 			return
 
-		if self.cabin_no > self.MAX_CABINS_PER_BOOKING:
+		if self.cabin_no > get_max_cabins():
 			frappe.throw(
-				"Maksimum " + str(self.MAX_CABINS_PER_BOOKING) +
-				" cabin dibenarkan untuk satu booking (Cabin No " +
-				str(self.cabin_no) + " melebihi had)."
+				"Maximum " + str(get_max_cabins()) +
+				" cabins are allowed per booking (Cabin No " +
+				str(self.cabin_no) + " exceeds the limit)."
 			)
 
 		# Kira sibling (rekod LAIN, bukan diri sendiri — dokumen ni belum
@@ -125,9 +131,9 @@ class BookingReservation(Document):
 		mismatched = [s for s in siblings if s.room_category and s.room_category != self.room_category]
 		if mismatched:
 			frappe.throw(
-				"Cabin " + str(self.cabin_no) + " dah ditetapkan sebagai '" + str(mismatched[0].room_category) +
-				"' — tak boleh tukar ke '" + str(self.room_category) + "' untuk sebahagian sahaja. " +
-				"Kemaskini SEMUA rekod dalam cabin ni serentak kalau nak tukar jenis bilik."
+				"Cabin " + str(self.cabin_no) + " is already set as '" + str(mismatched[0].room_category) +
+				"' — cannot change to '" + str(self.room_category) + "' for only some slots. " +
+				"Update ALL records in this cabin at once to change the room type."
 			)
 
 		def _count(pax_type):
@@ -143,7 +149,7 @@ class BookingReservation(Document):
 		info = frappe.db.get_value("Trip Price Category", self.room_category,
 									["capacity", "max_capacity"], as_dict=True)
 		if not info:
-			frappe.throw("Kategori bilik tidak sah: " + str(self.room_category))
+			frappe.throw("Invalid room category: " + str(self.room_category))
 
 		capacity     = int(info.capacity or 0)
 		max_capacity = int(info.max_capacity or capacity)
@@ -151,15 +157,15 @@ class BookingReservation(Document):
 		cabin_label = "Cabin " + str(self.cabin_no) + " (" + str(self.room_category) + ")"
 
 		if main_guest_count > capacity:
-			frappe.throw(cabin_label + ": Main Guest melebihi had (" + str(capacity) + ").")
+			frappe.throw(cabin_label + ": Main Guest exceeds the capacity (" + str(capacity) + ").")
 		if extra_bed_count > 0 and main_guest_count != capacity:
-			frappe.throw(cabin_label + ": Extra Bed hanya sah bila Main Guest sudah penuh (" + str(capacity) + ").")
+			frappe.throw(cabin_label + ": Extra Bed is only valid when Main Guest is at full capacity (" + str(capacity) + ").")
 		if infant_count > 0 and main_guest_count < 1:
-			frappe.throw(cabin_label + ": Infant hanya sah bila Main Guest sekurang-kurangnya 1.")
+			frappe.throw(cabin_label + ": Infant is only valid when there is at least 1 Main Guest.")
 
 		total = main_guest_count + extra_bed_count + infant_count
 		if total > max_capacity:
-			frappe.throw(cabin_label + ": jumlah pax (" + str(total) + ") melebihi kapasiti maksimum (" + str(max_capacity) + ").")
+			frappe.throw(cabin_label + ": total pax (" + str(total) + ") exceeds the maximum capacity (" + str(max_capacity) + ").")
 
 	def before_insert(self):
 		self.set_slot_label()

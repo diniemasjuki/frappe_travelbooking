@@ -12,7 +12,11 @@ use_json_request_body = True
 # Apps
 # ------------------
 
-# required_apps = []
+# travel_booking bergantung kepada ERPNext — Sales Order, Payment Entry,
+# Customer, Sales Invoice, Currency Exchange, dsb. Frappe akan pastikan
+# ERPNext dipasang sebelum travel_booking, dan akan tolak uninstall
+# ERPNext selagi travel_booking masih aktif.
+required_apps = ["erpnext"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
@@ -81,8 +85,10 @@ use_json_request_body = True
 # Generators
 # ----------
 
-# automatically create page for each record of this doctype
-# website_generators = ["Web Page"]
+# Trip doctype mempunyai is_website_scritable dan WebsiteRouteGenerator pattern
+# (rujuk trip.py controller) — Frappe auto-jana laluan web /<trip_name> untuk
+# setiap rekod Trip yang published.
+website_generators = ["Trip"]
 
 # automatically load and sync documents of this doctype from downstream apps
 # importable_doctypes = [doctype_1]
@@ -99,8 +105,11 @@ use_json_request_body = True
 # Installation
 # ------------
 
-# before_install = "travel_booking.install.before_install"
-# after_install = "travel_booking.install.after_install"
+# before_install sahkan ERPNext sedia ada sebelum travel_booking dipasang.
+# after_install cipta rekod-rekod lalai yang app bergantung untuk berfungsi
+# penuh (Travel Settings, Item TRAVEL-PKG, Email Templates, Print Format).
+before_install = "travel_booking.install.before_install"
+after_install = "travel_booking.install.after_install"
 
 # Uninstallation
 # ------------
@@ -151,14 +160,17 @@ use_json_request_body = True
 # Document Events
 # ---------------
 # Hook on document methods and events
+#
+# Rujuk terus ke booking_engine.py (bukan booking.py re-export layer) untuk
+# elak overhead import modul yang tak diperlukan setiap kali hook berjalan.
 
 doc_events = {
 	"Payment Entry": {
-		"on_submit": "travel_booking.api.booking.on_payment_entry_submit",
-		"on_cancel": "travel_booking.api.booking.on_payment_entry_cancel",
+		"on_submit": "travel_booking.api.booking_engine.on_payment_entry_submit",
+		"on_cancel": "travel_booking.api.booking_engine.on_payment_entry_cancel",
 	},
 	"Booking": {
-		"on_update": "travel_booking.api.booking.on_booking_update",
+		"on_update": "travel_booking.api.booking_engine.on_booking_update",
 	},
 }
 
@@ -167,7 +179,7 @@ doc_events = {
 
 scheduler_events = {
 	"daily": [
-		"travel_booking.api.booking.mark_completed_trips",
+		"travel_booking.api.booking_engine.mark_completed_trips",
 	],
 }
 
