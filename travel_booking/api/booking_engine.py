@@ -22,6 +22,7 @@ from travel_booking.api.pricing import (
 )
 from travel_booking.api.so_helpers import (
     _create_customer,
+    _ensure_customer_currency_agnostic,
     _build_so_items,
     _get_or_create_travel_item,
     _create_manual_payment_entry,
@@ -102,6 +103,12 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         )
 
     customer_name = existing_customer or _create_customer(billing)
+
+    # MULTI-CURRENCY guardrail — customer mesti kekal currency-agnostic
+    # (boleh beli pakej MYR dan SGD). Clear default_currency kalau terisi
+    # secara manual, SEBELUM SO dicipta supaya tak ada validation ERPNext
+    # yang block dokumen currency pasaran lain.
+    _ensure_customer_currency_agnostic(customer_name)
 
     # Trip info
     td = frappe.db.get_value("Trip Group Date", trip_group_date,

@@ -36,7 +36,11 @@ def get_context(context):
         if not (pr.status == "Paid"):
             from travel_booking.api.stripe_checkout import _get_stripe_settings
             import stripe as _stripe
-            ss, _ = _get_stripe_settings()
+            # MULTI-ACCOUNT: intent untuk PR ni dicipta oleh akaun Stripe
+            # yang dikonfigurasikan untuk currency PR — retrieve dengan API
+            # key akaun itu (fallback ke resolution generik untuk PR legacy
+            # yang tiada currency).
+            ss, _ = _get_stripe_settings(pr.currency or None)
             _stripe.api_key = ss.get_password("secret_key")
 
             intent = None

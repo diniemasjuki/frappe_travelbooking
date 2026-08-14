@@ -104,6 +104,35 @@ def validate_voucher(code: str, trip_group_date: str, grand_total: float, email:
         if not (package_ok and trip_ok):
             return {"valid": False, "message": "This voucher is not valid for this trip or package."}
 
+        # MULTI-CURRENCY GUARD (fixed-amount sahaja): Voucher doctype tiada
+        # field currency (constraint schema), jadi currency voucher di-DERIVE
+        # dari pakej yang di-scope-kan — voucher scoped pada pakej SGD =
+        # nilai fixed dia dalam SGD. Tanpa guard ni, "50 off" bermaksud
+        # 50 unit APA-APA currency booking — customer MYR dapat RM50,
+        # customer SGD dapat S$50, untuk voucher yang sama (nilai berbeza
+        # beza ikut market). Percentage voucher tak terkesan (relatif).
+        # Unscoped fixed voucher kekal currency-agnostic (backward-compat).
+        if voucher.discount_type != "Percentage" and scope_packages:
+            scoped_currencies = {
+                (c or "MYR")
+                for c in frappe.get_all(
+                    "Trip Package",
+                    filters={"name": ["in", scope_packages]},
+                    pluck="currency",
+                )
+            }
+            if len(scoped_currencies) == 1:
+                voucher_currency_expected = scoped_currencies.pop()
+                booking_currency = voucher_currency or "MYR"
+                if booking_currency != voucher_currency_expected:
+                    return {
+                        "valid": False,
+                        "message": (
+                            "This voucher is only valid for " + voucher_currency_expected +
+                            " bookings."
+                        ),
+                    }
+
         pricing_map = _get_pricing_map(trip_package)
         eligible_amount = 0.0
         for sel in selections:

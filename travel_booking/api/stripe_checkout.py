@@ -120,6 +120,49 @@ def _get_stripe_settings(currency=None):
     return ss, gateway_account
 
 
+def _get_all_stripe_settings():
+    """SEMUA Stripe Settings BERBEZA yang dikonfigurasikan merentasi Travel
+    Settings.currency_accounts — sokong model "Pilihan B" (akaun Stripe
+    berasingan per currency, cth MYR + SGD; setiap baris currency_accounts
+    point ke Payment Gateway Account → Stripe Settings sendiri).
+
+    Kegunaan:
+      - stripe_webhook(): event dari mana-mana akaun perlu verify signature
+        dengan secret akaun YANG MENGAKAN event tu — loop semua sekali.
+      - get_payment_result(): intent ID scoped kepada akaun yang mencipta
+        dia — try retrieve dari setiap akaun sampai jumpa.
+
+    Deduplicate ikut nama Stripe Settings supaya loop webhook tak verify
+    secret yang sama berulang kali (cth semua row share satu gateway
+    semasa "Pilihan A" — jadi list ni panjangnya 1, behaviour sama macam
+    sebelum ni). Pulangkan [] kalau tiada konfigurasi sah (caller handle).
+    """
+    settings = frappe.get_cached_doc("Travel Settings")
+    rows = settings.get("currency_accounts") or []
+
+    out = []
+    seen = set()
+    for row in rows:
+        if not row.payment_gateway_account:
+            continue
+        gateway_account = frappe.db.get_value(
+            "Payment Gateway Account", row.payment_gateway_account,
+            ["name", "payment_gateway", "payment_account"], as_dict=True
+        )
+        if not gateway_account:
+            continue
+        settings_name = frappe.db.get_value(
+            "Payment Gateway", gateway_account.payment_gateway, "gateway_controller"
+        )
+        if not settings_name or not frappe.db.exists("Stripe Settings", settings_name):
+            continue
+        if settings_name in seen:
+            continue
+        seen.add(settings_name)
+        out.append((frappe.get_doc("Stripe Settings", settings_name), gateway_account))
+    return out
+
+
 @frappe.whitelist()
 def create_payment_intent(sales_order: str, amount: float, source: str = "portal", booking_number: str = None, pr_amount: float = None):
     """Cipta Payment Request (rekod) + Stripe Payment Intent (bayaran sebenar).
@@ -325,7 +368,15 @@ def get_checkout_context(pr: str):
     if pr_doc.status == "Paid":
         return {"status": "already_paid"}
 
-    ss, _ = _get_stripe_settings()
+    # MULTI-ACCOUNT ("Pilihan B"): publishable key & API key MESTI dari
+    # akaun Stripe yang SAMA yang mencipta PaymentIntent untuk currency ni
+    # — resolve ikut currency PR (setiap row currency_accounts boleh point
+    # ke Stripe Settings berbeza). Fallback ke resolution generik kalau PR
+    # lama tiada currency (data legacy).
+    if pr_doc.currency:
+        ss, _ = _get_stripe_settings(pr_doc.currency)
+    else:
+        ss, _ = _get_stripe_settings()
     stripe.api_key = ss.get_password("secret_key")
 
     # PENTING: cari Payment Intent EKSAK guna cache pr.name -> intent.id yang
@@ -428,36 +479,69 @@ def stripe_webhook():
     """Endpoint webhook Stripe — SUMBER KEBENARAN status bayaran.
     Berjalan server-to-server; tak bergantung pada redirect browser.
 
-    Webhook signing secret dibaca dari Stripe Settings.custom_webhook_signing_secret
-    milik SATU akaun yang ditetapkan di Travel Settings.payment_gateway (rujuk
-    _get_stripe_settings()) — BUKAN lagi site_config.json. Admin switch akaun
-    (test <-> live) semata-mata tukar Travel Settings.payment_gateway di Desk;
-    tiada keperluan sentuh site_config.json atau restart bench.
+    MULTI-ACCOUNT ("Pilihan B"): setiap Stripe Settings yang dikonfigurasikan
+    dalam Travel Settings.currency_accounts ada webhook signing secret
+    sendiri (custom_webhook_signing_secret). KEDUA-DUA akaun (cth MYR + SGD)
+    diarahkan hantar event ke endpoint yang sama, tapi setiap event hanya
+    signed dengan secret akaun YANG MENGHANTAR — jadi kita try verify
+    signature dengan setiap secret yang dikonfigurasikan sampai satu
+    berjaya. Dengan satu akaun sahaja ("Pilihan A"), loop ni panjangnya 1
+    dan behaviour sama macam sebelum ni.
     """
     payload    = frappe.request.data
     sig_header = frappe.request.headers.get("Stripe-Signature")
 
-    ss, _ = _get_stripe_settings()
-    webhook_secret = ss.get_password("custom_webhook_signing_secret", raise_exception=False)
-
-    if not webhook_secret:
+    all_settings = _get_all_stripe_settings()
+    if not all_settings:
         frappe.log_error(
-            "No Webhook Signing Secret is configured on Stripe Settings '" +
-            ss.name + "' (account set in Travel Settings.payment_gateway).",
+            "No Stripe account is configured in Travel Settings > "
+            "Multi Currency Account. Webhook cannot be verified.",
             "Stripe Webhook Config Error"
         )
         frappe.local.response.http_status_code = 500
         return {"error": "webhook not configured"}
 
-    try:
-        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
-    except ValueError:
-        # Payload tak sah (bukan JSON betul).
-        frappe.log_error("Invalid payload", "Stripe Webhook Error")
-        frappe.local.response.http_status_code = 400
-        return {"error": "invalid payload"}
-    except stripe.error.SignatureVerificationError as e:
-        frappe.log_error("Invalid signature — " + str(e), "Stripe Webhook Error")
+    # Kumpul secret sahaja (skip akaun yang tiada secret dikonfigurasikan —
+    # event dari dia takkan pernah verify, tapi jangan block akaun lain).
+    secrets = []
+    for ss, _gateway_account in all_settings:
+        secret = ss.get_password("custom_webhook_signing_secret", raise_exception=False)
+        if secret:
+            secrets.append((ss.name, secret))
+
+    if not secrets:
+        frappe.log_error(
+            "No Webhook Signing Secret is configured on ANY Stripe Settings "
+            "referenced by Travel Settings > Multi Currency Account.",
+            "Stripe Webhook Config Error"
+        )
+        frappe.local.response.http_status_code = 500
+        return {"error": "webhook not configured"}
+
+    # Loop verify — event datang dari SATU akaun sahaja; secret akaun tu
+    # yang akan lulus verification, yang lain pulang SignatureVerificationError.
+    event = None
+    for settings_name, webhook_secret in secrets:
+        try:
+            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+            break  # berjaya — event ni dari akaun 'settings_name'
+        except ValueError:
+            # Payload tak sah (bukan JSON betul) — sama untuk semua akaun,
+            # tak perlu cuba yang lain.
+            frappe.log_error("Invalid payload", "Stripe Webhook Error")
+            frappe.local.response.http_status_code = 400
+            return {"error": "invalid payload"}
+        except stripe.error.SignatureVerificationError:
+            continue  # bukan akaun ni — cuba secret seterusnya
+
+    if event is None:
+        frappe.log_error(
+            "Invalid signature — no configured Stripe account verified this event. "
+            "Check that the webhook signing secret on every Stripe Settings matches "
+            "the Stripe Dashboard, and that this endpoint URL is registered under "
+            "the correct Stripe account.",
+            "Stripe Webhook Error"
+        )
         frappe.local.response.http_status_code = 400
         return {"error": "invalid signature"}
 
@@ -581,13 +665,33 @@ def get_payment_result(payment_intent: str):
     if not payment_intent:
         frappe.throw("Payment intent not found.")
 
-    # SATU akaun Stripe sahaja untuk seluruh app (Travel Settings.payment_gateway)
-    # — tiada lagi keperluan teka/loop currency untuk cari Stripe Settings yang
-    # betul (rujuk _get_stripe_settings() untuk rantaian resolusi penuh).
+    # MULTI-ACCOUNT ("Pilihan B"): PaymentIntent ID scoped kepada akaun Stripe
+    # yang MENCIPTA dia — intent SGD tak wujud pada akaun MYR (resource
+    # missing). Intent ID sahaja tak bawa maklumat akaun, jadi try retrieve
+    # dari setiap akaun yang dikonfigurasikan sampai satu jumpa. Max N API
+    # call (N = bilangan akaun, cth 2) — murah untuk redirect landing page.
+    # Dengan satu akaun sahaja ("Pilihan A"), loop ni panjangnya 1 dan
+    # behaviour sama macam sebelum ni.
     try:
-        ss, _ = _get_stripe_settings()
-        stripe.api_key = ss.get_password("secret_key")
-        intent = stripe.PaymentIntent.retrieve(payment_intent)
+        intent = None
+        all_settings = _get_all_stripe_settings()
+        if not all_settings:
+            raise Exception("No Stripe account configured in Travel Settings currency accounts.")
+
+        for ss, _gateway_account in all_settings:
+            try:
+                stripe.api_key = ss.get_password("secret_key")
+                intent = stripe.PaymentIntent.retrieve(payment_intent)
+                break  # jumpa — intent ni milik akaun ini
+            except stripe.error.InvalidRequestError:
+                # Intent tak wujud pada akaun ini — cuba akaun seterusnya.
+                continue
+
+        if intent is None:
+            raise Exception(
+                "PaymentIntent not found on any configured Stripe account " +
+                "(" + str(len(all_settings)) + " account(s) checked)."
+            )
     except Exception as e:
         # PENTING: log sebab sebenar kegagalan (bukan telan senyap) — supaya
         # admin boleh diagnos kenapa get_payment_result gagal walaupun

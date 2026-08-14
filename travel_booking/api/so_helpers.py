@@ -90,6 +90,38 @@ def _create_customer(billing):
     return customer.name
 
 
+def _ensure_customer_currency_agnostic(customer_name):
+    """MULTI-CURRENCY GUARDRAIL: pastikan Customer.default_currency KEKAL
+    KOSONG untuk customer travel_booking.
+
+    Kenapa penting: model app ni ialah single multi-currency Debtors —
+    currency hidup pada per-booking (ikut currency Trip Package), BUKAN
+    pada customer. Customer yang sama patut boleh beli pakej MYR hari ini
+    dan pakej SGD bulan depan. Kalau default_currency terisi (cth di-set
+    manual di Desk), ERPNext boleh lock customer pada satu currency dan
+    pecahkan booking untuk market lain.
+
+    Dipanggil dalam confirm_booking() SEBELUM SO dicipta. Kalau jumpa
+    default_currency terisi: clear + log untuk admin (bukan senyap —
+    perubahan data manual admin patut nampak dalam Error Log untuk audit).
+    """
+    if not customer_name:
+        return
+    locked_currency = frappe.db.get_value("Customer", customer_name, "default_currency")
+    if not locked_currency:
+        return
+    frappe.db.set_value("Customer", customer_name, "default_currency", None, update_modified=False)
+    frappe.log_error(
+        "Customer '" + str(customer_name) + "' had default_currency='" +
+        str(locked_currency) + "' set (likely manually in Desk). It was cleared "
+        "automatically — travel_booking customers must remain currency-agnostic "
+        "so the same customer can book both MYR and SGD packages (single "
+        "multi-currency Debtors model, rujuk Accounts Settings 'Allow "
+        "multi-currency invoices against single party account').",
+        "Customer Currency Lock Cleared"
+    )
+
+
 # ══════════════════════════════════════════════
 # SALES ORDER ITEMS
 # ══════════════════════════════════════════════
