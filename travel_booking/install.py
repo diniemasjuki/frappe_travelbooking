@@ -19,23 +19,22 @@ def before_install():
 
 	travel_booking bergantung penuh kepada ERPNext — Customer, Sales Order,
 	Payment Entry, Sales Invoice, Item, Currency Exchange, Price List, dsb.
-	Frappe dah enforce ni via required_apps = ["erpnext"] dalam hooks.py,
-	tapi double-check di sini supaya install gagal dengan mesej jelas (bukan
-	crash generik ImportError nanti semasa runtime).
+
+	GUNA frappe.get_installed_apps() — BUKAN frappe.db.exists("Installed
+	Application", ...) — sebab query DB terus ke Installed Application
+	boleh pulangkan False palsu semasa konteks install (timing/naming
+	berbeza merentasi versi Frappe), walhal ERPNext memang dah dipasang.
+	frappe.get_installed_apps() baca dari cache/session yang dah stabil.
+
+	NOTA: required_apps = ["erpnext"] dalam hooks.py dah enforce check ni
+	di peringkat framework Frappe. before_install ni cuma fallback tambahan
+	untuk mesej yang lebih jelas kalau somehow check framework lepas.
 	"""
-	if not frappe.db.exists("Installed Application", "erpnext"):
-		# Frappe dah sekat ni via required_apps, tapi kalau somehow lepas
-		# (cth pasang manual bypass), bagi mesej yang jelas.
+	if "erpnext" not in frappe.get_installed_apps():
 		frappe.throw(
 			"ERPNext must be installed before installing Travel Booking. "
 			"Please run: bench --site <site> install-app erpnext"
 		)
-
-	# Optional: log untuk audit trail.
-	frappe.log_error(
-		"Starting Travel Booking installation. ERPNext is present — proceeding.",
-		"Travel Booking Install"
-	)
 
 
 def after_install():

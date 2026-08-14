@@ -12,11 +12,14 @@ use_json_request_body = True
 # Apps
 # ------------------
 
-# travel_booking bergantung kepada ERPNext — Sales Order, Payment Entry,
-# Customer, Sales Invoice, Currency Exchange, dsb. Frappe akan pastikan
-# ERPNext dipasang sebelum travel_booking, dan akan tolak uninstall
-# ERPNext selagi travel_booking masih aktif.
-required_apps = ["erpnext"]
+# NOTA: required_apps = ["erpnext"] DIKOMENKAN sementara — hook ni
+# kadang-kadang terlalu rigid semama reinstall/migrate (Frappe validate
+# required_apps MUNGKIN false-negative walaupun ERPNext dah install).
+# Check ERPNext sekarang dibuat di install.before_install() guna
+# frappe.get_installed_apps() yang lebih stabil. Kalau nak aktifkan
+# semula required_apps, uncomment baris di bawah:
+#
+# required_apps = ["erpnext"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
