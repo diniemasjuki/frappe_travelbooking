@@ -2,9 +2,9 @@
 # For license information, please see license.txt
 
 import frappe
-import re
+# import re
 from frappe.website.website_generator import WebsiteGenerator
-
+from frappe.model.naming import make_autoname
 
 class Trip(WebsiteGenerator):
 	# begin: auto-generated types
@@ -19,6 +19,7 @@ class Trip(WebsiteGenerator):
 		description: DF.TextEditor | None
 		destination_list: DF.TableMultiSelect[TripDestinationPointSelect]
 		is_a_cruise_trip: DF.Check
+		naming_series: DF.Literal["TRIP.YY.##"]
 		published: DF.Check
 		route: DF.Data | None
 		status: DF.Literal["Pending Review", "Active", "Completed", "Cancelled"]
@@ -30,7 +31,8 @@ class Trip(WebsiteGenerator):
 	_DOCTYPE_NAME = "Trip"
 
 
-	# def validate(self):
+	def validate(self):
+		self.name = make_autoname(self.naming_series)
 
 		# if not self.route:
 		# 	self.route = "/trip/" + self.trip_name.lower().replace(" ", "-")
