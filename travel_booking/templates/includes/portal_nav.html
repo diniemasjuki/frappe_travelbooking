@@ -1,0 +1,63 @@
+{# ============================================================
+   travel_booking/templates/includes/portal_nav.html
+   Nav shared untuk SEMUA page /traveller_portal/* (pasca-login).
+   Di-include via: {% include "travel_booking.templates.includes.portal_nav" %}
+
+   Variable jinja (optional):
+     active_nav   — "bookings" | "transactions" | "profile" (highlight)
+     booking_ref  — booking number utk subnav Info/Traveller/Billing
+     sub_active   — "info" | "traveller" | "billing" (highlight subnav)
+
+   Nota fix audit UI:
+   - Logout GUNA flex dalam nav (bukan position:absolute macam CSS lama
+     yang terapung salah tempat di mobile tanpa positioned ancestor).
+   - Semua link <a> sebenar — keyboard-navigable + back button berfungsi.
+   ============================================================ #}
+
+<nav class="nav" style="position:relative;display:flex;align-items:center;gap:14px;padding:10px 18px;">
+  <div class="logo" style="flex-shrink:0;">
+    <a href="/traveller_portal/bookings" style="text-decoration:none;display:block;">
+      <img src="/assets/travel_booking/img/logo-horizontal.png" alt="Rarecation"
+           style="width:140px;height:auto;display:block;"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='block'"/>
+      <span style="display:none;font-family:'DM Serif Display',serif;font-size:26px;color:#C9A84C">rare<em style="font-style:normal">cation</em></span>
+    </a>
+  </div>
+
+  <div style="flex:1;"></div>
+
+  <div class="nav-links" style="display:flex;align-items:center;gap:4px;overflow-x:auto;">
+    <a href="/traveller_portal/bookings"
+       class="nav-link{% if active_nav == 'bookings' %} on{% endif %}"
+       style="padding:7px 12px;border-radius:8px;font-size:13px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if active_nav == 'bookings' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">My Bookings</a>
+    <a href="/traveller_portal/transactions"
+       class="nav-link{% if active_nav == 'transactions' %} on{% endif %}"
+       style="padding:7px 12px;border-radius:8px;font-size:13px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if active_nav == 'transactions' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">My Transactions</a>
+    <a href="/traveller_portal/profile"
+       class="nav-link{% if active_nav == 'profile' %} on{% endif %}"
+       style="padding:7px 12px;border-radius:8px;font-size:13px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if active_nav == 'profile' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">Profile</a>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+    <span id="nav-avatar" aria-hidden="true"
+          style="width:32px;height:32px;border-radius:50%;background:#C9A84C;color:#fff;font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;"></span>
+    <span id="nav-customer-name" style="font-size:13px;font-weight:500;color:#1E1C18;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+    <button type="button" class="btn-logout" onclick="doLogout()" title="Log out"
+            style="background:none;border:1px solid #E8E5DF;border-radius:8px;padding:6px 10px;font-size:12px;color:#5C5850;cursor:pointer;white-space:nowrap;">Log out</button>
+  </div>
+</nav>
+
+{% if booking_ref %}
+<div class="nav-sub" style="display:flex;align-items:center;gap:6px;padding:8px 18px;background:#F5F3EE;border-bottom:1px solid #E8E5DF;overflow-x:auto;">
+  <a href="/traveller_portal/bookings" style="font-size:12px;color:#7D7A70;text-decoration:none;white-space:nowrap;">My Bookings</a>
+  <span style="font-size:12px;color:#B0AC9F;">›</span>
+  <span style="font-size:12px;color:#5C5850;font-weight:500;white-space:nowrap;font-family:monospace;">{{ booking_ref }}</span>
+  <span style="flex:1;"></span>
+  <a href="/traveller_portal/booking-info?ref={{ booking_ref | urlencode }}"
+     style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if sub_active == 'info' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">Info</a>
+  <a href="/traveller_portal/booking-traveller?ref={{ booking_ref | urlencode }}"
+     style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if sub_active == 'traveller' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">Traveller</a>
+  <a href="/traveller_portal/booking-billing?ref={{ booking_ref | urlencode }}"
+     style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if sub_active == 'billing' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">Billing</a>
+</div>
+{% endif %}

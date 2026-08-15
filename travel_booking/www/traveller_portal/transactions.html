@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Transactions — Rarecation Portal</title>
+  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css"/>
+</head>
+<body>
+
+{% include "travel_booking.templates.includes.portal_nav" %}
+
+<div class="body">
+  <div class="inner" style="max-width:820px;">
+
+    <!-- Payment result (selepas redirect balik dari Stripe checkout) -->
+    <div id="pr-result" style="display:none;">
+      <div class="pr-card">
+        <div id="pr-result-body"></div>
+      </div>
+    </div>
+
+    <!-- Senarai transaksi -->
+    <div id="txns-view">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+        <div>
+          <div style="font-family:'DM Serif Display',serif;font-size:24px;color:#1E1C18;">My Transactions</div>
+          <div style="font-size:13px;color:#7D7A70;margin-top:3px;">All payments and invoices across your bookings.</div>
+        </div>
+      </div>
+      <div id="so-list-container">Loading...</div>
+    </div>
+
+  </div>
+</div>
+
+<script type="application/json" id="pageData">{"csrf_token": "{{ csrf_token }}"}</script>
+<script src="/assets/travel_booking/js/portal_common.js"></script>
+<script src="/assets/travel_booking/js/portal_transactions.js"></script>
+</body>
+</html>

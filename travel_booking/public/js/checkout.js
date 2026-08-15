@@ -27,7 +27,9 @@
     if (SOURCE === "wizard" && REF) {
       return base + "/booking?ref=" + encodeURIComponent(REF) + "&step=confirm&pr=" + encodeURIComponent(PR_NAME);
     }
-    return base + "/traveller_portal?paid=1";
+    // Multi-page portal: payment-result verification kini di page Transactions
+    // (Stripe auto-append payment_intent + redirect_status pada URL ni).
+    return base + "/traveller_portal/transactions";
   }
 
   function showPendingState() {
@@ -35,8 +37,8 @@
     document.querySelector(".co-card").innerHTML =
       '<div class="co-pending">' +
         '<div class="co-pending-title">Booking Pending</div>' +
-        'Checkout ini telah tamat tempoh. Booking anda masih disimpan — ' +
-        'sila log masuk ke portal untuk menyambung pembayaran.' +
+        'This checkout session has expired. Your booking is still saved — ' +
+        'please log in to the portal to continue your payment.' +
         '<br><a href="/traveller_portal">Go to Portal &rarr;</a>' +
       '</div>';
 
@@ -58,11 +60,11 @@
 
       if (ctx.status === "already_paid") {
         paymentSettled = true;
-        document.querySelector(".co-card").innerHTML = '<div class="co-paid">✓ Payment ini telah selesai.<br>Anda boleh tutup halaman ini.</div>';
+        document.querySelector(".co-card").innerHTML = '<div class="co-paid">✓ This payment has already been completed.<br>You can close this page.</div>';
         return;
       }
       if (ctx.status !== "ok") {
-        throw new Error(ctx.message || "Gagal memuatkan borang pembayaran.");
+        throw new Error(ctx.message || "Failed to load the payment form.");
       }
 
       var stripe   = Stripe(ctx.publishable_key);
@@ -111,7 +113,7 @@
       });
     } catch (err) {
       document.getElementById("loading-state").innerHTML =
-        '<div style="color:#B3261E">Ralat: ' + (err.message || "Gagal memuatkan borang pembayaran.") + '</div>';
+        '<div style="color:#B3261E">Error: ' + (err.message || "Failed to load the payment form.") + '</div>';
     }
   }
 

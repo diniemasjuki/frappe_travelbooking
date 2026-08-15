@@ -442,6 +442,20 @@ def get_document_pdf(doctype: str, docname: str):
             frappe.response["http_status_code"] = 403
             return {"status": "error", "message": "Document not found."}
         print_format = PRINT_FORMAT_INVOICE
+
+    elif doctype == "Sales Order":
+        # PROFORMA — download SO sebagai "proforma invoice" dari page
+        # Billing portal (sebelum Sales Invoice rasli wujud). Ownership
+        # check terus ikut SO.customer; docstatus 0/1 dibenarkan (draft
+        # pun boleh dipapar sebagai proforma — ia belum dokumen accounting).
+        from travel_booking.api.constants import PRINT_FORMAT_PROFORMA
+        so_owner = frappe.db.get_value("Sales Order", docname, "customer")
+        so_status = frappe.db.get_value("Sales Order", docname, "docstatus")
+        if not so_owner or so_owner != customer_name or so_status == 2:
+            frappe.response["http_status_code"] = 403
+            return {"status": "error", "message": "Document not found."}
+        print_format = PRINT_FORMAT_PROFORMA
+
     else:
         frappe.response["http_status_code"] = 400
         return {"status": "error", "message": "Invalid document type."}

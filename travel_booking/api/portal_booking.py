@@ -303,3 +303,85 @@ def get_booking_data(booking_number: str):
         "cabins":  cabins,
         "payment": {"so": so_data},
     }
+
+
+@frappe.whitelist()
+def get_bookings_list():
+    """Senarai SEMUA booking customer untuk page My Bookings (multi-page
+    portal) — data mini-info setiap kad booking dalam satu panggilan.
+
+    Pulangkan list (disusun ikut departure_date ASC):
+      booking_number, trip_name, group_name, departure_date, return_date,
+      booking_status, payment_status, total_slots, filled_count,
+      billed (grand_total semua SO sah), paid (advance_paid), balance,
+      currency + currency_symbol (SO pertama booking — guardrail reka
+      bentuk: semua SO satu booking mesti currency sama).
+
+    Grouping visual (Upcoming/Future/Past) dibuat di CLIENT ikut tarikh —
+    server cuma bekalkan data; peraturan grouping ialah urusan paparan.
+    """
+    frappe.flags.ignore_permissions = True
+    customer_name = _get_customer()
+
+    from travel_booking.api.booking import _compute_payment_status
+
+    bookings = frappe.db.sql("""
+        SELECT b.name, b.booking_number, b.status,
+               tm.trip_name, td.trip_group_name,
+               td.departure_date, td.return_date
+        FROM `tabBooking` b
+        LEFT JOIN `tabTrip Group Date` td ON td.name = b.trip_date
+        LEFT JOIN `tabTrip` tm ON tm.name = td.trip
+        WHERE b.customer = %s
+        ORDER BY td.departure_date ASC, b.creation ASC
+    """, customer_name, as_dict=True)
+
+    out = []
+    for bk in bookings:
+        # Kiraan slot (total/filled) — aggregate terus, ringan.
+        counts = frappe.db.sql("""
+            SELECT COUNT(name) AS total,
+                   SUM(CASE WHEN traveller IS NOT NULL AND traveller != ''
+                            THEN 1 ELSE 0 END) AS filled
+            FROM `tabBooking Reservation`
+            WHERE booking = %s
+        """, bk.name, as_dict=True)
+        total_slots  = int(counts[0].total or 0)
+        filled_count = int(counts[0].filled or 0)
+
+        # Jumlah kewangan merentasi SEMUA SO booking (kecuali Cancelled) —
+        # selari dengan get_booking_data()/_recompute_booking_status().
+        totals = frappe.db.sql("""
+            SELECT COALESCE(SUM(grand_total), 0)  AS billed,
+                   COALESCE(SUM(advance_paid), 0) AS paid
+            FROM `tabSales Order`
+            WHERE custom_booking = %s AND docstatus != 2
+        """, bk.name, as_dict=True)
+        billed = float(totals[0].billed or 0)
+        paid   = float(totals[0].paid or 0)
+
+        # Currency: SO PERTAMA (creation asc) — wakil sah untuk booking ni.
+        currency = frappe.db.get_value(
+            "Sales Order", {"custom_booking": bk.name},
+            "currency", order_by="creation asc"
+        ) or "MYR"
+        currency_symbol = frappe.db.get_value("Currency", currency, "symbol") or currency
+
+        out.append({
+            "booking_number":  bk.booking_number or bk.name,
+            "trip_name":       bk.trip_name       or "-",
+            "group_name":      bk.trip_group_name or "",
+            "departure_date":  str(bk.departure_date) if bk.departure_date else "",
+            "return_date":     str(bk.return_date)    if bk.return_date    else "",
+            "booking_status":  bk.status or "",
+            "payment_status":  _compute_payment_status(paid, billed),
+            "total_slots":     total_slots,
+            "filled_count":    filled_count,
+            "billed":          billed,
+            "paid":            paid,
+            "balance":         max(0.0, billed - paid),
+            "currency":        currency,
+            "currency_symbol": currency_symbol,
+        })
+
+    return {"bookings": out}

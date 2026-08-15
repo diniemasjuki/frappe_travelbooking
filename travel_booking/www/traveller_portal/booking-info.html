@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Booking Info — Rarecation Portal</title>
+  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css"/>
+</head>
+<body>
+
+{% include "travel_booking.templates.includes.portal_nav" %}
+
+<div class="body">
+  <div class="inner" style="max-width:820px;">
+
+    {% if not booking_ref %}
+    <div class="card" style="text-align:center;padding:40px 24px;">
+      <div style="font-size:14px;color:#991B1B;">Booking reference missing.</div>
+      <a href="/traveller_portal/bookings" class="btn btn-g" style="text-decoration:none;display:inline-block;margin-top:14px;font-size:12px;">← Back to My Bookings</a>
+    </div>
+    {% else %}
+
+    <!-- Trip hero -->
+    <div class="trip-hero">
+      <div class="th-lbl" id="info-bk-ref">{{ booking_ref }}</div>
+      <div class="th-name" id="info-trip-name">Loading...</div>
+      <div class="th-sub" id="info-trip-dates"></div>
+    </div>
+
+    <!-- Status badges + info grid -->
+    <div class="card" style="margin-top:18px;">
+      <div id="info-badges" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;"></div>
+      <div class="g2" id="booking-info-grid" style="row-gap:14px;">
+        <div style="font-size:13px;color:#B0AC9F;">Loading booking info...</div>
+      </div>
+    </div>
+
+    <!-- Cabins & flight assignments (read-only) -->
+    <div class="card" style="margin-top:14px;">
+      <div class="sec" style="margin-bottom:4px;">Cabins &amp; Assignments</div>
+      <div id="info-cabins" style="font-size:13px;color:#B0AC9F;">Loading...</div>
+    </div>
+
+    <!-- Payment summary + link ke Billing -->
+    <div class="card" style="margin-top:14px;">
+      <div class="sec" style="margin-bottom:12px;">Payment Summary</div>
+      <div id="info-payment" style="font-size:13px;color:#B0AC9F;">Loading...</div>
+      <a href="/traveller_portal/booking-billing?ref={{ booking_ref | urlencode }}"
+         class="btn btn-p" style="text-decoration:none;display:inline-block;margin-top:14px;font-size:12px;">View Billing &amp; Payments →</a>
+    </div>
+
+    {% endif %}
+
+  </div>
+</div>
+
+<script type="application/json" id="pageData">{"csrf_token": "{{ csrf_token }}", "booking_ref": "{{ booking_ref }}"}</script>
+<script src="/assets/travel_booking/js/portal_common.js"></script>
+<script src="/assets/travel_booking/js/portal_booking_info.js"></script>
+</body>
+</html>

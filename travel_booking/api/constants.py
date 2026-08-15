@@ -24,6 +24,11 @@ MAX_CABINS_PER_BOOKING = 8
 # (_receipt_pdf) dan portal_payment.py (get_document_pdf).
 PRINT_FORMAT_RECEIPT = "Rarecation Receipt"
 
+# Nama Print Format untuk proforma (Sales Order) — dipaparkan sebagai
+# "PROFORMA INVOICE — NOT A TAX INVOICE" untuk customer download dari
+# page Billing portal sebelum Sales Invoice rasmi wujud.
+PRINT_FORMAT_PROFORMA = "Rarecation Proforma Invoice"
+
 # Item code untuk baris-baris Sales Order (pax dari semua jenis guna
 # item yang sama, kadar berbeza per baris).
 TRAVEL_ITEM_CODE = "TRAVEL-PKG"

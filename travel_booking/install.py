@@ -206,18 +206,26 @@ def _create_print_format():
 	Cipta sebagai Custom Print Format (html-based) supaya admin boleh
 	edit langsung di Desk (Print Format > Rarecation Receipt).
 	"""
-	from travel_booking.api.constants import PRINT_FORMAT_RECEIPT
+	from travel_booking.api.constants import PRINT_FORMAT_RECEIPT, PRINT_FORMAT_PROFORMA
 
-	if frappe.db.exists("Print Format", PRINT_FORMAT_RECEIPT):
-		return
+	if not frappe.db.exists("Print Format", PRINT_FORMAT_RECEIPT):
+		frappe.get_doc({
+			"doctype":         "Print Format",
+			"name":            PRINT_FORMAT_RECEIPT,
+			"doc_type":        "Payment Entry",
+			"print_format_type": "Jinja",
+			"html": _PF_RECEIPT_HTML,
+		}).insert(ignore_permissions=True)
 
-	frappe.get_doc({
-		"doctype":         "Print Format",
-		"name":            PRINT_FORMAT_RECEIPT,
-		"doc_type":        "Payment Entry",
-		"print_format_type": "Jinja",
-		"html": _PF_RECEIPT_HTML,
-	}).insert(ignore_permissions=True)
+	# Proforma (Sales Order) — download customer dari page Billing portal.
+	if not frappe.db.exists("Print Format", PRINT_FORMAT_PROFORMA):
+		frappe.get_doc({
+			"doctype":         "Print Format",
+			"name":            PRINT_FORMAT_PROFORMA,
+			"doc_type":        "Sales Order",
+			"print_format_type": "Jinja",
+			"html": _PF_PROFORMA_HTML,
+		}).insert(ignore_permissions=True)
 
 
 # ══════════════════════════════════════════════
@@ -319,5 +327,77 @@ _PF_RECEIPT_HTML = """\
   <p><strong>Reference No:</strong> {{ doc.reference_no or 'N/A' }}</p>
   <hr>
   <p style="color: #999; font-size: 12px; text-align: center;">This is a computer-generated receipt.</p>
+</div>
+"""
+
+_PF_PROFORMA_HTML = """\
+<div style="font-family: sans-serif; max-width: 700px; margin: 0 auto; padding: 16px;">
+  <div style="text-align:center;border-bottom:3px solid #C9A84C;padding-bottom:12px;margin-bottom:8px;">
+    <div style="font-family:'DM Serif Display',serif;font-size:26px;color:#C9A84C;">Rarecruise</div>
+    <div style="font-size:18px;font-weight:bold;letter-spacing:2px;margin-top:8px;">PROFORMA INVOICE</div>
+    <div style="font-size:11px;color:#991B1B;font-weight:bold;margin-top:4px;">THIS IS NOT A TAX INVOICE</div>
+  </div>
+
+  <table style="width:100%;font-size:13px;margin:16px 0;">
+    <tr>
+      <td style="vertical-align:top;width:50%;padding:0;">
+        <strong>Bill To:</strong><br/>
+        {{ doc.customer_name or doc.customer }}
+      </td>
+      <td style="vertical-align:top;width:50%;padding:0;">
+        <strong>Proforma No:</strong> {{ doc.name }}<br/>
+        <strong>Date:</strong> {{ frappe.format_date(doc.transaction_date) }}<br/>
+        {% if doc.custom_booking %}
+        {% set booking_no = frappe.db.get_value("Booking", doc.custom_booking, "booking_number") %}
+        {% if booking_no %}<strong>Booking Ref:</strong> {{ booking_no }}<br/>{% endif %}
+        {% endif %}
+        <strong>Currency:</strong> {{ doc.currency }}
+      </td>
+    </tr>
+  </table>
+
+  <table style="width:100%;border-collapse:collapse;font-size:12px;">
+    <thead>
+      <tr style="background:#C9A84C;color:#fff;">
+        <th style="padding:8px;text-align:left;">Description</th>
+        <th style="padding:8px;text-align:center;">Qty</th>
+        <th style="padding:8px;text-align:right;">Rate</th>
+        <th style="padding:8px;text-align:right;">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in doc.items %}
+      <tr style="border-bottom:1px solid #E8E5DF;">
+        <td style="padding:8px;">{{ item.item_name }}</td>
+        <td style="padding:8px;text-align:center;">{{ item.qty|int }}</td>
+        <td style="padding:8px;text-align:right;">{{ frappe.format_value(item.rate, currency=doc.currency) }}</td>
+        <td style="padding:8px;text-align:right;">{{ frappe.format_value(item.amount, currency=doc.currency) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table style="width:100%;font-size:13px;margin-top:12px;">
+    <tr>
+      <td style="text-align:right;padding:4px 0;width:70%;"><strong>Grand Total:</strong></td>
+      <td style="text-align:right;padding:4px 0;"><strong>{{ frappe.format_value(doc.grand_total, currency=doc.currency) }}</strong></td>
+    </tr>
+    {% if doc.advance_paid %}
+    <tr>
+      <td style="text-align:right;padding:4px 0;"><strong>Amount Paid:</strong></td>
+      <td style="text-align:right;padding:4px 0;">{{ frappe.format_value(doc.advance_paid, currency=doc.currency) }}</td>
+    </tr>
+    <tr>
+      <td style="text-align:right;padding:4px 0;"><strong>Balance Due:</strong></td>
+      <td style="text-align:right;padding:4px 0;">{{ frappe.format_value(doc.grand_total - doc.advance_paid, currency=doc.currency) }}</td>
+    </tr>
+    {% endif %}
+  </table>
+
+  <p style="font-size:11px;color:#7D7A70;margin-top:20px;line-height:1.6;">
+    This proforma invoice is issued for booking and payment reference purposes only.
+    A formal tax invoice will be issued upon payment confirmation.
+    Prices are quoted in {{ doc.currency }} and are valid for this booking only.
+  </p>
 </div>
 """

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign in — Rarecation Portal</title>
+  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css"/>
+</head>
+<body>
+
+{% if account_issue %}
+<!-- ══ ACCOUNT ISSUE — logged in tapi rekod Customer tiada ══ -->
+<div class="sc on">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div class="login-box" style="max-width:420px;text-align:center">
+      <div style="width:56px;height:56px;border-radius:50%;background:#FEF3C7;margin:0 auto 20px;display:flex;align-items:center;justify-content:center">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#C9A84C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div style="font-size:18px;font-weight:600;color:#1E1C18;margin-bottom:12px">Account requires review</div>
+      <p style="font-size:13px;color:#5C5850;line-height:1.6;margin-bottom:24px">
+        You are signed in, but no customer record was found.
+        Please contact support to review your account.
+      </p>
+      <a class="btn btn-p btn-full" href="/api/method/logout" style="text-decoration:none;display:block;text-align:center">Log out</a>
+      <p style="font-size:12px;color:#B0AC9F;margin-top:16px;line-height:1.7">
+        Still having trouble? Contact our support with your email address.
+      </p>
+    </div>
+  </div>
+</div>
+
+{% else %}
+<!-- ══ LOGIN (default) ══ -->
+<div class="sc on" id="V-login">
+  <nav class="nav">
+    <div class="logo">
+      <img src="/assets/travel_booking/img/logo-horizontal.png" alt="Rarecation"
+           style="width:160px;height:auto;display:block;"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='block'"/>
+      <span style="display:none;font-family:'DM Serif Display',serif;font-size:32px;color:#C9A84C">rare<em style="font-style:normal">cation</em></span>
+    </div>
+  </nav>
+  <div class="login-wrap">
+    <div class="login-box">
+      <div style="display:flex;justify-content:center;margin-bottom:20px">
+        <img src="/assets/travel_booking/img/logo-icon.png" alt="Rarecation"
+             style="width:56px;height:56px;border-radius:12px"
+             onerror="this.style.display='none'"/>
+      </div>
+      <div style="font-size:12px;color:#7D7A70;margin-bottom:28px;text-align:center">
+        Customer Portal · Sign in
+      </div>
+      <div id="login-error" role="alert" style="display:none;padding:10px 13px;background:#FEF2F2;border-radius:6px;margin-bottom:14px;border-left:2px solid #F87171">
+        <p style="font-size:12px;color:#991B1B" id="login-error-msg"></p>
+      </div>
+      <div class="f">
+        <label class="lbl" for="login-em">Email address</label>
+        <input type="email" id="login-em" placeholder="your@email.com" autocomplete="email"/>
+      </div>
+      <div class="f">
+        <label class="lbl" for="login-pw">Password</label>
+        <input type="password" id="login-pw" placeholder="Your password" autocomplete="current-password"
+               onkeydown="if(event.key==='Enter') doLogin()"/>
+      </div>
+      <button class="btn btn-p btn-full" id="login-btn" onclick="doLogin()">Sign in <small>with password</small> →</button>
+      <p style="text-align:center;margin:15px 0;line-height:1;font-size:12px;color:#999;">- or Easy Access with -</p>
+      <div style="width:100%;padding:0;margin:0;display:flex;">
+        <button class="magiclink-btn" id="magic-entry-btn" onclick="showAuthView('V-magic')" style="width:calc(50% - 5px);margin-right:5px;">
+          <small style="font-size:xx-small;">Sign in with</small>&nbsp;<b>MagicLink</b>
+        </button>
+        <button class="google-btn" id="google-signin-btn" onclick="signInWithGoogle()" style="width:calc(50% - 5px);margin-left:5px;">
+          <small style="font-size:xx-small;">Sign in with</small>&nbsp;<b>Google</b>
+        </button>
+      </div>
+      <div style="text-align:center;margin-top:16px">
+        <button type="button" class="forgot-link" onclick="showAuthView('V-forgot')" style="background:none;border:none;padding:0;cursor:pointer;font:inherit">Forgot password?</button>
+      </div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid #F0EDE7;font-size:12px;color:#B0AC9F;text-align:center;line-height:1.7">
+        First time? Check your email for the setup link<br/>sent when your booking was confirmed.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MAGIC LINK ══ -->
+<div class="sc" id="V-magic">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div class="login-box">
+      <div style="text-align:center;margin-bottom:24px">
+        <div style="font-size:20px;font-weight:600;color:#1E1C18;margin-bottom:4px">Sign in with email</div>
+        <div style="font-size:12px;color:#7D7A70">We'll send a one-time login link to your email.</div>
+      </div>
+      <div id="magic-success" role="status" style="display:none;padding:10px 13px;background:#FEF9D3;border-radius:6px;margin-bottom:14px;border-left:2px solid #C9A84C">
+        <p style="font-size:12px;color:#7A5C08" id="magic-success-msg">Link sent. Check your email.</p>
+      </div>
+      <div id="magic-error" role="alert" style="display:none;padding:10px 13px;background:#FEF2F2;border-radius:6px;margin-bottom:14px;border-left:2px solid #F87171">
+        <p style="font-size:12px;color:#991B1B" id="magic-error-msg"></p>
+      </div>
+      <div class="f">
+        <label class="lbl" for="magic-em">Email address</label>
+        <input type="email" id="magic-em" placeholder="your@email.com" autocomplete="email"
+               onkeydown="if(event.key==='Enter') doMagicLink()"/>
+      </div>
+      <button class="btn btn-p btn-full" id="magic-btn" onclick="doMagicLink()">Send login link →</button>
+      <div style="text-align:center;margin-top:16px">
+        <button type="button" class="forgot-link" onclick="showAuthView('V-login')" style="background:none;border:none;padding:0;cursor:pointer;font:inherit">← Back to sign in</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FORGOT PASSWORD ══ -->
+<div class="sc" id="V-forgot">
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">
+    <div class="login-box">
+      <div style="font-size:16px;font-weight:500;margin-bottom:4px">Reset your password</div>
+      <div style="font-size:12px;color:#7D7A70;margin-bottom:24px">Enter your email and we'll send a reset link.</div>
+      <div id="forgot-error" role="alert" style="display:none;padding:10px 13px;background:#FEF2F2;border-radius:6px;margin-bottom:14px;border-left:2px solid #F87171">
+        <p style="font-size:12px;color:#991B1B" id="forgot-error-msg"></p>
+      </div>
+      <div id="forgot-success" role="status" style="display:none;padding:10px 13px;background:#FEF9D3;border-radius:6px;margin-bottom:14px;border-left:2px solid #C9A84C">
+        <p style="font-size:12px;color:#7A5C08">Reset link sent. Check your email — the link expires in 1 hour.</p>
+      </div>
+      <div class="f">
+        <label class="lbl" for="forgot-em">Email address</label>
+        <input type="email" id="forgot-em" placeholder="your@email.com" autocomplete="email"
+               onkeydown="if(event.key==='Enter') doForgotPassword()"/>
+      </div>
+      <button class="btn btn-p btn-full" id="forgot-btn" onclick="doForgotPassword()">Send reset link →</button>
+      <div style="text-align:center;margin-top:16px">
+        <button type="button" class="forgot-link" onclick="showAuthView('V-login')" style="background:none;border:none;padding:0;cursor:pointer;font:inherit">← Back to sign in</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script type="application/json" id="pageData">{"csrf_token": "{{ csrf_token }}"}</script>
+<script src="/assets/travel_booking/js/portal_common.js"></script>
+<script src="/assets/travel_booking/js/portal_login.js"></script>
+</body>
+</html>

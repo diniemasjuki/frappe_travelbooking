@@ -42,7 +42,7 @@ const API = (method, params = {}) =>
           ? JSON.parse(parsed[0]).message
           : parsed.message || raw;
       } catch {}
-      throw new Error(msg || 'Ralat berlaku.');
+      throw new Error(msg || 'An error occurred.');
     }
     return d.message;
   });

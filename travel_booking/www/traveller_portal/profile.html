@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Profile — Rarecation Portal</title>
+  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css"/>
+</head>
+<body>
+
+{% include "travel_booking.templates.includes.portal_nav" %}
+
+<div class="body">
+  <div class="inner" style="max-width:680px;">
+
+    <div style="margin-bottom:20px;">
+      <div style="font-family:'DM Serif Display',serif;font-size:24px;color:#1E1C18;">Profile</div>
+      <div style="font-size:13px;color:#7D7A70;margin-top:3px;">Manage your account, contact details and privacy preferences.</div>
+    </div>
+
+    <!-- Account info (email READ-ONLY v1) -->
+    <div class="card">
+      <div class="sec">Account</div>
+      <div class="g2" style="row-gap:14px;">
+        <div class="g2f">
+          <div class="l">Name</div>
+          <div class="v" id="pf-name">—</div>
+        </div>
+        <div class="g2f">
+          <div class="l">Email (sign-in)</div>
+          <div class="v" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span id="pf-email">—</span>
+            <span class="badge bd">Read-only</span>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:11px;color:#B0AC9F;line-height:1.6;margin-top:12px;">
+        Your email is your sign-in ID and is linked to your booking records.
+        To change it, please contact our support team.
+      </p>
+    </div>
+
+    <!-- Phone -->
+    <div class="card" style="margin-top:14px;">
+      <div class="sec">Phone Number</div>
+      <div class="f">
+        <label class="lbl" for="pf-phone">Phone</label>
+        <input type="tel" id="pf-phone" placeholder="+60-123456789" autocomplete="tel" oninput="hideInlineError('pf-phone-err')"/>
+      </div>
+      <div id="pf-phone-err" role="alert" style="display:none;font-size:11px;color:#C0392B;margin-bottom:8px;"></div>
+      <div id="pf-phone-ok" role="status" style="display:none;padding:10px 13px;background:#EBF7F1;border-radius:6px;margin-bottom:10px;border-left:2px solid #0F6E56;">
+        <p style="font-size:12px;color:#0F6E56;" id="pf-phone-ok-msg"></p>
+      </div>
+      <button class="btn btn-p" id="pf-phone-btn" onclick="savePhone()">Update phone</button>
+    </div>
+
+    <!-- Password -->
+    <div class="card" style="margin-top:14px;">
+      <div class="sec">Change Password</div>
+      <div class="f">
+        <label class="lbl" for="pf-pw-old">Current password</label>
+        <input type="password" id="pf-pw-old" autocomplete="current-password" oninput="hideInlineError('pf-pw-err')"/>
+      </div>
+      <div class="g2">
+        <div class="f">
+          <label class="lbl" for="pf-pw-new">New password</label>
+          <input type="password" id="pf-pw-new" autocomplete="new-password" oninput="hideInlineError('pf-pw-err')"/>
+        </div>
+        <div class="f">
+          <label class="lbl" for="pf-pw-new2">Confirm new password</label>
+          <input type="password" id="pf-pw-new2" autocomplete="new-password" oninput="hideInlineError('pf-pw-err')"/>
+        </div>
+      </div>
+      <div id="pf-pw-err" role="alert" style="display:none;font-size:11px;color:#C0392B;margin-bottom:8px;"></div>
+      <button class="btn btn-p" id="pf-pw-btn" onclick="changePassword()">Update password</button>
+    </div>
+
+    <!-- PDPA data rights -->
+    <div class="card" style="margin-top:14px;">
+      <div class="sec">Your Data &amp; Privacy</div>
+      <p style="font-size:12px;color:#7D7A70;line-height:1.7;margin-bottom:14px;">
+        Under the Malaysian Personal Data Protection Act (PDPA), you have rights
+        to access, correct, and request deletion of your personal data.
+        Read our <a href="/traveller_portal/privacy" target="_blank" rel="noopener" style="color:#C9A84C;">Privacy Notice</a>.
+      </p>
+
+      <div class="f">
+        <label class="lbl" for="pf-pdpa-details">Request details (optional)</label>
+        <textarea id="pf-pdpa-details" rows="3" placeholder="Tell us what you'd like to correct or delete — e.g. old passport details, previous addresses" style="width:100%;border:1px solid #D4D1CC;border-radius:8px;padding:10px 12px;font:inherit;font-size:13px;"></textarea>
+      </div>
+      <div id="pf-pdpa-err" role="alert" style="display:none;font-size:11px;color:#C0392B;margin-bottom:8px;"></div>
+      <div id="pf-pdpa-ok" role="status" style="display:none;padding:10px 13px;background:#EBF7F1;border-radius:6px;margin-bottom:10px;border-left:2px solid #0F6E56;">
+        <p style="font-size:12px;color:#0F6E56;" id="pf-pdpa-ok-msg"></p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-g" id="pf-correct-btn" onclick="requestDataAction('correction')">Request data correction</button>
+        <button class="btn btn-g" id="pf-delete-btn" onclick="requestDataAction('deletion')" style="color:#991B1B;">Request data deletion</button>
+      </div>
+      <p style="font-size:11px;color:#B0AC9F;line-height:1.6;margin-top:10px;">
+        Requests are reviewed by our team. For deletions, some records (such as
+        payment history) may need to be retained for legal and accounting
+        obligations — we will explain what can and cannot be removed.
+      </p>
+    </div>
+
+  </div>
+</div>
+
+<script type="application/json" id="pageData">{"csrf_token": "{{ csrf_token }}"}</script>
+<script src="/assets/travel_booking/js/portal_common.js"></script>
+<script src="/assets/travel_booking/js/portal_profile.js"></script>
+</body>
+</html>

@@ -73,11 +73,23 @@ def save_booking_traveller(booking_number: str, slot_name: str,
                             emergency_contact_relationship: str = "",
                             dietary_requirements: str = "",
                             medical_conditions: str = "",
-                            special_needs: str = ""):
+                            special_needs: str = "",
+                            pdpa_consent: bool = False):
     frappe.flags.ignore_permissions = True
     import base64
 
     customer_name = _get_customer()
+
+    # PDPA (Personal Data Protection Act 2010) — persetujuan WAJIB sebelum
+    # simpan maklumat peribadi traveller (passport/IC/dokumen perjalanan).
+    # Checkbox pada form (link ke /traveller_portal/privacy); server-side
+    # check supaya panggilan API terus (bypass frontend) tak boleh langkau.
+    if not pdpa_consent:
+        frappe.throw(
+            "Please accept the Privacy Notice to continue. "
+            "We need your consent to store traveller and passport details "
+            "for trip arrangements."
+        )
 
     ic_number = (ic_number or "").strip()
     first_name = (first_name or "").strip()
@@ -212,6 +224,28 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         tvl.special_needs        = special_needs
         tvl.insert(ignore_permissions=True, ignore_mandatory=True)
         traveller_name = tvl.name
+
+    # PDPA — rekod persetujuan (audit trail) SEKALI sahaja per Traveller.
+    # Disimpan sebagai Comment (doctype core Frappe — TIADA perubahan schema
+    # diperlukan). Check kewujudan dulu supaya simpan berulang (edit maklumat
+    # traveller) tak cipta duplicate consent log.
+    _has_consent_log = frappe.db.exists("Comment", {
+        "comment_type":       "Info",
+        "reference_doctype":  "Traveller",
+        "reference_name":     traveller_name,
+        "content":            ("like", "%PDPA consent granted%"),
+    })
+    if not _has_consent_log:
+        frappe.get_doc({
+            "doctype":           "Comment",
+            "comment_type":      "Info",
+            "reference_doctype": "Traveller",
+            "reference_name":    traveller_name,
+            "content": (
+                "PDPA consent granted via portal (Privacy Notice checkbox) — "
+                + frappe.utils.now() + " by " + frappe.session.user
+            ),
+        }).insert(ignore_permissions=True)
 
     # Link Traveller ke Booking Reservation. NOTA: full_name pada Booking
     # Reservation adalah fetch_from (traveller.full_name) — auto-terisi bila

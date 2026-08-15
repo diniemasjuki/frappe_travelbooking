@@ -169,3 +169,36 @@ def clear_customer_currency_locks():
             if locked else "No locked customers found — nothing to clear."
         ),
     }
+
+
+# ══════════════════════════════════════════════
+# SEED MISSING RECORDS (untuk site sedia ada — selepas deploy versi baharu)
+# ══════════════════════════════════════════════
+
+@frappe.whitelist()
+def ensure_default_records():
+    """Cipta rekod-rekod lalai yang MUNGKIN belum wujud pada site lama
+    (after_install hanya jalan semasa pemasangan pertama).
+
+    Buat masa ni: Print Format "Rarecation Proforma Invoice" (baru
+    diperkenalkan untuk page Billing portal). Idempotent — selamat
+    panggil berulang. Reuse helper install.py supaya satu sumber sahaja.
+
+    Panggil selepas deploy versi multi-page portal:
+      bench --site <site> console
+      >>> from travel_booking.api.maintenance import ensure_default_records
+      >>> ensure_default_records()
+    """
+    frappe.only_for("System Manager")
+
+    from travel_booking import install as _install
+    _install._create_print_format()
+
+    from travel_booking.api.constants import PRINT_FORMAT_PROFORMA
+    return {
+        "status": "ok",
+        "proforma_print_format_created": bool(
+            frappe.db.exists("Print Format", PRINT_FORMAT_PROFORMA)
+        ),
+        "message": "Default records ensured. New records (if any) have been created.",
+    }

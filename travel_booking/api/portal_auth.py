@@ -7,7 +7,7 @@ from travel_booking.api._helpers import get_customer_by_email
 
 
 @frappe.whitelist(allow_guest=True)
-def get_google_login_url(redirect_to: str = "/traveller_portal") -> str:
+def get_google_login_url(redirect_to: str = "/traveller_portal/bookings") -> str:
     """Returns the fully-formed Google OAuth authorize URL (client_id,
     redirect_uri, scope, and a CSRF state token all included), so the
     portal's "Sign in with Google" button can redirect straight to
@@ -403,7 +403,8 @@ def login_via_portal_key(key: str):
     _record_login_audit(email)
 
     frappe.local.response["type"]     = "redirect"
-    frappe.local.response["location"] = "/traveller_portal"
+    # Multi-page portal: magic link login terus ke My Bookings (default page).
+    frappe.local.response["location"] = "/traveller_portal/bookings"
 
 
 def _record_login_audit(email: str):
