@@ -20,6 +20,16 @@ const _pageData = (function () {
     return el ? JSON.parse(el.textContent) : {};
   } catch (e) { return {}; }
 })();
+
+/* booking_ref fallback — baca terus dari URL (?ref=...). pageData Jinja
+   hanya embed csrf_token; ref dari URL lebih dipercayai dan tak
+   bergantung pada server-side context (belt & braces). */
+if (!_pageData.booking_ref) {
+  try {
+    _pageData.booking_ref = new URLSearchParams(window.location.search).get('ref') || '';
+  } catch (e) { _pageData.booking_ref = ''; }
+}
+
 const CSRF_TOKEN = _pageData.csrf_token || '';
 const _csrfToken = () => CSRF_TOKEN || (document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '');
 

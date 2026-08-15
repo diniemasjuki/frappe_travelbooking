@@ -68,7 +68,7 @@ function renderPaymentResult(result) {
     // ke Billing page booking terlibat untuk cuba bayar semula — guna
     // booking_number dari metadata intent (bukan butang duplikasi back).
     const retryUrl = result.booking_number
-      ? '/traveller_portal/booking-billing?ref=' + encodeURIComponent(result.booking_number)
+      ? '/traveller_portal/booking_billing?ref=' + encodeURIComponent(result.booking_number)
       : '/traveller_portal/bookings';
     body.innerHTML =
       '<div class="pr-icon pr-icon-failed">' +

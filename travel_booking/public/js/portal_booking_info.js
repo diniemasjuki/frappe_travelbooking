@@ -1,6 +1,6 @@
 /* ============================================================
    travel_booking/public/js/portal_booking_info.js
-   Page: /traveller_portal/booking-info?ref=... — ringkasan booking:
+   Page: /traveller_portal/booking_info?ref=... — ringkasan booking:
    hero, info grid, cabins/stateroom/flight (read-only), payment summary.
    Semua nilai server di-escape guna _esc().
    ============================================================ */

@@ -46,7 +46,7 @@
     <div class="card" style="margin-top:14px;">
       <div class="sec" style="margin-bottom:12px;">Payment Summary</div>
       <div id="info-payment" style="font-size:13px;color:#B0AC9F;">Loading...</div>
-      <a href="/traveller_portal/booking-billing?ref={{ booking_ref | urlencode }}"
+      <a href="/traveller_portal/booking_billing?ref={{ booking_ref | urlencode }}"
          class="btn btn-p" style="text-decoration:none;display:inline-block;margin-top:14px;font-size:12px;">View Billing &amp; Payments →</a>
     </div>
 
@@ -55,7 +55,7 @@
   </div>
 </div>
 
-<script type="application/json" id="pageData">{"csrf_token": "{{ csrf_token }}", "booking_ref": {{ booking_ref | tojson }}}</script>
+<script type="application/json" id="pageData">{"csrf_token": "{{ csrf_token }}"}</script>
 <script src="/assets/travel_booking/js/portal_common.js"></script>
 <script src="/assets/travel_booking/js/portal_booking_info.js"></script>
 </body>

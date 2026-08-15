@@ -68,13 +68,13 @@ function bookingCard(b, opts = {}) {
     const incomplete = filled < total && total > 0;
     cta =
       '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">' +
-        '<a href="/traveller_portal/booking-' + (incomplete ? 'traveller' : 'info') + '?ref=' + encodeURIComponent(b.booking_number) + '" ' +
+        '<a href="/traveller_portal/booking_' + (incomplete ? 'traveller' : 'info') + '?ref=' + encodeURIComponent(b.booking_number) + '" ' +
            'class="btn btn-p" style="text-decoration:none;display:inline-block;font-size:12px;padding:8px 16px;">' +
            _esc(incomplete ? 'Complete Traveller Details (' + (total - filled) + ' left)' : 'View Booking') +
         '</a>' +
-        '<a href="/traveller_portal/booking-traveller?ref=' + encodeURIComponent(b.booking_number) + '" ' +
+        '<a href="/traveller_portal/booking_traveller?ref=' + encodeURIComponent(b.booking_number) + '" ' +
            'class="btn btn-g" style="text-decoration:none;display:inline-block;font-size:12px;padding:8px 16px;">Traveller</a>' +
-        '<a href="/traveller_portal/booking-billing?ref=' + encodeURIComponent(b.booking_number) + '" ' +
+        '<a href="/traveller_portal/booking_billing?ref=' + encodeURIComponent(b.booking_number) + '" ' +
            'class="btn btn-g" style="text-decoration:none;display:inline-block;font-size:12px;padding:8px 16px;">Billing</a>' +
       '</div>';
   }
@@ -88,7 +88,7 @@ function bookingCard(b, opts = {}) {
     : '';
 
   return (
-    '<a href="' + (cancelled ? '#' : '/traveller_portal/booking-info?ref=' + encodeURIComponent(b.booking_number)) + '" ' +
+    '<a href="' + (cancelled ? '#' : '/traveller_portal/booking_info?ref=' + encodeURIComponent(b.booking_number)) + '" ' +
        'class="bk-card" style="' + (cancelled ? 'cursor:default;opacity:.72;' : '') + 'display:block;text-decoration:none;' +
        (isUpcoming ? 'border-color:#C9A84C;box-shadow:0 0 0 3px rgba(201,168,76,.12);' : '') + '">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">' +

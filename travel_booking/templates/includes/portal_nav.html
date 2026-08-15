@@ -53,11 +53,11 @@
   <span style="font-size:12px;color:#B0AC9F;">›</span>
   <span style="font-size:12px;color:#5C5850;font-weight:500;white-space:nowrap;font-family:monospace;">{{ booking_ref }}</span>
   <span style="flex:1;"></span>
-  <a href="/traveller_portal/booking-info?ref={{ booking_ref | urlencode }}"
+  <a href="/traveller_portal/booking_info?ref={{ booking_ref | urlencode }}"
      style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if sub_active == 'info' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">Info</a>
-  <a href="/traveller_portal/booking-traveller?ref={{ booking_ref | urlencode }}"
+  <a href="/traveller_portal/booking_traveller?ref={{ booking_ref | urlencode }}"
      style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if sub_active == 'traveller' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">Traveller</a>
-  <a href="/traveller_portal/booking-billing?ref={{ booking_ref | urlencode }}"
+  <a href="/traveller_portal/booking_billing?ref={{ booking_ref | urlencode }}"
      style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if sub_active == 'billing' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">Billing</a>
 </div>
 {% endif %}

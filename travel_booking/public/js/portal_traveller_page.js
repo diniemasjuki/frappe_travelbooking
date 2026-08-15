@@ -1,6 +1,6 @@
 /* ============================================================
    travel_booking/public/js/portal_traveller_page.js
-   Page: /traveller_portal/booking-traveller?ref=...
+   Page: /traveller_portal/booking_traveller?ref=...
 
    Gabungan logic portal_wizard.js + portal_traveller.js (SPA lama),
    diadaptasikan untuk page berasingan + PENAMBAHAN:

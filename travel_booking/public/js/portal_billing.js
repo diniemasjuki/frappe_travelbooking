@@ -1,6 +1,6 @@
 /* ============================================================
    travel_booking/public/js/portal_billing.js
-   Page: /traveller_portal/booking-billing?ref=...
+   Page: /traveller_portal/booking_billing?ref=...
 
    Port dari portal_payment.js (renderSoCard + loadBookingPayments),
    diadaptasikan untuk page berasingan + PENAMBAHAN:
