@@ -9,7 +9,7 @@
 </head>
 <body>
 
-{% include "travel_booking.templates.includes.portal_nav" %}
+{% include "templates/includes/portal_nav.html" %}
 
 <div class="body">
   <div class="inner" style="max-width:820px;">
@@ -37,7 +37,7 @@
   </div>
 </div>
 
-<script type="application/json" id="pageData">{"csrf_token": "{{ csrf_token }}", "booking_ref": "{{ booking_ref }}"}</script>
+<script type="application/json" id="pageData">{"csrf_token": "{{ csrf_token }}", "booking_ref": {{ booking_ref | tojson }}}</script>
 <script src="/assets/travel_booking/js/portal_common.js"></script>
 <script src="/assets/travel_booking/js/portal_billing.js"></script>
 </body>
