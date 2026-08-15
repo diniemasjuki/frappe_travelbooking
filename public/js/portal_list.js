@@ -61,23 +61,7 @@ function bookingCard(b, opts = {}) {
   const dates =
     fmtDate(b.departure_date) + (b.return_date ? ' – ' + fmtDate(b.return_date) : '');
 
-  // CTA utama: kalau ada slot belum diisi → arah ke Traveller page;
-  // kalau siap → buka Info. Cancelled: tiada CTA (kad locked).
-  let cta = '';
-  if (!cancelled) {
-    const incomplete = filled < total && total > 0;
-    cta =
-      '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">' +
-        '<a href="/traveller_portal/booking-' + (incomplete ? 'traveller' : 'info') + '?ref=' + encodeURIComponent(b.booking_number) + '" ' +
-           'class="btn btn-p" style="text-decoration:none;display:inline-block;font-size:12px;padding:8px 16px;">' +
-           _esc(incomplete ? 'Complete Traveller Details (' + (total - filled) + ' left)' : 'View Booking') +
-        '</a>' +
-        '<a href="/traveller_portal/booking-traveller?ref=' + encodeURIComponent(b.booking_number) + '" ' +
-           'class="btn btn-g" style="text-decoration:none;display:inline-block;font-size:12px;padding:8px 16px;">Traveller</a>' +
-        '<a href="/traveller_portal/booking-billing?ref=' + encodeURIComponent(b.booking_number) + '" ' +
-           'class="btn btn-g" style="text-decoration:none;display:inline-block;font-size:12px;padding:8px 16px;">Billing</a>' +
-      '</div>';
-  }
+
 
   const countdown = (isUpcoming && days !== null && days >= 0)
     ? '<span class="badge bt" style="margin-left:8px;">Departs in ' + days + ' day' + (days === 1 ? '' : 's') + '</span>'
@@ -88,7 +72,7 @@ function bookingCard(b, opts = {}) {
     : '';
 
   return (
-    '<a href="' + (cancelled ? '#' : '/traveller_portal/booking-info?ref=' + encodeURIComponent(b.booking_number)) + '" ' +
+    '<a href="' + (cancelled ? '#' : '/traveller_portal/booking_info?ref=' + encodeURIComponent(b.booking_number)) + '" ' +
        'class="bk-card" style="' + (cancelled ? 'cursor:default;opacity:.72;' : '') + 'display:block;text-decoration:none;' +
        (isUpcoming ? 'border-color:#C9A84C;box-shadow:0 0 0 3px rgba(201,168,76,.12);' : '') + '">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">' +
@@ -107,7 +91,7 @@ function bookingCard(b, opts = {}) {
         '<span class="badge bd">Travellers ' + filled + ' / ' + total + '</span>' +
       '</div>' +
 
-      '<div class="prog-box" style="margin:12px 0 0;">' +
+      '<div class="prog-box" style="display:hidden !important; margin:12px 0 0;">' +
         '<div class="prog-row" style="margin-bottom:6px;font-size:11px;">' +
           '<span>Traveller details completed</span><span>' + pct + '%</span>' +
         '</div>' +
@@ -126,7 +110,7 @@ function bookingCard(b, opts = {}) {
         '<div style="flex:1;min-width:100px;">' +
           '<div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#B0AC9F;">Balance Due</div>' +
           '<div style="font-size:15px;font-weight:600;color:' + (b.balance > 0 ? '#92400E' : '#0F6E56') + ';">' +
-            _esc(sym) + ' ' + fmt(b.balance) + '</div>' +
+            _esc(sym) + ' ' + fmt(b.balance) + paymentBadge(b.payment_status) + '</div>' +
         '</div>' +
       '</div>' +
 
