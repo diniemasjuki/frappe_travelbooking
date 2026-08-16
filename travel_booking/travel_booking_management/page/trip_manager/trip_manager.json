@@ -1,0 +1,26 @@
+{
+ "content": null,
+ "creation": "2026-08-16 20:39:37.358272",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2026-08-16 22:47:47.935804",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "trip-manager",
+ "owner": "Administrator",
+ "page_name": "trip-manager",
+ "roles": [
+  {
+   "role": "Tour Manager"
+  },
+  {
+   "role": "Tour Operator"
+  }
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 1,
+ "title": "Trip Manager"
+}

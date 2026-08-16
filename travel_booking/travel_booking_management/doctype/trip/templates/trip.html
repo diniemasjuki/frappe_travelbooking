@@ -1,13 +1,609 @@
-{% extends "templates/web.html" %}
+{# Halaman detail Trip — /trips/<slug>
+	Standalone HTML (bukan extend templates/web.html) supaya design
+	konsisten dengan wizard /booking: palet Rarecation (hitam/gold/navy),
+	font Archivo. SEMUA CSS/JS inline dalam fail ni — tiada dependencies
+	pada assets di luar folder app (img logo & cover default sahaja yang
+	direfer melalui /assets/ yang sedia tersync).
 
-{% block page_content %}
-<h1>{{ title |e }}</h1>
-<small>{{ trip_organizer }}</small>
-<div><img src="{{ trip_image }}" alt="{{ title |e }}" class="img-fluid"></div>
+	Data datang dari Trip.get_context() → web_data.get_trip_detail():
+	  trip, organizer, destinations, gallery, dates (dengan packages +
+	  prices per kategori kabin), from_price, next_departure, support
+#}
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+<title>{{ trip.trip_name |e }} — Rarecation</title>
+{% set meta_desc = (trip.description or "") | striptags | truncate(160) %}
+<meta name="description" content="{{ meta_desc |e }}">
+<meta property="og:type" content="product">
+<meta property="og:title" content="{{ trip.trip_name |e }}">
+<meta property="og:description" content="{{ meta_desc |e }}">
+{% if trip.trip_image %}<meta property="og:image" content="{{ trip.trip_image |e }}">{% endif %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<style>
+:root {
+  --rc-black:    #0D0D0D;
+  --rc-white:    #FFFFFF;
+  --rc-gold:     #C9A84C;
+  --rc-gold-dark:#A8883A;
+  --rc-navy:     #1A2340;
+  --rc-gray-100: #F7F7F7;
+  --rc-gray-200: #EEEEEE;
+  --rc-gray-400: #AAAAAA;
+  --rc-gray-600: #666666;
+  --rc-green:    #1A7A4A;
+  --rc-green-bg: #EBF7F1;
+  --rc-red:      #8A2E2E;
+  --rc-red-bg:   #F9EFEF;
+  --rc-radius:   8px;
+  --rc-radius-lg:12px;
+  --rc-shadow:   0 2px 12px rgba(0,0,0,0.08);
+  --rc-shadow-lg:0 8px 32px rgba(0,0,0,0.12);
+  --rc-transition: 0.2s ease;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: "Archivo", sans-serif;
+  background: var(--rc-gray-100);
+  color: var(--rc-black);
+  font-size: 15px;
+  line-height: 1.55;
+}
+a { color: inherit; }
+img { max-width: 100%; display: block; }
 
-<div>{{ description }}</div>
+/* ─── TOPBAR ─────────────────────────────────────── */
+.rc-topbar {
+  background: var(--rc-white);
+  border-bottom: 1px solid var(--rc-gray-200);
+  position: sticky; top: 0; z-index: 200;
+}
+.rc-topbar__inner {
+  max-width: 1120px; margin: 0 auto; padding: 10px 20px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+}
+.rc-brand img { height: 34px; width: auto; }
+.rc-topbar__nav { display: flex; align-items: center; gap: 22px; }
+.rc-topbar__nav a {
+  text-decoration: none; font-size: 14px; font-weight: 500; color: var(--rc-black);
+  transition: color var(--rc-transition);
+}
+.rc-topbar__nav a:hover { color: var(--rc-gold-dark); }
 
-{% include "templates/includes/list/list.html" %}   
-{% endblock %}
+/* ─── BUTTONS ────────────────────────────────────── */
+.rc-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 22px; border-radius: var(--rc-radius);
+  font-family: "Archivo", sans-serif; font-size: 14px; font-weight: 500;
+  cursor: pointer; text-decoration: none; border: none;
+  transition: all var(--rc-transition); white-space: nowrap;
+}
+.rc-btn--primary { background: var(--rc-gold); color: var(--rc-black); }
+.rc-btn--primary:hover { background: var(--rc-gold-dark); }
+.rc-btn--dark { background: var(--rc-black); color: var(--rc-white); }
+.rc-btn--dark:hover { background: #222; }
+.rc-btn--ghost { background: transparent; color: var(--rc-black); border: 1.5px solid var(--rc-gray-200); }
+.rc-btn--ghost:hover { border-color: var(--rc-black); }
+.rc-btn--sm { padding: 8px 16px; font-size: 13px; }
+.rc-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
 
-<!-- this is a sample default web page template -->
+/* ─── HERO ───────────────────────────────────────── */
+.rc-hero { position: relative; background: var(--rc-navy); overflow: hidden; }
+.rc-hero__bg {
+  position: absolute; inset: 0; background-size: cover; background-position: center;
+  opacity: 0.55;
+}
+.rc-hero__overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(13,13,13,0.55) 0%, rgba(13,13,13,0.25) 40%, rgba(13,13,13,0.78) 100%);
+}
+.rc-hero__content {
+  position: relative; max-width: 1120px; margin: 0 auto; padding: 56px 20px 40px;
+}
+.rc-breadcrumb {
+  display: flex; align-items: center; gap: 6px; font-size: 13px;
+  color: rgba(255,255,255,0.75); margin-bottom: 18px;
+}
+.rc-breadcrumb a { color: rgba(255,255,255,0.75); text-decoration: none; }
+.rc-breadcrumb a:hover { color: var(--rc-gold); }
+.rc-hero__badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.rc-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
+  background: rgba(255,255,255,0.14); color: var(--rc-white);
+  backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.22);
+}
+.rc-badge--gold { background: var(--rc-gold); color: var(--rc-black); border-color: var(--rc-gold); }
+.rc-hero h1 {
+  color: var(--rc-white); font-size: clamp(26px, 4.5vw, 42px);
+  font-weight: 700; line-height: 1.15; max-width: 780px;
+}
+.rc-hero__facts {
+  display: flex; flex-wrap: wrap; gap: 10px 26px; margin-top: 18px;
+  color: rgba(255,255,255,0.92); font-size: 14px;
+}
+.rc-hero__facts span { display: inline-flex; align-items: center; gap: 7px; }
+.rc-hero__facts i { color: var(--rc-gold); }
+
+/* ─── LAYOUT ─────────────────────────────────────── */
+.rc-main { max-width: 1120px; margin: 0 auto; padding: 28px 20px 64px; }
+.rc-layout {
+  display: grid; grid-template-columns: minmax(0,1fr) 330px;
+  gap: 28px; align-items: start;
+}
+.rc-section { margin-bottom: 36px; }
+.rc-section__title {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 20px; font-weight: 600; margin-bottom: 16px;
+}
+.rc-section__title i { color: var(--rc-gold-dark); }
+.rc-section__title::after {
+  content: ""; flex: 1; height: 1px; background: var(--rc-gray-200);
+}
+
+/* ─── OVERVIEW ───────────────────────────────────── */
+.rc-card {
+  background: var(--rc-white); border-radius: var(--rc-radius-lg);
+  box-shadow: var(--rc-shadow); padding: 22px 24px;
+}
+.rc-desc { color: #333; }
+.rc-desc :is(h1,h2,h3) { margin: 14px 0 6px; font-size: 17px; }
+.rc-desc p { margin-bottom: 10px; }
+.rc-desc :is(ul, ol) { margin: 0 0 10px 20px; }
+.rc-desc img { border-radius: var(--rc-radius); margin: 10px 0; }
+.rc-desc a { color: var(--rc-gold-dark); }
+.rc-desc table { border-collapse: collapse; width: 100%; }
+.rc-desc table td, .rc-desc table th { border: 1px solid var(--rc-gray-200); padding: 6px 10px; }
+
+.rc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.rc-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--rc-white); border: 1px solid var(--rc-gray-200);
+  padding: 7px 14px; border-radius: 999px; font-size: 13.5px;
+}
+.rc-chip i { color: var(--rc-gold-dark); }
+
+/* ─── GALLERY ────────────────────────────────────── */
+.rc-gallery { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.rc-gallery a { border-radius: var(--rc-radius); overflow: hidden; aspect-ratio: 4/3; }
+.rc-gallery img {
+  width: 100%; height: 100%; object-fit: cover;
+  transition: transform 0.25s ease, opacity var(--rc-transition);
+}
+.rc-gallery a:hover img { transform: scale(1.05); opacity: 0.9; }
+
+/* ─── SIDEBAR PRICE CARD ─────────────────────────── */
+.rc-side { position: sticky; top: 74px; }
+.rc-price-card {
+  background: var(--rc-white); border-radius: var(--rc-radius-lg);
+  box-shadow: var(--rc-shadow-lg); padding: 22px; border-top: 3px solid var(--rc-gold);
+}
+.rc-price-card__label { font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--rc-gray-600); }
+.rc-price-card__amount { font-size: 30px; font-weight: 700; margin: 2px 0 4px; }
+.rc-price-card__amount small { font-size: 13px; font-weight: 400; color: var(--rc-gray-600); }
+.rc-price-card__row {
+  display: flex; justify-content: space-between; gap: 10px;
+  padding: 10px 0; border-bottom: 1px dashed var(--rc-gray-200);
+  font-size: 13.5px;
+}
+.rc-price-card__row strong { text-align: right; }
+.rc-price-card .rc-btn { width: 100%; justify-content: center; margin-top: 16px; }
+.rc-price-card__support {
+  margin-top: 16px; font-size: 12.5px; color: var(--rc-gray-600); text-align: center;
+}
+.rc-price-card__support a { color: var(--rc-gold-dark); text-decoration: none; }
+
+/* ─── DATE CARDS ─────────────────────────────────── */
+.rc-date-card {
+  background: var(--rc-white); border-radius: var(--rc-radius-lg);
+  box-shadow: var(--rc-shadow); margin-bottom: 22px; overflow: hidden;
+}
+.rc-date-card.is-soldout .rc-date-card__head { background: var(--rc-gray-100); }
+.rc-date-card__head {
+  display: flex; align-items: center; gap: 16px;
+  padding: 16px 20px; border-bottom: 1px solid var(--rc-gray-200);
+  background: linear-gradient(90deg, #FDFBF5, var(--rc-white));
+}
+.rc-date-card__cal {
+  flex: 0 0 auto; width: 56px; text-align: center;
+  background: var(--rc-black); color: var(--rc-white);
+  border-radius: var(--rc-radius); padding: 6px 0 7px;
+}
+.rc-date-card__cal span { display: block; }
+.rc-date-card__month {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--rc-gold);
+}
+.rc-date-card__day { font-size: 22px; font-weight: 700; line-height: 1.1; }
+.rc-date-card__meta { flex: 1; min-width: 0; }
+.rc-date-card__meta h3 { font-size: 16.5px; font-weight: 600; }
+.rc-date-card__meta p { font-size: 13px; color: var(--rc-gray-600); margin-top: 2px; }
+.rc-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
+}
+.rc-tag--ok    { background: var(--rc-green-bg); color: var(--rc-green); }
+.rc-tag--sold  { background: var(--rc-red-bg);   color: var(--rc-red); }
+.rc-tag--few   { background: #FBF3E4;            color: var(--rc-gold-dark); }
+.rc-date-card__body { padding: 18px 20px 20px; }
+.rc-date-card__note {
+  font-size: 13.5px; color: var(--rc-gray-600); margin-bottom: 14px;
+}
+
+/* ─── PACKAGE CARDS ──────────────────────────────── */
+.rc-pkg-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px;
+}
+.rc-pkg {
+  border: 1.5px solid var(--rc-gray-200); border-radius: var(--rc-radius);
+  padding: 16px; display: flex; flex-direction: column; gap: 12px;
+  transition: border-color var(--rc-transition), box-shadow var(--rc-transition);
+}
+.rc-pkg:hover { border-color: var(--rc-gold); box-shadow: var(--rc-shadow); }
+.rc-pkg__type {
+  display: inline-flex; align-self: flex-start;
+  font-size: 11.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+  background: var(--rc-navy); color: var(--rc-white);
+  padding: 3px 10px; border-radius: 4px;
+}
+.rc-pkg h4 { font-size: 15.5px; font-weight: 600; line-height: 1.3; }
+.rc-pkg__dep { font-size: 13px; color: var(--rc-gray-600); display: flex; align-items: center; gap: 6px; }
+.rc-price-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rc-price-table th {
+  text-align: left; font-weight: 600; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--rc-gray-600);
+  padding: 6px 8px; border-bottom: 1.5px solid var(--rc-gray-200);
+}
+.rc-price-table td { padding: 7px 8px; border-bottom: 1px solid var(--rc-gray-200); }
+.rc-price-table tr:last-child td { border-bottom: none; }
+.rc-price-table th:not(:first-child), .rc-price-table td:not(:first-child) { text-align: right; white-space: nowrap; }
+.rc-pkg__from { font-size: 13px; color: var(--rc-gray-600); }
+.rc-pkg__from strong { display: block; font-size: 19px; color: var(--rc-black); }
+.rc-pkg__foot {
+  margin-top: auto; display: flex; align-items: flex-end;
+  justify-content: space-between; gap: 10px; padding-top: 4px;
+}
+.rc-note {
+  background: var(--rc-white); border: 1px dashed var(--rc-gray-400);
+  border-radius: var(--rc-radius); padding: 18px; text-align: center; color: var(--rc-gray-600);
+}
+
+/* ─── FOOTER ─────────────────────────────────────── */
+.rc-footer { background: var(--rc-black); color: rgba(255,255,255,0.75); }
+.rc-footer__inner {
+  max-width: 1120px; margin: 0 auto; padding: 34px 20px;
+  display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: space-between;
+  font-size: 13px;
+}
+.rc-footer__links { display: flex; gap: 18px; }
+.rc-footer__links a { color: rgba(255,255,255,0.75); text-decoration: none; }
+.rc-footer__links a:hover { color: var(--rc-gold); }
+
+/* ─── LIGHTBOX ───────────────────────────────────── */
+.rc-lightbox {
+  position: fixed; inset: 0; z-index: 500; display: none;
+  background: rgba(13,13,13,0.92); align-items: center; justify-content: center;
+  cursor: zoom-out; padding: 24px;
+}
+.rc-lightbox.is-open { display: flex; }
+.rc-lightbox img { max-width: min(1100px, 100%); max-height: 90vh; border-radius: var(--rc-radius); }
+
+/* ─── RESPONSIVE ─────────────────────────────────── */
+@media (max-width: 900px) {
+  .rc-layout { grid-template-columns: 1fr; }
+  .rc-side { position: static; order: -1; }
+  .rc-gallery { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .rc-topbar__nav a.rc-hide-sm { display: none; }
+  .rc-hero__content { padding: 36px 16px 28px; }
+  .rc-date-card__head { flex-wrap: wrap; }
+  .rc-price-table { display: block; overflow-x: auto; }
+}
+</style>
+</head>
+<body>
+
+<header class="rc-topbar">
+  <div class="rc-topbar__inner">
+    <a href="/trips" class="rc-brand">
+      <img src="/assets/travel_booking/img/logo-horizontal.png" alt="Rarecation">
+    </a>
+    <nav class="rc-topbar__nav">
+      <a href="/trips" class="rc-hide-sm">All Trips</a>
+      <a href="#dates" class="rc-hide-sm">Dates &amp; Packages</a>
+      <a href="/traveller_portal" class="rc-hide-sm">My Booking</a>
+      <a href="#dates" class="rc-btn rc-btn--primary rc-btn--sm">
+        Book Now <i class="ti ti-arrow-right"></i>
+      </a>
+    </nav>
+  </div>
+</header>
+
+<section class="rc-hero">
+  <div class="rc-hero__bg" style="background-image: url('{{ (trip.trip_image or '/assets/travel_booking/img/defaultaroya.jpg') |e }}')"></div>
+  <div class="rc-hero__overlay"></div>
+  <div class="rc-hero__content">
+    <nav class="rc-breadcrumb">
+      <a href="/trips">Trips</a>
+      <i class="ti ti-chevron-right" style="font-size:12px"></i>
+      <span>{{ trip.trip_name |e }}</span>
+    </nav>
+    <div class="rc-hero__badges">
+      {% if trip.is_a_cruise_trip %}
+      <span class="rc-badge rc-badge--gold"><i class="ti ti-ship"></i> Cruise</span>
+      {% else %}
+      <span class="rc-badge rc-badge--gold"><i class="ti ti-plane"></i> Travel Package</span>
+      {% endif %}
+      {% if organizer %}<span class="rc-badge"><i class="ti ti-flag"></i> {{ organizer.org_name |e }}</span>{% endif %}
+      {% if trip.status == 'Active' %}
+      <span class="rc-badge"><i class="ti ti-circle-check" style="color:#7FD6A8"></i> Open for Booking</span>
+      {% endif %}
+    </div>
+    <h1>{{ trip.trip_name |e }}</h1>
+    <div class="rc-hero__facts">
+      {% if next_departure %}
+      <span><i class="ti ti-calendar-event"></i> Next: {{ next_departure.date_range_display |e }}</span>
+      {% if next_departure.duration_display %}
+      <span><i class="ti ti-clock-hour-9"></i> {{ next_departure.duration_display |e }}</span>
+      {% endif %}
+      {% if next_departure.ship_name %}
+      <span><i class="ti ti-ship"></i> {{ next_departure.ship_name |e }}</span>
+      {% endif %}
+      {% if next_departure.embarkation_port %}
+      <span><i class="ti ti-anchor"></i> {{ next_departure.embarkation_port |e }}{% if next_departure.disembarkation_port and next_departure.disembarkation_port != next_departure.embarkation_port %} ⇄ {{ next_departure.disembarkation_port |e }}{% endif %}</span>
+      {% endif %}
+      {% else %}
+      <span><i class="ti ti-calendar-event"></i> New dates coming soon</span>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+<main class="rc-main">
+  <div class="rc-layout">
+
+    <div class="rc-content">
+
+      {% if trip.description %}
+      <section class="rc-section" id="overview">
+        <h2 class="rc-section__title"><i class="ti ti-info-circle"></i> Trip Overview</h2>
+        <div class="rc-card rc-desc">{{ trip.description }}</div>
+      </section>
+      {% endif %}
+
+      {% if destinations %}
+      <section class="rc-section" id="destinations">
+        <h2 class="rc-section__title"><i class="ti ti-map-pin"></i> Destinations</h2>
+        <div class="rc-chips">
+          {% for dst in destinations %}
+          <span class="rc-chip"><i class="ti ti-point-filled"></i> {{ dst |e }}</span>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      {% if gallery %}
+      <section class="rc-section" id="gallery">
+        <h2 class="rc-section__title"><i class="ti ti-photo"></i> Gallery</h2>
+        <div class="rc-gallery">
+          {% for img_url in gallery %}
+          <a href="{{ img_url |e }}" data-lightbox>
+            <img src="{{ img_url |e }}" alt="{{ trip.trip_name |e }} — photo {{ loop.index }}" loading="lazy">
+          </a>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      <section class="rc-section" id="dates">
+        <h2 class="rc-section__title"><i class="ti ti-calendar-month"></i> Departure Dates &amp; Packages</h2>
+
+        {% if dates %}
+          {% for d in dates %}
+          <article class="rc-date-card {% if d.sold_out %}is-soldout{% endif %}">
+            <header class="rc-date-card__head">
+              <div class="rc-date-card__cal" aria-hidden="true">
+                <span class="rc-date-card__month">{{ d.cal_month |upper |e }}</span>
+                <span class="rc-date-card__day">{{ d.cal_day |e }}</span>
+              </div>
+              <div class="rc-date-card__meta">
+                <h3>{{ d.date_range_display |e }}</h3>
+                <p>
+                  {% if d.duration_display %}{{ d.duration_display |e }} · {% endif %}
+                  {% if d.ship_name %}{{ d.ship_name |e }} · {% endif %}
+                  {% if d.embarkation_port %}{{ d.embarkation_port |e }}{% if d.disembarkation_port and d.disembarkation_port != d.embarkation_port %} ⇄ {{ d.disembarkation_port |e }}{% endif %}{% endif %}
+                </p>
+              </div>
+              <div>
+                {% if d.sold_out %}
+                <span class="rc-tag rc-tag--sold"><i class="ti ti-ban"></i> Sold Out</span>
+                {% elif d.seats_left is not none and d.seats_left <= 10 %}
+                <span class="rc-tag rc-tag--few"><i class="ti ti-flame"></i> {{ d.seats_left }} seats left</span>
+                {% else %}
+                <span class="rc-tag rc-tag--ok"><i class="ti ti-circle-check"></i> Available</span>
+                {% endif %}
+              </div>
+            </header>
+            <div class="rc-date-card__body">
+              {% if d.trip_group_description %}
+              <div class="rc-date-card__note rc-desc">{{ d.trip_group_description }}</div>
+              {% endif %}
+              <div class="rc-pkg-grid">
+                {% for p in d.packages %}
+                <div class="rc-pkg">
+                  <span class="rc-pkg__type">{{ p.package_type |e }}</span>
+                  <h4>{{ p.package_title |e }}</h4>
+                  <div class="rc-pkg__dep"><i class="ti ti-plane-departure"></i> {{ p.depart_label |e }}</div>
+                  {% if p.prices %}
+                  <table class="rc-price-table">
+                    <thead>
+                      <tr>
+                        <th>Cabin / Category</th>
+                        <th>Adult{% if p.currency_symbol %} ({{ p.currency_symbol |e }}){% endif %}</th>
+                        <th>Child</th>
+                        <th>Infant</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for row in p.prices %}
+                      <tr>
+                        <td>{{ row.category |e }}</td>
+                        <td>{{ row.adult |e }}</td>
+                        <td>{{ row.children |e }}</td>
+                        <td>{{ row.infant |e }}</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                  {% endif %}
+                  <div class="rc-pkg__foot">
+                    <div class="rc-pkg__from">
+                      {% if p.from_price %}
+                      <small>From, per adult</small>
+                      <strong>{{ p.from_price |e }}</strong>
+                      {% else %}
+                      <small>Contact us for pricing</small>
+                      {% endif %}
+                    </div>
+                    {% if d.sold_out %}
+                    <button class="rc-btn rc-btn--ghost rc-btn--sm" disabled>Sold Out</button>
+                    {% else %}
+                    <a class="rc-btn rc-btn--primary rc-btn--sm"
+                       href="/booking?trip={{ p.name |urlencode }}&date={{ d.name |urlencode }}">
+                      Book Now <i class="ti ti-arrow-right"></i>
+                    </a>
+                    {% endif %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+          </article>
+          {% endfor %}
+        {% else %}
+        <div class="rc-note">
+          <i class="ti ti-calendar-off" style="font-size:20px"></i><br>
+          Tiada tarikh perlepasan akan datang buat masa ini.
+          {% if support.support_email %}
+          Untuk makluman tarikh baharu, hubungi
+          <a href="mailto:{{ support.support_email |e }}" style="color:var(--rc-gold-dark)">{{ support.support_email |e }}</a>.
+          {% endif %}
+        </div>
+        {% endif %}
+      </section>
+
+    </div>
+
+    <aside class="rc-side">
+      <div class="rc-price-card">
+        {% if from_price %}
+        <div class="rc-price-card__label">Starting From</div>
+        <div class="rc-price-card__amount">{{ from_price.display |e }} <small>/ adult</small></div>
+        {% elif dates %}
+        <div class="rc-price-card__label">Pricing</div>
+        <div class="rc-price-card__amount" style="font-size:20px">On Request</div>
+        {% endif %}
+
+        {% if next_departure %}
+        <div class="rc-price-card__row">
+          <span>Next Departure</span>
+          <strong>{{ next_departure.departure_display |e }}</strong>
+        </div>
+        {% if next_departure.return_display %}
+        <div class="rc-price-card__row">
+          <span>Return</span>
+          <strong>{{ next_departure.return_display |e }}</strong>
+        </div>
+        {% endif %}
+        {% if next_departure.duration_display %}
+        <div class="rc-price-card__row">
+          <span>Duration</span>
+          <strong>{{ next_departure.duration_display |e }}</strong>
+        </div>
+        {% endif %}
+        {% if next_departure.ship_name %}
+        <div class="rc-price-card__row">
+          <span>Ship</span>
+          <strong>{{ next_departure.ship_name |e }}</strong>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        {% if dates and not dates[0].sold_out %}
+        <a href="#dates" class="rc-btn rc-btn--primary">
+          <i class="ti ti-calendar-month"></i> Choose a Date
+        </a>
+        {% elif dates %}
+        <a href="#dates" class="rc-btn rc-btn--dark">
+          <i class="ti ti-calendar-month"></i> View Other Dates
+        </a>
+        {% else %}
+        <a href="/trips" class="rc-btn rc-btn--dark">
+          <i class="ti ti-arrow-left"></i> Browse All Trips
+        </a>
+        {% endif %}
+
+        {% if support.support_email or support.support_phone %}
+        <div class="rc-price-card__support">
+          Need help?
+          {% if support.support_phone %}<a href="tel:{{ support.support_phone |e }}">{{ support.support_phone |e }}</a>{% endif %}
+          {% if support.support_email %} · <a href="mailto:{{ support.support_email |e }}">{{ support.support_email |e }}</a>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </aside>
+
+  </div>
+</main>
+
+<footer class="rc-footer">
+  <div class="rc-footer__inner">
+    <span>© {{ current_year }} Rarecation by WargaPrihatin. All rights reserved.</span>
+    <nav class="rc-footer__links">
+      <a href="/trips">All Trips</a>
+      <a href="/booking">Book Now</a>
+      <a href="/traveller_portal">My Booking</a>
+    </nav>
+  </div>
+</footer>
+
+<div class="rc-lightbox" id="rc-lightbox" aria-hidden="true">
+  <img src="" alt="">
+</div>
+
+<script>
+(function () {
+  // Lightbox galeri — minimal, tiada dependency.
+  var lb = document.getElementById("rc-lightbox");
+  var lbImg = lb ? lb.querySelector("img") : null;
+  document.querySelectorAll("[data-lightbox]").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      e.preventDefault();
+      if (!lbImg) return;
+      lbImg.src = a.href;
+      lb.classList.add("is-open");
+      lb.setAttribute("aria-hidden", "false");
+    });
+  });
+  if (lb) {
+    lb.addEventListener("click", function () {
+      lb.classList.remove("is-open");
+      lb.setAttribute("aria-hidden", "true");
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") lb.classList.remove("is-open");
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
