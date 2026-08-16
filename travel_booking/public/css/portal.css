@@ -699,6 +699,66 @@ select option { background: var(--bg-primary); }
 
 
 
+/* ── Billing page (/traveller_portal/booking_billing) ──
+   Corak borang dipinjam dari wizard booking.html Step 3 (rc-pay-amount /
+   rc-pay-chip / rc-radio-option / rc-bank-details), diadaptasi guna token
+   portal.css supaya kedua-dua permukaan nampak seragam. */
+
+/* Ringkasan booking: progress bar + 3 statistik */
+.bill-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--border-secondary); border: 1px solid var(--border-secondary); border-radius: var(--radius-md); overflow: hidden; }
+.bill-stats > div { background: #fff; padding: 14px 16px; }
+.bill-stats .l { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-bottom: 4px; }
+.bill-stats .v { font-size: 17px; font-weight: 500; color: var(--text-primary); }
+.bill-progress { height: 8px; background: var(--bg-tertiary); border: 1px solid var(--border-secondary); border-radius: 5px; overflow: hidden; }
+.bill-progress > div { height: 100%; background: var(--c-accent); border-radius: 5px; transition: width .4s ease; }
+.bill-progress.done > div { background: #0F6E56; }
+
+/* Kad Sales Order collapsible */
+.bill-so { background: #fff; border: 1px solid var(--border-secondary); border-radius: var(--radius-md); margin-bottom: 14px; overflow: hidden; }
+.bill-so-head { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px; background: none; border: none; font: inherit; text-align: left; cursor: pointer; }
+.bill-so-body { display: none; padding: 20px; background: #FFFEF5; border-top: 1px solid var(--border-tertiary); }
+.bill-so.open .bill-so-body { display: block; }
+.bill-so-chevron { flex-shrink: 0; transition: transform .2s; }
+.bill-so.open .bill-so-chevron { transform: rotate(180deg); }
+.bill-sec { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); margin: 0 0 8px; }
+.bill-sec-row { border-top: 1px solid var(--border-secondary); margin-top: 18px; padding-top: 16px; }
+
+/* Kotak amount besar + chip Deposit/Full (macam wizard) */
+.pay-amount { display: flex; align-items: center; height: 54px; border: 1.5px solid var(--c-accent); border-radius: var(--radius-md); padding: 0 16px; background: var(--c-accent-light); box-shadow: 0 0 0 3px rgba(245,197,24,.08); }
+.pay-amount:focus-within { border-color: var(--c-accent-dark); box-shadow: 0 0 0 3px rgba(245,197,24,.18); }
+.pay-amount__prefix { font-size: 16px; font-weight: 600; color: var(--text-tertiary); margin-right: 10px; }
+.pay-amount__input { flex: 1; width: 100%; border: none; outline: none; background: none; font-size: 22px; font-weight: 700; color: var(--text-primary); -moz-appearance: textfield; }
+.pay-amount__input::-webkit-outer-spin-button, .pay-amount__input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.pay-quick { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.pay-chip { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 12px; border: 1.5px solid var(--border-primary); border-radius: var(--radius-sm); background: #fff; cursor: pointer; font: inherit; transition: var(--transition); }
+.pay-chip:hover { border-color: var(--c-accent); }
+.pay-chip.on { border-color: var(--c-accent-dark); background: var(--c-accent-mid); }
+.pay-chip__label { font-size: 11px; font-weight: 600; color: var(--text-tertiary); }
+.pay-chip__amt { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+
+/* Kaedah bayaran (radio-style, macam wizard Payment Method) */
+.pay-opts { display: grid; gap: 10px; }
+.pay-opt { display: flex; align-items: center; gap: 12px; padding: 13px 15px; border: 1.5px solid var(--border-primary); border-radius: var(--radius-md); background: #fff; cursor: pointer; font: inherit; text-align: left; transition: var(--transition); }
+.pay-opt:hover { border-color: var(--c-accent); background: var(--c-accent-light); }
+.pay-opt.on { border-color: var(--c-accent-dark); background: var(--c-accent-mid); }
+.pay-opt input[type="radio"] { width: 16px; height: 16px; accent-color: var(--c-accent-dark); flex-shrink: 0; }
+.pay-opt__label { display: block; font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.pay-opt__desc { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.pay-opt.disabled { opacity: .55; cursor: not-allowed; }
+.pay-opt.disabled:hover { border-color: var(--border-primary); background: #fff; }
+
+/* Butir bank untuk manual transfer */
+.bank-details { background: var(--bg-tertiary); border-radius: var(--radius-sm); padding: 4px 14px; margin: 12px 0; }
+.bank-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; font-size: 13px; border-bottom: 1px solid var(--border-secondary); }
+.bank-row:last-child { border-bottom: none; }
+.bank-row span { color: var(--text-tertiary); }
+.bank-row strong { color: var(--text-primary); text-align: right; word-break: break-all; }
+
+/* Panel borang yang muncul bila kaedah dipilih */
+.pay-panel { display: none; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border-primary); }
+.pay-panel.on { display: block; }
+
+
 /* ── Responsive : tablet ── */
 @media (max-width: 800px) {
   .g2 { grid-template-columns: 1fr; }
@@ -715,6 +775,8 @@ select option { background: var(--bg-primary); }
   .nav-right { gap: 8px; flex-shrink: 0; min-width: 0; }
   .btn-logout { font-size: 11px; padding: 5px 10px; white-space: nowrap; }
   .av { width: 28px; height: 28px; font-size: 10px; flex-shrink: 0; }
+  .bill-so-head { padding: 14px 16px; }
+  .bill-so-body { padding: 16px; }
 }
 
 
@@ -734,6 +796,10 @@ select option { background: var(--bg-primary); }
   .btn-logout { font-size: 11px; padding: 5px 10px; white-space: nowrap; position: absolute; top: 25px; right: 10px; }
   .av { display:none; }
   .nav-sub { display:none; }
+  .bill-stats { grid-template-columns: 1fr; }
+  .bill-so-head { padding: 13px 14px; }
+  .bill-so-body { padding: 14px; }
+  .pay-quick { flex-direction: column; }
 }
 
 /* dinie custom */

@@ -52,7 +52,7 @@ function renderInfoPage(data) {
       const stateroom = c.stateroom_no ? ' · Stateroom ' + _esc(c.stateroom_no) : '';
       const slotList = (c.slots || []).map(function (s) {
         const flight = s.flight_pnr ? ' · Flight PNR ' + _esc(s.flight_pnr) : '';
-        return '<div style="padding:6px 0;border-bottom:1px solid #F0EDE7;font-size:12px;color:#5C5850;">' +
+        return '<div style="padding:10px 0;border-top:0.5px solid #F0EDE7;font-size:12px;color:#5C5850;">' +
           _esc(s.slot_label) + ' — ' + _esc(s.full_name || 'Not filled yet') +
           (s.pax_type ? ' (' + _esc(s.pax_type) + ')' : '') + flight + '</div>';
       }).join('');
@@ -60,11 +60,11 @@ function renderInfoPage(data) {
         '<div style="border:1px solid #EAE7E0;border-radius:12px;margin-bottom:10px;overflow:hidden;">' +
           '<div style="background:#F5F3EE;padding:10px 14px;display:flex;align-items:center;gap:10px;">' +
             '<span style="width:26px;height:26px;border-radius:8px;background:#C9A84C;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">' + _esc(c.cabin_no) + '</span>' +
-            '<span style="font-size:13px;font-weight:600;color:#1E1C18;">Cabin ' + _esc(c.cabin_no) + stateroom + '</span>' +
+            '<span style="font-size:13px;font-weight:600;color:#1E1C18;">Room ' + _esc(c.cabin_no) + stateroom + '</span>' +
             '<span style="flex:1;"></span>' +
             '<span style="font-size:11px;color:#7D7A70;text-transform:uppercase;letter-spacing:.04em;">' + _esc(c.room_name || '') + '</span>' +
           '</div>' +
-          '<div style="padding:6px 14px 10px;">' + (slotList || '') + '</div>' +
+          '<div style="padding:0px 14px 0px;">' + (slotList || '') + '</div>' +
         '</div>'
       );
     }).join('');

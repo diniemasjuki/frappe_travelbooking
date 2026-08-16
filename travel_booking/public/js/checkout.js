@@ -12,6 +12,7 @@
   var PR_NAME = _data.pr_name;
   var SOURCE  = _data.source;
   var REF     = _data.ref;
+  var RET     = _data.ret || "";   // laluan pulangan portal (cth booking_billing?ref=...)
 
   // Teks asal butang ("Pay RM XXX.XX") dah betul-betul dirender server-side
   // dalam HTML — tangkap terus dari DOM sebelum ditukar ke "Processing...",
@@ -27,8 +28,13 @@
     if (SOURCE === "wizard" && REF) {
       return base + "/booking?ref=" + encodeURIComponent(REF) + "&step=confirm&pr=" + encodeURIComponent(PR_NAME);
     }
-    // Multi-page portal: payment-result verification kini di page Transactions
-    // (Stripe auto-append payment_intent + redirect_status pada URL ni).
+    // Pulangan portal — honori laluan asal customer (sudah disahkan
+    // server-side di create_payment_intent() & checkout.py; semakan
+    // prefix di sini hanya safety net tambahan). Fallback lalai ke
+    // Transactions page (tingkah laku lama).
+    if (RET && RET.indexOf("/traveller_portal/") === 0 && RET.indexOf("//") !== 0) {
+      return base + RET;
+    }
     return base + "/traveller_portal/transactions";
   }
 

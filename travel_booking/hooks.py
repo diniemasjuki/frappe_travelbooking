@@ -99,11 +99,13 @@ website_generators = ["Trip"]
 # Jinja
 # ----------
 
-# add methods and filters to jinja environment
-# jinja = {
-# 	"methods": "travel_booking.utils.jinja_methods",
-# 	"filters": "travel_booking.utils.jinja_filters"
-# }
+# asset_v(relpath) — token versi (mtime) untuk cache-busting JS/CSS portal:
+#   ?v={{ asset_v('js/portal_billing.js') }}
+# nginx cache assets setahun (max-age=31536000) — tanpa ni, perubahan JS
+# tak sampai ke browser customer selepas deploy.
+jinja = {
+	"methods": "travel_booking.utils.assets",
+}
 
 # Installation
 # ------------

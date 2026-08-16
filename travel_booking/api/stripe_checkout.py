@@ -164,7 +164,7 @@ def _get_all_stripe_settings():
 
 
 @frappe.whitelist()
-def create_payment_intent(sales_order: str, amount: float, source: str = "portal", booking_number: str = None, pr_amount: float = None):
+def create_payment_intent(sales_order: str, amount: float, source: str = "portal", booking_number: str = None, pr_amount: float = None, return_to: str = None):
     """Cipta Payment Request (rekod) + Stripe Payment Intent (bayaran sebenar).
     source: "wizard" (booking baru, guest) atau "portal" (customer login).
     Pulangkan info untuk checkout.html render Stripe Elements.
@@ -175,6 +175,10 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     di-cap kepada baki SO ni sendiri. Kalau tak diberi, default = amount.
     Payment Request TIDAK BOLEH melebihi baki SO rujukannya (ERPNext core
     validate_payment_request_amount() throw kalau begitu).
+
+    'return_to' (opsyenal) — laluan portal untuk redirect balik selepas
+    bayar (cth booking_billing?ref=...). Disahkan sanitI di sini juga
+    (endpoint ni whitelisted sendiri — jangan percaya caller).
 
     NOTA — rounded_total vs grand_total: ERPNext punya
     validate_payment_request_amount() (via get_amount() dalam
@@ -343,10 +347,18 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
 
     frappe.db.commit()
 
+    # 'ret' — laluan pulangan portal (sudah disahkan). checkout.js bawa
+    # customer ke laluan ini selepas Stripe redirect balik; tanpa 'ret',
+    # fallback /traveller_portal/transactions (tingkah laku lama).
+    from urllib.parse import quote
+    from travel_booking.api._helpers import sanitize_portal_return_path
+    safe_return_to = sanitize_portal_return_path(return_to)
+
     checkout_url = frappe.utils.get_url(
-        "/checkout?pr=" + pr.name +
-        "&src=" + source +
-        (("&ref=" + booking_number) if booking_number else "")
+        "/checkout?pr=" + quote(pr.name, safe="") +
+        "&src=" + quote(source, safe="") +
+        (("&ref=" + quote(booking_number, safe="")) if booking_number else "") +
+        (("&ret=" + quote(safe_return_to, safe="")) if safe_return_to else "")
     )
 
     return {
@@ -584,12 +596,17 @@ def _mark_payment_request_paid(pr_name):
     if pr.status == "Paid":
         return True  # idempotent — dah diproses (webhook boleh berulang dari Stripe)
 
-    # Guna hak Administrator sementara — Guest/customer session (endpoint
-    # allow_guest=True) TIADA akses baca Account (bank/cash default) yang
-    # diperlukan set_as_paid() untuk cipta Payment Entry. Sama pattern
-    # dengan confirm_booking().
-    _original_user = frappe.session.user
-    frappe.set_user("Administrator")
+    # set_as_paid() perlu baca Account (bank/cash default) untuk cipta
+    # Payment Entry — Guest/customer session tiada akses itu.
+    #
+    # PENTING: guna frappe.flags.ignore_permissions, BUKAN frappe.set_user()
+    # — set_user() memadam frappe.local.session.data dan menulis-ganti
+    # session.sid, lalu Session.update() di hujung request menulis data
+    # sesi yang rosak ke cache bawah sid sebenar user → sesi customer
+    # TERKORUPSI bila fallback ini berjalan dari get_payment_result()
+    # (laluan portal login), menyebabkan terlogout tiba-tiba. Laluan
+    # webhook (Guest) tidak terkesan, tapi flags selamat untuk kedua-dua.
+    frappe.flags.ignore_permissions = True
     try:
         pr.run_method("set_as_paid")
         frappe.db.commit()
@@ -598,8 +615,6 @@ def _mark_payment_request_paid(pr_name):
         frappe.log_error("set_as_paid failed for " + pr_name + ": " + str(e),
                          "Stripe Payment Entry Error")
         return False
-    finally:
-        frappe.set_user(_original_user)
 
 
 def _handle_payment_succeeded(payment_intent):

@@ -51,7 +51,7 @@ def get_customer_email(customer_name):
 def get_customer_phone(customer_name):
     """Cari phone utama (primary) untuk satu Customer, melalui
     Contact Phone -> Contact -> Dynamic Link (link_doctype='Customer').
-    Pulang None kalau tiada. Sama pattern dengan get_customer_email() —
+    Pulangkan None kalau tiada. Sama pattern dengan get_customer_email() —
     guna terus di sini (bukan salin SQL berulang) untuk Booking.cust_phone
     (virtual property) dan mana-mana tempat lain yang perlukan phone
     customer di masa depan.
@@ -68,3 +68,27 @@ def get_customer_phone(customer_name):
         LIMIT 1
     """, customer_name, as_dict=True)
     return result[0].phone if result else None
+
+
+def sanitize_portal_return_path(path):
+    """Validasi laluan pulangan portal untuk URL balik Stripe checkout.
+
+    Hanya terima laluan relatif DALAM portal ("/traveller_portal/...")
+    — tolak apa-apa yang boleh jadi open redirect (domain luar, scheme,
+    protocol-relative "//", backslash). Pulangkan "" kalau tidak sah.
+    Digunakan oleh create_payment_request() -> create_payment_intent()
+    -> checkout.py supaya customer dibawa balik ke page asal dia
+    (cth /traveller_portal/booking_billing?ref=RC-XXXX) selepas bayar.
+    """
+    if not path:
+        return ""
+    path = str(path).strip()
+    if len(path) > 500:
+        return ""
+    if not path.startswith("/traveller_portal/"):
+        return ""
+    if path.startswith("//") or "\\" in path or ":" in path:
+        return ""
+    if ".." in path:
+        return ""
+    return path

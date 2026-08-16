@@ -7,18 +7,28 @@ def get_context(context):
     pr_name = frappe.form_dict.get("pr")
     source  = frappe.form_dict.get("src", "portal")
     ref     = frappe.form_dict.get("ref", "")
+    ret     = frappe.form_dict.get("ret", "")
 
     if not pr_name or not frappe.db.exists("Payment Request", pr_name):
         frappe.throw("Payment request not found.", frappe.DoesNotExistError)
 
     pr = frappe.get_doc("Payment Request", pr_name)
 
+    # 'ret' — laluan pulangan portal selepas bayar (cth booking_billing
+    # ?ref=...). Saniti semula di sini: URL ini datang dari query string
+    # yang boleh diubah sesiapa — jangan percaya ia selamat walaupun ia
+    # kita yang jana di create_payment_intent().
+    from travel_booking.api._helpers import sanitize_portal_return_path
+    ret = sanitize_portal_return_path(ret)
+
     context.pr_name  = pr_name
     context.source   = source
     context.ref      = ref
+    context.ret      = ret
     context.pr_name_json = json.dumps(pr_name)
     context.source_json  = json.dumps(source)
     context.ref_json     = json.dumps(ref)
+    context.ret_json     = json.dumps(ret)
 
     # PENTING: pr.grand_total dicap kepada baki SO TUNGGAL yang dirujuk PR
     # ini (untuk booking gabungan) — jumlah PENUH yang customer sebenarnya

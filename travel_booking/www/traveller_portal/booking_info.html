@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Booking Info — Rarecation Portal</title>
   <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
-  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') if asset_v is defined else '1' }}"/>
 </head>
 <body>
 
@@ -36,19 +36,19 @@
       </div>
     </div>
 
-    <!-- Cabins & flight assignments (read-only) -->
-    <div class="card" style="margin-top:14px;">
-      <div class="sec" style="margin-bottom:4px;">Cabins &amp; Assignments</div>
-      <div id="info-cabins" style="font-size:13px;color:#B0AC9F;">Loading...</div>
-    </div>
-
     <!-- Payment summary + link ke Billing -->
     <div class="card" style="margin-top:14px;">
-      <div class="sec" style="margin-bottom:12px;">Payment Summary</div>
+      <div class="sec" style="min-height:20px;">Payment Summary</div>
       <div id="info-payment" style="font-size:13px;color:#B0AC9F;">Loading...</div>
-      <a href="/traveller_portal/booking_billing?ref={{ booking_ref | urlencode }}"
-         class="btn btn-p" style="text-decoration:none;display:inline-block;margin-top:14px;font-size:12px;">View Billing &amp; Payments →</a>
+      <div style="text-align:right;margin-top:10px;"><a href="/traveller_portal/booking_billing?ref={{ booking_ref | urlencode }}" class="btn btn-g btn-sm" style="text-decoration:none;display:inline-block;font-size:12px;margin-top:14px;">Manage Payments →</a></div>
     </div>
+
+    <!-- Rooming & Traveller (read-only) -->
+    <div class="card" style="margin-top:14px;">
+      <div class="sec" style="margin-bottom:inherit;">Travellers &amp; Rooming</div>
+      <div id="info-cabins" style="font-size:13px;color:#B0AC9F;">Loading...</div>
+      <div style="text-align:right;margin-top:10px;"><a href="/traveller_portal/booking_traveller?ref={{ booking_ref | urlencode }}" class="btn btn-g btn-sm" style="text-decoration:none; display:inline-block;margin-top:14px; font-size:12px;">Manage Travellers →</a></div>
+    </div>   
 
     {% endif %}
 
@@ -56,7 +56,7 @@
 </div>
 
 <script type="application/json" id="pageData">{"csrf_token": "{{ csrf_token }}"}</script>
-<script src="/assets/travel_booking/js/portal_common.js"></script>
-<script src="/assets/travel_booking/js/portal_booking_info.js"></script>
+<script src="/assets/travel_booking/js/portal_common.js?v={{ asset_v('js/portal_common.js') if asset_v is defined else '1' }}"></script>
+<script src="/assets/travel_booking/js/portal_booking_info.js?v={{ asset_v('js/portal_booking_info.js') if asset_v is defined else '1' }}"></script>
 </body>
 </html>

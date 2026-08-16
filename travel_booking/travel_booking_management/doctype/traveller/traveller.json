@@ -8,6 +8,21 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "passport_tab",
+  "identity_and_passport_section",
+  "passport_no",
+  "passport_expiry",
+  "html_tiyu",
+  "ic_number",
+  "ic_number_view",
+  "full_name",
+  "gender",
+  "date_of_birth",
+  "nationality",
+  "column_break_copa",
+  "passport_gambar",
+  "passport_image",
+  "details_tab",
   "status",
   "column_break_ghkn",
   "document_verified",
@@ -18,35 +33,24 @@
   "column_break_ftws",
   "email",
   "phone",
-  "passport_tab",
-  "identity_and_passport_section",
-  "ic_number",
-  "ic_number_view",
-  "full_name",
-  "gender",
-  "date_of_birth",
-  "passport_no",
-  "passport_expiry",
-  "nationality",
-  "column_break_copa",
-  "passport_gambar",
-  "passport_image",
+  "emergency_contact_section",
+  "column_break_bnea",
+  "emergency_contact_name",
+  "column_break_jlyv",
+  "emergency_contact_phone",
+  "column_break_crgr",
+  "emergency_contact_relationship",
   "health_tab",
   "health_and_special_needs_section",
   "wheelchair_assistant",
   "column_break_vfsb",
   "dietary_requirements",
-  "special_needs",
   "section_break_vaio",
   "medical_conditions",
   "column_break_sbym",
   "medicine_treatment",
   "others_tab",
   "contacts_section",
-  "column_break_bnea",
-  "emergency_contact_name",
-  "emergency_contact_phone",
-  "emergency_contact_relationship",
   "column_break_cbrh",
   "age",
   "age_category",
@@ -233,13 +237,12 @@
   {
    "fieldname": "column_break_bnea",
    "fieldtype": "Column Break",
-   "label": "Emergency Contact Information",
    "read_only_depends_on": "eval:doc.document_verified"
   },
   {
    "fieldname": "emergency_contact_name",
    "fieldtype": "Data",
-   "label": "Emergency Contact ",
+   "label": "Emergency Contact Name",
    "read_only_depends_on": "eval:doc.document_verified"
   },
   {
@@ -325,9 +328,27 @@
    "label": "More"
   },
   {
-   "fieldname": "special_needs",
-   "fieldtype": "Text",
-   "label": "Special Needs"
+   "fieldname": "details_tab",
+   "fieldtype": "Tab Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "html_tiyu",
+   "fieldtype": "HTML",
+   "options": "<hr/>"
+  },
+  {
+   "fieldname": "emergency_contact_section",
+   "fieldtype": "Section Break",
+   "label": "Emergency Contact"
+  },
+  {
+   "fieldname": "column_break_jlyv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_crgr",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
@@ -338,7 +359,7 @@
    "link_fieldname": "traveller"
   }
  ],
- "modified": "2026-08-09 18:33:31.409697",
+ "modified": "2026-08-16 07:08:38.327268",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Traveller",

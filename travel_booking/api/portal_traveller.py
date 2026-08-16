@@ -59,9 +59,38 @@ def _format_phone(phone):
         return phone
 
 
+def _normalize_id(value: str) -> str:
+    """Normalisasi IC / nombor passport: buang semua simbol & space,
+    uppercase — kekal [A-Z0-9] sahaja. Digunakan sebelum simpan DAN
+    sebelum matching supaya rekod lama yang mungkin ada dash/space
+    (cth "A-1234 5678") tetap padan dengan input bersih."""
+    import re
+    return re.sub(r"[^A-Z0-9]", "", (value or "").upper())
+
+
+def _find_traveller_by_normalized(fieldname: str, value: str) -> str | None:
+    """Cari Traveller ikut padanan normalized ([A-Z0-9]) pada medan ID
+    (ic_number / passport_no). Rekod lama mungkin tersimpan dengan
+    simbol, jadi perbandingan dibuat dalam Python selepas fetch —
+    bukan filter DB terus."""
+    normalized = _normalize_id(value)
+    if not normalized:
+        return None
+    for name, stored in frappe.get_all(
+        "Traveller",
+        filters={fieldname: ["like", "%_%"], "docstatus": ["<", 2]},
+        fields=["name", fieldname],
+        as_list=True,
+    ):
+        if _normalize_id(stored) == normalized:
+            return name
+    return None
+
+
 @frappe.whitelist()
 def save_booking_traveller(booking_number: str, slot_name: str,
-                            ic_number: str, first_name: str = "",
+                            section: str = "passport",
+                            ic_number: str = "", first_name: str = "",
                             last_name: str = "", full_name: str = "", gender: str = "",
                             date_of_birth: str = "", nationality: str = "",
                             passport_no: str = "", passport_expiry: str = "",
@@ -74,7 +103,18 @@ def save_booking_traveller(booking_number: str, slot_name: str,
                             dietary_requirements: str = "",
                             medical_conditions: str = "",
                             special_needs: str = "",
+                            wheelchair_assistant: str = "",
+                            medicine_treatment: str = "",
                             pdpa_consent: bool = False):
+    """Simpan maklumat traveller SECARA BERTAHAP IKUT SECTION.
+
+    section = "passport" | "contact" | "health". Hanya medan milik
+    section berkenanan dikemas kini — medan section lain tidak
+    disentuh, jadi simpan Contact tidak memadam data Passport dsb.
+    Section passport wajib didahulukan (cipta Traveller + link ke
+    Booking Reservation); contact/health perlukan traveller yang
+    sudah linked pada slot.
+    """
     frappe.flags.ignore_permissions = True
     import base64
 
@@ -82,8 +122,9 @@ def save_booking_traveller(booking_number: str, slot_name: str,
 
     # PDPA (Personal Data Protection Act 2010) — persetujuan WAJIB sebelum
     # simpan maklumat peribadi traveller (passport/IC/dokumen perjalanan).
-    # Checkbox pada form (link ke /traveller_portal/privacy); server-side
-    # check supaya panggilan API terus (bypass frontend) tak boleh langkau.
+    # Checkbox pada bar bawah form (link ke /traveller_portal/privacy);
+    # server-side check supaya panggilan API terus (bypass frontend) tak
+    # boleh langkau.
     if not pdpa_consent:
         frappe.throw(
             "Please accept the Privacy Notice to continue. "
@@ -91,44 +132,30 @@ def save_booking_traveller(booking_number: str, slot_name: str,
             "for trip arrangements."
         )
 
-    ic_number = (ic_number or "").strip()
+    if section not in ("passport", "contact", "health"):
+        frappe.throw("Invalid section.")
+
+    ic_number = _normalize_id(ic_number)
     first_name = (first_name or "").strip()
     last_name  = (last_name  or "").strip()
     nationality = (nationality or "").strip()
-    passport_no = (passport_no or "").strip()
+    passport_no = _normalize_id(passport_no)
     emergency_contact_name         = (emergency_contact_name         or "").strip()
     emergency_contact_phone        = (emergency_contact_phone        or "").strip()
     emergency_contact_relationship = (emergency_contact_relationship or "").strip()
 
-    # Validation server-side — CERMIN client-side (portal_traveller.js
-    # saveTraveller), sebab client-side sahaja boleh dipintas (contoh
-    # panggil API terus). Email/Phone/Health (dietary/medical/special
-    # needs) KEKAL opsyenal — tak divalidate di sini.
-    if not first_name:  frappe.throw("First name is required.")
-    if not last_name:   frappe.throw("Last name is required.")
-    if not ic_number:   frappe.throw("IC Number is required.")
-    if not nationality: frappe.throw("Nationality is required.")
-    if not date_of_birth: frappe.throw("Date of birth is required.")
-    if not gender:       frappe.throw("Gender is required.")
-
-    # Nombor telefon (Phone/Emergency Contact Phone) — semak minimum panjang
-    # digit SEBELUM sampai ke validation Frappe (fieldtype Phone guna library
-    # 'phonenumbers' yang check kesahihan SEBENAR nombor tiap negara, bukan
-    # sekadar format — nombor terlalu pendek akan ditolak dengan mesej generik
-    # "is not valid" yang kurang jelas). Ini bagi mesej yang lebih membantu.
+    # Nombor telefon — semak minimum panjang digit SEBELUM sampai ke
+    # validation Frappe (mesej lebih jelas daripada "is not valid"
+    # generik daripada library phonenumbers).
     import re
     if phone and len(re.sub(r"\D", "", phone)) < 7:
         frappe.throw("The phone number seems too short. Please enter the full number.")
     if emergency_contact_phone and len(re.sub(r"\D", "", emergency_contact_phone)) < 7:
         frappe.throw("The emergency contact phone number seems too short. Please enter the full number.")
-
-    if not emergency_contact_name:         frappe.throw("Emergency contact name is required.")
-    if not emergency_contact_phone:        frappe.throw("Emergency contact phone is required.")
-    if not emergency_contact_relationship: frappe.throw("Emergency contact relationship is required.")
-    if not passport_no:      frappe.throw("Passport number is required.")
-    if not passport_expiry:  frappe.throw("Passport expiry date is required.")
-    if not full_name:
-        frappe.throw("Full name is required.")
+    if not emergency_contact_name and emergency_contact_phone:
+        frappe.throw("Please fill in the emergency contact name as well.")
+    if emergency_contact_name and not emergency_contact_phone:
+        frappe.throw("Please fill in the emergency contact phone number as well.")
 
     # Verify booking milik customer
     booking = frappe.db.get_value("Booking", {"booking_number": booking_number},
@@ -138,15 +165,10 @@ def save_booking_traveller(booking_number: str, slot_name: str,
     if booking.customer != customer_name:
         frappe.throw("Access denied.", frappe.PermissionError)
 
-    # Kunci "Traveller Details di-lock sehingga Confirmed/Completed" DIBUANG —
-    # traveller details boleh diisi bila-bila masa, tak kira status booking
-    # atau payment_status (customer boleh isi maklumat traveller walaupun
-    # bayaran belum selesai).
-
     # Verify slot (Booking Reservation) milik booking ini
     slot = frappe.db.get_value(
         "Booking Reservation", slot_name,
-        ["name", "booking", "document_status"], as_dict=True
+        ["name", "booking", "document_status", "traveller"], as_dict=True
     )
     if not slot or slot.booking != booking.name:
         frappe.throw("Slot not found.")
@@ -155,75 +177,83 @@ def save_booking_traveller(booking_number: str, slot_name: str,
     if slot.document_status in LOCKED_STATUSES:
         frappe.throw("This slot has been verified by admin and cannot be edited.")
 
-    # Get or create Traveller
-    existing = frappe.db.get_value("Traveller", {"ic_number": ic_number}, "name")
+    if section == "passport":
+        # Medan asas wajib — perlu untuk cipta dokumen Traveller yang
+        # dinamakan ikut IC. full_name auto-dikira oleh controller
+        # Traveller (before_save) dari first/last name.
+        if not first_name:  frappe.throw("First name is required.")
+        if not last_name:   frappe.throw("Last name is required.")
+        if not ic_number:   frappe.throw("IC Number is required.")
 
-    if existing:
-        # Elak traveller yang SAMA di-assign ke slot LAIN dalam booking yang sama
-        # (cth IC sama termasuk secara tak sengaja untuk Traveller berbeza).
-        conflict = frappe.db.get_value(
-            "Booking Reservation",
-            {"booking": booking.name, "traveller": existing, "name": ["!=", slot_name]},
-            "name"
-        )
-        if conflict:
-            frappe.throw(
-                "This IC Number has already been used for another traveller in this booking "
-                "(" + conflict + "). Please check again \u2014 each traveller must have a different IC."
+        # Padanan normalized — rekod lama yang mungkin tersimpan dengan
+        # simbol tetap dijumpai.
+        existing = _find_traveller_by_normalized("ic_number", ic_number)
+
+        if existing:
+            # Elak traveller yang SAMA di-assign ke slot LAIN dalam booking
+            # yang sama (cth IC sama termasuk secara tak sengaja untuk
+            # Traveller berbeza).
+            conflict = frappe.db.get_value(
+                "Booking Reservation",
+                {"booking": booking.name, "traveller": existing, "name": ["!=", slot_name]},
+                "name"
             )
+            if conflict:
+                frappe.throw(
+                    "This IC Number has already been used for another traveller in this booking "
+                    "(" + conflict + "). Please check again \u2014 each traveller must have a different IC."
+                )
 
-    # Mandatory: passport copy wajib (baru upload ATAU sudah wujud) — TERMASUK
-    # infant, sebab pasport tetap diperlukan untuk perjalanan antarabangsa.
-    # Visa Photo TAK wajib — admin akan semak & sahkan manual ikut keperluan
-    # sebenar (contoh infant biasanya tak perlu visa photo formal).
-    existing_passport = frappe.db.get_value("Traveller", existing, "passport_image") if existing else None
-    if not filedata and not existing_passport:
-        frappe.throw("Passport copy is required.")
-
-    if existing:
-        # doc.save() (BUKAN db.set_value()) — supaya controller Traveller
-        # punya before_save() jalan (auto-kira full_name, age, age_category
-        # dari date_of_birth; auto-detect title/gender dari nama Melayu).
-        # db.set_value() terus SQL, bypass document lifecycle sepenuhnya.
-        tvl = frappe.get_doc("Traveller", existing)
-        tvl.first_name      = first_name
-        tvl.last_name       = last_name
-        tvl.nationality     = nationality
-        tvl.passport_no     = passport_no
-        tvl.passport_expiry = passport_expiry or None
-        tvl.date_of_birth   = date_of_birth   or None
-        tvl.email           = email
-        tvl.phone           = _format_phone(phone)
-        tvl.emergency_contact_name         = emergency_contact_name
-        tvl.emergency_contact_phone        = _format_phone(emergency_contact_phone)
-        tvl.emergency_contact_relationship = emergency_contact_relationship
-        tvl.dietary_requirements = dietary_requirements
-        tvl.medical_conditions   = medical_conditions
-        tvl.special_needs        = special_needs
-        if gender:
-            tvl.gender = gender
-        tvl.save(ignore_permissions=True)
-        traveller_name = existing
+        if existing:
+            # doc.save() (BUKAN db.set_value()) — supaya controller Traveller
+            # punya before_save() jalan (auto-kira full_name, age, age_category
+            # dari date_of_birth; auto-detect title/gender dari nama Melayu).
+            tvl = frappe.get_doc("Traveller", existing)
+            tvl.first_name      = first_name
+            tvl.last_name       = last_name
+            tvl.nationality     = nationality
+            tvl.ic_number       = ic_number
+            tvl.passport_no     = passport_no
+            tvl.passport_expiry = passport_expiry or None
+            tvl.date_of_birth   = date_of_birth   or None
+            if gender:
+                tvl.gender = gender
+            tvl.save(ignore_permissions=True)
+            traveller_name = existing
+        else:
+            tvl = frappe.new_doc("Traveller")
+            tvl.first_name      = first_name
+            tvl.last_name       = last_name
+            tvl.gender          = gender
+            tvl.ic_number       = ic_number
+            tvl.date_of_birth   = date_of_birth   or None
+            tvl.nationality     = nationality
+            tvl.passport_no     = passport_no
+            tvl.passport_expiry = passport_expiry or None
+            tvl.insert(ignore_permissions=True, ignore_mandatory=True)
+            traveller_name = tvl.name
     else:
-        tvl = frappe.new_doc("Traveller")
-        tvl.first_name      = first_name
-        tvl.last_name       = last_name
-        tvl.gender          = gender
-        tvl.ic_number       = ic_number
-        tvl.date_of_birth   = date_of_birth   or None
-        tvl.nationality     = nationality
-        tvl.passport_no     = passport_no
-        tvl.passport_expiry = passport_expiry or None
-        tvl.email           = email
-        tvl.phone           = _format_phone(phone)
-        tvl.emergency_contact_name         = emergency_contact_name
-        tvl.emergency_contact_phone        = _format_phone(emergency_contact_phone)
-        tvl.emergency_contact_relationship = emergency_contact_relationship
-        tvl.dietary_requirements = dietary_requirements
-        tvl.medical_conditions   = medical_conditions
-        tvl.special_needs        = special_needs
-        tvl.insert(ignore_permissions=True, ignore_mandatory=True)
-        traveller_name = tvl.name
+        # contact / health — traveller mesti sudah wujud & linked pada slot
+        # (dicipta oleh save section passport).
+        if not slot.traveller:
+            frappe.throw(
+                "Please complete and save the Passport section first."
+            )
+        traveller_name = slot.traveller
+        tvl = frappe.get_doc("Traveller", traveller_name)
+        if section == "contact":
+            tvl.email           = email
+            tvl.phone           = _format_phone(phone)
+            tvl.emergency_contact_name         = emergency_contact_name
+            tvl.emergency_contact_phone        = _format_phone(emergency_contact_phone)
+            tvl.emergency_contact_relationship = emergency_contact_relationship
+        else:  # health
+            tvl.dietary_requirements = dietary_requirements
+            tvl.medical_conditions   = medical_conditions
+            tvl.special_needs        = special_needs
+            tvl.wheelchair_assistant = wheelchair_assistant
+            tvl.medicine_treatment  = medicine_treatment
+        tvl.save(ignore_permissions=True)
 
     # PDPA — rekod persetujuan (audit trail) SEKALI sahaja per Traveller.
     # Disimpan sebagai Comment (doctype core Frappe — TIADA perubahan schema
@@ -247,19 +277,18 @@ def save_booking_traveller(booking_number: str, slot_name: str,
             ),
         }).insert(ignore_permissions=True)
 
-    # Link Traveller ke Booking Reservation. NOTA: full_name pada Booking
-    # Reservation adalah fetch_from (traveller.full_name) — auto-terisi bila
-    # doc di-save() penuh (bukan db.set_value()). passport_no/passport_expiry/
-    # nationality LANGSUNG TAK WUJUD pada Booking Reservation — semua
-    # maklumat tu disimpan pada Traveller sahaja (di atas), jadi kita cuma
-    # perlu set 'traveller' + 'document_status' di sini.
+    # Link Traveller ke Booking Reservation (idempotent — selamat untuk
+    # semua section). NOTA: full_name pada Booking Reservation adalah
+    # fetch_from (traveller.full_name) — auto-terisi bila doc di-save()
+    # penuh (bukan db.set_value()).
     res_doc = frappe.get_doc("Booking Reservation", slot_name)
     res_doc.traveller       = traveller_name
     res_doc.document_status = "Pending"
     res_doc.save(ignore_permissions=True)
 
-    # Upload passport — simpan dalam Traveller.passport_image
-    if filedata and filename:
+    # Upload passport — hanya untuk section passport, simpan dalam
+    # Traveller.passport_image
+    if section == "passport" and filedata and filename:
         if "," in filedata:
             filedata = filedata.split(",")[1]
         file_content = base64.b64decode(filedata)
@@ -276,8 +305,9 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         file_doc.insert(ignore_permissions=True)
         frappe.db.set_value("Traveller", traveller_name, "passport_image", file_doc.file_url)
 
-    # Upload visa photo — simpan dalam Traveller.visa_photo
-    if visa_filedata and visa_filename:
+    # Upload visa photo — hanya untuk section contact, simpan dalam
+    # Traveller.visa_photo
+    if section == "contact" and visa_filedata and visa_filename:
         if "," in visa_filedata:
             visa_filedata = visa_filedata.split(",")[1]
         visa_file_content = base64.b64decode(visa_filedata)
@@ -304,12 +334,400 @@ def save_booking_traveller(booking_number: str, slot_name: str,
 
     return {
         "status":       "ok",
+        "section":      section,
         "slot_name":    slot_name,
         "traveller_id": traveller_name,
         "doc_status":   "Pending",
         "all_filled":   filled_count >= total_slots and total_slots > 0,
         "message":      "Traveller information saved successfully."
     }
+
+
+def _traveller_payload(traveller, ic_fallback: str = "") -> dict:
+    """Medan Traveller yang dihantar balik ke form portal (dipakai oleh
+    wizard_lookup DAN check_traveller_passport — kekal satu senarai)."""
+    return {
+        "ic_number":       traveller.get("ic_number") or ic_fallback,
+        "full_name":       traveller.get("full_name")      or "",
+        "first_name":      traveller.get("first_name")     or "",
+        "last_name":       traveller.get("last_name")      or "",
+        "gender":          traveller.get("gender")         or "",
+        "date_of_birth":   str(traveller.get("date_of_birth")) if traveller.get("date_of_birth") else "",
+        "nationality":     traveller.get("nationality")    or "",
+        "phone":           traveller.get("phone")          or "",
+        "email":           traveller.get("email")          or "",
+        "passport_no":     traveller.get("passport_no")    or "",
+        "passport_expiry": str(traveller.get("passport_expiry")) if traveller.get("passport_expiry") else "",
+        "emergency_contact_name":         traveller.get("emergency_contact_name")         or "",
+        "emergency_contact_phone":        traveller.get("emergency_contact_phone")        or "",
+        "emergency_contact_relationship": traveller.get("emergency_contact_relationship") or "",
+        "dietary_requirements":   traveller.get("dietary_requirements")   or "",
+        "medical_conditions":     traveller.get("medical_conditions")     or "",
+        "special_needs":          traveller.get("special_needs")          or "",
+        "wheelchair_assistant":   traveller.get("wheelchair_assistant")   or "",
+        "medicine_treatment":     traveller.get("medicine_treatment")     or "",
+    }
+
+
+# ══════════════════════════════════════════════
+# PASSPORT IMAGE MATCH (Langkah 1 wizard — upload dulu)
+# ══════════════════════════════════════════════
+
+def _dhash(image_content: bytes):
+    """Perceptual hash (difference hash, 64-bit) bagi imej passport.
+
+    Guna Pillow (sudah menjadi dependency Frappe). Imej di-resize ke
+    9x8 grayscale; bit hash = perbandingan piksel jiran. Padanan
+    hamming distance yang kecil = imej hampir sama walaupun scan
+    berbeza resolusi/ketagangan ringan.
+    """
+    import io
+    from PIL import Image
+
+    img = Image.open(io.BytesIO(image_content)).convert("L").resize((9, 8))
+    pixels = list(img.getdata())
+    bits = 0
+    for row in range(8):
+        for col in range(8):
+            left = pixels[row * 9 + col]
+            right = pixels[row * 9 + col + 1]
+            bits = (bits << 1) | (1 if left > right else 0)
+    return bits
+
+
+def _hamming_distance(a: int, b: int) -> int:
+    return bin(a ^ b).count("1")
+
+
+def _mrz_date(yy: str, mm: str, dd: str, future: bool = False) -> str:
+    """YYMMDD MRZ → YYYY-MM-DD.
+
+    future=True untuk tarikh LUPUT (sentiasa hadapan ±10 tahun): kalau tahun
+    terhasil sudah lepas, tambah 100 (cth '30' pada 2026 → 2030, bukan 1930).
+    future=False untuk tarikh lahir (sentiasa lampau).
+    """
+    import datetime
+
+    if not (yy.isdigit() and mm.isdigit() and dd.isdigit()):
+        return ""
+    yyyy = 2000 + int(yy)
+    if not future and yyyy > datetime.date.today().year:
+        yyyy -= 100
+    if future and yyyy < datetime.date.today().year:
+        yyyy += 100
+    return f"{yyyy}-{mm}-{dd}"
+
+
+def _parse_mrz_line(name_part: str) -> tuple:
+    """'SURNAME<<GIVEN<NAMES' → (first_name, last_name) title-case.
+
+    Dua penanganan khas untuk misread OCR biasa pada MRZ:
+    1. Filler '<' kerap salah dibaca sebagai huruf berulang ('CCC',
+       'XX', 'KK') — cth 'P<MYS<<MUHAMAD...' terbaca 'CCC<MUHAMAD...'.
+       Token yang HANYA satu huruf berulang tak wujud dalam nama betul,
+       jadi ia dibuang.
+    2. Passport Malaysia tiada surname — nama penuh berada dalam satu
+       medan (tiada pemisah '<<'). Kalau tiada BIN/BINTI pemisah jelas,
+       pecahkan ikut penanda Melayu: sebelum BIN/BINTI → first_name,
+       'Bin/Binti ...' → last_name (selari placeholder form
+       'Ahmad' / 'bin Razali').
+    """
+    import re
+
+    def _clean(s: str) -> str:
+        return " ".join(t for t in s.replace("<", " ").split()
+                        if not re.fullmatch(r"(.)\1+", t))
+
+    parts = name_part.split("<<", 1)
+    last_name  = _clean(parts[0])
+    first_name = _clean(parts[1]) if len(parts) > 1 else ""
+
+    if len(parts) == 1 or not last_name or not first_name:
+        # Satu medan nama sahaja — gabungkan dahulu, baru pecahkan.
+        whole = " ".join(x for x in (first_name, last_name) if x)
+        m = re.search(r"\b(BIN|BINTI|BTE)\b", whole, flags=re.IGNORECASE)
+        if m:
+            first_name, last_name = whole[:m.start()].strip(), whole[m.start():].strip()
+        else:
+            first_name, last_name = whole, ""
+    return first_name.title(), last_name.title()
+
+
+# Nationality MRZ (alpha-3 ICAO) → nama Country Frappe. Cover negara
+# yang kerap muncul pada passport pelanggan tempatan/serantau + major
+# dunia; yang tiada di sini jatuh kepada fallback DB (paduan 2 huruf
+# pertama alpha-3 dengan Country.code alpha-2).
+_MRZ_ALPHA3_TO_COUNTRY = {
+    "MYS": "Malaysia", "SGP": "Singapore", "IDN": "Indonesia",
+    "THA": "Thailand", "BRN": "Brunei", "KHM": "Cambodia",
+    "VNM": "Vietnam", "PHL": "Philippines", "MMR": "Myanmar",
+    "LAO": "Laos", "CHN": "China", "HKG": "Hong Kong", "MAC": "Macau",
+    "TWN": "Taiwan", "JPN": "Japan", "KOR": "South Korea",
+    "IND": "India", "PAK": "Pakistan", "BGD": "Bangladesh",
+    "LKA": "Sri Lanka", "NPL": "Nepal", "SAU": "Saudi Arabia",
+    "ARE": "United Arab Emirates", "OMN": "Oman", "QAT": "Qatar",
+    "KWT": "Kuwait", "BHR": "Bahrain", "EGY": "Egypt", "JOR": "Jordan",
+    "TUR": "Turkey", "IRN": "Iran", "IRQ": "Iraq", "SYR": "Syria",
+    "LBN": "Lebanon", "YEM": "Yemen", "GBR": "United Kingdom",
+    "USA": "United States", "AUS": "Australia", "NZL": "New Zealand",
+    "CAN": "Canada", "FRA": "France", "DEU": "Germany", "ITA": "Italy",
+    "ESP": "Spain", "PRT": "Portugal", "NLD": "Netherlands",
+    "BEL": "Belgium", "CHE": "Switzerland", "AUT": "Austria",
+    "SWE": "Sweden", "NOR": "Norway", "DNK": "Denmark", "FIN": "Finland",
+    "ISL": "Iceland", "IRL": "Ireland", "RUS": "Russia", "UKR": "Ukraine",
+    "KAZ": "Kazakhstan", "UZB": "Uzbekistan", "ZAF": "South Africa",
+    "MAR": "Morocco", "TUN": "Tunisia", "DZA": "Algeria", "NGA": "Nigeria",
+    "KEN": "Kenya", "ETH": "Ethiopia", "GHA": "Ghana",
+}
+
+
+def _country_from_mrz(alpha3: str) -> str:
+    """MRZ nationality (alpha-3, cth 'MYS') → nama Country Frappe.
+    Fallback DB: padan 2 huruf pertama dengan Country.code (alpha-2)."""
+    alpha3 = (alpha3 or "").strip("< ").upper()
+    if len(alpha3) != 3:
+        return ""
+    if alpha3 in _MRZ_ALPHA3_TO_COUNTRY:
+        return _MRZ_ALPHA3_TO_COUNTRY[alpha3]
+    for variant in (alpha3[:2].upper(), alpha3[:2].lower()):
+        name = frappe.db.get_value("Country", {"code": variant}, "name")
+        if name:
+            return name
+    return ""
+
+
+def _extract_mrz(text: str) -> dict:
+    """Cari & parse blok MRZ (TD3 passport 44-char / TD1 30-char) dari teks OCR.
+
+    MRZ lebih dipercayai daripada OCR visual biasa sebab fon OCR-B standard
+    antarabangsa + format kedudukan tetap. Nombor IC Malaysia TIADA dalam MRZ
+    passport — IC di cari berasingan daripada teks OCR (lih. _ocr_passport).
+    """
+    import re
+
+    extracted = {}
+    # Baris MRZ: sekurang-kurangnya 2 '<' dan 25+ char alfanumerik/<.
+    lines = [re.sub(r"[^A-Z0-9<]", "", ln.strip().upper())
+             for ln in text.upper().splitlines()]
+    lines = [ln for ln in lines if ln.count("<") >= 2 and len(ln) >= 25]
+
+    for i, ln in enumerate(lines):
+        # TD3 (passport biasa): 2 baris x 44 char
+        if 40 <= len(ln) <= 44 and ln.startswith("P<") and i + 1 < len(lines):
+            l2 = lines[i + 1]
+            if len(l2) < 20:
+                continue
+            first_name, last_name = _parse_mrz_line(ln[5:])
+            extracted.update({
+                "first_name":       first_name,
+                "last_name":        last_name,
+                "full_name":        (first_name + " " + last_name).strip(),
+                "passport_no":      l2[0:9].replace("<", "").strip(),
+                "date_of_birth":    _mrz_date(l2[13:15], l2[15:17], l2[17:19]),
+                "gender":           {"M": "Male", "F": "Female"}.get(l2[20:21], ""),
+                "passport_expiry":  _mrz_date(l2[21:23], l2[23:25], l2[25:27], future=True),
+                "nationality_code": ln[2:5],
+            })
+            break
+        # TD1 (kad passport sesetengah negara): 3 baris x 30 char
+        if 27 <= len(ln) <= 30 and i + 2 < len(lines) and ln[:1] in ("I", "A", "C"):
+            l2, l3 = lines[i + 1], lines[i + 2]
+            if len(l2) < 15:
+                continue
+            first_name, last_name = _parse_mrz_line(l3)
+            extracted.update({
+                "first_name":       first_name,
+                "last_name":        last_name,
+                "full_name":        (first_name + " " + last_name).strip(),
+                "passport_no":      ln[5:12].replace("<", "").strip() if len(ln) >= 12 else "",
+                "date_of_birth":    _mrz_date(l2[0:2], l2[2:4], l2[4:6]),
+                "gender":           {"M": "Male", "F": "Female"}.get(l2[7:8], ""),
+                "passport_expiry":  _mrz_date(l2[8:10], l2[10:12], l2[12:14], future=True),
+                "nationality_code": ln[2:5],
+            })
+            break
+    return extracted
+
+
+def _ocr_passport(content: bytes) -> dict:
+    """OCR gambar passport guna tesseract (binary sistem, bahasa 'eng').
+
+    Strategi berlapis untuk tangkap blok MRZ (bahagian bawah passport):
+    1. Imej penuh (grayscale + upscale) dengan beberapa mod segmentasi.
+    2. Crop 35% bahagian BAWAH imej (MRZ sentiasa di situ) dengan char
+       whitelist MRZ (A-Z 0-9 <) — ini teknik standard utk tesseract;
+       whitelist sahaja selalu bezanya antara jumpa / tak jumpa MRZ.
+    Beri pulang medan yang berjaya diekstrak sahaja — yang gagal dibiarkan
+    kosong untuk customer isi sendiri. Timeout 30s per pass.
+    """
+    import io
+    import os
+    import re
+    import subprocess
+    import tempfile
+
+    from PIL import Image, ImageOps
+
+    MRZ_CFG = ["-c", "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<"]
+
+    extracted = {}
+    full_text = ""
+    try:
+        img = Image.open(io.BytesIO(content))
+        if img.width < 1200:
+            ratio = 1200 / img.width
+            img = img.resize((1200, max(1, int(img.height * ratio))))
+        gray = ImageOps.grayscale(img)
+
+        # Crop bawah 35% — lokasi standard blok MRZ.
+        bottom = gray.crop((0, int(gray.height * 0.65), gray.width, gray.height))
+
+        with tempfile.TemporaryDirectory() as td:
+            full_path = os.path.join(td, "full.png")
+            mrz_path = os.path.join(td, "mrz.png")
+            gray.save(full_path)
+            bottom.save(mrz_path)
+
+            passes = [
+                # (fail, psm, tambahan config)
+                (mrz_path, "6",  MRZ_CFG),   # crop MRZ + whitelist — paling tinggi hit rate
+                (mrz_path, "11", MRZ_CFG),
+                (mrz_path, "4",  MRZ_CFG),
+                (full_path, "6",  []),
+                (full_path, "4",  []),
+                (full_path, "11", []),
+            ]
+            for path, psm, cfg in passes:
+                try:
+                    proc = subprocess.run(
+                        ["tesseract", path, "stdout", "-l", "eng", "--psm", psm] + cfg,
+                        capture_output=True, timeout=30,
+                    )
+                except Exception:
+                    continue
+                text = proc.stdout.decode("utf-8", "ignore")
+                full_text += "\n" + text
+                if not extracted.get("passport_no"):
+                    extracted = _extract_mrz(text) or extracted
+
+        if not extracted:
+            extracted = _extract_mrz(full_text)
+
+        # IC Malaysia (NRIC 12 digit) — dicari dalam keseluruhan teks OCR
+        # (MRZ passport TIDAK mengandungi IC).
+        m = re.search(r"\b(\d{6}[-\s]?\d{2}[-\s]?\d{4})\b", full_text)
+        if m:
+            extracted["ic_number"] = re.sub(r"\D", "", m.group(1))
+    except Exception:
+        frappe.log_error(title="Passport OCR failed",
+                         message=frappe.get_traceback())
+
+    return extracted
+
+
+@frappe.whitelist()
+def check_traveller_passport(filedata: str):
+    """Langkah 1 wizard: customer muat naik gambar passport DULU.
+
+    Server bandingkan imej dengan passport_image Traveller sedia ada
+    (exact sha256 + perceptual dhash). Kalau jumpa padanan → return
+    status "found" + maklumat penuh traveller untuk prefill form
+    (return customer). Kalau tak → status "new".
+
+    Nota: tidak persist apa-apa — upload sebenar tetap berlaku masa
+    save_booking_traveller. Imj dihantar sebagai base64 data URL.
+    """
+    _get_customer()
+
+    if not filedata:
+        frappe.throw("Passport image is required.")
+
+    import base64
+    import hashlib
+
+    if "," in filedata:
+        filedata = filedata.split(",", 1)[1]
+    try:
+        content = base64.b64decode(filedata)
+    except Exception:
+        frappe.throw("Invalid image data.")
+
+    try:
+        upload_hash = _dhash(content)
+    except Exception:
+        frappe.throw("The file could not be read as an image. Please upload a JPG or PNG.")
+
+    exact_hash = hashlib.sha256(content).hexdigest()
+
+    # OCR/MRZ — ekstrak nama, nombor passport, DOB, gender, (IC jika jumpa)
+    # daripada imej. Semua ID dinormalisasi ke [A-Z0-9] sebelum matching.
+    # Padanan #1: nombor passport. #2: IC number. #3 (fallback terakhir):
+    # padanan imej (sha256 exact / dhash perceptual) untuk rekod lama yang
+    # ID-nya tidak dapat dibaca daripada passport.
+    extracted = _ocr_passport(content)
+
+    # Nationality MRZ (alpha-3) → nama Country Frappe supaya select
+    # Nationality pada form boleh di-set terus.
+    nat_code = (extracted.pop("nationality_code", "") or "").strip("< ")
+    if nat_code:
+        country = _country_from_mrz(nat_code)
+        if country:
+            extracted["nationality"] = country
+
+    _MATCH_FIELDS = ["name", "ic_number", "full_name", "first_name", "last_name", "gender",
+                     "date_of_birth", "nationality", "phone", "email",
+                     "passport_no", "passport_expiry",
+                     "emergency_contact_name", "emergency_contact_phone",
+                     "emergency_contact_relationship", "dietary_requirements",
+                     "medical_conditions", "special_needs",
+                     "wheelchair_assistant", "medicine_treatment", "passport_image"]
+
+    for match_field, match_value in (
+        ("passport_no", _normalize_id(extracted.get("passport_no") or "")),
+        ("ic_number",  _normalize_id(extracted.get("ic_number") or "")),
+    ):
+        if not match_value:
+            continue
+        traveller_name = _find_traveller_by_normalized(match_field, match_value)
+        if traveller_name:
+            tvl = frappe.get_doc("Traveller", traveller_name)
+            return {"status": "found", "data": _traveller_payload(tvl), "extracted": extracted}
+
+    travellers = frappe.get_all(
+        "Traveller",
+        filters={"passport_image": ["like", "/files/%"], "docstatus": ["<", 2]},
+        fields=_MATCH_FIELDS,
+    )
+
+    for tvl in travellers:
+        file_url = tvl.passport_image
+        try:
+            file_doc = frappe.get_doc("File", {"file_url": file_url})
+            existing_content = file_doc.get_content()
+        except Exception:
+            continue
+
+        matched = False
+        if hashlib.sha256(existing_content).hexdigest() == exact_hash:
+            matched = True
+        else:
+            try:
+                if _hamming_distance(upload_hash, _dhash(existing_content)) <= 12:
+                    matched = True
+            except Exception:
+                continue
+
+        if matched:
+            return {"status": "found", "data": _traveller_payload(tvl), "extracted": extracted}
+
+    # Tiada padanan rekod DAN OCR gagal baca apa-apa medan utama → imej
+    # berkemungkinan bukan halaman foto passport / terlalu kabur. Minta
+    # customer upload semula (frontend tunjuk mesej, kekal di Langkah 1).
+    if not any(extracted.get(k) for k in
+               ("passport_no", "ic_number", "first_name", "full_name")):
+        return {"status": "unreadable", "extracted": extracted}
+
+    return {"status": "new", "extracted": extracted}
 
 
 # ══════════════════════════════════════════════
@@ -335,7 +753,8 @@ def wizard_lookup(ic_number: str, passport_no: str, full_name: str):
          "date_of_birth", "nationality", "phone", "email",
          "passport_no", "passport_expiry",
          "emergency_contact_name", "emergency_contact_phone", "emergency_contact_relationship",
-         "dietary_requirements", "medical_conditions", "special_needs"],
+         "dietary_requirements", "medical_conditions", "special_needs",
+         "wheelchair_assistant", "medicine_treatment"],
         as_dict=True
     )
 
@@ -400,25 +819,7 @@ def wizard_lookup(ic_number: str, passport_no: str, full_name: str):
 
     return {
         "status": status,
-        "data": {
-            "ic_number":       traveller.get("ic_number") or ic_number,
-            "full_name":       traveller.full_name      or "",
-            "first_name":      traveller.first_name     or "",
-            "last_name":       traveller.last_name      or "",
-            "gender":          traveller.gender         or "",
-            "date_of_birth":   str(traveller.date_of_birth) if traveller.date_of_birth else "",
-            "nationality":     traveller.nationality    or "",
-            "phone":           traveller.phone          or "",
-            "email":           traveller.email          or "",
-            "passport_no":     traveller.passport_no    or "",
-            "passport_expiry": str(traveller.passport_expiry) if traveller.passport_expiry else "",
-            "emergency_contact_name":         traveller.emergency_contact_name         or "",
-            "emergency_contact_phone":        traveller.emergency_contact_phone        or "",
-            "emergency_contact_relationship": traveller.emergency_contact_relationship or "",
-            "dietary_requirements": traveller.dietary_requirements or "",
-            "medical_conditions":   traveller.medical_conditions   or "",
-            "special_needs":        traveller.special_needs        or "",
-        }
+        "data": _traveller_payload(traveller, ic_fallback=ic_number),
     }
 
 
@@ -450,6 +851,90 @@ def request_document_update(slot_name: str):
     frappe.db.commit()
 
     return {"status": "ok"}
+
+
+@frappe.whitelist()
+def confirm_traveller_documents(booking_number: str, slot_name: str):
+    """Butang pengesahan akhir (bar bawah form docs): customer sahkan
+    semua maklumat traveller sudah lengkap. Validasi kelengkapan
+    setiap section; set slot & Traveller kepada "Pending" (sedia
+    disemak admin) + Comment audit."""
+    frappe.flags.ignore_permissions = True
+    customer = _get_customer()
+
+    booking = frappe.db.get_value("Booking", {"booking_number": booking_number},
+                                  ["name", "customer"], as_dict=True)
+    if not booking:
+        frappe.throw("Booking not found.")
+    if booking.customer != customer:
+        frappe.throw("Access denied.", frappe.PermissionError)
+
+    slot = frappe.db.get_value(
+        "Booking Reservation", slot_name,
+        ["name", "booking", "document_status", "traveller"], as_dict=True
+    )
+    if not slot or slot.booking != booking.name:
+        frappe.throw("Slot not found.")
+    if slot.document_status == "Verified":
+        frappe.throw("This slot has been verified by admin and cannot be edited.")
+    if not slot.traveller:
+        frappe.throw(
+            "Please complete and save the Passport section first."
+        )
+
+    tvl = frappe.get_doc("Traveller", slot.traveller)
+
+    # Kelengkapan — cermin 3 section form.
+    missing = []
+    if not (tvl.first_name and tvl.last_name):
+        missing.append("First & last name (Passport section)")
+    if not _normalize_id(tvl.ic_number):
+        missing.append("IC number (Passport section)")
+    if not _normalize_id(tvl.passport_no):
+        missing.append("Passport number (Passport section)")
+    if not tvl.passport_expiry:
+        missing.append("Passport expiry (Passport section)")
+    if not tvl.passport_image:
+        missing.append("Passport copy upload (Passport section)")
+    if not tvl.phone:
+        missing.append("Phone number (Contact Info section)")
+    if not (tvl.emergency_contact_name and tvl.emergency_contact_phone):
+        missing.append("Emergency contact (Contact Info section)")
+    if missing:
+        frappe.throw(
+            "Some details are still incomplete:\n\u2022 " + "\n\u2022 ".join(missing)
+        )
+
+    tvl.status = "Pending"
+    tvl.save(ignore_permissions=True)
+
+    frappe.db.set_value("Booking Reservation", slot_name, "document_status", "Pending")
+
+    frappe.get_doc({
+        "doctype":           "Comment",
+        "comment_type":      "Info",
+        "reference_doctype": "Traveller",
+        "reference_name":    tvl.name,
+        "content": (
+            "Documents confirmed complete by customer via portal — "
+            + frappe.utils.now() + " by " + frappe.session.user
+        ),
+    }).insert(ignore_permissions=True)
+
+    frappe.db.commit()
+
+    total_slots  = frappe.db.count("Booking Reservation", {"booking": booking.name})
+    filled_count = frappe.db.count("Booking Reservation", {
+        "booking":   booking.name,
+        "traveller": ["!=", ""]
+    })
+
+    return {
+        "status":     "ok",
+        "slot_name":  slot_name,
+        "doc_status": "Pending",
+        "all_filled": filled_count >= total_slots and total_slots > 0,
+    }
 
 
 @frappe.whitelist()

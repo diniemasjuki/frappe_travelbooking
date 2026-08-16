@@ -174,8 +174,8 @@ if ('serviceWorker' in navigator) {
 
 <!-- Page data dari Frappe — elak Jinja syntax dalam JS -->
 <script id="pageData" type="application/json">
-{"pr_name": {{ pr_name_json }}, "source": {{ source_json }}, "ref": {{ ref_json }}}
+{"pr_name": {{ pr_name_json }}, "source": {{ source_json }}, "ref": {{ ref_json }}, "ret": {{ ret_json }}}
 </script>
-<script src="/assets/travel_booking/js/checkout.js"></script>
+<script src="/assets/travel_booking/js/checkout.js?v={{ asset_v('js/checkout.js') if asset_v is defined else '1' }}"></script>
 {% endif %}
 {% endblock %}

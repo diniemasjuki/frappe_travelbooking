@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
-<link rel="stylesheet" href="/assets/travel_booking/css/booking.css">
+<link rel="stylesheet" href="/assets/travel_booking/css/booking.css?v={{ asset_v('css/booking.css') if asset_v is defined else '1' }}">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/css/intlTelInput.min.css"/>
 </head>
 <body>
@@ -470,7 +470,7 @@ if ('serviceWorker' in navigator) {
      booking diteruskan dengan nombor telefon customer yang tak sah. -->
 <script src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1.11.20/bundle/libphonenumber-max.js"></script>
 
-<script src="/assets/travel_booking/js/booking.js"></script>
+<script src="/assets/travel_booking/js/booking.js?v={{ asset_v('js/booking.js') if asset_v is defined else '1' }}"></script>
 
 </body>
 </html>

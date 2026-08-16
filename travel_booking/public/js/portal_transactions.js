@@ -128,8 +128,9 @@ function renderTxnList(orders) {
     (so.payments || []).forEach(p => {
       txns.push({
         type: 'payment',
+        channel: p.channel || '',
         sortDate: p.payment_date || '',
-        title: _esc((p.mode_of_payment || 'Payment') + (p.status === 'Pending' ? ' (pending review)' : '')),
+        title: _esc((p.channel_label || p.mode_of_payment || 'Payment') + (p.status === 'Pending' ? ' (pending review)' : '')),
         subtitle: bookingLabel + ' · ' + soName,
         amount: parseFloat(p.paid_amount || 0),
         symbol: soSymbol,
@@ -170,13 +171,15 @@ function renderTxnList(orders) {
 
   txns.sort((a, b) => (b.sortDate || '').localeCompare(a.sortDate || ''));
 
-  const paymentIcon = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="1" y="4" width="14" height="10" rx="2" stroke="#0F6E56" stroke-width="1.2"/><path d="M1 7h14" stroke="#0F6E56" stroke-width="1.2"/><rect x="3" y="9.5" width="4" height="1.5" rx="0.5" fill="#0F6E56"/></svg>';
+  // Ikon bayaran berbeza ikut saluran: kad (online/gateway) vs bank (manual).
+  const cardIcon = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="1" y="4" width="14" height="10" rx="2" stroke="#0F6E56" stroke-width="1.2"/><path d="M1 7h14" stroke="#0F6E56" stroke-width="1.2"/><rect x="3" y="9.5" width="4" height="1.5" rx="0.5" fill="#0F6E56"/></svg>';
+  const bankIcon = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 6.5L8 2.5l5.5 4" stroke="#0F6E56" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round"/><path d="M3.5 7v5.5M8 7v5.5M12.5 7v5.5" stroke="#0F6E56" stroke-width="1.2"/><path d="M2 12.5h12" stroke="#0F6E56" stroke-width="1.2" stroke-linecap="round"/></svg>';
   const invoiceIcon = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 2h7l3 3v9H3V2z" stroke="#185FA5" stroke-width="1.2" stroke-linejoin="round"/><path d="M10 2v3h3" stroke="#185FA5" stroke-width="1.2" stroke-linejoin="round"/><path d="M5 8h6M5 10.5h4" stroke="#185FA5" stroke-width="1.2" stroke-linecap="round"/></svg>';
 
   container.innerHTML = txns.map(t => {
     const isPayment = t.type === 'payment';
     const iconBg = isPayment ? '#E1F5EE' : '#E6F1FB';
-    const icon = isPayment ? paymentIcon : invoiceIcon;
+    const icon = isPayment ? (t.channel === 'manual' ? bankIcon : cardIcon) : invoiceIcon;
     const amountColor = isPayment && t.statusLabel === 'Verified' ? '#0F6E56' : '#1E1C18';
     const actionBtn = t.onClick
       ? '<button onclick="downloadDocument(this,\'' + t.onClick.dt + '\',\'' + t.onClick.dn + '\')" style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:6px;border:1px solid #D3D1C7;background:transparent;color:#5C5850;cursor:pointer;">' + t.actionLabel + '</button>'

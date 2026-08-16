@@ -18,12 +18,25 @@ let BOOKING      = '';     // booking_number dari URL
 let _passportFile = null;
 let _visaPhotoFile = null;
 
-/* ── View switching dalam page ni (slots / wizard / form) ── */
+/* ── Navigasi antara 2 page: senarai slot (booking_traveller) dan
+   aliran dokumen (booking_traveller/docs?ref=..&slot=..) ── */
+function tvlDocsUrl(slotName) {
+  return '/traveller_portal/booking_traveller/docs?ref=' + encodeURIComponent(BOOKING) +
+         '&slot=' + encodeURIComponent(slotName);
+}
+
+function tvlBackToList() {
+  window.location.href = '/traveller_portal/booking_traveller?ref=' + encodeURIComponent(BOOKING);
+}
+
+/* ── View switching dalam page docs (wizard / form) ── */
 function showTravellerView(id) {
-  ['V-slots', 'V-wizard', 'V-form'].forEach(function (v) {
+  ['V-wizard', 'V-form'].forEach(function (v) {
     const el = document.getElementById(v);
     if (el) el.style.display = (v === id) ? '' : 'none';
   });
+  const loading = document.getElementById('tvl-docs-loading');
+  if (loading) loading.style.display = 'none';
   window.scrollTo(0, 0);
 }
 
@@ -208,13 +221,9 @@ function openTravellerForm(slotName) {
   _passportFile = null;
   _visaPhotoFile = null;
 
-  if (!slot.filled) {
-    _resetWizard();
-    showTravellerView('V-wizard');
-    return;
-  }
-
-  _loadTravellerForm(slot);
+  // Pergi ke page docs — Langkah 1 (upload passport) bila slot kosong,
+  // terus borang bila slot sudah terisi (edit semula).
+  window.location.href = tvlDocsUrl(slot.slot_name);
 }
 
 async function requestDocumentUpdate(slotName) {
@@ -233,82 +242,131 @@ async function requestDocumentUpdate(slotName) {
 }
 
 /* ══════════════════════════════════════════════
-   WIZARD LOOKUP (port dari portal_wizard.js)
+   WIZARD — LANGKAH 1: UPLOAD PASSPORT DULU
+   (aliran baharu: gambar passport → check return
+   customer → prefill / form kosong)
    ══════════════════════════════════════════════ */
 
-let _wizardResult = null;
+let _wizardResult   = null;   // data traveller dari check_traveller_passport
+let _wizardExtracted = null; // medan yang berjaya dibaca dari passport (OCR/MRZ)
+let _wizardFile     = null;   // File passport yang dipilih di langkah 1
 
 function _resetWizard() {
-  ['wiz-ic', 'wiz-pp', 'wiz-name'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
+  _wizardFile = null;
+  _wizardResult = null;
+  _wizardExtracted = null;
   const msg = document.getElementById('wiz-msg');
   if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
   document.getElementById('wiz-result-card').style.display = 'none';
+  document.getElementById('wiz-new-card').style.display = 'none';
   document.getElementById('wiz-input-card').style.display = 'block';
+  document.getElementById('wiz-upload-txt').textContent = 'Upload passport copy';
+  document.getElementById('wiz-upload-area').style.borderColor = '';
   const btn = document.getElementById('wiz-btn');
-  if (btn) { btn.disabled = false; btn.textContent = 'Verify traveller'; }
-  _wizardResult = null;
+  if (btn) { btn.disabled = false; btn.style.display = 'none'; btn.textContent = 'Check passport →'; }
 }
 
-function wizardSkip() {
-  _loadTravellerForm(null);
+function triggerWizardPassportUpload() {
+  _pickImage(file => {
+    _wizardFile = file;
+    document.getElementById('wiz-upload-txt').textContent = '✓ ' + file.name;
+    document.getElementById('wiz-upload-area').style.borderColor = '#0F6E56';
+    document.getElementById('wiz-result-card').style.display = 'none';
+    document.getElementById('wiz-new-card').style.display = 'none';
+    document.getElementById('wiz-btn').style.display = 'block';
+    const msg = document.getElementById('wiz-msg');
+    if (msg) msg.style.display = 'none';
+  }, 'wiz-msg');
 }
 
-function wizardConfirm() {
-  if (!_wizardResult) return;
-  _loadTravellerForm(
-    Object.assign({}, ACTIVE_SLOT, _wizardResult.data),
-    _wizardResult.passportReset
-  );
-}
-
-async function doWizardLookup() {
-  const ic   = (document.getElementById('wiz-ic')?.value || '').trim();
-  const pp   = (document.getElementById('wiz-pp')?.value || '').trim().toUpperCase();
-  const name = (document.getElementById('wiz-name')?.value || '').trim();
-
+async function checkWizardPassport() {
+  if (!_wizardFile) return;
+  const btn = document.getElementById('wiz-btn');
   const msgEl = document.getElementById('wiz-msg');
-  const btn   = document.getElementById('wiz-btn');
-
-  if (!ic || !pp || !name) {
-    _wizMsg('Please fill in IC Number and Full Name (passport number optional for lookup).', 'warn');
-    return;
-  }
-
   btn.disabled = true;
-  btn.textContent = 'Verifying...';
+  btn.textContent = 'Checking...';
   if (msgEl) msgEl.style.display = 'none';
 
   try {
-    const res = await API_TV('wizard_lookup', { ic_number: ic, passport_no: pp, full_name: name });
-    btn.disabled = false; btn.textContent = 'Verify traveller';
+    const readFile = f => new Promise(res => {
+      const r = new FileReader();
+      r.onload = e => res(e.target.result);
+      r.readAsDataURL(f);
+    });
+    const filedata = await readFile(_wizardFile);
 
-    if (res.status === 'not_found') {
-      _wizMsg('Details do not match our records. You can still continue as a new traveller below.', 'error');
-      return;
-    }
+    const res = await API_TV('check_traveller_passport', { filedata: filedata });
+    btn.disabled = false;
+    btn.textContent = 'Check passport →';
 
-    if (res.status === 'found' || res.status === 'passport_reset') {
-      const passportReset = res.status === 'passport_reset';
-      _wizardResult = { data: res.data, passportReset };
+    document.getElementById('wiz-input-card').style.display = 'none';
 
+    if (res.status === 'found' && res.data) {
+      _wizardResult = res.data;
+      _wizardExtracted = res.extracted || null;
       const fullName = res.data.full_name || '';
       document.getElementById('wiz-result-initial').textContent = fullName.trim().charAt(0).toUpperCase() || '?';
       document.getElementById('wiz-result-name').textContent = fullName;
-      document.getElementById('wiz-result-ic').textContent = 'IC: ' + (res.data.ic_number || ic);
-
-      const ppNotice = document.getElementById('wiz-pp-notice');
-      if (ppNotice) ppNotice.style.display = passportReset ? 'block' : 'none';
-
-      document.getElementById('wiz-input-card').style.display = 'none';
+      document.getElementById('wiz-result-ic').textContent = 'IC: ' + (res.data.ic_number || '');
       document.getElementById('wiz-result-card').style.display = 'block';
+    } else {
+      _wizardResult = null;
+      _wizardExtracted = res.extracted || null;
+      // Tunjuk apa yang berjaya dibaca dari passport — prefill nanti.
+      const readBits = [];
+      if (res.extracted && res.extracted.full_name) readBits.push(res.extracted.full_name);
+      if (res.extracted && res.extracted.passport_no) readBits.push('Passport: ' + res.extracted.passport_no);
+      if (res.extracted && res.extracted.ic_number) readBits.push('IC: ' + res.extracted.ic_number);
+      const readEl = document.getElementById('wiz-new-read');
+      if (readEl) {
+        readEl.style.display = readBits.length ? 'block' : 'none';
+        readEl.textContent = '✓ Read from passport: ' + readBits.join(' · ');
+      }
+      document.getElementById('wiz-new-card').style.display = 'block';
     }
   } catch (e) {
-    btn.disabled = false; btn.textContent = 'Verify traveller';
-    _wizMsg('Something went wrong. Please try again.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Check passport →';
+    _wizMsg(e.message || 'Something went wrong. Please try again.', 'error');
+    document.getElementById('wiz-input-card').style.display = 'block';
   }
+}
+
+/* Passport yang dimuat naik di Langkah 1 dibawa masuk ke tab Passport
+   pada form — user tak perlu pilih fail sekali lagi. */
+function _applyWizardPassportFile() {
+  if (!_wizardFile) return;
+  _passportFile = _wizardFile;
+  document.getElementById('passport-upload-txt').textContent = '✓ ' + _wizardFile.name;
+  document.getElementById('passport-upload-area').style.borderColor = '#0F6E56';
+}
+
+async function wizardConfirm() {
+  if (!_wizardResult) return;
+  // Gabung rekod Traveller (doctype — maklumat penuh) dengan hasil scan
+  // MRZ/OCR terkini: passport_no & expiry dari passport dalam tangan
+  // MENGATASI rekod lama; nama/IC dari rekod kekal melainkan kosong.
+  const merged = Object.assign({}, ACTIVE_SLOT, _wizardResult);
+  const ex = _wizardExtracted || {};
+  ['passport_no', 'passport_expiry', 'date_of_birth', 'gender'].forEach(k => {
+    if (ex[k]) merged[k] = ex[k];
+  });
+  ['first_name', 'last_name', 'full_name', 'ic_number'].forEach(k => {
+    if (!merged[k] && ex[k]) merged[k] = ex[k];
+  });
+  // await PENTING: _loadTravellerForm() me-reset _passportFile = null di
+  // tengah aliran asyncnya — jika tak await, _applyWizardPassportFile()
+  // jalan lebih dulu dan fail passport dari Langkah  1 terpadam.
+  await _loadTravellerForm(merged);
+  _applyWizardPassportFile();
+}
+
+async function wizardContinueNew() {
+  // Prefill dengan medan yang berjaya dibaca daripada passport (MRZ/OCR)
+  // — nama, nombor passport, DOB, gender, IC (jika jumpa).
+  // await: elak race dgn reset _passportFile dalam _loadTravellerForm.
+  await _loadTravellerForm(_wizardExtracted || null);
+  _applyWizardPassportFile();
 }
 
 function _wizMsg(text, type) {
@@ -401,7 +459,9 @@ async function _loadTravellerForm(slot, passportReset = false) {
   document.getElementById('tvl-ec-relationship').value = slot?.emergency_contact_relationship || '';
   document.getElementById('tvl-dietary').value       = slot?.dietary_requirements || '';
   document.getElementById('tvl-medical').value       = slot?.medical_conditions  || '';
+  document.getElementById('tvl-medicine').value      = slot?.medicine_treatment  || '';
   document.getElementById('tvl-special-needs').value = slot?.special_needs      || '';
+  document.getElementById('tvl-wheelchair').value    = slot?.wheelchair_assistant || '';
 
   const ppResetNotice = document.getElementById('tvl-pp-reset-notice');
   if (ppResetNotice) ppResetNotice.style.display = passportReset ? 'block' : 'none';
@@ -551,8 +611,10 @@ async function saveTraveller() {
   document.querySelectorAll('#V-form input, #V-form select').forEach(clearFieldError);
   get('tvl-form-error').style.display = 'none';
 
-  // Validation berurutan — error PERTAMA sahaja ditunjuk + fokus.
-  // (Ganti 12 alert() berturut-turut: fix satu → Save → alert seterusnya.)
+  // SIMPANAN BERTAHAP: hanya medan asas wajib (nama + IC — perlu untuk
+  // cipta rekod Traveller) + PDPA. Semua medan lain boleh diisi
+  // sikit-sikit dan disimpan berulang kali; slot kekal "Pending"
+  // sehingga lengkap & disemak admin.
   const fail = (el, msg, tab) => {
     fieldError(el, msg);
     tvlGoToTab(tab);
@@ -563,32 +625,24 @@ async function saveTraveller() {
 
   if (!firstName) return fail(get('tvl-firstname'), 'First name is required.', 'info');
   if (!lastName)  return fail(get('tvl-lastname'), 'Last name is required.', 'info');
+  if (!ic)        return fail(get('tvl-ic'), 'IC Number is required.', 'passport');
   if (phoneNum && (typeof libphonenumber === 'undefined' || !libphonenumber.isValidPhoneNumber(phoneNum)))
     return fail(get('tvl-phone-num'), 'This does not look like a valid phone number. Please check the country code.', 'info');
-  if (!ecName)  return fail(get('tvl-ec-name'), 'Emergency contact name is required.', 'info');
-  if (!ecPhone) return fail(get('tvl-ec-phone'), 'Emergency contact phone is required.', 'info');
-  if (typeof libphonenumber === 'undefined' || !libphonenumber.isValidPhoneNumber(ecPhone))
-    return fail(get('tvl-ec-phone'), 'This does not look like a valid phone number. Please check the country code.', 'info');
-  if (!ecRel)   return fail(get('tvl-ec-relationship'), 'Emergency contact relationship is required.', 'info');
-  if (!ic)      return fail(get('tvl-ic'), 'IC Number is required.', 'passport');
-  if (!nat)     return fail(get('tvl-nat'), 'Nationality is required.', 'passport');
-  if (!dob)     return fail(get('tvl-dob'), 'Date of birth is required.', 'passport');
-  if (!gender)  return fail(get('tvl-gender'), 'Please select gender.', 'passport');
-  if (!pp)      return fail(get('tvl-pp'), 'Passport number is required.', 'passport');
-  if (!ppexp)   return fail(get('tvl-ppexp'), 'Passport expiry date is required.', 'passport');
-
-  // Passport copy wajib (baru upload ATAU sedia ada).
-  const existingPassport = (ACTIVE_SLOT && ACTIVE_SLOT.has_passport);
-  if (!_passportFile && !existingPassport) {
-    showInlineError('tvl-form-error', 'Passport copy is required — please upload a photo of the passport page.');
-    tvlGoToTab('passport');
-    return;
+  // Emergency contact: kalau satu diisi, pasangannya mesti lengkap
+  // (cermin check server-side).
+  if ((ecName || ecPhone || ecRel) && (!ecName || !ecPhone || !ecRel)) {
+    if (!ecName) return fail(get('tvl-ec-name'), 'Please complete the emergency contact (name, phone & relationship).', 'info');
+    if (!ecPhone) return fail(get('tvl-ec-phone'), 'Please complete the emergency contact (name, phone & relationship).', 'info');
+    return fail(get('tvl-ec-relationship'), 'Please complete the emergency contact (name, phone & relationship).', 'info');
   }
+  if (ecPhone && (typeof libphonenumber === 'undefined' || !libphonenumber.isValidPhoneNumber(ecPhone)))
+    return fail(get('tvl-ec-phone'), 'This does not look like a valid phone number. Please check the country code.', 'info');
 
   // PDPA consent wajib.
   if (!consent) {
     fieldError(get('tvl-pdpa-consent'), 'Please accept the Privacy Notice to continue.');
     showInlineError('tvl-form-error', 'Please accept the Privacy Notice so we can store these details for your trip arrangements.');
+    tvlGoToTab('health');
     return;
   }
 
@@ -625,14 +679,34 @@ async function saveTraveller() {
       dietary_requirements: get('tvl-dietary').value.trim(),
       medical_conditions: get('tvl-medical').value.trim(),
       special_needs: get('tvl-special-needs').value.trim(),
+      wheelchair_assistant: get('tvl-wheelchair').value,
+      medicine_treatment: get('tvl-medicine').value.trim(),
       pdpa_consent: true,
     });
 
-    // Refresh data + balik ke senarai slot (progress stepper akan update).
+    // Simpanan bertahap: kekal di page + tunjuk notis. Data disegar semula
+    // supaya flag (has_passport dll.) dikemaskini — user boleh terus isi
+    // bahagian lain atau tekan "← Back" bila dah selesai.
     const fresh = await API_BK('get_booking_data', { booking_number: BOOKING });
     PORTAL_DATA = fresh;
-    renderTravellerSlots(fresh);
-    showTravellerView('V-slots');
+    if (ACTIVE_SLOT) {
+      const s = (fresh.slots || []).find(x => x.slot_name === ACTIVE_SLOT.slot_name);
+      if (s) ACTIVE_SLOT = s;
+    }
+    _passportFile = null;
+    _visaPhotoFile = null;
+    document.getElementById('passport-upload-txt').textContent = 'Upload passport copy';
+    document.getElementById('visa-photo-upload-txt').textContent = 'Upload photo';
+    const pe = document.getElementById('passport-existing');
+    if (pe) pe.style.display = (ACTIVE_SLOT && ACTIVE_SLOT.has_passport) ? '' : 'none';
+    const ve = document.getElementById('visa-photo-existing');
+    if (ve) ve.style.display = (ACTIVE_SLOT && ACTIVE_SLOT.has_visa_photo) ? '' : 'none';
+    const note = document.getElementById('tvl-saved-note');
+    if (note) {
+      note.style.display = 'block';
+      note.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => { note.style.display = 'none'; }, 4000);
+    }
   } catch (e) {
     showInlineError('tvl-form-error', e.message || 'An error occurred. Please try again.');
   } finally {
@@ -649,8 +723,14 @@ const TVL_TAB_ORDER = ['info', 'passport', 'visa', 'health'];
 
 function tvlShowTab(tabId) {
   if (!TVL_TAB_ORDER.includes(tabId)) return;
-  document.querySelectorAll('.tvl-panel').forEach(p =>
-    p.style.display = p.getAttribute('data-panel') === tabId ? '' : 'none');
+  // PANEL: visibility dikawal oleh CSS class (portal.css:
+  // .tvl-panel{display:none} / .tvl-panel.on{display:block}) — BUKAN
+  // inline style. Toggle class 'on' + clear inline style supaya edit
+  // manual display:block/none dalam HTML tak menghalang CSS.
+  document.querySelectorAll('.tvl-panel').forEach(p => {
+    p.classList.toggle('on', p.getAttribute('data-panel') === tabId);
+    p.style.display = '';
+  });
   document.querySelectorAll('.tvl-tab').forEach(t => {
     const on = t.getAttribute('data-tab') === tabId;
     t.classList.toggle('on', on);
@@ -684,6 +764,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   BOOKING = _pageData.booking_ref || '';
   if (!BOOKING) return;
 
+  const isDocsPage = !!document.getElementById('V-form');
+
   // DOB tak boleh masa depan.
   const dobEl = document.getElementById('tvl-dob');
   if (dobEl) dobEl.max = new Date().toISOString().split('T')[0];
@@ -691,12 +773,37 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     const data = await API_BK('get_booking_data', { booking_number: BOOKING });
     PORTAL_DATA = data;
-    renderTravellerSlots(data);
+
+    if (isDocsPage) {
+      // Page docs: ?slot= menentukan slot yang diisi. Slot kosong →
+      // Langkah 1 (upload passport); slot terisi → borang edit.
+      // slot_name boleh datang dari pageData Jinja ATAU URL (belt & braces).
+      let slotName = _pageData.slot_name || '';
+      if (!slotName) {
+        try { slotName = new URLSearchParams(window.location.search).get('slot') || ''; } catch (e) { slotName = ''; }
+      }
+      const slot = (PORTAL_DATA.slots || []).find(s => s.slot_name === slotName);
+      if (!slot) {
+        tvlBackToList();
+        return;
+      }
+      ACTIVE_SLOT = slot;
+      _passportFile = null;
+      _visaPhotoFile = null;
+      // Slot kosong: buka BORANG TERUS (simpanan bertahap) — wizard
+      // passport-first tetap ada sebagai pilihan auto-isi dari tab Passport.
+      _loadTravellerForm(slot.filled ? slot : null);
+    } else {
+      renderTravellerSlots(data);
+    }
   } catch (e) {
-    document.getElementById('traveller-slots-container').innerHTML =
-      '<div class="card" style="text-align:center;padding:32px 20px;">' +
-        '<div style="font-size:13px;color:#991B1B;margin-bottom:14px;">' + _esc(e.message || 'Failed to load travellers.') + '</div>' +
-        '<a href="/traveller_portal/bookings" class="btn btn-g" style="text-decoration:none;display:inline-block;font-size:12px;">← Back to My Bookings</a>' +
-      '</div>';
+    const listContainer = document.getElementById('traveller-slots-container');
+    if (listContainer) {
+      listContainer.innerHTML =
+        '<div class="card" style="text-align:center;padding:32px 20px;">' +
+          '<div style="font-size:13px;color:#991B1B;margin-bottom:14px;">' + _esc(e.message || 'Failed to load travellers.') + '</div>' +
+          '<a href="/traveller_portal/bookings" class="btn btn-g" style="text-decoration:none;display:inline-block;font-size:12px;">← Back to My Bookings</a>' +
+        '</div>';
+    }
   }
 });

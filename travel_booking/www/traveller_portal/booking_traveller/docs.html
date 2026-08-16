@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Traveller Document — Rarecation Portal</title>
+  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') if asset_v is defined else '1' }}"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/css/intlTelInput.min.css"/>
+</head>
+<body>
+
+{% include "templates/includes/portal_nav.html" %}
+
+<div class="body">
+  <div class="inner" style="max-width:720px;">
+
+    {% if not booking_ref or not slot_name %}
+    <div class="card" style="text-align:center;padding:40px 24px;">
+      <div style="font-size:14px;color:#991B1B;">Booking reference or traveller slot missing.</div>
+      <a href="/traveller_portal/bookings" class="btn btn-g" style="text-decoration:none;display:inline-block;margin-top:14px;font-size:12px;">← Back to My Bookings</a>
+    </div>
+    {% else %}
+
+    <!-- Loading indicator — visible SEBELUM JS init selesai. Kalau ia
+         kekal lama/tak hilang, bermakna JS tak jalan (cek console). -->
+    <div class="card" id="tvl-docs-loading" style="text-align:center;padding:40px 24px;font-size:13px;color:#7D7A70;">
+      Loading traveller…
+    </div>
+
+    <!-- ══ LANGKAH 1: MUAT NAIK & SEMAK PASSPORT ══ -->
+    <div class="sc-page" id="V-wizard" style="display:none;">
+      <button type="button" class="btn btn-g btn-sm" onclick="showTravellerView('V-form')" style="margin-bottom:16px;">← Back to form</button>
+
+      <div class="card">
+        <div class="sec" style="margin-bottom:4px;">Step 1 · Upload Passport Copy</div>
+        <p style="font-size:13px;color:#7D7A70;line-height:1.6;margin-bottom:18px;">
+          Start by uploading the traveller's passport. We will check if this
+          traveller has travelled with us before — if yes, we'll fill in the
+          form with their saved details automatically.
+        </p>
+
+        <div id="wiz-input-card">
+          <div id="wiz-msg" role="alert" style="display:none;padding:10px 13px;border-radius:6px;margin-bottom:14px;font-size:12px;"></div>
+          <div class="g2" style="grid-template-columns:1fr 1fr;">
+            <button type="button" id="wiz-upload-area" class="upload-area" onclick="triggerWizardPassportUpload()" style="width:100%;text-align:left;font:inherit;cursor:pointer;" aria-label="Upload passport copy">
+              <div class="upload-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </div>
+              <div class="upload-txt" id="wiz-upload-txt">Upload passport copy</div>
+              <div class="upload-sub">JPG or PNG · Max 5MB</div>
+            </button>
+            <div style="text-align:center;">
+              <img src="/assets/travel_booking/img/example_passport.jpg" alt="Example of a valid passport photo page" style="max-width:100%;border-radius:10px;border:1px solid #E8E5DF;"/>
+              <div style="font-size:11px;color:#B0AC9F;margin-top:6px;">Photo page · All corners visible</div>
+            </div>
+          </div>
+          <button class="btn btn-p btn-full" id="wiz-btn" onclick="checkWizardPassport()" style="margin-top:16px;display:none;">Check passport →</button>
+        </div>
+
+        <div id="wiz-result-card" style="display:none;">
+          <div style="display:flex;align-items:center;gap:14px;padding:14px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;">
+            <div id="wiz-result-initial" style="width:44px;height:44px;border-radius:50%;background:#DCFCE7;color:#166534;font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">?</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:11px;font-weight:700;color:#0F6E56;letter-spacing:.05em;text-transform:uppercase;margin-bottom:2px;">Return customer found</div>
+              <div id="wiz-result-name" style="font-size:15px;font-weight:600;color:#1E1C18;"></div>
+              <div id="wiz-result-ic" style="font-size:12px;color:#7D7A70;margin-top:2px;"></div>
+            </div>
+          </div>
+          <p style="font-size:12px;color:#7D7A70;line-height:1.6;margin-top:12px;">
+            This passport matches a traveller in our records. We'll fill in the
+            form with their saved details — you just need to review and confirm.
+          </p>
+
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button class="btn btn-p" style="flex:1;" onclick="wizardConfirm()">Yes, this is me →</button>
+            <button class="btn btn-g" style="flex:1;" onclick="_resetWizard()">Not me / wrong photo</button>
+          </div>
+        </div>
+
+        <div id="wiz-new-card" style="display:none;">
+          <div style="display:flex;align-items:center;gap:14px;padding:14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;">
+            <div style="width:44px;height:44px;border-radius:50%;background:#DBEAFE;color:#1E40AF;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">+</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:11px;font-weight:700;color:#1E40AF;letter-spacing:.05em;text-transform:uppercase;margin-bottom:2px;">New traveller</div>
+              <div style="font-size:13px;color:#1E1C18;">No existing record matches this passport.</div>
+              <div style="font-size:12px;color:#7D7A70;margin-top:2px;">Continue to fill in the traveller's details.</div>
+            </div>
+          </div>
+          <div id="wiz-new-read" style="display:none;margin-top:12px;padding:8px 12px;background:#EBF7F1;border-radius:8px;font-size:12px;color:#0F6E56;"></div>
+          <button class="btn btn-p btn-full" style="margin-top:16px;" onclick="wizardContinueNew()">Continue as new traveller →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ BORANG TRAVELLER (3 tab + bar pengesahan bawah) ══ -->
+    <div class="sc-page" id="V-form" style="display:none;">
+      <button type="button" class="btn btn-g btn-sm" onclick="tvlBackToList()" style="margin-bottom:16px;">← Back to travellers</button>
+
+      <!-- Tab pills -->
+      <div class="tvl-tabs" role="tablist" aria-label="Traveller form sections">
+        <button type="button" class="tvl-tab" data-tab="passport" onclick="tvlGoToTab('passport')" aria-selected="true">1 · Passport</button>
+        <button type="button" class="tvl-tab" data-tab="contact" onclick="tvlGoToTab('contact')" aria-selected="false">2 · Contact Info</button>
+        <button type="button" class="tvl-tab" data-tab="health"   onclick="tvlGoToTab('health')"   aria-selected="false">3 · Health</button>
+      </div>
+
+      <div id="tvl-saved-note" role="status" style="display:none;margin-bottom:14px;padding:10px 13px;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:8px;font-size:13px;color:#166534;">
+        ✓ Section saved — you can continue with the rest, or come back later.
+      </div>
+      <div id="tvl-pp-reset-notice" class="info-note" style="display:none;margin-bottom:14px;">
+        <p><strong>Passport changed detected</strong> — passport fields were cleared, please enter your current passport details.</p>
+      </div>
+
+      <!-- PANEL 1: PASSPORT — mula dengan Passport Copy, kemudian Identity -->
+      <div class="tvl-panel" data-panel="passport" role="tabpanel">
+        <div class="card">
+          <div class="sec">Passport Copy</div>
+          <div class="g2" style="grid-template-columns:1fr 1fr;">
+            <button type="button" id="passport-upload-area" class="upload-area" onclick="triggerPassportUpload()" style="width:100%;text-align:left;font:inherit;cursor:pointer;" aria-label="Upload passport copy">
+              <div class="upload-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </div>
+              <div class="upload-txt" id="passport-upload-txt">Upload passport copy</div>
+              <div class="upload-sub">JPG or PNG · Max 5MB</div>
+            </button>
+            <div style="text-align:center;">
+              <img src="/assets/travel_booking/img/example_passport.jpg" alt="Example of a valid passport photo page" style="max-width:100%;border-radius:10px;border:1px solid #E8E5DF;"/>
+              <div style="font-size:11px;color:#B0AC9F;margin-top:6px;">Photo page · All corners visible</div>
+            </div>
+          </div>
+          <div style="margin-top:12px;">
+            <button type="button" class="btn btn-g btn-sm" onclick="showTravellerView('V-wizard')">✨ Auto-fill from passport photo</button>
+            <div style="font-size:11px;color:#B0AC9F;margin-top:6px;">Upload the passport photo page — we'll read the details and match returning travellers.</div>
+          </div>
+          <div id="passport-existing" style="display:none;margin-top:10px;padding:8px 12px;background:#EBF7F1;border-radius:8px;font-size:12px;color:#0F6E56;">
+            ✓ A passport copy is already on file — upload only if you want to replace it.
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="sec">Identity &amp; Passport</div>
+          <div class="g2">
+            <div class="f">
+              <label class="lbl" for="tvl-firstname">First Name <span style="color:#C0392B;">*</span></label>
+              <input type="text" id="tvl-firstname" placeholder="Ahmad" autocomplete="given-name" oninput="syncFullName();clearFieldError(this);" style="text-transform:uppercase;"/>
+            </div>
+            <div class="f">
+              <label class="lbl" for="tvl-lastname">Last Name <span style="color:#C0392B;">*</span></label>
+              <input type="text" id="tvl-lastname" placeholder="bin Razali" autocomplete="family-name" oninput="syncFullName();clearFieldError(this);" style="text-transform:uppercase;"/>
+            </div>
+          </div>
+          <div class="f">
+            <label class="lbl" for="tvl-name">Full Name</label>
+            <input type="text" id="tvl-name" readonly style="background:#F5F3EE;"/>
+          </div>
+          <div class="g2">
+            <div class="f">
+              <label class="lbl" for="tvl-ic">IC Number <span style="color:#C0392B;">*</span></label>
+              <input type="text" id="tvl-ic" maxlength="14" placeholder="123456789012" oninput="clearFieldError(this);"/>
+            </div>
+            <div class="f">
+              <label class="lbl" for="tvl-nat">Nationality</label>
+              <select id="tvl-nat" onchange="clearFieldError(this);"><option value="">Select nationality</option></select>
+            </div>
+          </div>
+          <div class="g2">
+            <div class="f">
+              <label class="lbl" for="tvl-dob">Date of Birth</label>
+              <input type="date" id="tvl-dob" onchange="clearFieldError(this);"/>
+            </div>
+            <div class="f">
+              <label class="lbl" for="tvl-gender">Gender</label>
+              <select id="tvl-gender" onchange="clearFieldError(this);">
+                <option value="">Select gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+          </div>
+          <div class="g2">
+            <div class="f">
+              <label class="lbl" for="tvl-pp">Passport Number</label>
+              <input type="text" id="tvl-pp" placeholder="A12345678" oninput="clearFieldError(this);" style="text-transform:uppercase;"/>
+            </div>
+            <div class="f" style="position:relative;">
+              <label class="lbl" for="tvl-ppexp">Passport Expiry</label>
+              <input type="date" id="tvl-ppexp" onchange="checkPassportValidity();clearFieldError(this);"/>
+              <span id="pp-validity-badge" style="display:none;position:absolute;right:38px;top:36px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;"></span>
+            </div>
+          </div>
+          <div id="pp-validity-note" role="status" style="display:none;font-size:12px;margin-top:-6px;margin-bottom:8px;"></div>
+          <div id="pp-validity-info" style="display:none;padding:10px 13px;background:#FFFBEB;border-radius:6px;margin-bottom:8px;border-left:2px solid #F59E0B;">
+            <p id="pp-validity-info-text" style="font-size:12px;color:#92400E;line-height:1.5;"></p>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button type="button" class="btn btn-g" onclick="showTravellerView('V-wizard')">← Back</button>
+          <button type="button" class="btn btn-g" onclick="saveTraveller('passport', this)">Save Passport section</button>
+          <!-- <button type="button" class="btn btn-p" style="flex:1;" onclick="tvlNext('passport')">Next: Contact Info →</button> -->
+        </div>
+      </div>
+
+      <!-- PANEL 2: CONTACT INFO -->
+      <div class="tvl-panel" data-panel="contact" role="tabpanel" style="display:none;">
+        <div class="card">
+          <div class="sec">Contact Info</div>
+          <div class="g2">
+            <div class="f">
+              <label class="lbl" for="tvl-phone-num">Phone</label>
+              <input type="tel" id="tvl-phone-num" autocomplete="tel" oninput="clearFieldError(this);"/>
+            </div>
+            <div class="f">
+              <label class="lbl" for="tvl-email">Email</label>
+              <input type="email" id="tvl-email" placeholder="Optional" autocomplete="email"/>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="sec">Emergency Contact</div>
+          <div class="g2">
+            <div class="f">
+              <label class="lbl" for="tvl-ec-name">Name</label>
+              <input type="text" id="tvl-ec-name" autocomplete="off" oninput="clearFieldError(this);"/>
+            </div>
+            <div class="f">
+              <label class="lbl" for="tvl-ec-phone">Phone</label>
+              <input type="tel" id="tvl-ec-phone" autocomplete="off" oninput="clearFieldError(this);"/>
+            </div>
+          </div>
+          <div class="f">
+            <label class="lbl" for="tvl-ec-relationship">Relationship</label>
+            <input type="text" id="tvl-ec-relationship" placeholder="e.g. Spouse, Parent, Sibling" oninput="clearFieldError(this);"/>
+          </div>
+        </div>
+
+        <!-- Visa Photo — collapsible (opsional, default tertutup) -->
+        <div class="card" style="margin-top:14px;">
+          <button type="button" id="visa-photo-toggle" onclick="toggleVisaCard()" aria-expanded="false" aria-controls="visa-photo-body" style="width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:none;border:none;padding:0;font:inherit;cursor:pointer;text-align:left;">
+            <span class="sec" style="margin-bottom:0;">Visa Photo <span style="color:#B0AC9F;font-weight:400;">(optional — tap to expand)</span>
+              <span id="visa-photo-badge" style="display:none;font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;background:#EBF7F1;color:#0F6E56;vertical-align:middle;margin-left:6px;">✓ On file</span>
+            </span>
+            <span id="visa-photo-chevron" aria-hidden="true" style="font-size:14px;color:#7D7A70;transition:transform .15s;flex-shrink:0;">▸</span>
+          </button>
+          <div id="visa-photo-body" style="display:none;margin-top:14px;">
+            <p style="font-size:12px;color:#7D7A70;line-height:1.6;margin-bottom:14px;">
+              Most nationalities do not require a visa for this trip. Our team will
+              advise if one is needed. You may upload a visa photo here if you have one.
+            </p>
+            <div class="g2" style="grid-template-columns:1fr 1fr;">
+              <button type="button" id="visa-photo-upload-area" class="upload-area" onclick="triggerVisaPhotoUpload()" style="width:100%;text-align:left;font:inherit;cursor:pointer;" aria-label="Upload visa photo">
+                <div class="upload-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <div class="upload-txt" id="visa-photo-upload-txt">Upload photo</div>
+                <div class="upload-sub">JPG or PNG · Max 5MB</div>
+              </button>
+              <div style="text-align:center;">
+                <img src="/assets/travel_booking/img/example_visa_photo.jpg" alt="Example of a valid visa photo" style="max-width:100%;border-radius:10px;border:1px solid #E8E5DF;"/>
+                <div style="font-size:11px;color:#B0AC9F;margin-top:6px;">Full visa sticker visible</div>
+              </div>
+            </div>
+            <div id="visa-photo-existing" style="display:none;margin-top:10px;padding:8px 12px;background:#EBF7F1;border-radius:8px;font-size:12px;color:#0F6E56;">
+              ✓ A visa photo is already on file.
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button type="button" class="btn btn-g" onclick="tvlBack('contact')">← Back</button>
+          <button type="button" class="btn btn-g" onclick="saveTraveller('contact', this)">Save Contact Info section</button>
+          <button type="button" class="btn btn-p" style="flex:1;" onclick="tvlNext('contact')">Next: Health →</button>
+        </div>
+      </div>
+
+      <!-- PANEL 3: HEALTH -->
+      <div class="tvl-panel" data-panel="health" role="tabpanel" style="display:none;">
+        <div class="card">
+          <div class="sec">Health Declaration</div>
+          <div class="f">
+            <label class="lbl" for="tvl-dietary">Dietary Requirements</label>
+            <textarea id="tvl-dietary" rows="3" placeholder="e.g. Vegetarian, halal-only, nut allergy" style="width:100%;border:1px solid #D4D1CC;border-radius:8px;padding:10px 12px;font:inherit;font-size:13px;"></textarea>
+          </div>
+          <div class="f">
+            <label class="lbl" for="tvl-medical">Medical Conditions</label>
+            <textarea id="tvl-medical" rows="3" placeholder="Anything our crew should know about" style="width:100%;border:1px solid #D4D1CC;border-radius:8px;padding:10px 12px;font:inherit;font-size:13px;"></textarea>
+          </div>
+          <div class="f">
+            <label class="lbl" for="tvl-medicine">Medicine / Treatment</label>
+            <textarea id="tvl-medicine" rows="3" placeholder="e.g. insulin, inhaler, daily medication" style="width:100%;border:1px solid #D4D1CC;border-radius:8px;padding:10px 12px;font:inherit;font-size:13px;"></textarea>
+          </div>
+          <div class="f">
+            <label class="lbl" for="tvl-special-needs">Special Needs</label>
+            <textarea id="tvl-special-needs" rows="3" placeholder="e.g. assistance during embarkation" style="width:100%;border:1px solid #D4D1CC;border-radius:8px;padding:10px 12px;font:inherit;font-size:13px;"></textarea>
+          </div>
+          <div class="f">
+            <label class="lbl" for="tvl-wheelchair">Wheelchair Assistance</label>
+            <select id="tvl-wheelchair" onchange="clearFieldError(this);" required="required" >
+              <option value="">Select if required</option>
+              <option value="Not Required">Not Required</option>
+              <option value="Long Walk Only">Long Walk Only</option>
+              <option value="All Time">All Time</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:16px;">
+          <button type="button" class="btn btn-g" onclick="tvlBack('health')">← Back</button>
+          <button type="button" class="btn btn-g" style="flex:1;" onclick="saveTraveller('health', this)">Save Health section</button>
+        </div>
+      </div>
+
+      <!-- ══ BAR BAWAH (di luar panel): back + privacy + pengesahan akhir ══ -->
+      <div class="card" style="margin-top:20px;">
+        <label style="gap:10px;align-items:flex-start;cursor:pointer;">
+          <input type="checkbox" id="tvl-pdpa-consent" onchange="clearFieldError(this);" style="margin-top:3px;flex-shrink:0;" required />
+          <span style="font-size:12px;color:#5C5850;line-height:1.6;">
+            I consent to Rarecation collecting and storing these personal details
+            (including passport information) for the purposes of trip arrangements,
+            as described in the
+            <a href="/traveller_portal/privacy" target="_blank" rel="noopener">Privacy Notice</a>. <span style="color:#C0392B;">*</span>
+          </span>
+        </label>
+
+        <div style="display:flex;gap:10px;margin-top:14px;">
+          <button type="button" class="btn btn-p" id="tvl-confirm-btn" style="flex:1;">✓ I confirm all information is complete</button>
+        </div>
+        <div id="tvl-form-error" role="alert" style="display:none;padding:10px 13px;background:#FEF2F2;border-radius:6px;margin-top:12px;border-left:2px solid #F87171;">
+          <p style="font-size:12px;color:#991B1B;" id="tvl-form-error-msg"></p>
+        </div>
+      </div>
+
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<script type="application/json" id="pageData">{"csrf_token": "{{ csrf_token }}", "booking_ref": "{{ booking_ref }}", "slot_name": "{{ slot_name }}"}</script>
+<script src="/assets/travel_booking/js/portal_common.js?v={{ asset_v('js/portal_common.js') if asset_v is defined else '1' }}"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/js/intlTelInputWithUtils.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/libphonenumber-js/1.11.20/bundle/libphonenumber-js.max.min.js"></script>
+<script src="/assets/travel_booking/js/portal_traveller_page.js?v={{ asset_v('js/portal_traveller_page.js') if asset_v is defined else '1' }}"></script>
+</body>
+</html>

@@ -5,6 +5,7 @@
 import frappe
 from travel_booking.api.portal_booking import _get_customer
 from travel_booking.api.constants import PRINT_FORMAT_RECEIPT
+from travel_booking.api._helpers import sanitize_portal_return_path
 
 
 # ══════════════════════════════════════════════
@@ -23,7 +24,7 @@ def get_all_so_payments():
 
     so_rows = frappe.db.sql("""
         SELECT so.name, so.grand_total, so.advance_paid, so.status, so.docstatus,
-               so.currency, cur.symbol AS currency_symbol
+               so.currency, so.transaction_date, cur.symbol AS currency_symbol
         FROM `tabSales Order` so
         LEFT JOIN `tabCurrency` cur ON cur.name = so.currency
         WHERE so.customer = %s AND so.docstatus IN (1, 2)
@@ -124,11 +125,32 @@ def get_all_so_payments():
                 {"attached_to_doctype": "Payment Entry", "attached_to_name": r.name},
                 "file_url"
             ) or ""
+
+            # Saluran bayaran (manual upload vs payment gateway):
+            # - ONLINE: PE ciptaan ERPNext set_as_paid() (dipanggil webhook
+            #   Stripe) SENTIASA menulis reference_no = nama Payment Request
+            #   (rujuk payment_request.py create_payment_entry) — jadi
+            #   kewujudan PR dengan nama itu adalah penanda muktamad.
+            # - MANUAL: PE ciptaan portal submit_manual_payment() (customer
+            #   upload resit → fail bukti terlampir). PE desk tanpa bukti
+            #   dilabel ikut mode_of_payment admin, fallback "Bank Transfer".
+            #   (mode_of_payment kosong untuk kedua-dua laluan portal.)
+            is_online = bool(
+                r.reference_no and frappe.db.exists("Payment Request", r.reference_no)
+            )
+            if is_online:
+                channel, channel_label = "online", "Online Payment"
+            else:
+                channel = "manual"
+                channel_label = r.mode_of_payment or ("Manual Bank Transfer" if proof else "Bank Transfer")
+
             payments.append({
                 "name":             r.name,
                 "paid_amount":      float(r.allocated_amount or 0),
                 "payment_date":     str(r.reference_date) if r.reference_date else "",
                 "mode_of_payment":  r.mode_of_payment or "",
+                "channel":          channel,
+                "channel_label":    channel_label,
                 "reference_no":     r.reference_no or "",
                 "status":           r.status,
                 "docstatus":        r.docstatus,
@@ -161,6 +183,7 @@ def get_all_so_payments():
             "grand_total":     effective_total,
             "advance_paid":    float(so.advance_paid or 0),
             "status":          so.status,
+            "transaction_date": str(so.transaction_date) if so.transaction_date else "",
             "is_cancelled":    so.docstatus == 2,
             "bookings":        booking_names,
             "booking_numbers": booking_numbers,
@@ -185,10 +208,17 @@ def get_all_so_payments():
 # ══════════════════════════════════════════════
 
 @frappe.whitelist()
-def create_payment_request(booking_number: str = None, amount: float = None, sales_order: str = None):
+def create_payment_request(booking_number: str = None, amount: float = None,
+                           sales_order: str = None, return_to: str = None):
     """Cipta Payment Request + Stripe PaymentIntent (checkout.html custom kita
     sendiri, Stripe Elements — BUKAN pr.get_payment_url() ERPNext standard).
     Open amount: min = deposit 20% kalau belum bayar apa-apa, selepas itu bebas; max = baki.
+
+    'return_to' (opsyenal): laluan portal untuk Stripe hantar customer
+    BALIK selepas bayar (cth "/traveller_portal/booking_billing?ref=RC-X"
+    — page asal customer datang). Disahkan dengan
+    sanitize_portal_return_path(); kosong/tidak sah → fallback lalai
+    (/traveller_portal/transactions).
 
     NOTA PENTING: fungsi ni SEBELUM ini guna pr.get_payment_url() (payment_
     gateway_account diisi terus pada Payment Request) — itu punca checkout
@@ -270,6 +300,7 @@ def create_payment_request(booking_number: str = None, amount: float = None, sal
         amount=req_amount,
         source="portal",
         booking_number=booking_number,
+        return_to=sanitize_portal_return_path(return_to),
     )
 
     return {
@@ -321,81 +352,87 @@ def submit_manual_payment(amount: float, payment_date: str,
     if so.customer != customer_name:
         frappe.throw("Access denied.", frappe.PermissionError)
 
-    # --- Naikkan hak ke sistem untuk cipta Payment Entry ---
-    # (customer dah verified atas; dokumen kewangan dicipta dgn hak sistem)
-    original_user = frappe.session.user
-    frappe.set_user("Administrator")
-    try:
-        company = so.company or frappe.db.get_single_value("Global Defaults", "default_company")
+    # --- Cipta Payment Entry dengan hak sistem (customer dah verified atas) ---
+    #
+    # PENTING: guna frappe.flags.ignore_permissions, BUKAN frappe.set_user()
+    # — set_user() MEMADAM frappe.local.session.data dan menulis-ganti
+    # session.sid (rujuk frappe/__init__.py). Session.update() yang Frappe
+    # panggil di hujung SETIAP request (frappe/app.py) kemudian menulis
+    # data sesi yang telah dikosongkan itu ke cache di bawah sid sebenar
+    # customer — request berikutnya membaca sesi rosak → dianggap tamat
+    # → "User None not found" / terlogout selepas hantar resit.
+    # flags.ignore_permissions memberi laluan kepada pe.insert() tanpa
+    # menyentuh session — corak yang sama dengan create_payment_request().
+    frappe.flags.ignore_permissions = True
 
-        # MULTI-CURRENCY: sama fix dengan _create_manual_payment_entry()
-        # (api/booking.py) — cari paid_to account KHUSUS untuk currency SO
-        # ni dari Travel Settings.currency_accounts, bukan single field lama.
-        paid_to = None
-        travel_settings = frappe.get_cached_doc("Travel Settings")
-        for row in (travel_settings.get("currency_accounts") or []):
-            if row.currency == so.currency and row.manual_transfer_paid_to_account:
-                paid_to = row.manual_transfer_paid_to_account
-                break
-        if not paid_to:
-            frappe.log_error(
-                "Manual Transfer paid_to account is not configured for currency '" +
-                str(so.currency) + "' (SO " + target_so + "). Using fallback to the " +
-                "first Bank-type Account for the company — please configure it in " +
-                "Travel Settings > Multi Currency Account.",
-                "Manual Transfer - Currency Account Missing"
-            )
-            paid_to = frappe.db.get_value(
-                "Account",
-                {"account_type": "Bank", "company": company, "is_group": 0},
-                "name"
-            )
-        party_account = get_party_account("Customer", customer_name, company)
-        # MULTI-CURRENCY — DIRINGKASKAN, sama dengan _create_manual_payment_entry()
-        # (api/booking.py): akaun Debtors DEFAULT company selamat diguna
-        # terus untuk apa-apa currency SO, sejak Accounts Settings "Allow
-        # multi-currency invoices against single party account" dihidupkan.
+    company = so.company or frappe.db.get_single_value("Global Defaults", "default_company")
 
-        pe = frappe.new_doc("Payment Entry")
-        pe.payment_type    = "Receive"
-        pe.company         = company
-        pe.posting_date    = payment_date or frappe.utils.today()
-        pe.party_type      = "Customer"
-        pe.party           = customer_name
-        pe.party_account   = party_account
-        pe.paid_from       = party_account
-        pe.paid_to         = paid_to
-        pe.paid_amount     = float(amount)
-        pe.received_amount = float(amount)
-        pe.reference_no    = reference_no or target_so
-        pe.reference_date  = payment_date or frappe.utils.today()
+    # MULTI-CURRENCY: sama fix dengan _create_manual_payment_entry()
+    # (api/booking.py) — cari paid_to account KHUSUS untuk currency SO
+    # ni dari Travel Settings.currency_accounts, bukan single field lama.
+    paid_to = None
+    travel_settings = frappe.get_cached_doc("Travel Settings")
+    for row in (travel_settings.get("currency_accounts") or []):
+        if row.currency == so.currency and row.manual_transfer_paid_to_account:
+            paid_to = row.manual_transfer_paid_to_account
+            break
+    if not paid_to:
+        frappe.log_error(
+            "Manual Transfer paid_to account is not configured for currency '" +
+            str(so.currency) + "' (SO " + target_so + "). Using fallback to the " +
+            "first Bank-type Account for the company — please configure it in " +
+            "Travel Settings > Multi Currency Account.",
+            "Manual Transfer - Currency Account Missing"
+        )
+        paid_to = frappe.db.get_value(
+            "Account",
+            {"account_type": "Bank", "company": company, "is_group": 0},
+            "name"
+        )
+    party_account = get_party_account("Customer", customer_name, company)
+    # MULTI-CURRENCY — DIRINGKASKAN, sama dengan _create_manual_payment_entry()
+    # (api/booking.py): akaun Debtors DEFAULT company selamat diguna
+    # terus untuk apa-apa currency SO, sejak Accounts Settings "Allow
+    # multi-currency invoices against single party account" dihidupkan.
 
-        pe.append("references", {
-            "reference_doctype": "Sales Order",
-            "reference_name":    target_so,
-            "allocated_amount":  float(amount),
-        })
+    pe = frappe.new_doc("Payment Entry")
+    pe.payment_type    = "Receive"
+    pe.company         = company
+    pe.posting_date    = payment_date or frappe.utils.today()
+    pe.party_type      = "Customer"
+    pe.party           = customer_name
+    pe.party_account   = party_account
+    pe.paid_from       = party_account
+    pe.paid_to         = paid_to
+    pe.paid_amount     = float(amount)
+    pe.received_amount = float(amount)
+    pe.reference_no    = reference_no or target_so
+    pe.reference_date  = payment_date or frappe.utils.today()
 
-        pe.remarks = notes or ("Manual transfer for " + target_so + ". Pending verification.")
-        pe.insert(ignore_permissions=True)   # draft
+    pe.append("references", {
+        "reference_doctype": "Sales Order",
+        "reference_name":    target_so,
+        "allocated_amount":  float(amount),
+    })
 
-        if filedata and filename:
-            if "," in filedata:
-                filedata = filedata.split(",")[1]
-            file_content = base64.b64decode(filedata)
-            frappe.get_doc({
-                "doctype":             "File",
-                "file_name":           filename,
-                "attached_to_doctype": "Payment Entry",
-                "attached_to_name":    pe.name,
-                "is_private":          1,
-                "content":             file_content
-            }).insert(ignore_permissions=True)
+    pe.remarks = notes or ("Manual transfer for " + target_so + ". Pending verification.")
+    pe.insert(ignore_permissions=True)   # draft
 
-        frappe.db.commit()
-        pe_name = pe.name
-    finally:
-        frappe.set_user(original_user)   # pulang balik ke user asal
+    if filedata and filename:
+        if "," in filedata:
+            filedata = filedata.split(",")[1]
+        file_content = base64.b64decode(filedata)
+        frappe.get_doc({
+            "doctype":             "File",
+            "file_name":           filename,
+            "attached_to_doctype": "Payment Entry",
+            "attached_to_name":    pe.name,
+            "is_private":          1,
+            "content":             file_content
+        }).insert(ignore_permissions=True)
+
+    frappe.db.commit()
+    pe_name = pe.name
 
     return {
         "status":     "ok",
