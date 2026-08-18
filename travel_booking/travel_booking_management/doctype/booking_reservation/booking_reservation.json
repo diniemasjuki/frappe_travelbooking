@@ -85,7 +85,12 @@
   "aroya_column",
   "stateroom_no",
   "delegate_no",
-  "aroya_guest_no"
+  "aroya_guest_no",
+  "guest_passport_link_section",
+  "passport_link_token",
+  "column_break_gplt",
+  "passport_link_email",
+  "passport_link_expires_on"
  ],
  "fields": [
   {
@@ -594,6 +599,38 @@
    "fieldname": "html_hxcj",
    "fieldtype": "HTML",
    "options": "<br/>\n<hr/>\n<br/>"
+  },
+  {
+   "fieldname": "guest_passport_link_section",
+   "fieldtype": "Section Break",
+   "label": "Guest Passport Link"
+  },
+  {
+   "description": "Token satu-satu untuk link guest passport. Dijana oleh request_guest_passport_link; disahkan oleh verify_guest_token / save_booking_traveller_guest. Reusable sehingga tamat tempoh.",
+   "fieldname": "passport_link_token",
+   "fieldtype": "Data",
+   "label": "Passport Link Token",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_gplt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Email guest yang link dihantar kepadanya (co-traveller).",
+   "fieldname": "passport_link_email",
+   "fieldtype": "Data",
+   "label": "Passport Link Email",
+   "options": "Email",
+   "read_only": 1
+  },
+  {
+   "description": "Link tamat tempoh selepas tarikh ini (default 7 hari dari janaan).",
+   "fieldname": "passport_link_expires_on",
+   "fieldtype": "Datetime",
+   "label": "Passport Link Expires On",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,

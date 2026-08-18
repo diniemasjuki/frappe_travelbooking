@@ -165,6 +165,8 @@ def get_booking_data(booking_number: str):
             "gender":            raw.gender            or "",
             "has_passport":      bool(raw.passport_image),
             "has_visa_photo":    bool(raw.visa_photo),
+            "passport_image":    raw.passport_image or "",
+            "visa_photo":        raw.visa_photo or "",
             "emergency_contact_name":         raw.emergency_contact_name         or "",
             "emergency_contact_phone":        raw.emergency_contact_phone        or "",
             "emergency_contact_relationship": raw.emergency_contact_relationship or "",

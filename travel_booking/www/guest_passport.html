@@ -3,22 +3,24 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Traveller Document — Rarecation Portal</title>
+  <title>Submit Passport Details — Rarecation</title>
   <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
   <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') if asset_v is defined else '1' }}"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/css/intlTelInput.min.css"/>
 </head>
 <body>
 
-{% include "templates/includes/portal_nav.html" %}
-
 <div class="body">
   <div class="inner" style="max-width:720px;">
 
-    {% if not booking_ref or not slot_name %}
+    {# Header guest — diisi oleh JS (renderGuestHeader) selepas verify_guest_token
+       pulangkan trip name + slot label. Kekal hidden sehingga token disahkan. #}
+    <div class="card" id="guest-header" style="display:none;margin-bottom:16px;"></div>
+
+    {% if not token %}
     <div class="card" style="text-align:center;padding:40px 24px;">
-      <div style="font-size:14px;color:#991B1B;">Booking reference or traveller slot missing.</div>
-      <a href="/traveller_portal/bookings" class="btn btn-g" style="text-decoration:none;display:inline-block;margin-top:14px;font-size:12px;">← Back to My Bookings</a>
+      <div style="font-size:14px;color:#991B1B;">This passport link is invalid or missing.</div>
+      <div style="font-size:12px;color:#7D7A70;margin-top:8px;">Please request a new link from the person who booked your trip.</div>
     </div>
     {% else %}
 
@@ -29,7 +31,7 @@
   </div>
 </div>
 
-<script type="application/json" id="pageData">{"csrf_token": "{{ csrf_token }}", "booking_ref": "{{ booking_ref }}", "slot_name": "{{ slot_name }}"}</script>
+<script type="application/json" id="pageData">{"csrf_token": "{{ csrf_token }}", "mode": "guest", "token": "{{ token }}"}</script>
 <script src="/assets/travel_booking/js/portal_common.js?v={{ asset_v('js/portal_common.js') if asset_v is defined else '1' }}"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/js/intlTelInputWithUtils.min.js"></script>
 <script src="/assets/travel_booking/js/portal_traveller_page.js?v={{ asset_v('js/portal_traveller_page.js') if asset_v is defined else '1' }}"></script>

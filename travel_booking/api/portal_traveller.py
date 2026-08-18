@@ -87,7 +87,46 @@ def _find_traveller_by_normalized(fieldname: str, value: str) -> str | None:
     return None
 
 
-@frappe.whitelist()
+def _resolve_guest_token(token: str):
+    """Sahkan token link guest passport — pulangkan (booking, slot, actor).
+
+    Token disimpan pada Booking Reservation (passport_link_token, search_index).
+    Reusable sehingga tamat tempoh (bukan one-time — guest boleh balik ubah
+    maklumat). Slot yang sudah Verified (locked) tidak boleh diakses lagi.
+
+    actor = email guest (untuk audit trail Comment) — bukan frappe.session.user
+    (yang "Guest" untuk sesi tanpa login), supaya Comment merekod siapa sebenar
+    yang ubah data (co-traveller via link) bukan "Guest" generik.
+    """
+    if not token:
+        frappe.throw("Invalid passport link.", frappe.PermissionError)
+    slot_name = frappe.db.get_value("Booking Reservation",
+                                    {"passport_link_token": token}, "name")
+    if not slot_name:
+        frappe.throw("This passport link is invalid or has been revoked.",
+                     frappe.PermissionError)
+    slot = frappe.db.get_value(
+        "Booking Reservation", slot_name,
+        ["name", "booking", "document_status", "traveller",
+         "passport_link_email", "passport_link_expires_on"], as_dict=True
+    )
+    if slot.passport_link_expires_on and \
+       frappe.utils.get_datetime(slot.passport_link_expires_on) < frappe.utils.now_datetime():
+        frappe.throw("This passport link has expired. Please request a new link.",
+                     frappe.PermissionError)
+    if slot.document_status == "Verified":
+        frappe.throw("This slot has been verified by admin and cannot be edited.")
+    booking = frappe.db.get_value(
+        "Booking", slot.booking,
+        ["name", "customer", "status", "booking_number"], as_dict=True
+    )
+    if not booking:
+        frappe.throw("Booking not found.")
+    actor = slot.passport_link_email or "guest"
+    return booking, slot, actor
+
+
+@frappe.whitelist(allow_guest=True)
 def save_booking_traveller(booking_number: str, slot_name: str,
                             section: str = "passport",
                             ic_number: str = "", first_name: str = "",
@@ -105,7 +144,8 @@ def save_booking_traveller(booking_number: str, slot_name: str,
                             special_needs: str = "",
                             wheelchair_assistant: str = "",
                             medicine_treatment: str = "",
-                            pdpa_consent: bool = False):
+                            pdpa_consent: bool = False,
+                            guest_token: str = ""):
     """Simpan maklumat traveller SECARA BERTAHAP IKUT SECTION.
 
     section = "passport" | "contact" | "health". Hanya medan milik
@@ -118,7 +158,34 @@ def save_booking_traveller(booking_number: str, slot_name: str,
     frappe.flags.ignore_permissions = True
     import base64
 
-    customer_name = _get_customer()
+    # Dual-auth: guest passport-link (token) ATAU logged-in customer (session).
+    # Resolve booking + slot + actor (siapa yang buat perubahan) sekali sahaja.
+    # Path guest tak perlukan session/Customer — token sah yang sahkan akses ke
+    # slot spesifik. Path session kekal guna _get_customer() + ownership macam
+    # sebelum ni. PDPA & validation medan di bawah dikenakan ke KEDUA-DUA path.
+    if guest_token:
+        booking, slot, actor = _resolve_guest_token(guest_token)
+        booking_number = booking.booking_number
+        slot_name = slot.name
+    else:
+        customer_name = _get_customer()
+        booking = frappe.db.get_value("Booking", {"booking_number": booking_number},
+                                      ["name", "customer", "status"], as_dict=True)
+        if not booking:
+            frappe.throw("Booking not found.")
+        if booking.customer != customer_name:
+            frappe.throw("Access denied.", frappe.PermissionError)
+        slot = frappe.db.get_value(
+            "Booking Reservation", slot_name,
+            ["name", "booking", "document_status", "traveller"], as_dict=True
+        )
+        if not slot or slot.booking != booking.name:
+            frappe.throw("Slot not found.")
+        actor = frappe.session.user
+
+    LOCKED_STATUSES = ["Verified"]
+    if slot.document_status in LOCKED_STATUSES:
+        frappe.throw("This slot has been verified by admin and cannot be edited.")
 
     # PDPA (Personal Data Protection Act 2010) — persetujuan WAJIB sebelum
     # simpan maklumat peribadi traveller (passport/IC/dokumen perjalanan).
@@ -148,34 +215,22 @@ def save_booking_traveller(booking_number: str, slot_name: str,
     # validation Frappe (mesej lebih jelas daripada "is not valid"
     # generik daripada library phonenumbers).
     import re
+    # Contact section: email & phone WAJIB (bukan optional) — diperlukan
+    # untuk menghubungi traveller sepanjang trip & pengesahan tempahan.
+    if section == "contact":
+        if not phone:
+            frappe.throw("Phone number is required.")
+        if not email:
+            frappe.throw("Email is required.")
+        frappe.utils.validate_email_address(email, throw=True)
     if phone and len(re.sub(r"\D", "", phone)) < 7:
         frappe.throw("The phone number seems too short. Please enter the full number.")
     if emergency_contact_phone and len(re.sub(r"\D", "", emergency_contact_phone)) < 7:
-        frappe.throw("The emergency contact phone number seems too short. Please enter the full number.")
+        frappe.throw("The emergency contact phone number seems too short.")
     if not emergency_contact_name and emergency_contact_phone:
         frappe.throw("Please fill in the emergency contact name as well.")
     if emergency_contact_name and not emergency_contact_phone:
         frappe.throw("Please fill in the emergency contact phone number as well.")
-
-    # Verify booking milik customer
-    booking = frappe.db.get_value("Booking", {"booking_number": booking_number},
-                                  ["name", "customer", "status"], as_dict=True)
-    if not booking:
-        frappe.throw("Booking not found.")
-    if booking.customer != customer_name:
-        frappe.throw("Access denied.", frappe.PermissionError)
-
-    # Verify slot (Booking Reservation) milik booking ini
-    slot = frappe.db.get_value(
-        "Booking Reservation", slot_name,
-        ["name", "booking", "document_status", "traveller"], as_dict=True
-    )
-    if not slot or slot.booking != booking.name:
-        frappe.throw("Slot not found.")
-
-    LOCKED_STATUSES = ["Verified"]
-    if slot.document_status in LOCKED_STATUSES:
-        frappe.throw("This slot has been verified by admin and cannot be edited.")
 
     if section == "passport":
         # Medan asas wajib — perlu untuk cipta dokumen Traveller yang
@@ -273,7 +328,7 @@ def save_booking_traveller(booking_number: str, slot_name: str,
             "reference_name":    traveller_name,
             "content": (
                 "PDPA consent granted via portal (Privacy Notice checkbox) — "
-                + frappe.utils.now() + " by " + frappe.session.user
+                + frappe.utils.now() + " by " + actor
             ),
         }).insert(ignore_permissions=True)
 
@@ -549,16 +604,118 @@ def _extract_mrz(text: str) -> dict:
     return extracted
 
 
+def _binarize(im):
+    """Autocontrast + threshold → imej B/W bersih (terbaik untuk OCR MRZ).
+
+    Fon OCR-B pada passport kontras tinggi (teks gelap di atas latar terang).
+    Binarisasi selepas autocontrast tingkatkan hit rate tesseract dengan
+    ketara berbanding grayscale biasa — terutamanya pada imej phone yang
+    sedikit kabur/glare.
+    """
+    from PIL import ImageOps
+
+    im = ImageOps.autocontrast(im.convert("L"))
+    return im.point(lambda x: 255 if x > 140 else 0, "L")
+
+
+def _parse_visual_date(s: str) -> str:
+    """'01 JAN 1990' / '01/01/1990' → '1990-01-01'. Pulang '' kalau gagal.
+
+    Untuk medan visual passport (bukan MRZ) — format berbeza ikut negara.
+    """
+    import datetime
+    import re
+
+    s = s.strip().upper()
+    _MONTHS = {"JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
+               "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12}
+    m = re.match(r"(\d{1,2})\s*([A-Z]{3})\s*(\d{4})", s)
+    if m:
+        dd, mon = int(m.group(1)), _MONTHS.get(m.group(2))
+        yyyy = int(m.group(3))
+        if mon:
+            try:
+                return datetime.date(yyyy, mon, dd).isoformat()
+            except ValueError:
+                return ""
+    m = re.match(r"(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})", s)
+    if m:
+        dd, mm = int(m.group(1)), int(m.group(2))
+        yyyy = int(m.group(3))
+        if yyyy < 100:
+            yyyy += 2000 if yyyy <= 30 else 1900
+        try:
+            return datetime.date(yyyy, mm, dd).isoformat()
+        except ValueError:
+            return ""
+    return ""
+
+
+def _extract_visual_fallback(extracted: dict, text: str) -> None:
+    """Fallback apabila MRZ gagal: ekstrak medan daripada teks visual OCR
+    (bahagian mesra-baca passport — label + nilai).
+
+    Kurang可靠 daripada MRZ (format berbeza ikut negara) tetapi lebih baik
+    daripada kosong — customer masih perlu semak. Hanya isi medan yang
+    MASIH KOSONG (jangan timpa MRZ yang berjaya).
+    """
+    import re
+
+    raw = text.upper()
+
+    # Passport no: label "PASSPORT NO" / "NO PASPORT" / "NO." diikuti
+    # alfanumerik (cth A12345678, K1234567).
+    if not extracted.get("passport_no"):
+        m = re.search(
+            r"(?:PASSPORT\s*NO\.?|NO\.?\s*PASPORT|NO\.)\s*:?\s*([A-Z]{0,2}\d{6,9})\b",
+            raw,
+        )
+        if m:
+            extracted["passport_no"] = m.group(1)
+
+    # DOB: label "DATE OF BIRTH" / "TARIKH LAHIR".
+    if not extracted.get("date_of_birth"):
+        m = re.search(
+            r"(?:DATE\s*OF\s*BIRTH|TARIKH\s*LAHIR)\s*:?\s*"
+            r"(\d{1,2}\s*[A-Z]{3}\s*\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
+            raw,
+        )
+        if m:
+            extracted["date_of_birth"] = _parse_visual_date(m.group(1))
+
+    # Expiry: label "DATE OF EXPIRY" / "EXPIRY" / "TAMAT TEMPOH".
+    if not extracted.get("passport_expiry"):
+        m = re.search(
+            r"(?:DATE\s*OF\s*EXPIRY|EXPIRY|TAMAT\s*TEMPOH)\s*:?\s*"
+            r"(\d{1,2}\s*[A-Z]{3}\s*\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
+            raw,
+        )
+        if m:
+            extracted["passport_expiry"] = _parse_visual_date(m.group(1))
+
+    # Gender: label "SEX" / "JANTINA" + M/F.
+    if not extracted.get("gender"):
+        m = re.search(r"(?:\bSEX\b|\bJANTINA\b)\s*:?\s*([MF])\b", raw)
+        if m:
+            extracted["gender"] = {"M": "Male", "F": "Female"}.get(m.group(1), "")
+
+
 def _ocr_passport(content: bytes) -> dict:
     """OCR gambar passport guna tesseract (binary sistem, bahasa 'eng').
 
-    Strategi berlapis untuk tangkap blok MRZ (bahagian bawah passport):
-    1. Imej penuh (grayscale + upscale) dengan beberapa mod segmentasi.
-    2. Crop 35% bahagian BAWAH imej (MRZ sentiasa di situ) dengan char
-       whitelist MRZ (A-Z 0-9 <) — ini teknik standard utk tesseract;
-       whitelist sahaja selalu bezanya antara jumpa / tak jumpa MRZ.
-    Beri pulang medan yang berjaya diekstrak sahaja — yang gagal dibiarkan
-    kosong untuk customer isi sendiri. Timeout 30s per pass.
+    Strategi berlapis untuk tangkap SEMUA medan diperlukan dari passport:
+    1. Crop 35% bahagian BAWAH imej (MRZ sentiasa di situ), dibinarisasi
+       (autocontrast + threshold) + upscale 2x, dengan char whitelist MRZ
+       (A-Z 0-9 <). Binarisasi ialah teknik standard untuk tesseract MRZ —
+       fon OCR-B kontras tinggi pada latar putih, B/W bersih tingkatkan hit
+       rate dengan ketara berbanding grayscale biasa.
+    2. Imej penuh (grayscale + binarisasi) beberapa mod segmentasi — untuk
+       tangkap medan visual (label "Passport No", "Date of Birth" dll) sebagai
+       fallback bila MRZ tak dapat dibaca.
+    3. IC Malaysia (NRIC 12-digit) dicari dalam keseluruhan teks OCR (MRZ
+       passport TIDAK mengandungi IC — IC hanya pada visual/Kad).
+    Medan yang berjaya diekstrak sahaja dipulangkan — yang gagal dibiarkan
+    kosong utk customer isi sendiri. Timeout 30s per pass.
     """
     import io
     import os
@@ -581,21 +738,32 @@ def _ocr_passport(content: bytes) -> dict:
 
         # Crop bawah 35% — lokasi standard blok MRZ.
         bottom = gray.crop((0, int(gray.height * 0.65), gray.width, gray.height))
+        # Upscale crop 2x + binarisasi (MRZ paling reliable pada B/W bersih).
+        bw_bottom = _binarize(bottom.resize((bottom.width * 2, bottom.height * 2)))
+        bw_full = _binarize(gray)
 
         with tempfile.TemporaryDirectory() as td:
             full_path = os.path.join(td, "full.png")
             mrz_path = os.path.join(td, "mrz.png")
+            mrz_bw_path = os.path.join(td, "mrz_bw.png")
+            full_bw_path = os.path.join(td, "full_bw.png")
             gray.save(full_path)
             bottom.save(mrz_path)
+            bw_bottom.save(mrz_bw_path)
+            bw_full.save(full_bw_path)
 
+            # Diutamakan crop MRZ binarisasi (paling tinggi hit rate),
+            # kemudian crop MRZ grayscale, akhirnya imej penuh (visual fallback).
             passes = [
-                # (fail, psm, tambahan config)
-                (mrz_path, "6",  MRZ_CFG),   # crop MRZ + whitelist — paling tinggi hit rate
-                (mrz_path, "11", MRZ_CFG),
-                (mrz_path, "4",  MRZ_CFG),
-                (full_path, "6",  []),
-                (full_path, "4",  []),
-                (full_path, "11", []),
+                (mrz_bw_path, "6",  MRZ_CFG),
+                (mrz_bw_path, "11", MRZ_CFG),
+                (mrz_bw_path, "4",  MRZ_CFG),
+                (mrz_path,    "6",  MRZ_CFG),
+                (mrz_path,    "11", MRZ_CFG),
+                (full_bw_path, "6", []),
+                (full_path,    "6", []),
+                (full_path,    "4",  []),
+                (full_path,    "11", []),
             ]
             for path, psm, cfg in passes:
                 try:
@@ -618,6 +786,11 @@ def _ocr_passport(content: bytes) -> dict:
         m = re.search(r"\b(\d{6}[-\s]?\d{2}[-\s]?\d{4})\b", full_text)
         if m:
             extracted["ic_number"] = re.sub(r"\D", "", m.group(1))
+
+        # Fallback visual: kalau MRZ gagal beri medan utama, cuba ekstrak
+        # passport_no & tarikh daripada teks visual (label passport field).
+        if not extracted.get("passport_no"):
+            _extract_visual_fallback(extracted, full_text)
     except Exception:
         frappe.log_error(title="Passport OCR failed",
                          message=frappe.get_traceback())
@@ -625,19 +798,28 @@ def _ocr_passport(content: bytes) -> dict:
     return extracted
 
 
-@frappe.whitelist()
-def check_traveller_passport(filedata: str):
-    """Langkah 1 wizard: customer muat naik gambar passport DULU.
+@frappe.whitelist(allow_guest=True)
+def check_traveller_passport(filedata: str, guest_token: str = ""):
+    """Langkah 1 wizard: customer/guest muat naik gambar passport DULU.
 
     Server bandingkan imej dengan passport_image Traveller sedia ada
     (exact sha256 + perceptual dhash). Kalau jumpa padanan → return
     status "found" + maklumat penuh traveller untuk prefill form
     (return customer). Kalau tak → status "new".
 
+    Dual-auth: guest passport-link (token) ATAU logged-in customer
+    (session). Guest mula di Langkah 1 sama seperti customer — upload
+    passport utk OCR recognition + matching traveller terdahulu.
+
     Nota: tidak persist apa-apa — upload sebenar tetap berlaku masa
     save_booking_traveller. Imj dihantar sebagai base64 data URL.
     """
-    _get_customer()
+    if guest_token:
+        # Guest path — sahkan token sahaja (throw kalau invalid/expired/
+        # Verified). Booking context tak diperlukan utk OCR + matching.
+        _resolve_guest_token(guest_token)
+    else:
+        _get_customer()
 
     if not filedata:
         frappe.throw("Passport image is required.")
@@ -853,28 +1035,35 @@ def request_document_update(slot_name: str):
     return {"status": "ok"}
 
 
-@frappe.whitelist()
-def confirm_traveller_documents(booking_number: str, slot_name: str):
-    """Butang pengesahan akhir (bar bawah form docs): customer sahkan
-    semua maklumat traveller sudah lengkap. Validasi kelengkapan
-    setiap section; set slot & Traveller kepada "Pending" (sedia
-    disemak admin) + Comment audit."""
+@frappe.whitelist(allow_guest=True)
+def confirm_traveller_documents(booking_number: str, slot_name: str,
+                                guest_token: str = ""):
+    """Butang pengesahan akhir (bar bawah form docs): customer ATAU guest
+    (via token) sahkan semua maklumat traveller sudah lengkap. Validasi
+    kelengkapan setiap section; set slot & Traveller kepada "Pending"
+    (sedia disemak admin) + Comment audit (guna actor — session user
+    atau guest email, BUKAN frappe.session.user yang "Guest" kosong)."""
     frappe.flags.ignore_permissions = True
-    customer = _get_customer()
+    if guest_token:
+        booking, slot, actor = _resolve_guest_token(guest_token)
+        booking_number = booking.booking_number
+        slot_name = slot.name
+    else:
+        customer = _get_customer()
+        booking = frappe.db.get_value("Booking", {"booking_number": booking_number},
+                                      ["name", "customer"], as_dict=True)
+        if not booking:
+            frappe.throw("Booking not found.")
+        if booking.customer != customer:
+            frappe.throw("Access denied.", frappe.PermissionError)
+        slot = frappe.db.get_value(
+            "Booking Reservation", slot_name,
+            ["name", "booking", "document_status", "traveller"], as_dict=True
+        )
+        if not slot or slot.booking != booking.name:
+            frappe.throw("Slot not found.")
+        actor = frappe.session.user
 
-    booking = frappe.db.get_value("Booking", {"booking_number": booking_number},
-                                  ["name", "customer"], as_dict=True)
-    if not booking:
-        frappe.throw("Booking not found.")
-    if booking.customer != customer:
-        frappe.throw("Access denied.", frappe.PermissionError)
-
-    slot = frappe.db.get_value(
-        "Booking Reservation", slot_name,
-        ["name", "booking", "document_status", "traveller"], as_dict=True
-    )
-    if not slot or slot.booking != booking.name:
-        frappe.throw("Slot not found.")
     if slot.document_status == "Verified":
         frappe.throw("This slot has been verified by admin and cannot be edited.")
     if not slot.traveller:
@@ -898,6 +1087,8 @@ def confirm_traveller_documents(booking_number: str, slot_name: str):
         missing.append("Passport copy upload (Passport section)")
     if not tvl.phone:
         missing.append("Phone number (Contact Info section)")
+    if not tvl.email:
+        missing.append("Email (Contact Info section)")
     if not (tvl.emergency_contact_name and tvl.emergency_contact_phone):
         missing.append("Emergency contact (Contact Info section)")
     if missing:
@@ -917,7 +1108,7 @@ def confirm_traveller_documents(booking_number: str, slot_name: str):
         "reference_name":    tvl.name,
         "content": (
             "Documents confirmed complete by customer via portal — "
-            + frappe.utils.now() + " by " + frappe.session.user
+            + frappe.utils.now() + " by " + actor
         ),
     }).insert(ignore_permissions=True)
 
@@ -937,15 +1128,280 @@ def confirm_traveller_documents(booking_number: str, slot_name: str):
     }
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def get_countries():
-    """Return list of countries dari Frappe Country doctype."""
-    user_email = frappe.session.user
-    if not user_email or user_email == "Guest":
-        frappe.throw("Not permitted", frappe.PermissionError)
+    """Return list of countries dari Frappe Country doctype.
 
+    allow_guest: data rujukan awam (tiada PII) — diperlukan supaya guest
+    passport-link form (no session) boleh populate dropdown nationality."""
     return frappe.db.get_all(
         "Country",
         fields=["name", "country_name", "code"],
         order_by="country_name asc"
     )
+
+
+# ══════════════════════════════════════════════
+# GUEST PASSPORT LINK (#5) — co-traveller tanpa
+# login isi maklumat penuh mereka via token link.
+# ══════════════════════════════════════════════
+
+# Role yang dibenarkan trigger guest link dari Desk (admin path).
+_GUEST_LINK_ADMIN_ROLES = {"System Manager", "Tour Manager", "Tour Operator"}
+_GUEST_LINK_EXPIRY_DAYS = 7
+
+
+@frappe.whitelist()
+def request_guest_passport_link(booking_number: str = "", slot_name: str = "",
+                                email: str = ""):
+    """Jana/hantar semula link passport untuk co-traveller (guest, no login).
+
+    Dual-auth:
+      - Admin (Desk): caller ada role Tour Manager/Tour Operator/System
+        Manager → allow terus (tanpa rekod Customer).
+      - Customer (portal): else _get_customer() + ownership booking.
+
+    booking_number (RC code) kini tidak digunakan untuk lookup — slot_name
+    (docname Booking Reservation) cukup untuk identifiable slot + parent
+    Booking (slot.booking). Param kekal untuk keserasian panggilan portal
+    lama. Token disimpan pada Booking Reservation (passport_link_token,
+    search_index). Reusable sehingga expiry (default 7 hari). Re-call =
+    regenerate (token lama di-overwrite → link lama invalidated).
+    """
+    frappe.flags.ignore_permissions = True
+    email = (email or "").strip()
+    if email:
+        frappe.utils.validate_email_address(email, throw=True)
+
+    # Resolve slot → booking (dari slot.booking). Membolehkan Desk (ada
+    # slot_name = frm.doc.name) & portal (ada booking_number + slot_name)
+    # guna endpoint yang sama.
+    slot = frappe.db.get_value(
+        "Booking Reservation", slot_name,
+        ["name", "booking", "document_status", "traveller"], as_dict=True
+    )
+    if not slot:
+        frappe.throw("Slot not found.")
+    booking = frappe.db.get_value("Booking", slot.booking,
+                                  ["name", "customer", "status", "trip_name"], as_dict=True)
+    if not booking:
+        frappe.throw("Booking not found.")
+
+    roles = set(frappe.get_roles())
+    if not (_GUEST_LINK_ADMIN_ROLES & roles):
+        # Customer path — verify ownership.
+        customer = _get_customer()
+        if booking.customer != customer:
+            frappe.throw("Access denied.", frappe.PermissionError)
+
+    if slot.document_status == "Verified":
+        frappe.throw("This slot has been verified by admin and cannot be edited.")
+
+    token = frappe.generate_hash(length=32)
+    expires_on = frappe.utils.add_to_date(frappe.utils.now_datetime(),
+                                          days=_GUEST_LINK_EXPIRY_DAYS)
+
+    frappe.db.set_value("Booking Reservation", slot_name, {
+        "passport_link_token":      token,
+        "passport_link_email":      email,
+        "passport_link_expires_on": expires_on,
+    })
+
+    link = frappe.utils.get_url("/guest_passport?token=" + token)
+    trip_name = booking.trip_name or "your trip"
+
+    # Email opsional (corak "share me"): kalau email diberi, hantar link juga
+    # sebagai fallback; jika tidak, caller (portal/Desk) terima link utk dikongsi
+    # terus — WhatsApp / Web Share / salin. Orang sekarang lebih suka kongsi
+    # link sendiri berbanding menaip email co-traveller.
+    if email:
+        frappe.sendmail(
+            recipients=[email],
+            subject="Submit your passport details — " + str(trip_name),
+            message=(
+                "<p>Hello,</p>"
+                "<p>You've been invited to submit your passport and travel details for "
+                "<strong>" + frappe.utils.escape_html(str(trip_name)) + "</strong>.</p>"
+                "<p>Please use the secure link below to complete your information. "
+                "The link is valid until " + frappe.utils.format_datetime(expires_on) + ".</p>"
+                "<p style='margin:24px 0'>"
+                "<a href='" + link + "' style='display:inline-block;padding:12px 24px;"
+                "background:#2563eb;color:#fff;text-decoration:none;border-radius:6px'>"
+                "Submit Passport Details</a></p>"
+                "<p style='color:#6b7280;font-size:12px'>"
+                "If you didn't expect this email, you can safely ignore it.</p>"
+            ),
+        )
+        masked = email[:2] + "***" + email[email.index("@"):] if "@" in email else email
+    else:
+        masked = ""
+
+    return {
+        "status":       "sent" if email else "generated",
+        "link":         link,
+        "masked_email": masked,
+        "expires_on":   str(expires_on),
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def verify_guest_token(token: str = ""):
+    """Sahkan token & pulangkan konteks slot untuk guest form (allow_guest).
+
+    Guest equivalent of get_booking_data scoped ke 1 slot: semua medan
+    traveller untuk pre-fill form, status passport/visa, dan metadata
+    booking (trip, departure) untuk header. Slot locked (Verified) ATAU
+    token tamat tempoh → throw (via _resolve_guest_token).
+    """
+    frappe.flags.ignore_permissions = True
+    booking, slot, _actor = _resolve_guest_token(token)
+
+    trip_name      = frappe.db.get_value("Booking", booking.name, "trip_name") or ""
+    departure_date = frappe.db.get_value("Booking", booking.name, "departure_date")
+
+    ctx = {
+        "mode":            "guest",
+        "token":           token,
+        "booking_number":  booking.booking_number,
+        "slot_name":       slot.name,
+        "slot_label":      "Guest Traveller",
+        "trip_name":       trip_name,
+        "departure_date":  str(departure_date) if departure_date else "",
+        "document_status": slot.document_status or "Pending",
+        "is_verified":     slot.document_status == "Verified",
+        "traveller_id":    slot.traveller or "",
+        "has_passport":    False,
+        "has_visa_photo":  False,
+        "passport_image":  "",
+        "visa_photo":      "",
+        "full_name":       "",
+        "first_name":      "",
+        "last_name":       "",
+        "ic_number":       "",
+        "passport_no":     "",
+        "passport_expiry": "",
+        "nationality":     "",
+        "date_of_birth":   "",
+        "email":           "",
+        "phone":           "",
+        "gender":          "",
+        "emergency_contact_name":         "",
+        "emergency_contact_phone":        "",
+        "emergency_contact_relationship": "",
+        "dietary_requirements": "",
+        "medical_conditions":   "",
+        "special_needs":        "",
+    }
+
+    if slot.traveller:
+        t = frappe.db.get_value(
+            "Traveller", slot.traveller,
+            ["full_name", "first_name", "last_name", "ic_number", "passport_no",
+             "passport_expiry", "nationality", "date_of_birth", "email", "phone",
+             "gender", "passport_image", "visa_photo", "emergency_contact_name",
+             "emergency_contact_phone", "emergency_contact_relationship",
+             "dietary_requirements", "medical_conditions", "special_needs",
+             "medicine_treatment", "wheelchair_assistant"],
+            as_dict=True,
+        )
+        if t:
+            ctx.update({
+                "full_name":                       t.full_name or "",
+                "first_name":                      t.first_name or "",
+                "last_name":                       t.last_name or "",
+                "ic_number":                       t.ic_number or "",
+                "passport_no":                     t.passport_no or "",
+                "passport_expiry":                 str(t.passport_expiry) if t.passport_expiry else "",
+                "nationality":                     t.nationality or "",
+                "date_of_birth":                   str(t.date_of_birth) if t.date_of_birth else "",
+                "email":                           t.email or "",
+                "phone":                           t.phone or "",
+                "gender":                          t.gender or "",
+                "has_passport":                    bool(t.passport_image),
+                "has_visa_photo":                  bool(t.visa_photo),
+                "passport_image":                  t.passport_image or "",
+                "visa_photo":                      t.visa_photo or "",
+                "emergency_contact_name":          t.emergency_contact_name or "",
+                "emergency_contact_phone":         t.emergency_contact_phone or "",
+                "emergency_contact_relationship":  t.emergency_contact_relationship or "",
+                "dietary_requirements":            t.dietary_requirements or "",
+                "medical_conditions":              t.medical_conditions or "",
+                "special_needs":                   t.special_needs or "",
+                "medicine_treatment":              t.medicine_treatment or "",
+                "wheelchair_assistant":            t.wheelchair_assistant or "",
+            })
+            if t.full_name:
+                ctx["slot_label"] = t.full_name
+
+    return ctx
+
+
+# ══════════════════════════════════════════════
+# FILE SERVING (#3) — gambar passport/visa disimpan
+# is_private:1 pada Traveller; customer (tiada role Traveller) & guest
+# (no session) tak boleh akses /private/files/... terus. Endpoint ni baca
+# fail & pulangkan sebagai data URL base64 (selamat untuk <img src>).
+# ══════════════════════════════════════════════
+
+def _serve_traveller_file(traveller_name: str, field: str):
+    """Baca fail lampiran (is_private) dari Traveller.<field> & pulangkan
+    data URL base64. Dipanggil oleh get_slot_file (session) & get_guest_file
+    (token) — kedua-duanya sudah sahkan akses sebelum panggil ni."""
+    import base64
+    import mimetypes
+
+    if not traveller_name:
+        return {"data_url": ""}
+    file_url = frappe.db.get_value("Traveller", traveller_name, field)
+    if not file_url:
+        return {"data_url": ""}
+
+    file_id = frappe.db.get_value("File", {"file_url": file_url}, "name")
+    if not file_id:
+        return {"data_url": ""}
+    content = frappe.get_doc("File", file_id).get_content()
+    if not content:
+        return {"data_url": ""}
+
+    mime, _ = mimetypes.guess_type(file_url)
+    if not mime:
+        mime = "application/octet-stream"
+    b64 = base64.b64encode(content).decode("ascii")
+    return {"data_url": "data:" + mime + ";base64," + b64}
+
+
+@frappe.whitelist()
+def get_slot_file(booking_number: str, slot_name: str, field: str = "passport_image"):
+    """Pulangkan fail passport/visa (base64 data URL) untuk slot milik
+    customer yang sedang login. field = "passport_image" | "visa_photo"."""
+    frappe.flags.ignore_permissions = True
+    if field not in ("passport_image", "visa_photo"):
+        frappe.throw("Invalid file field.")
+
+    customer = _get_customer()
+    booking = frappe.db.get_value("Booking", {"booking_number": booking_number},
+                                  ["name", "customer"], as_dict=True)
+    if not booking:
+        frappe.throw("Booking not found.")
+    if booking.customer != customer:
+        frappe.throw("Access denied.", frappe.PermissionError)
+
+    slot = frappe.db.get_value("Booking Reservation", slot_name,
+                               ["name", "booking", "traveller"], as_dict=True)
+    if not slot or slot.booking != booking.name:
+        frappe.throw("Slot not found.")
+
+    return _serve_traveller_file(slot.traveller, field)
+
+
+@frappe.whitelist(allow_guest=True)
+def get_guest_file(token: str = "", field: str = "passport_image"):
+    """Pulangkan fail passport/visa (base64 data URL) untuk slot yang
+    diakses guest via token link. Token sahkan akses (token + expiry +
+    bukan Verified)."""
+    frappe.flags.ignore_permissions = True
+    if field not in ("passport_image", "visa_photo"):
+        frappe.throw("Invalid file field.")
+
+    _booking, slot, _actor = _resolve_guest_token(token)
+    return _serve_traveller_file(slot.traveller, field)

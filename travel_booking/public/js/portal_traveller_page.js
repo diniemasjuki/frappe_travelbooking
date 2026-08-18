@@ -18,6 +18,14 @@ let BOOKING      = '';     // booking_number dari URL
 let _passportFile = null;
 let _visaPhotoFile = null;
 
+/* Mod guest: co-traveller isi maklumat sendiri via token link (no session).
+   Dipasang dari _pageData.mode === 'guest' (page guest_passport.html).
+   Bila true, API call bercabang: verify_guest_token / save_booking_traveller
+   (dgn guest_token) / get_guest_file / confirm_traveller_documents (dgn
+   guest_token). */
+let _GUEST_MODE  = false;
+let _GUEST_TOKEN = '';
+
 /* ── Navigasi antara 2 page: senarai slot (booking_traveller) dan
    aliran dokumen (booking_traveller/docs?ref=..&slot=..) ── */
 function tvlDocsUrl(slotName) {
@@ -143,8 +151,11 @@ function slotCardHtml(slot) {
   const isVerified = slot.is_verified || slot.document_status === 'Verified';
   const isOpenForUpd = slot.document_status === 'Open for Update';
 
-  const base = 'data-slot="' + _esc(slot.slot_name) + '" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;background:#fff;"';
+  // data-slot pada baris utama (bukan wrapper) supaya klik pada baris
+  // guest-link (email/button) tak membuka borang traveller.
+  const rowBase = 'data-slot="' + _esc(slot.slot_name) + '" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;background:#fff;"';
 
+  let mainRow;
   if (isFilled) {
     const name = slot.full_name || '';
     const parts = name.trim().split(' ');
@@ -163,8 +174,8 @@ function slotCardHtml(slot) {
         'style="background:none;border:none;padding:0;font-size:11px;color:#7D7A70;text-decoration:underline;cursor:pointer;white-space:nowrap;">Request to edit</button>'
       : '';
 
-    return (
-      '<div class="slot-card" ' + base + '>' +
+    mainRow =
+      '<div class="slot-card" ' + rowBase + '>' +
         '<div style="width:38px;height:38px;border-radius:50%;background:' + (isVerified ? '#EBF7F1' : '#FEF9D3') + ';display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;font-weight:700;color:' + badge.fg + ';">' + _esc(initials) + '</div>' +
         '<div style="flex:1;min-width:0;">' +
           '<div style="font-size:10px;font-weight:700;color:#B0AC9F;letter-spacing:.07em;text-transform:uppercase;margin-bottom:2px;">' + _esc(slot.slot_label) + '</div>' +
@@ -176,21 +187,33 @@ function slotCardHtml(slot) {
           requestLink +
         '</div>' +
         '<div style="color:#B0AC9F;font-size:16px;flex-shrink:0;">›</div>' +
-      '</div>'
-    );
+      '</div>';
+  } else {
+    mainRow =
+      '<div class="slot-card slot-empty" ' + rowBase + '>' +
+        '<div style="width:38px;height:38px;border-radius:50%;border:1.5px dashed #D4D1CC;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;font-weight:300;color:#B0AC9F;">+</div>' +
+        '<div style="flex:1;">' +
+          '<div style="font-size:10px;font-weight:700;color:#B0AC9F;letter-spacing:.07em;text-transform:uppercase;margin-bottom:2px;">' + _esc(slot.slot_label) + '</div>' +
+          '<div style="font-size:13px;color:#7D7A70;">Not filled yet</div>' +
+          '<div style="font-size:11px;color:#B0AC9F;margin-top:1px;">Tap to fill in traveller details</div>' +
+        '</div>' +
+        '<div style="color:#B0AC9F;font-size:16px;flex-shrink:0;">›</div>' +
+      '</div>';
   }
 
-  return (
-    '<div class="slot-card slot-empty" ' + base + '>' +
-      '<div style="width:38px;height:38px;border-radius:50%;border:1.5px dashed #D4D1CC;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;font-weight:300;color:#B0AC9F;">+</div>' +
-      '<div style="flex:1;">' +
-        '<div style="font-size:10px;font-weight:700;color:#B0AC9F;letter-spacing:.07em;text-transform:uppercase;margin-bottom:2px;">' + _esc(slot.slot_label) + '</div>' +
-        '<div style="font-size:13px;color:#7D7A70;">Not filled yet</div>' +
-        '<div style="font-size:11px;color:#B0AC9F;margin-top:1px;">Tap to fill in traveller details</div>' +
-      '</div>' +
-      '<div style="color:#B0AC9F;font-size:16px;flex-shrink:0;">›</div>' +
+  // (a) "Share me" — guest-link trigger: customer jana link utk co-traveller
+  // (guest, no login) dan kongsi terus (WhatsApp / Web Share / salin).
+  // Mengetik email menyebalkan; orang sekarang kongsi link via WhatsApp.
+  // Hanya untuk slot yang belum Verified (slot locked tak boleh diubah).
+  const guestRow = isVerified ? '' : (
+    '<div class="slot-guest-link" onclick="event.stopPropagation()" style="border-top:0.5px solid #EAE7E0;padding:10px 16px;background:#FAFAF7;">' +
+      '<div style="font-size:11px;color:#7D7A70;margin-bottom:6px;">Co-traveller? Share a secure link so they can fill in their own details:</div>' +
+      '<button type="button" class="btn btn-g btn-sm" onclick="shareGuestPassportLink(\'' + _esc(slot.slot_name) + '\', this)" style="width:100%;">\uD83D\uDD17 Share passport link</button>' +
+      '<div class="guest-link-status" style="font-size:11px;margin-top:6px;display:none;"></div>' +
     '</div>'
   );
+
+  return '<div style="background:#fff;">' + mainRow + guestRow + '</div>';
 }
 
 /* FIX AUDIT (dead click): slot Verified/Open-for-Update klik → mesej jelas,
@@ -295,7 +318,9 @@ async function checkWizardPassport() {
     });
     const filedata = await readFile(_wizardFile);
 
-    const res = await API_TV('check_traveller_passport', { filedata: filedata });
+    const payload = { filedata: filedata };
+    if (_GUEST_MODE) payload.guest_token = _GUEST_TOKEN;
+    const res = await API_TV('check_traveller_passport', payload);
     btn.disabled = false;
     btn.textContent = 'Check passport →';
 
@@ -425,6 +450,19 @@ function _setPhoneValue(iti, elId, rawValue) {
   if (iti) iti.setNumber(rawValue); else if (el) el.value = rawValue;
 }
 
+/* Validasi nombor telefon guna intl-tel-input built-in (utils sudah bundled
+   dalam intlTelInputWithUtils.min.js). Bekas dependency libphonenumber-js
+   dimuatkan dari cdnjs URL yang 404 → global `libphonenumber` sentiasa
+   undefined → SEMUA nombor ditolak. iti.isValidNumber() guna utils yang sama
+   yang dah load bersama widget. Fallback leniency (≥7 digit) bila widget
+   intl-tel-input gagal load — server tetap validate format. */
+function _isPhoneValid(iti, num) {
+  if (iti) {
+    try { return iti.isValidNumber(); } catch (e) { /* fall through */ }
+  }
+  return (num || '').replace(/\D/g, '').length >= 7;
+}
+
 /* ══════════════════════════════════════════════
    NATIONALITY SELECT
    ══════════════════════════════════════════════ */
@@ -526,6 +564,8 @@ async function _loadTravellerForm(slot, passportReset = false) {
 
   tvlResetTabs();
   showTravellerView('V-form');
+  // A4 — muat gambar passport sebenar (async, tak halang paparan form).
+  _loadPassportPreview(slot);
 }
 
 function syncFullName() {
@@ -665,8 +705,15 @@ async function saveTraveller(section, btnEl) {
     if (!ic)        return fail(get('tvl-ic'), 'IC Number is required.', 'passport');
   }
   if (section === 'contact') {
-    if (phoneNum && (typeof libphonenumber === 'undefined' || !libphonenumber.isValidPhoneNumber(phoneNum)))
+    const emailVal = get('tvl-email').value.trim();
+    // Phone & email wajib (bukan optional) — diperlukan untuk hubungi
+    // traveller sepanjang trip & pengesahan tempahan.
+    if (!phoneNum)
+      return fail(get('tvl-phone-num'), 'Phone number is required.', 'contact');
+    if (!_isPhoneValid(_itiPhone, phoneNum))
       return fail(get('tvl-phone-num'), 'This does not look like a valid phone number. Please check the country code.', 'contact');
+    if (!emailVal)
+      return fail(get('tvl-email'), 'Email is required.', 'contact');
     // Emergency contact: kalau satu diisi, pasangannya mesti lengkap
     // (cermin check server-side).
     if ((ecName || ecPhone || ecRel) && (!ecName || !ecPhone || !ecRel)) {
@@ -674,7 +721,7 @@ async function saveTraveller(section, btnEl) {
       if (!ecPhone) return fail(get('tvl-ec-phone'), 'Please complete the emergency contact (name, phone & relationship).', 'contact');
       return fail(get('tvl-ec-relationship'), 'Please complete the emergency contact (name, phone & relationship).', 'contact');
     }
-    if (ecPhone && (typeof libphonenumber === 'undefined' || !libphonenumber.isValidPhoneNumber(ecPhone)))
+    if (ecPhone && !_isPhoneValid(_itiEcPhone, ecPhone))
       return fail(get('tvl-ec-phone'), 'This does not look like a valid phone number. Please check the country code.', 'contact');
   }
 
@@ -702,6 +749,7 @@ async function saveTraveller(section, btnEl) {
       section: section,
       pdpa_consent: true,
     };
+    if (_GUEST_MODE) payload.guest_token = _GUEST_TOKEN;
 
     if (section === 'passport') {
       let filedata = '', filename = '';
@@ -741,11 +789,20 @@ async function saveTraveller(section, btnEl) {
     // Simpanan bertahap: kekal di page + tunjuk notis. Data disegar semula
     // supaya flag (has_passport dll.) dikemaskini — user boleh terus isi
     // bahagian lain atau tekan "← Back" bila dah selesai.
-    const fresh = await API_BK('get_booking_data', { booking_number: BOOKING });
-    PORTAL_DATA = fresh;
-    if (ACTIVE_SLOT) {
-      const s = (fresh.slots || []).find(x => x.slot_name === ACTIVE_SLOT.slot_name);
-      if (s) ACTIVE_SLOT = s;
+    // Segar semula data supaya flag (has_passport dll.) dikemaskini. Mod
+    // guest guna verify_guest_token (tiada session); customer guna
+    // get_booking_data seperti biasa.
+    if (_GUEST_MODE) {
+      const fresh = await API_TV('verify_guest_token', { token: _GUEST_TOKEN });
+      ACTIVE_SLOT = fresh;
+      if (section === 'passport') _loadPassportPreview(fresh);
+    } else {
+      const fresh = await API_BK('get_booking_data', { booking_number: BOOKING });
+      PORTAL_DATA = fresh;
+      if (ACTIVE_SLOT) {
+        const s = (fresh.slots || []).find(x => x.slot_name === ACTIVE_SLOT.slot_name);
+        if (s) ACTIVE_SLOT = s;
+      }
     }
     if (section === 'passport') {
       _passportFile = null;
@@ -797,11 +854,28 @@ async function confirmTravellerDocs() {
   btn.textContent = 'Confirming...';
   btn.disabled = true;
   try {
-    await API_TV('confirm_traveller_documents', {
+    const payload = {
       booking_number: BOOKING,
       slot_name: ACTIVE_SLOT.slot_name,
-    });
-    tvlBackToList();
+    };
+    if (_GUEST_MODE) payload.guest_token = _GUEST_TOKEN;
+    await API_TV('confirm_traveller_documents', payload);
+    if (_GUEST_MODE) {
+      // Guest tiada senarai untuk kembali — tunjuk pengesahan berjaya &
+      // sembunyi borang (slot kini Pending — admin akan semak).
+      const form = document.getElementById('V-form');
+      if (form) {
+        const msg = document.createElement('div');
+        msg.className = 'card';
+        msg.style.cssText = 'text-align:center;padding:32px 20px;background:#F0FDF4;border:1px solid #BBF7D0;';
+        msg.innerHTML = '<div style="font-size:15px;font-weight:600;color:#166534;margin-bottom:6px;">\u2713 Thank you! Your details have been submitted.</div>' +
+          '<div style="font-size:12px;color:#7D7A70;">Our team will review your information. You may close this page now.</div>';
+        form.parentNode.insertBefore(msg, form);
+        form.style.display = 'none';
+      }
+    } else {
+      tvlBackToList();
+    }
   } catch (e) {
     showInlineError('tvl-form-error', e.message || 'An error occurred. Please try again.');
     btn.textContent = '✓ I confirm all information is complete';
@@ -849,8 +923,197 @@ function tvlBack(currentTabId) {
 
 function tvlResetTabs() { tvlShowTab('passport'); }
 
+/* ══════════════════════════════════════════════
+   GUEST MODE — co-traveller via token link (no session)
+   ══════════════════════════════════════════════ */
+
+/* Header guest: trip name + slot label + nota "signed in as guest".
+   Dipanggil selepas verify_guest_token pulangkan konteks slot. */
+function renderGuestHeader(ctx) {
+  const hdr = document.getElementById('guest-header');
+  if (!hdr) return;
+  const dep = ctx.departure_date ? fmtDate(ctx.departure_date) : '';
+  hdr.innerHTML =
+    '<div style="font-size:11px;font-weight:700;color:#B0AC9F;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">Guest Passport Submission</div>' +
+    '<div style="font-size:16px;font-weight:600;color:#1E1C18;">' + _esc(ctx.trip_name || 'Trip') + '</div>' +
+    '<div style="font-size:12px;color:#7D7A70;margin-top:2px;">' + _esc(ctx.slot_label || 'Traveller') + (dep ? ' · Departs ' + _esc(dep) : '') + '</div>' +
+    '<div style="font-size:11px;color:#92400E;margin-top:6px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;padding:6px 10px;display:inline-block;">You are filling in details via a secure email link — no login required.</div>';
+  hdr.style.display = 'block';
+}
+
+/* A4 — papar gambar passport sebenar (dari server, base64 data URL) bila
+   has_passport; contoh kekal sebagai placeholder bila tiada. Gambar disimpan
+   is_private pada Traveller — tak boleh diakses terus via /private/files/,
+   jadi fetch endpoint khusus (get_slot_file utk customer / get_guest_file
+   utk guest). */
+async function _loadPassportPreview(slot) {
+  const preview = document.getElementById('passport-preview');
+  const example = document.getElementById('passport-example');
+  if (!preview || !example) return;
+  if (!slot || !slot.has_passport) {
+    preview.style.display = 'none';
+    example.style.display = '';
+    return;
+  }
+  try {
+    const res = _GUEST_MODE
+      ? await API_TV('get_guest_file', { token: _GUEST_TOKEN, field: 'passport_image' })
+      : await API_TV('get_slot_file', { booking_number: BOOKING, slot_name: slot.slot_name, field: 'passport_image' });
+    if (res && res.data_url) {
+      preview.src = res.data_url;
+      preview.style.display = '';
+      example.style.display = 'none';
+    } else {
+      preview.style.display = 'none';
+      example.style.display = '';
+    }
+  } catch (e) {
+    preview.style.display = 'none';
+    example.style.display = '';
+  }
+}
+
+/* (a) "Share me" — customer jana link passport utk co-traveller (guest, no
+   login) dan kongsi terus. Mengetik email menyebalkan; orang sekarang
+   kongsi link via WhatsApp. Web Share API (mobile → share sheet termasuk
+   WhatsApp) dipilih pertama; fallback: salin + butang WhatsApp utk desktop. */
+async function shareGuestPassportLink(slotName, btn) {
+  const card = btn.closest('.slot-guest-link');
+  const status = card && card.querySelector('.guest-link-status');
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Generating\u2026';
+  if (status) status.style.display = 'none';
+  try {
+    const res = await API_TV('request_guest_passport_link', {
+      booking_number: BOOKING, slot_name: slotName,
+    });
+    const link = res.link || '';
+    if (!link) throw new Error('Could not generate link.');
+    const exp = res.expires_on ? res.expires_on.slice(0, 10) : '';
+
+    // Web Share API (mobile → share sheet termasuk WhatsApp) — paling
+    // friendly. Cancellable (user tutup sheet) → fallback ke copy+WhatsApp.
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Passport & travel details',
+          text: 'Please fill in your passport and travel details for our trip:',
+          url: link,
+        });
+        if (status) {
+          status.innerHTML = '\u2713 Link shared.' +
+            (exp ? ' <span style="color:#7D7A70;">Valid until ' + _esc(exp) + '</span>' : '');
+          status.style.color = '#0F6E56'; status.style.display = 'block';
+        }
+        return;
+      } catch (e) { /* user cancel share → fallback copy+WhatsApp */ }
+    }
+
+    // Fallback (desktop / tiada Web Share): link readonly + Copy + WhatsApp.
+    _renderShareLinkUi(status, link, exp);
+  } catch (e) {
+    if (status) { status.textContent = e.message || 'Failed to generate link.'; status.style.color = '#991B1B'; status.style.display = 'block'; }
+  } finally {
+    btn.disabled = false; btn.textContent = label;
+  }
+}
+
+/* UI fallback (desktop / tiada Web Share): link readonly + Copy + WhatsApp. */
+function _renderShareLinkUi(status, link, exp) {
+  if (!status) return;
+  const waLink = 'https://wa.me/?text=' + encodeURIComponent(
+    'Please fill in your passport and travel details for our trip:\n' + link
+  );
+  status.innerHTML =
+    '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">' +
+      '<input type="text" readonly value="' + _esc(link) + '" onclick="this.select()" ' +
+      'style="flex:1;min-width:0;font-size:11px;padding:5px 8px;border:1px solid #D4D1CC;border-radius:6px;background:#fff;"/>' +
+      '<button type="button" class="btn btn-g btn-sm" onclick="_copyShareLink(this)">Copy</button>' +
+    '</div>' +
+    '<a href="' + _esc(waLink) + '" target="_blank" rel="noopener" class="btn btn-p btn-sm" ' +
+    'style="display:inline-block;text-decoration:none;text-align:center;width:100%;">' +
+    'Open WhatsApp</a>' +
+    (exp ? '<div style="color:#7D7A70;margin-top:4px;">Valid until ' + _esc(exp) + '</div>' : '');
+  status.style.color = '#0F6E56'; status.style.display = 'block';
+}
+
+function _copyShareLink(btn) {
+  const input = btn.parentElement.querySelector('input');
+  if (!input) return;
+  const text = input.value;
+  const done = () => { const l = btn.textContent; btn.textContent = '\u2713 Copied'; setTimeout(() => { btn.textContent = l; }, 1500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => { input.select(); document.execCommand('copy'); done(); });
+  } else {
+    input.select(); document.execCommand('copy'); done();
+  }
+}
+
+/* Init path guest: langkau ensureSession/renderNav (tiada session), validate
+   token via verify_guest_token, muat borang terus (tiada wizard auto-fill). */
+async function initGuestMode() {
+  document.body.classList.add('tvl-guest-mode');
+  document.querySelectorAll('[data-guest-hide]').forEach(el => el.style.display = 'none');
+
+  let token = _pageData.token || '';
+  if (!token) {
+    try { token = new URLSearchParams(window.location.search).get('token') || ''; } catch (e) { token = ''; }
+  }
+
+  const loading = document.getElementById('tvl-docs-loading');
+  if (!token) {
+    if (loading) {
+      loading.style.display = 'block';
+      loading.innerHTML = '<div style="font-size:14px;color:#991B1B;">This passport link is invalid or missing. Please request a new link from the person who booked your trip.</div>';
+    }
+    return;
+  }
+  _GUEST_TOKEN = token;
+
+  const dobEl = document.getElementById('tvl-dob');
+  if (dobEl) dobEl.max = new Date().toISOString().split('T')[0];
+
+  const confirmBtn = document.getElementById('tvl-confirm-btn');
+  if (confirmBtn) confirmBtn.addEventListener('click', confirmTravellerDocs);
+
+  try {
+    const ctx = await API_TV('verify_guest_token', { token: token });
+    _GUEST_MODE = true;
+    BOOKING = ctx.booking_number || '';
+    // PORTAL_DATA bentuk minimum supaya checkPassportValidity (baca
+    // PORTAL_DATA.booking.departure_date) berfungsi di mod guest.
+    PORTAL_DATA = { booking: { trip_name: ctx.trip_name, departure_date: ctx.departure_date } };
+    ctx.filled = !!ctx.traveller_id;   // supaya guard "save all sections" tak
+                                       // halang confirm bila slot sudah terisi.
+    renderGuestHeader(ctx);
+    ACTIVE_SLOT = ctx;
+    _passportFile = null;
+    _visaPhotoFile = null;
+    await _loadTravellerForm(ctx);
+    // Guest mula di Langkah 1 (wizard upload passport → OCR recognition)
+    // bila slot masih kosong (tiada traveller lagi) — cermin aliran customer
+    // docs page. Slot sudah ada traveller (guest kembali utk edit) → kekal
+    // di borang.
+    if (!ctx.traveller_id) {
+      showTravellerView('V-wizard');
+    }
+  } catch (e) {
+    if (loading) {
+      loading.style.display = 'block';
+      loading.innerHTML = '<div style="font-size:14px;color:#991B1B;">' + _esc(e.message || 'This passport link is invalid or has expired. Please request a new link.') + '</div>';
+    }
+  }
+}
+
 /* ── Init ── */
 document.addEventListener('DOMContentLoaded', async () => {
+  // Guest passport-link page: tiada session — langkau ensureSession/nav,
+  // validate token & muat borang terus.
+  if (_pageData.mode === 'guest') {
+    initGuestMode();
+    return;
+  }
+
   const ok = await ensureSession();
   if (!ok) return;
   renderNav();
