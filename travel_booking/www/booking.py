@@ -3,6 +3,8 @@ import frappe
 import frappe.sessions
 import json
 
+from travel_booking.api._helpers import get_company_currency
+
 
 def get_context(context):
     # NOTA: nama parameter URL (?trip_master=&trip_group_date=) dikekalkan
@@ -55,7 +57,8 @@ def get_context(context):
         # Package" nanti, grid kosong).
         dates = frappe.db.sql("""
             SELECT td.name, td.trip, td.trip_group_name, td.trip_group_code,
-                   td.departure_date, td.return_date, td.total_days, td.total_nights
+                   td.departure_date, td.return_date, td.total_days, td.total_nights,
+                   td.max_participants, td.current_participants
             FROM `tabTrip Group Date` td
             WHERE td.trip IN %(trips)s
               AND td.status = 'Active'
@@ -70,9 +73,32 @@ def get_context(context):
             ORDER BY td.departure_date ASC
         """, {"trips": trip_names}, as_dict=True)
 
+        # seats_left berasaskan SUM(booked_pax) merentasi SEMUA booking
+        # tak-cancelled untuk setiap tarikh — SEPADAN dengan gate overbooking
+        # di confirm_booking (yang juga guna booked_pax, bukan
+        # current_participants). current_participants (Booking Reservation
+        # Confirmed) lewat lag (hanya kira bayaran dah masuk), jadi kalau
+        # guna ia untuk seats_left, customer nampak "available" padahal gate
+        # akan block sebab booking Pending dah tempah tempat.
+        booked_pax_by_date = {}
+        if dates:
+            pax_rows = frappe.db.sql("""
+                SELECT b.trip_date, COALESCE(SUM(b.booked_pax), 0) AS pax
+                FROM `tabBooking` b
+                WHERE b.trip_date IN %(dates)s AND b.status != 'Cancelled'
+                GROUP BY b.trip_date
+            """, {"dates": [d.name for d in dates]}, as_dict=True)
+            booked_pax_by_date = {r.trip_date: int(r.pax or 0) for r in pax_rows}
+
         for d in dates:
             if d.trip not in trip_group_dates:
                 trip_group_dates[d.trip] = []
+            max_pax = int(d.max_participants or 0)
+            booked = int(booked_pax_by_date.get(d.name, 0))
+            # max_participants == 0 -> UNLIMITED (seats_left null -> frontend
+            # papar "Available"). >0 -> seats_left = max - booked (boleh 0 =
+            # sold out). Negatif di-clip ke 0 (lebihan tempat dah ditempah).
+            seats_left = None if max_pax == 0 else max(0, max_pax - booked)
             trip_group_dates[d.trip].append({
                 "name":            d.name,
                 "trip_group_name": d.trip_group_name or "",
@@ -81,6 +107,8 @@ def get_context(context):
                 "return_date":     str(d.return_date)    if d.return_date    else "",
                 "total_days":      d.total_days   or 0,
                 "total_nights":    d.total_nights or 0,
+                "max_participants": max_pax,
+                "seats_left":      seats_left,
             })
 
         # Trip Packages untuk setiap Trip Group Date (produk yang dijual).
@@ -137,6 +165,16 @@ def get_context(context):
     context.trip_group_date  = trip_group_date or ""
     context.no_cache         = 1
     context.title            = "Book Your Cruise — Rarecation"
+
+    # Company currency — SEMUA harga pakej disimpan & dicaj dalam company
+    # currency; currency lain cuma paparan (converter frontend). Wizard
+    # perlukan symbol + code company currency untuk fmt() default + paparan
+    # dwi-currency bila customer pilih display currency berbeza.
+    company_currency = get_company_currency()
+    context.company_currency = company_currency
+    context.company_symbol = (
+        frappe.db.get_value("Currency", company_currency, "symbol") or company_currency
+    )
 
     context.csrf_token = (
         frappe.sessions.get_csrf_token() if frappe.session.user != "Guest" else ""

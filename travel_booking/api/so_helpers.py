@@ -9,6 +9,7 @@
 
 import frappe
 
+from travel_booking.api._helpers import get_company_currency
 from travel_booking.api.constants import TRAVEL_ITEM_CODE
 
 
@@ -90,36 +91,40 @@ def _create_customer(billing):
     return customer.name
 
 
-def _ensure_customer_currency_agnostic(customer_name):
-    """MULTI-CURRENCY GUARDRAIL: pastikan Customer.default_currency KEKAL
-    KOSONG untuk customer travel_booking.
+def _ensure_customer_company_currency(customer_name):
+    """Pastikan Customer.default_currency = company currency.
 
-    Kenapa penting: model app ni ialah single multi-currency Debtors —
-    currency hidup pada per-booking (ikut currency Trip Package), BUKAN
-    pada customer. Customer yang sama patut boleh beli pakej MYR hari ini
-    dan pakej SGD bulan depan. Kalau default_currency terisi (cth di-set
-    manual di Desk), ERPNext boleh lock customer pada satu currency dan
-    pecahkan booking untuk market lain.
+    Model app: SEMUA transaksi jualan/booking dalam COMPANY CURRENCY
+    (harga pakej disimpan & dimasukkan dalam company currency; paparan
+    currency lain diuruskan di layer display converter frontend). Jadi
+    setiap customer travel_booking patutpunya default_currency = company
+    currency. Kalau terisi lain (cth di-set manual di Desk dari model
+    multi-currency lama), betulkan semula ke company currency + log untuk
+    audit (bukan senyap — perubahan data manual admin patut nampak).
 
-    Dipanggil dalam confirm_booking() SEBELUM SO dicipta. Kalau jumpa
-    default_currency terisi: clear + log untuk admin (bukan senyap —
-    perubahan data manual admin patut nampak dalam Error Log untuk audit).
+    Dipanggil dalam confirm_booking() SEBELUM SO dicipta. SO set
+    currency=company_currency & conversion_rate=1.0 secara eksplisit
+    jua, jadi ini cuma penjajar data customer (bukan gate kritikal).
     """
     if not customer_name:
         return
-    locked_currency = frappe.db.get_value("Customer", customer_name, "default_currency")
-    if not locked_currency:
+    company_currency = get_company_currency()
+    current = frappe.db.get_value("Customer", customer_name, "default_currency")
+    if current == company_currency:
         return
-    frappe.db.set_value("Customer", customer_name, "default_currency", None, update_modified=False)
-    frappe.log_error(
-        "Customer '" + str(customer_name) + "' had default_currency='" +
-        str(locked_currency) + "' set (likely manually in Desk). It was cleared "
-        "automatically — travel_booking customers must remain currency-agnostic "
-        "so the same customer can book both MYR and SGD packages (single "
-        "multi-currency Debtors model, rujuk Accounts Settings 'Allow "
-        "multi-currency invoices against single party account').",
-        "Customer Currency Lock Cleared"
+    frappe.db.set_value(
+        "Customer", customer_name, "default_currency", company_currency, update_modified=False
     )
+    if current:
+        frappe.log_error(
+            "Customer '" + str(customer_name) + "' had default_currency='" +
+            str(current) + "' (likely set manually in Desk under the legacy "
+            "multi-currency model). It was reset to company currency '" +
+            str(company_currency) + "' — all travel_booking transactions are "
+            "now in company currency (display-only currency conversion happens "
+            "in the frontend converter, not in accounting).",
+            "Customer Currency Reset to Company"
+        )
 
 
 # ══════════════════════════════════════════════
@@ -176,21 +181,49 @@ def _so_line(item_code, room_category, pax_type, qty, rate, trip_name, group_lab
     }
 
 
-def _get_or_create_travel_item():
-    if frappe.db.exists("Item", TRAVEL_ITEM_CODE):
-        return TRAVEL_ITEM_CODE
+def _get_or_create_travel_item(item_code=None, item_name=None):
+    """item_code/item_name opsyenal — default kekal TRAVEL_ITEM_CODE (cabin
+    booking, backward-compat penuh dengan semua caller sedia ada yang panggil
+    tanpa argument). Dipanggil dengan ADDON_ITEM_CODE/INSURANCE_ITEM_CODE
+    oleh api/addon_manager.py supaya laporan jualan admin boleh split ikut
+    jenis item (rujuk constants.py).
+    """
+    item_code = item_code or TRAVEL_ITEM_CODE
+    if frappe.db.exists("Item", item_code):
+        return item_code
 
     frappe.get_doc({
         "doctype":                       "Item",
-        "item_code":                     TRAVEL_ITEM_CODE,
-        "item_name":                     "Travel Package",
+        "item_code":                     item_code,
+        "item_name":                     item_name or item_code,
         "item_group":                    "Services",
         "stock_uom":                     "Nos",
         "is_stock_item":                 0,
         "is_sales_item":                 1,
         "include_item_in_manufacturing": 0,
     }).insert(ignore_permissions=True)
-    return TRAVEL_ITEM_CODE
+    return item_code
+
+
+# ══════════════════════════════════════════════
+# SO CURRENCY + CONVERSION RATE (shared resolver)
+# ══════════════════════════════════════════════
+
+def _resolve_so_currency_and_rate(currency=None):
+    """Kembalikan (currency, conversion_rate) untuk cipta Sales Order.
+
+    Keputusan senibina: SEMUA SO (booking utama + addon) dalam COMPANY
+    CURRENCY dengan conversion_rate=1.0. Harga pakej/addon disimpan &
+    dimasukkan dalam company currency; paparan currency lain diuruskan di
+    layer display converter frontend, BUKAN di SO/accounting. Argumen
+    `currency` dikekalkan (backward-compat caller sedia ada, cth
+    api/addon_manager.py) tetapi diabaikan — sentiasa pulangkan company
+    currency. Ini juga membuang kebergantungan pada rekod Currency Exchange
+    untuk penciptaan SO: booking TIDAK gagal walaupun rate exchange belum
+    diisi admin (rate hanya diperlukan untuk DISPLAY converter).
+    """
+    company_currency = get_company_currency()
+    return company_currency, 1.0
 
 
 # ══════════════════════════════════════════════
@@ -220,16 +253,6 @@ def _cabin_layout_from_so(so_name):
         cabin_tag     = parts[3].strip()
         pax_type      = parts[4].strip()
 
-        # PENTING: "Main Guest (Single)" cuma label PRICING/paparan (beza
-        # price_adult_single vs price_adult — rujuk _build_so_items()) —
-        # dari segi kapasiti/kiraan slot Booking Reservation, ia SAMA
-        # dengan "Main Guest" biasa (satu-satu tetap ambil 1 slot). Field
-        # pax_type (Select) pada Booking Reservation cuma terima 3 nilai
-        # tetap ("Main Guest"/"Extra Bed"/"Infant") — tanpa normalize ni,
-        # _activate_booking() akan cuba simpan "Main Guest (Single)" terus
-        # dan Frappe tolak dengan error validation (LinkValidationError
-        # gaya Select), block booking/update Payment Entry yang trigger
-        # laluan ni.
         if pax_type == "Main Guest (Single)":
             pax_type = "Main Guest"
 
@@ -296,14 +319,6 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
     frappe.set_user("Administrator")
     try:
         company = so.company or frappe.db.get_single_value("Global Defaults", "default_company")
-        # MULTI-CURRENCY: cari paid_to account KHUSUS untuk currency SO ni
-        # dari Travel Settings.currency_accounts (satu baris per currency —
-        # rujuk dokumen reka bentuk multi-currency). Fallback ke Account
-        # jenis Bank PERTAMA yang jumpa untuk company ni kalau currency SO
-        # tiada baris dikonfigurasikan (tak patut berlaku dalam praktik —
-        # Manual Transfer sepatutnya disembunyikan di frontend untuk
-        # currency yang tiada konfigurasi — tapi jaring keselamatan supaya
-        # admin verify manual tak terus gagal kalau ada gap konfigurasi).
         paid_to = None
         travel_settings = frappe.get_cached_doc("Travel Settings")
         for row in (travel_settings.get("currency_accounts") or []):
@@ -321,13 +336,6 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
             paid_to = frappe.db.get_value("Account",
                 {"account_type": "Bank", "company": company, "is_group": 0}, "name")
         party_account = get_party_account("Customer", customer_name, company)
-        # MULTI-CURRENCY — DIRINGKASKAN: get_party_account() ERPNext
-        # pulangkan akaun Debtors DEFAULT company (biasanya MYR) — ini
-        # SEKARANG selamat diguna terus untuk apa-apa currency SO, sejak
-        # Accounts Settings "Allow multi-currency invoices against single
-        # party account" dihidupkan (rujuk sesi debug/dokumen reka bentuk
-        # multi-currency). Override receivable_account custom TIDAK lagi
-        # diperlukan.
 
         pe = frappe.new_doc("Payment Entry")
         pe.payment_type    = "Receive"
@@ -340,13 +348,6 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
         pe.paid_to         = paid_to
         pe.paid_amount     = float(amount)
         pe.received_amount = float(amount)
-        # PENTING: reference_no = nombor rujukan/transaksi DARI BANK
-        # CUSTOMER SENDIRI (bukan nombor SO kami) — inilah tujuan asal
-        # field "Cheque/Reference No" dalam Payment Entry ERPNext, untuk
-        # admin padankan bayaran ni dengan penyata bank semasa verify.
-        # Pautan ke SO sendiri sudah cukup dikesan melalui child table
-        # 'references' di bawah — reference_no tak perlu (dan sebelum ni
-        # SALAH) diisi dengan so_name yang redundant.
         pe.reference_no    = bank_transfer_ref or so_name
         pe.reference_date  = frappe.utils.today()
         pe.append("references", {
@@ -427,24 +428,15 @@ def _maybe_auto_invoice_so(so_name):
     """
     so = frappe.db.get_value(
         "Sales Order", so_name,
-        ["grand_total", "advance_paid", "docstatus", "currency", "conversion_rate"], as_dict=True
+        ["grand_total", "advance_paid", "docstatus"], as_dict=True
     )
     if not so or so.docstatus != 1:
-        return  # SO tak wujud atau belum/tak lagi submitted — tiada apa nak invois
+        return
 
     so_payment_status = _compute_payment_status(so.advance_paid or 0, float(so.grand_total or 0))
     if so_payment_status != "Paid":
-        return  # SO ni sendiri belum fully paid — belum masa untuk invois
+        return
 
-    # Guard idempotency — SI sedia ada untuk SO ni? PENTING: kecualikan SI
-    # yang dah CANCELLED (docstatus=2) — rujuk sesi debug sebenar: kalau
-    # admin/proses awal terpaksa cancel SI (cth kesilapan testing, atau
-    # refund/pembetulan sebenar), guard ni yang cuma check "SI wujud ke
-    # tidak" (tanpa kira docstatus) akan SELAMANYA anggap "dah ada invois"
-    # walhal SI tu dah tak sah — auto-invoice takkan PERNAH cuba lagi untuk
-    # SO ni, walaupun bayaran baharu masuk kemudian. JOIN ke Sales Invoice
-    # induk untuk tapis docstatus (Sales Invoice Item sendiri tiada field
-    # docstatus, ia child table).
     existing_si = frappe.db.sql("""
         SELECT sii.parent
         FROM `tabSales Invoice Item` sii
@@ -454,17 +446,9 @@ def _maybe_auto_invoice_so(so_name):
     """, so_name)
     existing_si = existing_si[0][0] if existing_si else None
     if existing_si:
-        return  # dah ada invois SAH (auto atau manual) — jangan buat lagi satu
+        return
 
     try:
-        # PENTING: make_sales_invoice() dipindah lokasi dalam ERPNext v17 —
-        # dari erpnext.selling.doctype.sales_order.sales_order (lokasi lama,
-        # versi sebelumnya) ke erpnext.selling.doctype.sales_order.mapper
-        # (refactor ERPNext v17). Import dari lokasi lama akan crash
-        # ImportError ("cannot import name 'make_sales_invoice'") — disahkan
-        # server dev.rpwp.my jalan ERPNext 17.0.0-dev (rujuk `git describe`/
-        # erpnext/__init__.py). Signature fungsi KEKAL SAMA (source_name
-        # sebagai parameter pertama), cuma path import yang berubah.
         from erpnext.selling.doctype.sales_order.mapper import make_sales_invoice
 
         _original_user = frappe.session.user
@@ -475,82 +459,26 @@ def _maybe_auto_invoice_so(so_name):
             si.set_posting_time = 1
             si.posting_date = frappe.utils.today()
 
-            # PENTING — DIBETULKAN lepas testing sebenar (rujuk sesi debug
-            # "Outstanding RM13.17" pada SI SGD yang patut RM0): make_sales_invoice()
-            # TAK set 'debit_to' (akaun Receivable) ikut currency SO — ia
-            # default ke akaun Debtors syarikat punya currency ASAS (MYR)
-            # tak kira apa currency SI sendiri. Ini punca 'party_account_currency'
-            # SI (diderive dari debit_to) jadi MYR walhal SI.currency=SGD —
-            # MULTI-CURRENCY — DIRINGKASKAN lepas testing sebenar: SI
-            # dibiarkan guna akaun Receivable DEFAULT ERPNext (biasanya
-            # "Debtors - DC", currency asas company) — TIDAK perlu akaun
-            # Receivable berasingan per-currency (yang kita bina & uji
-            # sebelum ni) sebab setting Accounts Settings "Allow multi-
-            # currency invoices against single party account" (dihidupkan
-            # semasa sesi debug) dah selesaikan isu accounting ni di
-            # peringkat lebih asas — ERPNext sendiri kendalikan invois
-            # currency asing (SGD/dll) terus atas SATU akaun Receivable
-            # company currency, tanpa perlu setup akaun berasingan setiap
-            # currency baharu. Field 'receivable_account' (Travel Currency
-            # Account) kekal dalam schema (backward-compat/opsyenal untuk
-            # keperluan masa depan), cuma TAK dibaca/dipakai lagi di sini.
-
-            # "Get Advances Received" — mekanisme ERPNext standard yang
-            # SAMA dipanggil bila admin klik butang tu manual. Cari &
-            # allocate SEMUA Payment Entry belum-reconcile untuk SO/
-            # customer ni secara automatik (deposit + baki, kalau
-            # berasingan — SEMUA ditarik, bukan sekadar satu).
             si.set_advances()
 
-            # PENTING — SAHKAN set_advances() betul-betul berjaya, jangan
-            # percaya buta. Kalau ia gagal senyap cari Payment Entry yang
-            # patut (mismatch party/currency, atau quirk versi ERPNext —
-            # rujuk juga isu import path di atas, tanda versi ERPNext boleh
-            # berubah tingkah laku), si.advances akan KOSONG/TAK LENGKAP —
-            # SI akan submit dengan outstanding PENUH/salah walhal SO ni
-            # dah fully paid. Ini bertentangan terus dengan tujuan
-            # automation ni ("pastikan dapat advance receives semua") —
-            # jadi kita check jumlah allocated PADAN dengan advance_paid SO
-            # sebelum benarkan submit. Toleransi RM0.01 untuk floating-
-            # point rounding.
-            #
-            # PENTING JUGA (disahkan via testing sebenar) — ERPNext punya
-            # set_advances() (accounts/services/advances.py) TUKAR basis
-            # currency allocated_amount ikut party_account_currency SI:
-            #   - party_account_currency == company_currency (kes kita
-            #     SEKARANG, sejak "Allow multi-currency invoices against
-            #     single party account" dihidupkan & kita tak lagi perlukan
-            #     receivable_account custom per-currency) -> allocated_amount
-            #     dalam COMPANY CURRENCY (MYR), guna base_grand_total.
-            #   - party_account_currency != company_currency (kalau admin
-            #     override receivable_account currency-specific) ->
-            #     allocated_amount dalam SI.currency asal (SGD), guna
-            #     grand_total terus.
-            # Banding terus so.advance_paid (SENTIASA dalam SO.currency
-            # asal, cth SGD) dengan allocated_total tanpa kira basis ni
-            # punca "false alarm" mismatch (banding MYR vs SGD terus,
-            # bukan pembayaran sebenar tak cukup).
-            company_currency = frappe.get_cached_value(
-                "Company", si.company, "default_currency"
-            )
+            # SO sentiasa company currency (conversion_rate=1) sekarang, jadi
+            # expected_total = advance_paid terus — tiada lagi cabang
+            # party_account_currency vs company_currency (semua converge ke
+            # advance_paid * 1). allocated_amount juga dalam company currency.
             allocated_total = sum(float(a.allocated_amount or 0) for a in (si.advances or []))
-            if si.get("party_account_currency") == company_currency:
-                expected_total = float(so.advance_paid or 0) * float(so.get("conversion_rate") or 1)
-            else:
-                expected_total = float(so.advance_paid or 0)
+            expected_total = float(so.advance_paid or 0)
 
             if abs(allocated_total - expected_total) > 0.01:
                 frappe.log_error(
                     "Auto-invoice: set_advances() failed to allocate ALL payments "
                     "for SO " + so_name + " — expected " + str(expected_total) +
-                    ", but only allocated " + str(allocated_total) + " (basis: " +
-                    ("company currency" if si.get("party_account_currency") == company_currency else "SO currency") +
+                    ", but only allocated " + str(allocated_total) +
                     "). SI NOT submitted (left as draft/not created) — requires manual "
                     "investigation (check Payment Entry party/currency for this SO) before "
                     "generating the invoice manually.",
                     "Auto Sales Invoice - Advance Mismatch"
                 )
-                return  # JANGAN submit — biar admin uruskan manual
+                return
 
             si.insert(ignore_permissions=True)
             si.submit()

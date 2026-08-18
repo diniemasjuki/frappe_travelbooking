@@ -22,6 +22,21 @@
 import frappe
 from frappe.utils import cint
 
+from travel_booking.api._helpers import get_company_currency
+
+
+def _company_symbol() -> str:
+	"""Symbol company currency — SEMUA harga pakej disimpan & dipaparkan
+	dalam company currency sekarang (currency Trip Package cuma hint
+	paparan converter). Cache pendek dalam redis elak lookup berulang."""
+	cc = get_company_currency()
+	key = "travel_booking:company_symbol:" + cc
+	sym = frappe.cache().get(key)
+	if not sym:
+		sym = frappe.db.get_value("Currency", cc, "symbol") or cc
+		frappe.cache().set(key, sym)
+	return sym
+
 # Status Trip Group Date yang masih patut dipapar pada website.
 # 'Full' dipapar tetapi butang booking dilumpuhkan (sold out) —
 # customer boleh nampak pakej tu dah penuh, bukan hilang senyap.
@@ -279,11 +294,15 @@ def _get_packages_for_dates(date_names: list) -> dict:
 			"adult": _fmt_price(None, pr.price_adult),
 			"children": _fmt_price(None, pr.price_children),
 			"infant": _fmt_price(None, pr.price_infant),
-			# nilai mentah untuk kira "from price" (banding numerik)
+			# nilai mentah untuk kira "from price" (banding numerik) dan
+			# untuk converter currency paparan frontend (JS tukar display).
 			"adult_value": float(pr.price_adult or 0),
+			"children_value": float(pr.price_children or 0),
+			"infant_value": float(pr.price_infant or 0),
 		})
 
 	out = {}
+	company_symbol = _company_symbol()
 	for p in pkgs:
 		symbol = p.currency_symbol or p.currency or ""
 		rows = prices_by_pkg.get(p.name, [])
@@ -297,6 +316,8 @@ def _get_packages_for_dates(date_names: list) -> dict:
 			"name": p.name,
 			"package_title": p.package_title or p.package_type or p.name,
 			"package_type": p.package_type or "",
+			# currency package = hint paparan converter (bukan currency harga).
+			# Harga sebenar (from_price_value, from_price) dalam COMPANY currency.
 			"currency": p.currency or "MYR",
 			"currency_symbol": symbol,
 			# Label lapangan terbang pergi ("KUL — Kuala Lumpur Intl") atau
@@ -308,7 +329,9 @@ def _get_packages_for_dates(date_names: list) -> dict:
 			),
 			"prices": rows,
 			"from_price_value": from_value,
-			"from_price": _fmt_price(symbol, from_value) if from_value is not None else None,
+			# Paparan guna COMPANY symbol (harga disimpan company currency).
+			# Converter frontend (JS) boleh tukar ke display currency lain.
+			"from_price": _fmt_price(company_symbol, from_value) if from_value is not None else None,
 			"description": p.package_description or "",
 		}
 		out.setdefault(p.trip_group_date, []).append(pkg)

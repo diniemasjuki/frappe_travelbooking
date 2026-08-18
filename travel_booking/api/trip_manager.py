@@ -159,7 +159,9 @@ def get_trip_bundle(trip: str) -> dict:
 			departure_date, return_date, total_days, total_nights,
 			max_participants, current_participants,
 			is_cruise_only, cruise_schedule, sailing_start, sailing_end,
-			ship_name, ship_code, cruise_days, modified
+			ship_name, ship_code, cruise_days,
+			embarkation_port, disembarkation_port, trip_group_description,
+			modified
 		FROM `tabTrip Group Date`
 		WHERE trip = %s
 		ORDER BY departure_date ASC, creation ASC
@@ -168,7 +170,9 @@ def get_trip_bundle(trip: str) -> dict:
 		as_dict=True,
 	)
 	for d in dates:
-		d.available_slots = (d.max_participants or 0) - (d.current_participants or 0)
+		# max_participants == 0 -> UNLIMITED (None), sepadan dengan
+		# available_slots @property TripGroupDate & konvensi web_data.py.
+		d.available_slots = None if not (d.max_participants or 0) else (d.max_participants - d.current_participants)
 
 	packages = frappe.get_all(
 		"Trip Package",
@@ -252,7 +256,8 @@ def get_trip_bundle(trip: str) -> dict:
 				"Trip Cruise Schedule",
 				filters={"trip_link": trip},
 				fields=("name", "schedule_code", "ship_name", "ship_code",
-					"sail_start", "sail_end", "total_days"),
+					"sail_start", "sail_end", "total_days",
+					"port_start", "port_end", "trip_code", "trip_link"),
 				order_by="sail_start",
 			),
 		},

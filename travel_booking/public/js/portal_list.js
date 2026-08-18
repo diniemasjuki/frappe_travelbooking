@@ -93,16 +93,16 @@ function bookingCard(b, opts = {}) {
       '<div style="display:flex;gap:0;margin-top:14px;border-top:1px solid #E8E5DF;padding-top:12px;flex-wrap:wrap;">' +
         '<div style="flex:1;min-width:100px;padding-right:10px;">' +
           '<div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#B0AC9F;">Total Billed</div>' +
-          '<div style="font-size:15px;font-weight:600;color:#1E1C18;">' + _esc(sym) + ' ' + fmt(b.billed) + '</div>' +
+          '<div style="font-size:15px;font-weight:600;color:#1E1C18;">' + fmtDual(b.billed, sym) + '</div>' +
         '</div>' +
         '<div style="flex:1;min-width:100px;padding-right:10px;">' +
           '<div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#B0AC9F;">Total Paid</div>' +
-          '<div style="font-size:15px;font-weight:600;color:#0F6E56;">' + _esc(sym) + ' ' + fmt(b.paid) + '</div>' +
+          '<div style="font-size:15px;font-weight:600;color:#0F6E56;">' + fmtDual(b.paid, sym) + '</div>' +
         '</div>' +
         '<div style="flex:1;min-width:100px;">' +
           '<div style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#B0AC9F;">Balance Due</div>' +
           '<div style="font-size:15px;font-weight:600;color:' + (b.balance > 0 ? '#92400E' : '#0F6E56') + ';">' +
-            _esc(sym) + ' ' + fmt(b.balance) + " &nbsp; " + paymentBadge(b.payment_status) + '</div>' +
+            fmtDual(b.balance, sym) + " &nbsp; " + paymentBadge(b.payment_status) + '</div>' +
         '</div>' +
       '</div>' +
 
@@ -189,7 +189,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const root = document.getElementById('bookings-content');
   try {
     const res = await API_BK('get_bookings_list', {});
-    renderBookings((res && res.bookings) || []);
+    const _bk = (res && res.bookings) || [];
+    renderBookings(_bk);
+    window.rcRefreshCurrency = () => renderBookings(_bk);
   } catch (e) {
     root.innerHTML =
       '<div class="card" style="text-align:center;padding:32px 24px;">' +

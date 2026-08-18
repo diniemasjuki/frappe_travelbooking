@@ -23,6 +23,51 @@
   var timeoutHandle = null;
   var paymentSettled = false; // true bila berjaya submit / dah "already_paid"
 
+  // ── Display-currency indicative line ──────────────
+  // Caj sebenar sentiasa company currency (.co-amount-value, di atas).
+  // Jika user pilih display currency lain di halaman marketing, tunjuk
+  // anggaran dalam currency itu di bawah jumlah caj — INDAKATIF sahaja
+  // (rate dari ERPnext get_exchange_rate for_selling, BUKAN kadar dicas).
+  // Pilihan dibaca dari localStorage 'rc_display_currency' yang ditulis
+  // oleh converter di trip.html / trips.html.
+  function initConvertedDisplay() {
+    var coConverted = document.getElementById('coConverted');
+    if (!coConverted) return;
+
+    var conf = {};
+    try {
+      var rc = document.getElementById('rcCurrencyData');
+      conf = rc ? JSON.parse(rc.textContent || '{}') : {};
+    } catch (e) {}
+    var companyCurrency = conf.company_currency || 'MYR';
+
+    var cached = null;
+    try { cached = JSON.parse(localStorage.getItem('rc_display_currency') || 'null'); } catch (e) {}
+    // Tiada pilihan, atau company → biar kosong (caj dah papar company).
+    if (!cached || !cached.currency || cached.currency === companyCurrency) {
+      return;
+    }
+
+    // Amaun caj dibaca terus dari .co-amount-value (format "CCY 1234.50",
+    // %.2f tiada pemisah ribuan) — elak tambah medan context tambahan.
+    var amtText = (document.querySelector('.co-amount-value') || {}).textContent || '';
+    var amt = parseFloat(amtText.replace(/^[^\d.-]*/, '')) || 0;
+    var fmt = function (n) {
+      return Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    fetch('/api/method/travel_booking.api.pricing.get_currency_rate?from_currency=' + encodeURIComponent(companyCurrency) + '&to_currency=' + encodeURIComponent(cached.currency))
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        var rate = (res && res.message && res.message.rate) ? res.message.rate : null;
+        if (!rate) return; // rate unavailable → biar kosong
+        var sym = cached.symbol || cached.currency;
+        coConverted.textContent = '\u2248 ' + sym + ' ' + fmt(amt * rate) + ' (indicative)';
+      })
+      .catch(function () { /* senyap — biar kosong */ });
+  }
+  initConvertedDisplay();
+
   function returnUrl() {
     var base = window.location.origin;
     if (SOURCE === "wizard" && REF) {

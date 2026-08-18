@@ -8,6 +8,8 @@
  "engine": "InnoDB",
  "field_order": [
   "addon_title",
+  "addon_type",
+  "scope",
   "addon_organizer",
   "disable",
   "column_break_skiv",
@@ -25,6 +27,24 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Addon Title"
+  },
+  {
+   "description": "Kategori am untuk laporan/penapisan. Tak menentukan item code SO (item code ditentukan oleh Addon Package/checkout logic, bukan field ini).",
+   "fieldname": "addon_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Addon Type",
+   "options": "Excursion\nInsurance\nTransfer\nOther",
+   "default": "Other"
+  },
+  {
+   "description": "Per Booking: qty di peringkat booking sahaja. Per Pax: perlu di-assign kepada Booking Reservation tertentu (belum disokong penuh di portal, reserved untuk fasa akan datang).",
+   "fieldname": "scope",
+   "fieldtype": "Select",
+   "label": "Scope",
+   "options": "Per Booking\nPer Pax",
+   "default": "Per Booking",
+   "reqd": 1
   },
   {
    "fieldname": "description",
@@ -88,8 +108,13 @@
  "grid_page_length": 50,
  "image_field": "cover_image",
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-08-10 06:51:49.302141",
+ "links": [
+  {
+   "link_doctype": "Addon Package",
+   "link_fieldname": "addon"
+  }
+ ],
+ "modified": "2026-08-17 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Addon",
@@ -105,6 +130,29 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
    "share": 1,
    "write": 1
   }

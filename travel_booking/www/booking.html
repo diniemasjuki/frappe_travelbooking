@@ -58,6 +58,15 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+<!-- Display currency converter — harga sentiasa dicaj dalam company currency
+     ({{ company_currency }}); pilihan di sini cuma tukar PAPARAN. Amaun
+     converted ialah indicative (rate exchange ERPNext for_selling). -->
+<div class="rc-currency-bar">
+  <span class="rc-currency-bar__label">Display in</span>
+  <select id="displayCurrency" class="rc-currency-bar__select"></select>
+  <span class="rc-currency-bar__note" id="currencyNote"></span>
+</div>
+
 <main class="rc-main">
 
   <!-- ══ STEP 0: SELECT TRIP & DATE ══ -->
@@ -459,7 +468,7 @@ if ('serviceWorker' in navigator) {
 
 <!-- Page data dari Frappe — elak Jinja syntax dalam JS -->
 <script id="pageData" type="application/json">
-{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "csrf_token": "{{ csrf_token }}"}
+{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "csrf_token": "{{ csrf_token }}", "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}"}
 </script>
 
 <!-- intl-tel-input — dial-code + bendera negara, SAMA library dengan fieldtype

@@ -151,7 +151,10 @@ if ('serviceWorker' in navigator) {
       <div>
         <div class="co-amount-label">Amount to pay</div>
       </div>
-      <div class="co-amount-value">{{ currency }} {{ "%.2f"|format(amount) }}</div>
+      <div style="text-align:right">
+        <div class="co-amount-value">{{ currency }} {{ "%.2f"|format(amount) }}</div>
+        <div class="co-amount-converted" id="coConverted" style="font-size:12px;color:#7D7A70;"></div>
+      </div>
     </div>
 
     <div id="loading-state" class="co-loading">
@@ -171,6 +174,9 @@ if ('serviceWorker' in navigator) {
 
 {% if not already_paid %}
 <script src="https://js.stripe.com/v3/"></script>
+
+<!-- Company currency untuk converter indicative (checkout.js baca) -->
+<script id="rcCurrencyData" type="application/json">{"company_currency": "{{ company_currency |e }}"}</script>
 
 <!-- Page data dari Frappe — elak Jinja syntax dalam JS -->
 <script id="pageData" type="application/json">

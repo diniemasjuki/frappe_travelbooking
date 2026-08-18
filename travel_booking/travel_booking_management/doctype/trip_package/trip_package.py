@@ -53,7 +53,7 @@ class TripPackage(Document):
 			package_type = ""
 
 		if( self.airport_form ):
-			airport = " : " + self.airport_form
+			airport = self.airport_form
 		else :
 			airport = ""
 

@@ -29,8 +29,18 @@ const state = {
   trip_package: "",
   trip_name:    "",
   group_name:   "",
+  // SEMUA harga disimpan & dicaj dalam COMPANY CURRENCY. package_currency
+  // /package_symbol kini HANYA hint display-default (Trip Package.currency)
+  // — bukan lagi currency caj sebenar. fmt() guna company currency sebagai
+  // asas, papar display currency (converted) bila customer pilih yang lain.
+  company_currency: _data.company_currency || "MYR",
+  company_symbol:   _data.company_symbol || "MYR",
   package_currency: "MYR",
   package_symbol:   "RM",
+  // Display currency terpilih (converter). Null rate -> fallback company.
+  display_currency: null,
+  display_symbol:   null,
+  display_rate:     null,
   cabins:       [],
   rooms:        [],
   selections:   {},
@@ -60,13 +70,22 @@ function fmt(n) {
   // backend. Percanggahan paparan vs caj sebenar ni boleh buat customer
   // fikir mereka dicaj lebih/kurang dari yang sepatutnya.
   //
-  // MULTI-CURRENCY: prefix simbol BUKAN lagi hardcode "RM " — baca terus
-  // dari state.package_symbol (diisi dari currency_symbol package yang
-  // dipilih customer, sumber asal doctype Currency ERPNext — rujuk
-  // www/booking.py). Fallback "RM" untuk fmt() dipanggil SEBELUM customer
-  // pilih Trip/Package lagi (cth Step 0, belum ada currency ditentukan).
-  var symbol = (typeof state !== "undefined" && state.package_symbol) ? state.package_symbol : "RM";
-  return symbol + " " + Number(n).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // COMPANY-CURRENCY MODEL: harga disimpan & dicaj dalam company currency.
+  // `n` sentiasa company currency. Bila customer pilih display currency
+  // BERBEZA (converter), papar DUA: display (converted) utama + company
+  // (caj sebenar) dalam kurungan. display_rate null / display == company ->
+  // company sahaja. Ini PAPARAN; Stripe/Payment Entry caj company currency.
+  var num = Number(n).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  var coSym = state.company_symbol || "RM";
+  var dCur  = state.display_currency;
+  var dSym  = state.display_symbol;
+  var rate  = state.display_rate;
+  if (dCur && dCur !== state.company_currency && rate) {
+    var converted = Number(n) * Number(rate);
+    var convStr = converted.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return dSym + " " + convStr + " (" + coSym + " " + num + ")";
+  }
+  return coSym + " " + num;
 }
 
 function showLoading(msg) {
@@ -319,10 +338,36 @@ tripSelect.addEventListener("change", function() {
     
     var durTxt = (g.total_days ? (g.total_days + " Day ") : "") + (g.total_nights ? (" " + g.total_nights + " Night") : "");
 
+    // seats_left: null/undefined -> UNLIMITED (max_participants=0, cth cruise)
+    // -> "Available". 0 -> sold out (button disabled, tak boleh pilih).
+    // <=10 -> "N seats left" (urgency). else "Available". Sumber seats_left
+    // ialah SUM(booked_pax) semua booking tak-cancelled (sepadan dengan gate
+    // overbooking di confirm_booking), BUKAN current_participants.
+    var seatsLeft = g.seats_left;
+    var seatsBadge = "";
+    var soldOut = (seatsLeft !== null && seatsLeft !== undefined && seatsLeft <= 0);
+    if (seatsLeft === null || seatsLeft === undefined) {
+      seatsBadge = '<span class="rc-date-btn__seats rc-date-btn__seats--ok">Available</span>';
+    } else if (seatsLeft <= 0) {
+      seatsBadge = '<span class="rc-date-btn__seats rc-date-btn__seats--out">Sold Out</span>';
+    } else if (seatsLeft <= 10) {
+      seatsBadge = '<span class="rc-date-btn__seats rc-date-btn__seats--few">' + seatsLeft + ' seats left</span>';
+    } else {
+      seatsBadge = '<span class="rc-date-btn__seats rc-date-btn__seats--ok">Available</span>';
+    }
+
     btn.innerHTML    =
       (durTxt ? '<span class="rc-date-btn__dates">' + cruise + durTxt + this_is_group_no + '</span>' : '')
-      + '<span class="rc-date-btn__name">' + fmtDate(g.departure_date) + '  \u2013  ' + fmtDate(g.return_date) + '</span>';    
+      + '<span class="rc-date-btn__name">' + fmtDate(g.departure_date) + '  \u2013  ' + fmtDate(g.return_date) + '</span>'
+      + seatsBadge;
+
+    if (soldOut) {
+      btn.disabled = true;
+      btn.classList.add("is-soldout");
+    }
+
       btn.addEventListener("click", function() {
+      if (this.disabled) return;
       dateGrid.querySelectorAll(".rc-date-btn").forEach(function(b) { b.classList.remove("selected"); });
       this.classList.add("selected");
       selectedGroup = g;
@@ -347,6 +392,23 @@ step0Next.addEventListener("click", async function() {
   // lama yang mungkin belum diisi currency-nya.
   state.package_currency = selectedPackage.currency || "MYR";
   state.package_symbol   = selectedPackage.currency_symbol || state.package_currency;
+  // Marketing hint: kalau customer BELUM pilih display currency sendiri
+  // (tiada keutamaan localStorage), defaultkan paparan ke currency pakej
+  // (cth trip SGD papar SGD). Kalau ada keutamaan tersimpan, kekal pilihan
+  // customer. Harga sentiasa dicaj company currency — ini cuma paparan.
+  var _savedPref = null;
+  try { _savedPref = localStorage.getItem("rc_display_currency"); } catch (e) {}
+  if (!_savedPref && state.package_currency && state.package_currency !== state.display_currency) {
+    var sel = document.getElementById("displayCurrency");
+    if (sel) {
+      // hanya tukar kalau currency pakej ada dalam senarai converter
+      var hasOpt = Array.prototype.some.call(sel.options, function(o) { return o.value === state.package_currency; });
+      if (hasOpt) {
+        sel.value = state.package_currency;
+        setDisplayCurrency(state.package_currency, false);
+      }
+    }
+  }
   if (typeof renderPaymentSettingsUI === "function") renderPaymentSettingsUI();
   await loadCabins();
   showStep(1);
@@ -1197,7 +1259,16 @@ function mkStepper(room, key, label, max, rateFn, refreshers, tooltipText) {
 
     var c = cabinByCategory(room.room_category);
     var capacity    = c ? (c.capacity || 0) : 0;
-    var maxCapacity = c ? (c.max_capacity || capacity) : 0;
+    // max_capacity === 0 (eksplisit) -> UNLIMITED: overbooking cabin
+    // dibenarkan (pilihan user "per-cabin"). Server (get_booking_details)
+    // kekal hantar 0 untuk unlimited, fallback `capacity` bila NULL —
+    // jadi bezakan 0 di sini SEBELUM `|| capacity` (0 falsy akan ter-skip).
+    var unlimited   = !!(c && c.max_capacity === 0);
+    var maxCapacity = unlimited ? Infinity : (c ? (c.max_capacity || capacity) : 0);
+    // capacity sendiri 0 (cth cabin tanpa had fizikal) -> main guest tak
+    // limited secara struktur; treat sebagai Infinity juga (defensive,
+    // padan dengan _validate_selection_capacity server).
+    var mainCap     = capacity > 0 ? capacity : Infinity;
 
 
     if (key === "main_guests") {
@@ -1214,21 +1285,27 @@ function mkStepper(room, key, label, max, rateFn, refreshers, tooltipText) {
       // pax dah sampai max_capacity, "+" terus disabled — customer KENA
       // kurangkan Extra Bed/Infant dulu secara eksplisit sebelum boleh
       // tambah Main Guest semula (bukan auto-clamp/kurangkan senyap).
-      return Math.min(capacity, maxCapacity - room.extra_beds - room.infants);
+      // Bila unlimited (max_capacity=0): maxCapacity=Infinity -> pulangkan
+      // mainCap (capacity struktur) sahaja.
+      return Math.min(mainCap, maxCapacity - room.extra_beds - room.infants);
     }
 
     if (key === "extra_beds") {
-      // Extra Bed: perlu Main Guest sudah penuh (= capacity). Infant kini
-      // turut dikira dalam capacity bilik — Extra Bed & Infant berkongsi
-      // baki ruang yang sama (max_capacity - main_guests - infants).
-      if (room.main_guests !== capacity) return 0;
+      // Extra Bed: perlu Main Guest sudah penuh (= capacity) bila capacity
+      // terhad. capacity 0 (unlimited struktur) -> skip syarat ni, cuma
+      // perlu main_guests >= 1. Infant turut dikira dalam capacity bilik
+      // — Extra Bed & Infant berkongsi baki ruang (max_capacity -
+      // main_guests - infants). unlimited -> Infinity.
+      if (capacity > 0 && room.main_guests !== capacity) return 0;
+      if (capacity === 0 && room.main_guests < 1) return 0;
       return Math.max(0, maxCapacity - room.main_guests - room.infants);
     }
 
     if (key === "infants") {
       // Infant: enable bila Main Guest sekurang-kurangnya 1 (bukan 2 lagi).
       // Infant dikira dalam capacity bilik — berkongsi baki ruang dengan
-      // Extra Bed (max_capacity - main_guests - extra_beds).
+      // Extra Bed (max_capacity - main_guests - extra_beds). unlimited
+      // -> Infinity.
       if (room.main_guests < 1) return 0;
       return Math.max(0, maxCapacity - room.main_guests - room.extra_beds);
     }
@@ -1897,10 +1974,11 @@ document.getElementById("addSalesPersonBtn").addEventListener("click", addSalesP
 function renderPaymentSettingsUI() {
   var s = state_payment_settings;
 
-  // MULTI-CURRENCY: pilih bank details ikut currency package yang
-  // DIPILIH customer (state.package_currency, default "MYR" sebelum
-  // Trip/Package dipilih) — bukan satu set flat macam sebelum ni.
-  var currency = state.package_currency || "MYR";
+  // COMPANY-CURRENCY: bank details (Manual Transfer) ikut COMPANY currency
+  // — customer dicaj dalam company currency (SO/Stripe/Payment Entry semua
+  // company currency), jadi mereka kena transfer ke bank account company.
+  // Bukan state.package_currency (itu cuma hint paparan converter sekarang).
+  var currency = state.company_currency || "MYR";
   var bankInfo = (s.bank_accounts && s.bank_accounts[currency]) || null;
 
   // Bank transfer details
@@ -2260,12 +2338,14 @@ function updatePaymentUI() {
   document.getElementById("chipDeposit").textContent = fmt(min);
   document.getElementById("chipFull").textContent    = fmt(max);
 
-  // MULTI-CURRENCY: prefix input "Payment Amount" (cth "RM"/"SGD") — ini
-  // TERLEPAS pandang semasa Fasa 3 sebab ia HTML statik, bukan melalui
-  // fmt() macam chip Deposit/Pay in full sebelah dia. Guna symbol package
-  // yang dipilih (state.package_symbol), sama sumber dengan fmt().
+  // COMPANY-CURRENCY: prefix input "Payment Amount" — amaun yang customer
+  // BAYAR (deposit/full) sentiasa dalam company currency (dicaj Stripe /
+  // Payment Entry), jadi prefix mesti company_symbol, BUKAN package_symbol
+  // (itu cuma hint paparan converter sekarang). fmt() pada chip Deposit/
+  // Pay-in-full sebelah guna company currency juga (display currency hanya
+  // paparan tambahan dalam kurungan).
   var prefixEl = document.getElementById("payAmountPrefix");
-  if (prefixEl) prefixEl.textContent = state.package_symbol || "RM";
+  if (prefixEl) prefixEl.textContent = state.company_symbol || "RM";
 
   var inp = document.getElementById("payAmountInput");
   inp.min = min; inp.max = max;
@@ -2529,11 +2609,114 @@ function showConfirmation(booking) {
   document.getElementById("confirmEmail").innerHTML = confirmMsg;
 }
 
+// ─── DISPLAY CURRENCY CONVERTER ───────────────────────────
+// SEMUA harga dicaj dalam company currency; pilihan currency di sini cuma
+// tukar PAPARAN (rate exchange ERPNext for_selling, indicative). fmt()
+// baca state.display_rate live, jadi re-render step semasa selepas tukar.
+var DISPLAY_CURRENCIES = [];
+
+async function initDisplayCurrency() {
+  var sel = document.getElementById("displayCurrency");
+  if (!sel) return;
+  try {
+    var list = await apiCall("travel_booking.api.pricing.get_display_currencies", {}, true);
+    DISPLAY_CURRENCIES = list || [];
+  } catch (e) {
+    DISPLAY_CURRENCIES = [];
+  }
+  sel.innerHTML = "";
+  if (!DISPLAY_CURRENCIES.length) {
+    // fallback: company currency sahaja (endpoint gagal — jangan pecah wizard)
+    var fo = document.createElement("option");
+    fo.value = state.company_currency;
+    fo.textContent = state.company_currency;
+    sel.appendChild(fo);
+    sel.disabled = true;
+  } else {
+    DISPLAY_CURRENCIES.forEach(function(c) {
+      var opt = document.createElement("option");
+      opt.value = c.code;
+      opt.textContent = c.code + " (" + (c.symbol || c.code) + ")" + (c.is_company ? " \u2014 charged" : "");
+      sel.appendChild(opt);
+    });
+  }
+  // Default: keutamaan localStorage, lain company currency.
+  var saved = null;
+  try { saved = localStorage.getItem("rc_display_currency"); } catch (e) {}
+  var def = saved || state.company_currency;
+  sel.value = def;
+  sel.addEventListener("change", function() {
+    setDisplayCurrency(this.value, true);
+  });
+  setDisplayCurrency(def, false);
+}
+
+function lookupCurrencySymbol(code) {
+  for (var i = 0; i < DISPLAY_CURRENCIES.length; i++) {
+    if (DISPLAY_CURRENCIES[i].code === code) return DISPLAY_CURRENCIES[i].symbol || code;
+  }
+  return code;
+}
+
+async function setDisplayCurrency(code, persist) {
+  code = code || state.company_currency;
+  state.display_currency = code;
+  state.display_symbol = lookupCurrencySymbol(code);
+  if (persist) {
+    try { localStorage.setItem("rc_display_currency", code); } catch (e) {}
+  }
+  if (code === state.company_currency) {
+    state.display_rate = null;
+    updateCurrencyNote();
+    refreshCurrencyDisplay();
+    return;
+  }
+  // Fetch rate company -> display (cached 5 minit di server).
+  try {
+    var r = await apiCall("travel_booking.api.pricing.get_currency_rate",
+      { from_currency: state.company_currency, to_currency: code }, true);
+    state.display_rate = (r && r.rate) ? Number(r.rate) : null;
+  } catch (e) {
+    state.display_rate = null;
+  }
+  updateCurrencyNote();
+  refreshCurrencyDisplay();
+}
+
+function updateCurrencyNote() {
+  var note = document.getElementById("currencyNote");
+  if (!note) return;
+  var parts = ["Charged in " + state.company_symbol + " (" + state.company_currency + ")"];
+  if (state.display_currency && state.display_currency !== state.company_currency) {
+    if (state.display_rate) {
+      parts.push("1 " + state.company_currency + " = " + state.display_rate + " " + state.display_currency + " (indicative)");
+    } else {
+      parts.push("Rate unavailable \u2014 showing " + state.company_currency);
+    }
+  }
+  note.textContent = parts.join(" \u00b7 ");
+}
+
+// Re-render step semasa supaya fmt() dikira semula dengan rate baharu.
+function refreshCurrencyDisplay() {
+  try {
+    if (state.step === 1) {
+      if (typeof renderRooms === "function") renderRooms();
+      if (typeof updateTotals === "function") updateTotals();
+    } else if (state.step === 3) {
+      if (typeof buildOrderSummary === "function") buildOrderSummary();
+      if (typeof refreshOrderSummaryTotal === "function") refreshOrderSummaryTotal();
+      if (typeof refreshPaySummary === "function") refreshPaySummary();
+    }
+  } catch (e) { /* jangan pecah flow utama */ }
+}
+
 // ─── BOOTSTRAP ─────────────────────────────────────────────
 // Muat Travel Settings (bank account, cashback %) lebih awal supaya sedia
 // bila user sampai ke Step 3 (Payment). Tidak menghalang render page lain.
 loadPaymentSettings();
 loadSalesPersons();
+initDisplayCurrency();
 
 // Auto-fill + auto-apply referral code if the customer arrived via an
 // affiliate's shareable link (?ref=CODE). Manual entry via the Apply

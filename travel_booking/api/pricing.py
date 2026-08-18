@@ -13,6 +13,7 @@
 
 import frappe
 
+from travel_booking.api._helpers import get_company_currency
 from travel_booking.api.constants import MAX_CABINS_PER_BOOKING
 from travel_booking.api.so_helpers import _get_primary_so, _compute_payment_status
 
@@ -212,7 +213,9 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             "room_name":     row.category_name or row.room_category,
             "room_type":     row.room_type,
             "capacity":      row.capacity or 2,
-            "max_capacity":  row.max_capacity or row.capacity or 2,
+            # max_capacity == 0 eksplisit -> UNLIMITED (jangan fallback ke
+            # capacity). None/kosong -> fallback capacity (behavior sedia).
+            "max_capacity":  row.max_capacity if row.max_capacity is not None else (row.capacity or 2),
             "description":   row.description or "",
             "room_image":    row.room_profile or "",
             "pricing": {
@@ -269,11 +272,190 @@ def fmt_currency(amount, currency=None):
     return "{} {:,.2f}".format(symbol, float(amount))
 
 
+# ══════════════════════════════════════════════
+# DISPLAY CURRENCY CONVERTER
+#
+# Semua transaksi (SO/Stripe/Payment Entry/invoice) dalam COMPANY CURRENCY.
+# Currency lain cuma PAPARAN — customer boleh pilih currency di frontend,
+# jumlah ditukar guna rate exchange ERPNext (for_selling). Converter ni
+# READ-ONLY: tak ubah accounting; cuma sediakan rate + symbol untuk UI.
+# ══════════════════════════════════════════════
+
+# Cache rate exchange 5 minit dalam redis — elak query/fetch berulang setiap
+# kali page reload. Rate berubah lambat (admin kemaskini Currency Exchange
+# secara berkala); 5 minit antara refresh cukup untuk paparan indicative.
+_FX_CACHE_TTL = 300
+
+
+def _currency_symbol(currency):
+    """Symbol untuk satu currency (cth 'RM', 'S$'). Fallback ke code currency
+    sendiri kalau tiada rekod Currency / tiada symbol."""
+    if not currency:
+        return "RM"
+    return frappe.db.get_value("Currency", currency, "symbol") or currency
+
+
+@frappe.whitelist(allow_guest=True)
+def get_display_currencies() -> list:
+    """Senarai currency yang boleh dipaparkan di converter frontend.
+
+    Kriteria (pilihan user "Semua Currency dengan rate"): setiap currency
+    AKTIF (enabled=1) yang ada sekurang-kurangnya satu rekod Currency
+    Exchange melibatkan company currency (jadi rate boleh diresolve).
+    Company currency sentiasa dihadapan (rate=1, identiti).
+    Pulangkan [{code, symbol, name, is_company}].
+    """
+    company_currency = get_company_currency()
+
+    rows = frappe.db.sql(
+        """
+        SELECT DISTINCT c.name AS code, c.currency_name AS name,
+                        c.symbol
+        FROM `tabCurrency` c
+        WHERE c.enabled = 1
+          AND c.name = %s
+           OR (
+                c.enabled = 1
+                AND c.name IN (
+                    SELECT from_currency FROM `tabCurrency Exchange`
+                    WHERE to_currency = %s AND docstatus != 2
+                    UNION
+                    SELECT to_currency FROM `tabCurrency Exchange`
+                    WHERE from_currency = %s AND docstatus != 2
+                )
+           )
+        """,
+        (company_currency, company_currency, company_currency),
+        as_dict=True,
+    )
+
+    out = []
+    seen = set()
+    # Company currency first.
+    out.append({
+        "code": company_currency,
+        "symbol": _currency_symbol(company_currency),
+        "name": frappe.db.get_value("Currency", company_currency, "currency_name")
+        or company_currency,
+        "is_company": True,
+    })
+    seen.add(company_currency)
+    for r in rows:
+        if r.code in seen:
+            continue
+        out.append({
+            "code": r.code,
+            "symbol": r.symbol or r.code,
+            "name": r.name or r.code,
+            "is_company": False,
+        })
+        seen.add(r.code)
+    return out
+
+
+@frappe.whitelist(allow_guest=True)
+def get_currency_rate(from_currency: str, to_currency: str) -> dict:
+    """Rate exchange (for_selling) dari -> ke. Wrapper atas
+    erpnext.setup.utils.get_exchange_rate dengan cache redis 5 minit.
+
+    Pulangkan {from, to, rate}. rate=None kalau tak boleh resolve (frontend
+    tunjuk mesej "rate unavailable" — JANGAN throw, sebab ini paparan sahaja,
+    bukan gate kritikal). Jika from==to, rate=1 (cth company->company).
+    """
+    if not from_currency or not to_currency:
+        return {"from": from_currency, "to": to_currency, "rate": None}
+    if from_currency == to_currency:
+        return {"from": from_currency, "to": to_currency, "rate": 1.0}
+
+    cache = frappe.cache()
+    key = "travel_booking:fx:" + from_currency + ":" + to_currency
+    cached = cache.get(key)
+    if cached:
+        try:
+            import json as _json
+            data = _json.loads(cached)
+            import time as _time
+            if _time.time() - float(data.get("ts", 0)) < _FX_CACHE_TTL:
+                return {
+                    "from": from_currency,
+                    "to": to_currency,
+                    "rate": float(data["rate"]),
+                }
+        except Exception:
+            pass  # cache corrupt — buang & fetch semula
+
+    try:
+        from erpnext.setup.utils import get_exchange_rate
+
+        rate = get_exchange_rate(
+            from_currency, to_currency, frappe.utils.today(), args="for_selling"
+        )
+    except Exception:
+        rate = None
+
+    if rate:
+        import json as _json
+        import time as _time
+        cache.set(
+            key,
+            _json.dumps({"rate": float(rate), "ts": _time.time()}),
+        )
+
+    return {"from": from_currency, "to": to_currency, "rate": float(rate) if rate else None}
+
+
+@frappe.whitelist(allow_guest=True)
+def convert_amount(amount: float, to_currency: str) -> dict:
+    """Tukar satu amaun (dalam company currency) ke currency paparan.
+
+    Pulangkan {company_currency, company_symbol, amount, display_currency,
+    display_symbol, converted, rate}. converted=None kalau rate tak boleh
+    resolve (frontend fallback ke company currency sahaja). Digunakan oleh
+    booking wizard / portal / halaman awam untuk paparan dwi-currency.
+    """
+    company_currency = get_company_currency()
+    amount = float(amount or 0)
+
+    if not to_currency or to_currency == company_currency:
+        return {
+            "company_currency": company_currency,
+            "company_symbol": _currency_symbol(company_currency),
+            "amount": amount,
+            "display_currency": company_currency,
+            "display_symbol": _currency_symbol(company_currency),
+            "converted": amount,
+            "rate": 1.0,
+        }
+
+    r = get_currency_rate(company_currency, to_currency)
+    rate = r.get("rate")
+    return {
+        "company_currency": company_currency,
+        "company_symbol": _currency_symbol(company_currency),
+        "amount": amount,
+        "display_currency": to_currency,
+        "display_symbol": _currency_symbol(to_currency),
+        "converted": round(amount * float(rate), 2) if rate else None,
+        "rate": rate,
+    }
+
+
 def _get_pricing_map(trip_package):
     """Return {pricing_for_class: {...}} dari Trip Package Price (child
     Trip Package). Setiap row berkait dengan satu Trip Price Category
     (kategori bilik/kabin) melalui field 'pricing_for_class'.
     """
+    # Guardrail migrasi currency: harga pakej yang berflag
+    # 'price_review_required' belum disemak/diisi semula dalam company
+    # currency. Halang SEBARANG kiraan harga (confirm_booking, voucher,
+    # addon) supaya booking tak jadi atas harga pra-migrasi yang salah.
+    # Admin uncheck flag selepas semak & isi semula harga (company currency).
+    if frappe.db.get_value("Trip Package", trip_package, "price_review_required"):
+        frappe.throw(
+            "Pricing for this package is currently under review. "
+            "Please contact the admin to complete the currency review."
+        )
+
     rows = frappe.db.sql("""
         SELECT pricing_for_class AS room_category,
                price_adult_single, price_adult, price_upperberth,
@@ -321,6 +503,13 @@ def _validate_selection_capacity(selections, cabin_info_map):
                      sah bila main_guests >= 1. Had DINAMIK (bukan formula
                      tetap max_capacity//2) — sepadan tepat dengan capFor()
                      dalam booking.js (frontend).
+
+    PERATURAN OVERBOOKING (max_capacity == 0 -> UNLIMITED): bila field
+    max_capacity diset eksplisit ke 0, cabin dianggap TANPA had — semak
+    jumlah total & had extra_bed/infant di-skip (overbooking dibenarkan).
+    Rule structural (main_guests >= 1, extra-bed-only-when-full) kekal.
+    max_capacity NULL/kosong -> fallback ke capacity (behavior sedia,
+    backward-compat untuk pakej lama yang tak isi max_capacity).
     cabin_info_map: {room_category: {"capacity":.., "max_capacity":..}}
     """
     # PENTING: had maksimum cabin — check DULU sebelum apa-apa, sebab
@@ -339,30 +528,42 @@ def _validate_selection_capacity(selections, cabin_info_map):
         if not info:
             frappe.throw("Invalid room category: " + str(room_category))
 
-        capacity     = int(info.get("capacity") or 0)
-        max_capacity = int(info.get("max_capacity") or capacity)
-        max_extra    = max(0, max_capacity - capacity)
+        capacity = int(info.get("capacity") or 0)
+        # max_capacity == 0 (eksplisit) -> UNLIMITED. None/kosong -> fallback
+        # ke capacity (behavior sedia). Bezakan None daripada 0 supaya pakej
+        # lama (max_capacity tak diisi) tak berubah tingkah laku.
+        mc = info.get("max_capacity")
+        if mc is None:
+            max_capacity = capacity
+            unlimited = False
+        else:
+            max_capacity = int(mc)
+            unlimited = (max_capacity == 0)
 
         mg  = int(sel.get("main_guests", 0))
         eb  = int(sel.get("extra_beds", 0))
         inf = int(sel.get("infants", 0))
 
-        # max_infant DINAMIK — sama formula dengan capFor() frontend
-        # (maxCapacity - main_guests - extra_beds). SEBELUM NI guna formula
-        # TETAP (max_capacity // 2) yang tak ambil kira berapa ruang
-        # main_guests/extra_beds DAH guna — boleh terlalu ketat (tolak
-        # selection sah, cth Main Guest=1 patut boleh Infant=3 dalam cabin
-        # 4-pax, tapi formula lama cap kat 2) atau dalam kes lain terlalu
-        # longgar berbanding apa frontend sebenarnya benarkan.
-        max_infant = max(0, max_capacity - mg - eb)
+        if unlimited:
+            max_extra  = None  # unlimited
+            max_infant = None  # unlimited
+        else:
+            # max_infant DINAMIK — sama formula dengan capFor() frontend
+            # (maxCapacity - main_guests - extra_beds).
+            max_extra  = max(0, max_capacity - capacity)
+            max_infant = max(0, max_capacity - mg - eb)
 
-        if mg < 1 or mg > capacity:
+        # main_guests: minimum 1 sentiasa. Upper = capacity (structural);
+        # capacity 0 juga dianggap unlimited upper (defensive).
+        if mg < 1:
+            frappe.throw("Main Guest for " + str(room_category) + " must be at least 1.")
+        if capacity > 0 and mg > capacity:
             frappe.throw("Main Guest for " + str(room_category) + " must be between 1 and " + str(capacity) + ".")
-        if eb > 0 and mg != capacity:
+        if eb > 0 and capacity > 0 and mg != capacity:
             frappe.throw("Extra Bed is only allowed when Main Guest is full (" + str(capacity) + ") for " + str(room_category) + ".")
-        if eb > max_extra:
+        if max_extra is not None and eb > max_extra:
             frappe.throw("Extra Bed for " + str(room_category) + " exceeds the limit (" + str(max_extra) + ").")
         if inf > 0 and mg < 1:
             frappe.throw("Infant is only allowed when Main Guest is at least 1 for " + str(room_category) + ".")
-        if inf > max_infant:
+        if max_infant is not None and inf > max_infant:
             frappe.throw("Infant for " + str(room_category) + " exceeds the limit (" + str(max_infant) + ").")

@@ -15,14 +15,14 @@ import json
 import random
 import string
 
-from travel_booking.api._helpers import get_customer_by_email
+from travel_booking.api._helpers import get_customer_by_email, get_company_currency
 from travel_booking.api.pricing import (
     _get_pricing_map,
     _validate_selection_capacity,
 )
 from travel_booking.api.so_helpers import (
     _create_customer,
-    _ensure_customer_currency_agnostic,
+    _ensure_customer_company_currency,
     _build_so_items,
     _get_or_create_travel_item,
     _create_manual_payment_entry,
@@ -104,15 +104,17 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
 
     customer_name = existing_customer or _create_customer(billing)
 
-    # MULTI-CURRENCY guardrail — customer mesti kekal currency-agnostic
-    # (boleh beli pakej MYR dan SGD). Clear default_currency kalau terisi
-    # secara manual, SEBELUM SO dicipta supaya tak ada validation ERPNext
-    # yang block dokumen currency pasaran lain.
-    _ensure_customer_currency_agnostic(customer_name)
+    # Penjajar currency customer — SEMUA transaksi kini dalam company
+    # currency. Pastikan Customer.default_currency = company currency
+    # sebelum SO dicipta (SO set currency/conversion_rate eksplisit jua,
+    # ini cuma penjajar data customer untuk konsistensi).
+    _ensure_customer_company_currency(customer_name)
 
     # Trip info
     td = frappe.db.get_value("Trip Group Date", trip_group_date,
-                             ["trip", "trip_group_name", "departure_date"], as_dict=True)
+                             ["trip", "trip_group_name", "departure_date",
+                              "max_participants", "current_participants", "status"],
+                             as_dict=True)
     if not td:
         frappe.throw("Trip Group Date not found.")
     trip_name = frappe.db.get_value("Trip", td.trip, "trip_name") or ""
@@ -134,6 +136,45 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     """, trip_package, as_dict=True)
     cabin_info_map = {r.room_category: r for r in cabin_info_rows}
     _validate_selection_capacity(selections, cabin_info_map)
+
+    # Jumlah pax booking NI (Main Guest + Extra Bed + Infant) — diguna untuk
+    # (a) gate overbooking trip-level di bawah, dan (b) di-set sebagai
+    # 'booked_pax' pada rekod Booking (sumber kebenaran gate untuk booking
+    # lain kemudian). Infants DIKIRA — sepadan dengan refresh_bookings()
+    # yang COUNT semua Booking Reservation row tak kira pax_type.
+    incoming_pax = sum(
+        int(s.get("main_guests", 0) or 0)
+        + int(s.get("extra_beds", 0) or 0)
+        + int(s.get("infants", 0) or 0)
+        for s in selections
+    )
+
+    # Gate overbooking PERINGKAT TRIP — Trip Group Date.max_participants.
+    # Peraturan: max_participants == 0 -> UNLIMITED (overbooking dibenarkan,
+    # sesuai cruise tanpa had tempat duduk tetap). max_participants > 0 ->
+    # jumlah pax SEMUA booking tak-cancelled untuk tarikh ni + booking semasa
+    # TIDAK boleh melebihi max. Kiraan guna 'booked_pax' (stored, di-set masa
+    # confirm_booking) BUKAN current_participants (yang kira Booking Reservation
+    # Confirmed = bayaran dah masuk sahaja — lewat lag realiti, booking Pending
+    # tak kelihatan, bolehi overbooking senyap).
+    max_pax = int(td.max_participants or 0)
+    if max_pax > 0:
+        existing_pax = frappe.db.sql("""
+            SELECT COALESCE(SUM(b.booked_pax), 0)
+            FROM `tabBooking` b
+            WHERE b.trip_date = %s AND b.status != 'Cancelled'
+        """, trip_group_date)[0][0] or 0
+        seats_left = max_pax - int(existing_pax or 0)
+        if incoming_pax > seats_left:
+            if seats_left <= 0:
+                frappe.throw(
+                    "This trip date is fully booked. Please select another date."
+                )
+            frappe.throw(
+                "Only " + str(seats_left) + " seat(s) left on this trip date for "
+                + str(incoming_pax) + " traveller(s). Please reduce your group "
+                "size or select another date."
+            )
 
     so_items    = _build_so_items(selections, pricing_map, trip_name, td.trip_group_name)
     grand_total = sum(float(it["rate"]) * int(it["qty"]) for it in so_items)
@@ -205,44 +246,16 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     else:
         delivery_date = frappe.utils.today()
 
-    # MULTI-CURRENCY: ambil currency SEBENAR package yang dipilih customer
-    # (rujuk dokumen reka bentuk multi-currency) — TANPA ni, Sales Order
-    # akan DEFAULT ke currency asas company (MYR) tak kira apa currency
-    # yang dipaparkan/dipersetujui customer di wizard (cth SGD) — mismatch
-    # serius: customer nampak "S$50", tapi Stripe caj/SO rekod "RM50".
-    # Fallback "MYR" untuk Trip Package lama yang currency-nya belum diisi.
-    package_currency = frappe.db.get_value("Trip Package", trip_package, "currency") or "MYR"
-
-    # PENTING — DIBETULKAN lepas testing sebenar (rujuk sesi debug):
-    # ERPNext TIDAK auto-fetch conversion_rate semasa validate() doc
-    # dicipta melalui backend/API — auto-fetch (erpnext.setup.utils.
-    # get_exchange_rate) tu SEBENARNYA cuma dipanggil client-side (JS
-    # borang Desk) bila admin pilih currency secara interaktif. Bila SO
-    # dicipta terus dari Python (macam di sini), conversion_rate KEKAL
-    # kosong melainkan kita panggil get_exchange_rate() sendiri — tanpa
-    # ni, validate() throw "Exchange Rate is mandatory" untuk SO bukan-
-    # MYR (disahkan betul-betul via traceback semasa testing).
-    default_company = frappe.db.get_single_value("Global Defaults", "default_company")
-    company_currency = frappe.get_cached_value("Company", default_company, "default_currency") \
-        if default_company else "MYR"
-    if package_currency == company_currency:
-        so_conversion_rate = 1.0
-    else:
-        from erpnext.setup.utils import get_exchange_rate
-        so_conversion_rate = get_exchange_rate(
-            package_currency, company_currency, frappe.utils.today(), args="for_selling"
-        )
-        if not so_conversion_rate:
-            # get_exchange_rate() ERPNext sendiri dah cuba auto-fetch +
-            # cari rekod Currency Exchange manual, DUA-DUA gagal —
-            # jangan biar SO tercipta dengan conversion_rate=0 (accounting
-            # SALAH sepenuhnya, jumlah jadi RM0). Berhenti terus dengan
-            # mesej jelas untuk admin, bukan crash generic ERPNext.
-            frappe.throw(
-                "No exchange rate for " + package_currency + " to " + company_currency +
-                ". Please create a 'Currency Exchange' record in Desk, or verify the "
-                "server's internet connection for auto-fetching the rate."
-            )
+    # SO sentiasa dalam COMPANY CURRENCY — harga pakej disimpan & dimasukkan
+    # dalam company currency (keputusan senibina: workflow jualan/booking
+    # SEMUA dalam company currency; paparan currency lain diuruskan di layer
+    # display converter frontend, BUKAN di SO/accounting). conversion_rate=1.0
+    # kerana SO currency == company currency. Ini juga membuang kebergantungan
+    # pada rekod Currency Exchange untuk penciptaan booking — booking TIDAK
+    # gagal walaupun rate exchange belum diisi admin (rate hanya diperlukan
+    # untuk DISPLAY converter, bukan untuk accounting transaksi).
+    company_currency = get_company_currency()
+    so_conversion_rate = 1.0
 
     # Sales Order — insert & submit sebagai Administrator (elak isu permission
     # customer terhadap Link field dalaman seperti Account semasa validate SO).
@@ -257,11 +270,8 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
             "order_type":         "Sales",
             "items":              so_items,
             "selling_price_list": "Standard Selling",
-            # MULTI-CURRENCY: currency SO ikut package, conversion_rate
-            # diisi EKSPLISIT di atas (bukan biar ERPNext "auto-fetch" —
-            # rujuk nota di atas, itu andaian yang terbukti salah untuk
-            # penciptaan doc backend/API, disahkan via testing sebenar).
-            "currency":           package_currency,
+            # SO dalam company currency, conversion_rate=1.0 (lihat nota di atas).
+            "currency":           company_currency,
             "conversion_rate":    so_conversion_rate,
             # PENTING: matikan pembundaran ke ringgit-penuh untuk SO booking.
             # Tanpa ni, ERPNext boleh bundar grand_total (cth RM9.50) ke
@@ -383,6 +393,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         "status":         "Pending",
         "payment_status": "Pending",
         "booking_number": _generate_booking_number(),
+        "booked_pax":     incoming_pax,
         # PENTING: attribution affiliate (untuk commission) TAK bergantung
         # pada referral_discount > 0 — sales_partner dah sah (atau None)
         # ditentukan di atas terus dari validate_affiliate_code(), jadi
@@ -585,12 +596,24 @@ def _recompute_booking_status(so_name):
     if new_payment_status in ("Partially Paid", "Paid") and not had_any_payment:
         _activate_booking(b.name)
 
-    # Auto-invoice — SENGAJA berasingan dari new_payment_status di atas.
+   # Auto-invoice — SENGAJA berasingan dari new_payment_status di atas.
     # new_payment_status tu peringkat BOOKING (agregat SEMUA SO berkaitan
     # booking — utama + addon). Auto-invoice pula per-SO INDEPENDENT (satu
     # SO addon settle tak tunggu SO utama settle juga, atau sebaliknya) —
     # jadi perlu check terus status bayaran SO ni SENDIRI, bukan agregat.
     _maybe_auto_invoice_so(so_name)
+
+    # Booking Addon Order — kalau SO ni ialah SO addon (bukan SO cabin
+    # utama), refresh payment_status/status order tu SENDIRI (per-SO,
+    # BUKAN agregat booking — rujuk nota reka bentuk addon/insurance:
+    # order addon yang dah fully paid tak patut nampak "belum paid" sebab
+    # baki SO cabin lain belum settle). Guard frappe.db.exists() elak
+    # error kalau addon feature belum di-deploy (doctype belum wujud lagi
+    # semasa migration progresif).
+    if frappe.db.exists("DocType", "Booking Addon Order"):
+        addon_order_name = frappe.db.get_value("Booking Addon Order", {"sales_order": so_name}, "name")
+        if addon_order_name:
+            frappe.get_doc("Booking Addon Order", addon_order_name).refresh_payment_status()
 
 
 # ══════════════════════════════════════════════

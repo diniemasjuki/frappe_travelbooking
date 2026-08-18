@@ -181,15 +181,24 @@
   },
   {
    "default": "MYR",
+   "description": "Harga pakej sentiasa disimpan & dimasukkan dalam COMPANY CURRENCY (accounting/SO/Stripe semua company currency). Field ini HANYA hint default paparan converter untuk trip ni di frontend (cth tunjuk SGD sebagai currency paparan utama). Tidak menjejaskan jumlah dicaj.",
    "fetch_from": "airport_form.currency",
    "fetch_if_empty": 1,
    "fieldname": "currency",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Currency",
+   "label": "Display Currency (Marketing Hint)",
    "options": "Currency",
-   "reqd": 1
+   "reqd": 0
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.price_review_required",
+   "description": "Dibenderakan oleh patch migrasi currency: harga pakej ini belum disemak/disemak semula dalam company currency. Booking pada pakej ini dihalang sehingga admin semak harga & uncheck box ini.",
+   "fieldname": "price_review_required",
+   "fieldtype": "Check",
+   "label": "Price Review Required"
   },
   {
    "depends_on": "eval:doc.trip_link",

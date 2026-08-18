@@ -12,6 +12,8 @@
 
 'use strict';
 
+let _cachedTxnOrders = null;   // orders cache (for currency re-render)
+
 /* ══════════════════════════════════════════════
    PAYMENT RESULT (redirect balik dari Stripe)
    ══════════════════════════════════════════════ */
@@ -52,7 +54,7 @@ function renderPaymentResult(result) {
       '<div class="pr-title">Payment successful</div>' +
       '<div class="pr-sub">Your payment has been received and confirmed.</div>' +
       '<div class="pr-details">' +
-        '<div class="pr-row"><span>Amount paid</span><strong>' + _esc(result.currency || 'MYR') + ' ' + fmt(result.amount) + '</strong></div>' +
+        '<div class="pr-row"><span>Amount paid</span><strong>' + fmtDual(result.amount, result.currency || 'MYR') + '</strong></div>' +
         (result.trip_label ? '<div class="pr-row"><span>Trip</span><strong>' + _esc(result.trip_label) + '</strong></div>' : '') +
         (result.sales_order ? '<div class="pr-row"><span>Sales order</span><strong style="font-family:monospace">' + _esc(result.sales_order) + '</strong></div>' : '') +
       '</div>' +
@@ -106,7 +108,8 @@ async function loadAllPayments() {
   c.innerHTML = '<div style="font-size:13px;color:#B0AC9F;padding:8px 0;">Loading transactions...</div>';
   try {
     const data = await API_PM('get_all_so_payments', {});
-    renderTxnList(data.orders || []);
+    _cachedTxnOrders = data.orders || [];
+    renderTxnList(_cachedTxnOrders);
   } catch (e) {
     c.innerHTML =
       '<div class="card" style="text-align:center;padding:32px 20px;">' +
@@ -193,7 +196,7 @@ function renderTxnList(orders) {
           '<div style="font-size:12px;color:#B0AC9F;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + t.subtitle + (t.sortDate ? ' · ' + _esc(fmtDate(t.sortDate)) : '') + '</div>' +
         '</div>' +
         '<div style="text-align:right;flex-shrink:0;">' +
-          '<div style="font-size:14px;font-weight:600;color:' + amountColor + ';white-space:nowrap;">' + _esc(t.symbol) + ' ' + fmt(t.amount) + '</div>' +
+          '<div style="font-size:14px;font-weight:600;color:' + amountColor + ';white-space:nowrap;">' + fmtDual(t.amount, t.symbol) + '</div>' +
           '<div style="margin-top:4px;display:flex;align-items:center;gap:6px;justify-content:flex-end;">' +
             (t.statusLabel ? '<span style="font-size:11px;font-weight:600;padding:2px 10px;border-radius:14px;background:' + t.statusBg + ';color:' + t.statusColor + ';">' + t.statusLabel + '</span>' : '') +
             actionBtn +
@@ -247,6 +250,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const ok = await ensureSession();
   if (!ok) return;
   renderNav();
+  window.rcRefreshCurrency = () => {
+    if (_cachedTxnOrders) renderTxnList(_cachedTxnOrders);
+  };
   if (!cameFromPayment) await loadAllPayments();
   else await loadAllPayments(); // senarai sentiasa refresh (data bayaran baharu)
 });

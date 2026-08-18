@@ -2,27 +2,241 @@
  "actions": [],
  "allow_bulk_edit": 1,
  "allow_rename": 1,
+ "autoname": "naming_series:naming_series",
  "creation": "2026-08-09 20:19:12.784053",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "addon_item"
+  "offering_section",
+  "addon",
+  "addon_title",
+  "trip_package",
+  "status",
+  "column_break_offer",
+  "plan_type",
+  "naming_series",
+  "pricing_section",
+  "currency",
+  "price_override",
+  "unit_price",
+  "validity_section",
+  "validity_mode",
+  "valid_from_offset_days",
+  "valid_to_offset_days",
+  "column_break_validity",
+  "fixed_valid_from",
+  "fixed_valid_to",
+  "sales_window_section",
+  "sales_cutoff_enabled",
+  "sales_cutoff_days_before_departure",
+  "limits_section",
+  "max_qty_per_booking",
+  "column_break_limits",
+  "max_total_qty",
+  "current_qty_sold"
  ],
  "fields": [
   {
-   "fieldname": "addon_item",
+   "fieldname": "offering_section",
+   "fieldtype": "Section Break",
+   "label": "Offering"
+  },
+  {
+   "fieldname": "addon",
    "fieldtype": "Link",
-   "label": "Addon Item",
-   "options": "Addon"
+   "in_list_view": 1,
+   "label": "Addon",
+   "options": "Addon",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "addon.addon_title",
+   "fieldname": "addon_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Addon Title",
+   "read_only": 1
+  },
+  {
+   "fieldname": "trip_package",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Trip Package",
+   "options": "Trip Package",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Active\nInactive",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_offer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Isi hanya untuk offering insurance — 4 jenis pelan tetap. Kosongkan untuk addon biasa (excursion/transfer/dsb).",
+   "fieldname": "plan_type",
+   "fieldtype": "Select",
+   "label": "Plan Type (Insurance)",
+   "options": "\nIndividu - Dewasa (18-70)\nIndividu - Warga Emas (71-80)\nIndividu & Pasangan\nPelan Keluarga"
+  },
+  {
+   "default": "AP.YY.MM.###",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "naming series",
+   "options": "AP.YY.MM.###",
+   "reqd": 1
+  },
+  {
+   "fieldname": "pricing_section",
+   "fieldtype": "Section Break",
+   "label": "Pricing"
+  },
+  {
+   "fetch_from": "addon.currency",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "read_only": 1
+  },
+  {
+   "description": "Kosongkan untuk guna Addon > Base Price. Isi untuk override harga khusus package/plan type ini.",
+   "fieldname": "price_override",
+   "fieldtype": "Currency",
+   "label": "Price Override",
+   "non_negative": 1,
+   "options": "doc.currency",
+   "precision": "2"
+  },
+  {
+   "description": "Harga efektif (Price Override jika diisi, jika tidak guna Addon > Base Price). Dikira automatik semasa simpan.",
+   "fieldname": "unit_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Unit Price",
+   "options": "doc.currency",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "validity_section",
+   "fieldtype": "Section Break",
+   "label": "Validity Rule"
+  },
+  {
+   "default": "Same as Trip",
+   "fieldname": "validity_mode",
+   "fieldtype": "Select",
+   "label": "Validity Mode",
+   "options": "Same as Trip\nRelative to Departure\nFixed Dates",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.validity_mode=='Relative to Departure'",
+   "description": "Contoh -3 = sah bermula 3 hari sebelum tarikh berlepas. 0 = pada tarikh berlepas.",
+   "fieldname": "valid_from_offset_days",
+   "fieldtype": "Int",
+   "label": "Valid From Offset (days)",
+   "mandatory_depends_on": "eval:doc.validity_mode=='Relative to Departure'"
+  },
+  {
+   "depends_on": "eval:doc.validity_mode=='Relative to Departure'",
+   "description": "Offset dari tarikh pulang (return_date). Contoh 0 = sah sehingga tarikh pulang.",
+   "fieldname": "valid_to_offset_days",
+   "fieldtype": "Int",
+   "label": "Valid To Offset (days)",
+   "mandatory_depends_on": "eval:doc.validity_mode=='Relative to Departure'"
+  },
+  {
+   "fieldname": "column_break_validity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.validity_mode=='Fixed Dates'",
+   "fieldname": "fixed_valid_from",
+   "fieldtype": "Date",
+   "label": "Fixed Valid From",
+   "mandatory_depends_on": "eval:doc.validity_mode=='Fixed Dates'"
+  },
+  {
+   "depends_on": "eval:doc.validity_mode=='Fixed Dates'",
+   "fieldname": "fixed_valid_to",
+   "fieldtype": "Date",
+   "label": "Fixed Valid To",
+   "mandatory_depends_on": "eval:doc.validity_mode=='Fixed Dates'"
+  },
+  {
+   "fieldname": "sales_window_section",
+   "fieldtype": "Section Break",
+   "label": "Sales Window"
+  },
+  {
+   "default": "0",
+   "fieldname": "sales_cutoff_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Sales Cutoff"
+  },
+  {
+   "depends_on": "eval:doc.sales_cutoff_enabled",
+   "description": "Jualan ditutup automatik bila baki hari ke tarikh berlepas kurang dari nilai ini.",
+   "fieldname": "sales_cutoff_days_before_departure",
+   "fieldtype": "Int",
+   "label": "Cutoff (days before departure)",
+   "mandatory_depends_on": "eval:doc.sales_cutoff_enabled"
+  },
+  {
+   "fieldname": "limits_section",
+   "fieldtype": "Section Break",
+   "label": "Limits"
+  },
+  {
+   "description": "0 = tiada had",
+   "fieldname": "max_qty_per_booking",
+   "fieldtype": "Int",
+   "label": "Max Qty Per Booking"
+  },
+  {
+   "fieldname": "column_break_limits",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "0 = tiada had",
+   "fieldname": "max_total_qty",
+   "fieldtype": "Int",
+   "label": "Max Total Qty"
+  },
+  {
+   "default": "0",
+   "description": "Auto dikemaskini setiap kali Booking Addon (status bukan Cancelled) dicipta/dibatalkan terhadap offering ini. Jangan edit manual.",
+   "fieldname": "current_qty_sold",
+   "fieldtype": "Int",
+   "label": "Current Qty Sold",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-08-09 20:19:47.525094",
+ "links": [
+  {
+   "link_doctype": "Booking Addon",
+   "link_fieldname": "addon_package"
+  }
+ ],
+ "modified": "2026-08-17 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Addon Package",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
@@ -33,7 +247,18 @@
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "System Manager",
+   "role": "Tour Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
    "share": 1,
    "write": 1
   }
@@ -42,5 +267,6 @@
  "rows_threshold_for_grid_search": 20,
  "sort_field": "creation",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "title_field": "addon_title"
 }

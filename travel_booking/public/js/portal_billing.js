@@ -33,6 +33,7 @@ let BANK_ACCOUNTS = {}; // {currency: {bank_name, account_name, account_number}}
 let CASHBACK = { enabled: false, percent: 0 };
 let DEPOSIT_PCT = 20;   // Travel Settings.default_deposit_percent
 const SO_CTX = {};      // soId → {name, symbol, min, max}
+let _cachedOrders = null;   // bookingOrders cache (for currency re-render)
 
 
 /* ══════════════════════════════════════════════
@@ -45,6 +46,7 @@ async function loadBookingPayments() {
 
   container.innerHTML = '<div style="font-size:13px;color:#B0AC9F;padding:8px 0;">Loading payment details...</div>';
   try {
+    _cachedOrders = null;
     const data = await API_PM('get_all_so_payments', {});
     const bookingOrders = (data.orders || []).filter(so =>
       (so.booking_numbers || []).includes(BOOKING)
@@ -67,10 +69,8 @@ async function loadBookingPayments() {
       DEPOSIT_PCT = parseFloat(s.default_deposit_percent || 20);
     } catch (e) { /* kekal default; manual option akan dilumpuhkan */ }
 
-    container.innerHTML =
-      renderSummaryCard(bookingOrders) +
-      bookingOrders.map(renderSoCard).join('');
-
+    _cachedOrders = bookingOrders;
+    renderBilling();
     bindBillingEvents(container);
   } catch (e) {
     container.innerHTML =
@@ -79,6 +79,18 @@ async function loadBookingPayments() {
         '<button class="btn btn-g" data-act="reload" style="font-size:12px;">Retry</button>' +
       '</div>';
   }
+}
+
+
+/* Re-render billing dari cache (currency refresh) — tanpa re-fetch.
+   bindBillingEvents() TIDAK dipanggil semula: listener delegation pada
+   container kekal aktif selepas innerHTML ditukar. */
+function renderBilling() {
+  const container = document.getElementById('booking-pi-container');
+  if (!container || !_cachedOrders) return;
+  container.innerHTML =
+    renderSummaryCard(_cachedOrders) +
+    _cachedOrders.map(renderSoCard).join('');
 }
 
 
@@ -114,13 +126,13 @@ function renderSummaryCard(orders) {
       '<div style="font-size:12px;color:' + (isPaid ? '#0F6E56' : '#7D7A70') + ';margin-top:8px;">' +
         (isPaid
           ? 'Paid in full — thank you ✓'
-          : _esc(symbol) + ' ' + fmt(outstanding) + ' remaining to be paid') +
+          : fmtDual(outstanding, symbol) + ' remaining to be paid') +
       '</div>' +
       '<div class="bill-stats" style="margin-top:16px;">' +
-        '<div><div class="l">Total Billed</div><div class="v">' + _esc(symbol) + ' ' + fmt(grandTotal) + '</div></div>' +
-        '<div><div class="l">Total Paid</div><div class="v" style="color:#0F6E56;">' + _esc(symbol) + ' ' + fmt(totalPaid) + '</div></div>' +
+        '<div><div class="l">Total Billed</div><div class="v">' + fmtDual(grandTotal, symbol) + '</div></div>' +
+        '<div><div class="l">Total Paid</div><div class="v" style="color:#0F6E56;">' + fmtDual(totalPaid, symbol) + '</div></div>' +
         '<div><div class="l">Balance Due</div><div class="v" style="color:' + (isPaid ? '#0F6E56' : '#92400E') + ';">' +
-          (isPaid ? '—' : _esc(symbol) + ' ' + fmt(outstanding)) + '</div></div>' +
+          (isPaid ? '—' : fmtDual(outstanding, symbol)) + '</div></div>' +
       '</div>' +
       (active.length > 1
         ? '<div style="font-size:11px;color:#B0AC9F;margin-top:10px;">' + settled + ' of ' + active.length + ' orders settled</div>'
@@ -174,7 +186,7 @@ function renderSoCard(so) {
         '</div>' +
         '<div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">' +
           '<div style="text-align:right;">' +
-            '<div style="font-size:15px;font-weight:500;color:#1E1C18;">' + _esc(symbol) + ' ' + fmt(total) + '</div>' +
+            '<div style="font-size:15px;font-weight:500;color:#1E1C18;">' + fmtDual(total, symbol) + '</div>' +
             (isCancelled ? '' : '<span style="display:inline-block;margin-top:3px;">' + statusPill + '</span>') +
           '</div>' +
           '<svg class="bill-so-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
@@ -209,7 +221,7 @@ function renderItemsSection(so, symbol, total) {
         '<div style="font-size:12px;color:' + (isDiscount ? '#0F6E56' : '#1E1C18') + ';min-width:0;">' + label +
           (qty > 1 ? ' <span style="color:#B0AC9F;">×' + qty.toFixed(0) + '</span>' : '') + '</div>' +
         '<div style="font-size:12px;font-weight:500;color:' + (isDiscount ? '#0F6E56' : '#1E1C18') + ';white-space:nowrap;">' +
-          (isDiscount ? '-' : '') + _esc(symbol) + ' ' + fmt(Math.abs(amt)) + '</div>' +
+          (isDiscount ? '-' : '') + fmtDual(Math.abs(amt), symbol) + '</div>' +
       '</div>'
     );
   }).join('');
@@ -220,7 +232,7 @@ function renderItemsSection(so, symbol, total) {
     '<div class="bill-sec">Line Items</div>' + rows +
     '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;margin-top:-1px;border-top:3px solid #D3D1C7;">' +
       '<div style="font-size:13px;font-weight:500;color:#1E1C18;">Total</div>' +
-      '<div style="font-size:13px;font-weight:500;color:#C9A84C;">' + _esc(symbol) + ' ' + fmt(total) + '</div>' +
+      '<div style="font-size:13px;font-weight:500;color:#C9A84C;">' + fmtDual(total, symbol) + '</div>' +
     '</div>'
   );
 }
@@ -261,7 +273,7 @@ function renderDocumentsSection(so, symbol, isPaid, isCancelled) {
           docIcon('#E1F5EE', '#0F6E56') +
           '<div><div style="font-size:13px;font-weight:500;color:#1E1C18;font-family:monospace;">' + _esc(inv.name) + '</div>' +
           '<div style="font-size:11px;color:#B0AC9F;margin-top:1px;">' +
-            _esc(fmtDate(inv.posting_date) || '-') + ' · ' + _esc(symbol) + ' ' + fmt(inv.grand_total) + '</div></div>' +
+            _esc(fmtDate(inv.posting_date) || '-') + ' · ' + fmtDual(inv.grand_total, symbol) + '</div></div>' +
         '</div>' + dlBtn('Sales Invoice', inv.name, '↓ Invoice') +
       '</div>'
     ).join('');
@@ -313,7 +325,7 @@ function renderTransactionsSection(so, symbol) {
               '<div style="font-size:12px;color:#7D7A70;">' + _esc(fmtDate(p.payment_date) || '-') + ' · Ref: ' + _esc(p.reference_no || '-') + '</div>' +
             '</div>' +
             '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">' +
-              '<div style="font-size:13px;font-weight:500;color:' + (isVerified ? '#0F6E56' : '#1E1C18') + ';">' + _esc(symbol) + ' ' + fmt(p.paid_amount) + '</div>' +
+              '<div style="font-size:13px;font-weight:500;color:' + (isVerified ? '#0F6E56' : '#1E1C18') + ';">' + fmtDual(p.paid_amount, symbol) + '</div>' +
               '<div style="display:flex;align-items:center;gap:6px;">' +
                 '<span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px;background:' + sc.bg + ';color:' + sc.color + ';">' + sc.label + '</span>' +
                 (isVerified
@@ -347,13 +359,13 @@ function renderPaymentSection(so, soId, symbol, outstanding, paid, depositAmt, m
   const chipsHtml = paid <= 0
     ? '<button type="button" class="pay-chip" data-act="chip" data-so="' + soId + '" data-amt="' + depositAmt.toFixed(2) + '">' +
         '<span class="pay-chip__label">Deposit (' + DEPOSIT_PCT + '%)</span>' +
-        '<span class="pay-chip__amt">' + _esc(symbol) + ' ' + fmt(depositAmt) + '</span></button>' +
+        '<span class="pay-chip__amt">' + fmtDual(depositAmt, symbol) + '</span></button>' +
       '<button type="button" class="pay-chip on" data-act="chip" data-so="' + soId + '" data-amt="' + outstanding.toFixed(2) + '">' +
         '<span class="pay-chip__label">Full balance</span>' +
-        '<span class="pay-chip__amt">' + _esc(symbol) + ' ' + fmt(outstanding) + '</span></button>'
+        '<span class="pay-chip__amt">' + fmtDual(outstanding, symbol) + '</span></button>'
     : '<button type="button" class="pay-chip on" data-act="chip" data-so="' + soId + '" data-amt="' + outstanding.toFixed(2) + '">' +
         '<span class="pay-chip__label">Full balance</span>' +
-        '<span class="pay-chip__amt">' + _esc(symbol) + ' ' + fmt(outstanding) + '</span></button>';
+        '<span class="pay-chip__amt">' + fmtDual(outstanding, symbol) + '</span></button>';
 
   const bankHtml = hasBank
     ? '<div class="bank-details">' +
@@ -367,16 +379,16 @@ function renderPaymentSection(so, soId, symbol, outstanding, paid, depositAmt, m
     '<div class="bill-sec-row">' +
       '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px;">' +
         '<div class="bill-sec" style="margin:0;">Make a Payment</div>' +
-        '<div style="font-size:12px;color:#7D7A70;">Balance due <strong style="color:#92400E;">' + _esc(symbol) + ' ' + fmt(outstanding) + '</strong></div>' +
+        '<div style="font-size:12px;color:#7D7A70;">Balance due <strong style="color:#92400E;">' + fmtDual(outstanding, symbol) + '</strong></div>' +
       '</div>' +
 
       /* Amount — sama macam wizard: input besar + chip pantas */
       '<div class="pay-amount">' +
-        '<span class="pay-amount__prefix">' + _esc(symbol) + '</span>' +
+        '<span class="pay-amount__prefix">' + _esc(RC.company_symbol || symbol) + '</span>' +
         '<input type="number" class="pay-amount__input" id="pay-amt-' + soId + '" inputmode="decimal" step="0.01" min="0" value="' + outstanding.toFixed(2) + '" aria-label="Amount to pay"/>' +
       '</div>' +
       '<div style="font-size:11px;color:#B0AC9F;margin-top:5px;">' +
-        'Min ' + _esc(symbol) + ' ' + fmt(minAmt) + ' · Max ' + _esc(symbol) + ' ' + fmt(outstanding) +
+        'Min ' + fmtDual(minAmt, symbol) + ' · Max ' + fmtDual(outstanding, symbol) +
         (paid <= 0 ? ' · first payment must be at least the deposit' : '') +
       '</div>' +
       '<div class="pay-quick">' + chipsHtml + '</div>' +
@@ -707,8 +719,8 @@ async function handleStripeReturn() {
   box.setAttribute('role', 'status');
   if (result.status === 'succeeded') {
     box.className = 'info-ok';
-    box.innerHTML = '<p>✓ Payment successful — ' + _esc(result.currency || '') + ' ' +
-      fmt(result.amount) + ' received. The details below have been updated.</p>';
+    box.innerHTML = '<p>✓ Payment successful — ' +
+      fmtDual(result.amount, result.currency || '') + ' received. The details below have been updated.</p>';
   } else if (result.status === 'processing') {
     box.className = 'info-ok';
     box.innerHTML = '<p>Payment is still processing. Your balance will be updated once it clears — you will also receive an email confirmation.</p>';
@@ -740,6 +752,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const ok = await ensureSession();
   if (!ok) return;
   renderNav();
+  window.rcRefreshCurrency = renderBilling;
 
   BOOKING = _pageData.booking_ref || '';
   if (!BOOKING) return;

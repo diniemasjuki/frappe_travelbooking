@@ -40,37 +40,42 @@
   {
    "fieldname": "bank_accounts_section",
    "fieldtype": "Section Break",
-   "label": "Bank Accounts"
+   "hidden": 1,
+   "label": "Bank Accounts (legacy)"
   },
   {
    "fieldname": "bank_name",
    "fieldtype": "Link",
+   "hidden": 1,
    "in_list_view": 1,
    "label": "Bank Name",
    "options": "Bank Account",
-   "reqd": 1
+   "reqd": 0
   },
   {
    "fetch_from": "bank_name.account_name",
    "fieldname": "account_name",
    "fieldtype": "Data",
+   "hidden": 1,
    "in_list_view": 1,
    "label": "Account Name",
-   "reqd": 1
+   "reqd": 0
   },
   {
    "fetch_from": "bank_name.bank_account_no",
    "fieldname": "account_number",
    "fieldtype": "Data",
+   "hidden": 1,
    "in_list_view": 1,
    "label": "Account Number",
-   "reqd": 1
+   "reqd": 0
   },
   {
    "description": "For Accounting Purpose : Account to manage manual transfer record in payment entry",
    "fieldname": "manual_transfer_paid_to_account",
    "fieldtype": "Link",
-   "label": "Manual Transfer - Paid To Account",
+   "hidden": 1,
+   "label": "Manual Transfer - Paid To Account (legacy)",
    "link_filters": "[[\"Account\",\"is_group\",\"=\",0],[\"Account\",\"account_type\",\"=\",\"Bank\"]]",
    "options": "Account"
   },
@@ -146,7 +151,8 @@
   {
    "fieldname": "payment_gateway",
    "fieldtype": "Link",
-   "label": "Payment Gateway",
+   "hidden": 1,
+   "label": "Payment Gateway (legacy)",
    "options": "Payment Gateway Account"
   },
   {

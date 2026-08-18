@@ -76,9 +76,9 @@ function renderInfoPage(data) {
   const paid = parseFloat(so.advance_paid || 0);
   const balance = Math.max(0, billed - paid);
   document.getElementById('info-payment').innerHTML =
-    '<div class="dr"><span class="dr-n">Total Billed</span><strong>' + _esc(sym) + ' ' + fmt(billed) + '</strong></div>' +
-    '<div class="dr"><span class="dr-n">Total Paid</span><strong style="color:#0F6E56;">' + _esc(sym) + ' ' + fmt(paid) + '</strong></div>' +
-    '<div class="dr"><span class="dr-n">Balance Due</span><strong style="color:' + (balance > 0 ? '#92400E' : '#0F6E56') + ';">' + _esc(sym) + ' ' + fmt(balance) + '</strong></div>';
+    '<div class="dr"><span class="dr-n">Total Billed</span><strong>' + fmtDual(billed, sym) + '</strong></div>' +
+    '<div class="dr"><span class="dr-n">Total Paid</span><strong style="color:#0F6E56;">' + fmtDual(paid, sym) + '</strong></div>' +
+    '<div class="dr"><span class="dr-n">Balance Due</span><strong style="color:' + (balance > 0 ? '#92400E' : '#0F6E56') + ';">' + fmtDual(balance, sym) + '</strong></div>';
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -93,6 +93,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const data = await API_BK('get_booking_data', { booking_number: ref });
     INFO_DATA = data;
     renderInfoPage(data);
+    window.rcRefreshCurrency = () => { if (INFO_DATA) renderInfoPage(INFO_DATA); };
   } catch (e) {
     document.getElementById('info-trip-name').textContent = 'Could not load booking';
     document.getElementById('booking-info-grid').innerHTML =

@@ -286,6 +286,12 @@ img { max-width: 100%; display: block; }
     <h2 class="rc-section__title"><i class="ti ti-ship"></i> Our Trips</h2>
     <p class="rc-section__sub">Semua pakej yang sedang dibuka untuk booking.</p>
 
+    <div class="rc-pub-currency" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#7D7A70;margin-bottom:18px;">
+      <span>Display in</span>
+      <select id="rcPubCurrency" style="font-size:12px;padding:3px 6px;border:1px solid #E8E5DF;border-radius:6px;background:#fff;cursor:pointer;"></select>
+    </div>
+    <script id="rcCurrencyData" type="application/json">{"company_currency": "{{ get_company_currency() |e }}", "company_symbol": "{{ get_company_symbol() |e }}"}</script>
+
     {% if trips %}
     <div class="rc-trip-grid">
       {% for t in trips %}
@@ -314,7 +320,7 @@ img { max-width: 100%; display: block; }
             <div class="rc-trip-card__price">
               {% if t.from_price %}
               <small>From, per adult</small>
-              <strong>{{ t.from_price.display |e }}</strong>
+              <strong data-rc-amount="{{ t.from_price.amount }}">{{ t.from_price.display |e }}</strong>
               {% elif t.has_dates %}
               <small>Pricing</small><strong>On Request</strong>
               {% else %}
@@ -379,7 +385,7 @@ img { max-width: 100%; display: block; }
           <div class="rc-dep-row__price">
             {% if dep.from_price %}
             <small>From</small>
-            <strong>{{ dep.from_price.display |e }}</strong>
+            <strong data-rc-amount="{{ dep.from_price.amount }}">{{ dep.from_price.display |e }}</strong>
             {% endif %}
           </div>
           <div class="rc-dep-row__actions">
@@ -442,6 +448,94 @@ img { max-width: 100%; display: block; }
       var visible = month.querySelectorAll(".rc-dep-row:not(.is-hidden)").length;
       month.style.display = visible ? "" : "none";
     });
+  });
+})();
+</script>
+
+<script>
+// Display-currency converter (paparan sahaja — harga sebenar dalam
+// company currency). Pilihan user disimpan dalam localStorage
+// 'rc_display_currency' = {currency, symbol, rate}. Rate dari ERPNext
+// get_exchange_rate (for_selling) — INDAKATIF, bukan kadar dicas.
+(function () {
+  var dataEl = document.getElementById('rcCurrencyData');
+  if (!dataEl) return;
+  var conf = {};
+  try { conf = JSON.parse(dataEl.textContent || '{}'); } catch (e) {}
+  var companyCurrency = conf.company_currency || 'MYR';
+  var companySymbol = conf.company_symbol || companyCurrency;
+
+  var select = document.getElementById('rcPubCurrency');
+  if (!select) return;
+
+  var fmt = function (n) {
+    return Number(n || 0).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  var symbolByCode = {};
+
+  // Cached display choice dari localStorage.
+  var cached = null;
+  try { cached = JSON.parse(localStorage.getItem('rc_display_currency') || 'null'); } catch (e) {}
+
+  function renderPrices(rate, sym) {
+    document.querySelectorAll('[data-rc-amount]').forEach(function (el) {
+      var amt = Number(el.getAttribute('data-rc-amount') || 0);
+      if (!rate) {
+        // display == company atau rate unavailable → company symbol sahaja.
+        el.textContent = companySymbol + ' ' + fmt(amt);
+      } else {
+        el.textContent = sym + ' ' + fmt(amt * rate) + ' (' + companySymbol + ' ' + fmt(amt) + ')';
+      }
+    });
+  }
+
+  // First paint dengan cached rate (jangan tunggu populate select).
+  renderPrices(cached && cached.rate ? cached.rate : null, cached && cached.symbol ? cached.symbol : null);
+
+  // Populate select dengan senarai currency yang ada rate.
+  fetch('/api/method/travel_booking.api.pricing.get_display_currencies')
+    .then(function (r) { return r.json(); })
+    .then(function (res) {
+      var list = (res && res.message) || [];
+      var savedCode = (cached && cached.currency) || companyCurrency;
+      list.forEach(function (c) {
+        symbolByCode[c.code] = c.symbol || c.code;
+        var opt = document.createElement('option');
+        opt.value = c.code;
+        opt.textContent = c.code + ' — ' + (c.symbol || c.code);
+        if (c.code === savedCode) opt.selected = true;
+        select.appendChild(opt);
+      });
+      // Cached currency dah tak ada rate lagi → reset ke company.
+      if (select.value !== savedCode && savedCode !== companyCurrency) {
+        localStorage.removeItem('rc_display_currency');
+        renderPrices(null);
+      }
+    })
+    .catch(function () { /* senyap — select kosong, harga kekal company */ });
+
+  select.addEventListener('change', function () {
+    var code = select.value;
+    if (!code || code === companyCurrency) {
+      localStorage.removeItem('rc_display_currency');
+      renderPrices(null);
+      return;
+    }
+    fetch('/api/method/travel_booking.api.pricing.get_currency_rate?from_currency=' + encodeURIComponent(companyCurrency) + '&to_currency=' + encodeURIComponent(code))
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        var rate = (res && res.message && res.message.rate) ? res.message.rate : null;
+        if (!rate) {
+          // Rate tak boleh resolve — kekal company display, jangan simpan.
+          renderPrices(null);
+          return;
+        }
+        var sym = symbolByCode[code] || code;
+        localStorage.setItem('rc_display_currency', JSON.stringify({ currency: code, symbol: sym, rate: rate }));
+        renderPrices(rate, sym);
+      })
+      .catch(function () { renderPrices(null); });
   });
 })();
 </script>

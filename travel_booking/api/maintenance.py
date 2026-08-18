@@ -202,3 +202,68 @@ def ensure_default_records():
         ),
         "message": "Default records ensured. New records (if any) have been created.",
     }
+
+
+# ══════════════════════════════════════════════
+# CURRENCY MIGRATION REVIEW (post company-currency overhaul)
+# ══════════════════════════════════════════════
+
+@frappe.whitelist()
+def list_packages_for_currency_review():
+    """Senaraikan Trip Package yang berflag `price_review_required`.
+
+    Selepas migrasi ke workflow company-currency, pakej yang currency-nya
+    (hint paparan) berbeza dari company currency ditandakan oleh patch
+    `v1_set_price_review_flag` supaya admin semak & isi semula harga dalam
+    company currency. Sementara flag terpasang, `_get_pricing_map`
+    menghalang booking/voucher atas pakej berkenaan.
+
+    Fungsi ni READ-SAHJA — admin gunakan untuk pantau kerja semakan. Selepas
+    semak & isi semula harga, admin uncheck `price_review_required` pada
+    Trip Package (Desk) untuk membuka kembali jualan.
+
+    Pulangkan {company_currency, count, packages:[{name, package_name,
+    trip, trip_name, currency}]}.
+    """
+    frappe.only_for("System Manager")
+
+    from travel_booking.api._helpers import get_company_currency
+    company_currency = get_company_currency()
+
+    rows = frappe.db.sql(
+        """
+        SELECT tp.name, tp.package_title, tp.trip_link, tp.currency,
+               t.trip_name
+        FROM `tabTrip Package` tp
+        LEFT JOIN `tabTrip` t ON t.name = tp.trip_link
+        WHERE IFNULL(tp.price_review_required, 0) = 1
+        ORDER BY tp.trip_link, tp.name
+        """,
+        as_dict=True,
+    )
+
+    packages = [
+        {
+            "name":          r.name,
+            "package_title": r.package_title or "",
+            "trip":          r.trip_link or "",
+            "trip_name":     r.trip_name or "",
+            "currency":      r.currency or "",
+            "same_as_company": (r.currency == company_currency) if r.currency else False,
+        }
+        for r in rows
+    ]
+
+    return {
+        "status": "ok",
+        "company_currency": company_currency,
+        "count": len(packages),
+        "packages": packages,
+        "message": (
+            str(len(packages)) + " package(s) awaiting currency review. "
+            "Booking is blocked on these until 'Price Review Required' is unchecked."
+            if packages else
+            "No packages awaiting review — all packages are bookable."
+        ),
+    }
+

@@ -16,6 +16,7 @@ class Booking(Document):
 
 		affiliate: DF.Link | None
 		balance_amount: DF.Currency
+		booked_pax: DF.Int
 		booking_number: DF.Data
 		cruise_end: DF.Date | None
 		cruise_start: DF.Date | None

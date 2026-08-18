@@ -92,3 +92,23 @@ def sanitize_portal_return_path(path):
     if ".." in path:
         return ""
     return path
+
+
+def get_company_currency():
+    """Currency asas company (dari Global Defaults.default_company ->
+    Company.default_currency). SEMUA transaksi jualan/booking travel_booking
+    disimpan & dicaj dalam company currency; currency lain cuma paparan
+    (display converter frontend). Fallback "MYR" kalau company tiada/tak
+    dikonfigur — elak crash pada pemasangan baru yang belum set default
+    company.
+
+    Diletakkan di _helpers.py (bukan pricing.py/so_helpers.py) kerana
+    diperlukan oleh KEDUA-DUA modul berikut, dan pricing.py import dari
+    so_helpers.py — kalau so_helpers pula import balik dari pricing untuk
+    helper ni, ia jadi circular import. _helpers.py tidak import dari
+    mana-mana modul app lain, jadi selamat sebagai sumber kongsi.
+    """
+    default_company = frappe.db.get_single_value("Global Defaults", "default_company")
+    if not default_company:
+        return "MYR"
+    return frappe.get_cached_value("Company", default_company, "default_currency") or "MYR"

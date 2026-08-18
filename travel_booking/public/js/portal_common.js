@@ -43,6 +43,108 @@ const fmt = (n) => parseFloat(n || 0).toLocaleString('en-MY', {
   minimumFractionDigits: 2, maximumFractionDigits: 2
 });
 
+/* ── Display currency converter (portal-wide) ──
+   SEMUA amaun dicaj dalam company currency; pilih currency di nav cuma
+   tukar PAPARAN (rate ERPNNEXT for_selling, indicative). RC diisi
+   synchronous dari #rcCurrencyData (portal_nav.html) + cache localStorage,
+   jadi fmtDual() sedia dipakai pada render pertama page (tanpa tunggu
+   fetch async).*/
+const RC = (function () {
+  let companyCurrency = 'MYR', companySymbol = 'RM';
+  try {
+    const el = document.getElementById('rcCurrencyData');
+    if (el) {
+      const d = JSON.parse(el.textContent);
+      companyCurrency = d.company_currency || 'MYR';
+      companySymbol = d.company_symbol || companyCurrency;
+    }
+  } catch {}
+  // Cache display choice + rate (localStorage) supaya tersedia serta-merta.
+  let displayCurrency = null, displaySymbol = null, displayRate = null;
+  try {
+    const raw = localStorage.getItem('rc_display_currency');
+    if (raw) {
+      const c = JSON.parse(raw);
+      if (c && c.currency && c.currency !== companyCurrency && c.rate) {
+        displayCurrency = c.currency;
+        displaySymbol = c.symbol || c.currency;
+        displayRate = Number(c.rate);
+      }
+    }
+  } catch {}
+  return { company_currency: companyCurrency, company_symbol: companySymbol,
+           display_currency: displayCurrency, display_symbol: displaySymbol,
+           display_rate: displayRate };
+})();
+
+/* fmtDual(amount, companySym?) — papar company currency (caj sebenar) +
+   display currency (converted) dalam kurungan bila display dipilih & rate
+   ada. HTML-safe (symbol di-escape). Ganti pola lama `_esc(sym)+' '+fmt(n)`. */
+function fmtDual(amount, companySym) {
+  const n = fmt(amount);
+  const sym = _esc(companySym || RC.company_symbol || 'RM');
+  const base = sym + ' ' + n;
+  if (RC.display_currency && RC.display_currency !== RC.company_currency && RC.display_rate) {
+    const conv = fmt(parseFloat(amount || 0) * RC.display_rate);
+    return _esc(RC.display_symbol || RC.display_currency) + ' ' + conv + ' (' + base + ')';
+  }
+  return base;
+}
+
+/* initPortalCurrencyConverter — populat select nav + wire change. Dipanggil
+   sekali per page (selepas DOM sedia). Re-render via window.rcRefreshCurrency
+   kalau page sediakannya; kalau tak, reload page (cache localStorage buat
+   render pertama page seterusnya betul). */
+async function initPortalCurrencyConverter() {
+  const sel = document.getElementById('portalCurrencySelect');
+  if (!sel) return;
+  let list = [];
+  try {
+    list = await _get('/api/method/travel_booking.api.pricing.get_display_currencies');
+  } catch {}
+  sel.innerHTML = '';
+  if (!list || !list.length) {
+    const o = document.createElement('option');
+    o.value = RC.company_currency; o.textContent = RC.company_currency;
+    sel.appendChild(o); sel.disabled = true;
+    return;
+  }
+  list.forEach((c) => {
+    const o = document.createElement('option');
+    o.value = c.code;
+    o.textContent = c.code + (c.is_company ? ' \u2014 charged' : '');
+    sel.appendChild(o);
+  });
+  sel.value = RC.display_currency || RC.company_currency;
+  sel.addEventListener('change', async function () {
+    const code = this.value;
+    if (!code || code === RC.company_currency) {
+      RC.display_currency = null; RC.display_symbol = null; RC.display_rate = null;
+      try { localStorage.removeItem('rc_display_currency'); } catch {}
+      _portalCurrencyRefresh();
+      return;
+    }
+    try {
+      const r = await _get('/api/method/travel_booking.api.pricing.get_currency_rate?from_currency='
+        + encodeURIComponent(RC.company_currency) + '&to_currency=' + encodeURIComponent(code));
+      const rate = (r && r.rate) ? Number(r.rate) : null;
+      const sym = (list.find((c) => c.code === code) || {}).symbol || code;
+      RC.display_currency = code; RC.display_symbol = sym; RC.display_rate = rate;
+      try { localStorage.setItem('rc_display_currency', JSON.stringify({ currency: code, symbol: sym, rate })); } catch {}
+    } catch {
+      RC.display_rate = null;
+    }
+    _portalCurrencyRefresh();
+  });
+}
+
+function _portalCurrencyRefresh() {
+  if (typeof window.rcRefreshCurrency === 'function') {
+    try { window.rcRefreshCurrency(); return; } catch {}
+  }
+  window.location.reload();
+}
+
 const _MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /* ISO date "2026-09-03" → "3 Sep 2026" (selamat untuk timezone — parse
@@ -132,6 +234,7 @@ const API_PM = (m, p = {}) => _post(`/api/method/travel_booking.api.portal_payme
 const API_TV = (m, p = {}) => _post(`/api/method/travel_booking.api.portal_traveller.${m}`, p);
 const API_PF = (m, p = {}) => _post(`/api/method/travel_booking.api.portal_profile.${m}`, p);
 const API_STRIPE = (m, p = {}) => _post(`/api/method/travel_booking.api.stripe_checkout.${m}`, p);
+const API_ADDON = (m, p = {}) => _post(`/api/method/travel_booking.api.addon_manager.${m}`, p);
 
 /* ── Session ── */
 let SESSION = null;
@@ -201,3 +304,15 @@ function hideInlineError(boxId) {
   const box = document.getElementById(boxId);
   if (box) box.style.display = 'none';
 }
+
+/* ── Auto-init converter (setiap portal page) ──
+   Dipanggil bila DOM sedia. Nav + #rcCurrencyData dah ada (include nav
+   dirender sebelum skrip page). Pilihan display + rate dibaca synchronous
+   dari localStorage (rujuk RC), jadi render page pertama tak perlu tunggu
+   fetch ini selesai. */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPortalCurrencyConverter);
+} else {
+  initPortalCurrencyConverter();
+}
+

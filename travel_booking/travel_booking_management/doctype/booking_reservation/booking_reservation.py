@@ -151,20 +151,29 @@ class BookingReservation(Document):
 		if not info:
 			frappe.throw("Invalid room category: " + str(self.room_category))
 
-		capacity     = int(info.capacity or 0)
-		max_capacity = int(info.max_capacity or capacity)
+		capacity = int(info.capacity or 0)
+		# max_capacity == 0 (eksplisit) -> UNLIMITED (overbooking cabin
+		# dibenarkan). None/kosong -> fallback ke capacity (behavior sedia).
+		# Bezakan None daripada 0 supaya pakej lama tak berubah tingkah laku.
+		mc = info.max_capacity
+		if mc is None:
+			max_capacity = capacity
+			unlimited = False
+		else:
+			max_capacity = int(mc)
+			unlimited = (max_capacity == 0)
 
 		cabin_label = "Cabin " + str(self.cabin_no) + " (" + str(self.room_category) + ")"
 
-		if main_guest_count > capacity:
+		if capacity > 0 and main_guest_count > capacity:
 			frappe.throw(cabin_label + ": Main Guest exceeds the capacity (" + str(capacity) + ").")
-		if extra_bed_count > 0 and main_guest_count != capacity:
+		if extra_bed_count > 0 and capacity > 0 and main_guest_count != capacity:
 			frappe.throw(cabin_label + ": Extra Bed is only valid when Main Guest is at full capacity (" + str(capacity) + ").")
 		if infant_count > 0 and main_guest_count < 1:
 			frappe.throw(cabin_label + ": Infant is only valid when there is at least 1 Main Guest.")
 
 		total = main_guest_count + extra_bed_count + infant_count
-		if total > max_capacity:
+		if not unlimited and total > max_capacity:
 			frappe.throw(cabin_label + ": total pax (" + str(total) + ") exceeds the maximum capacity (" + str(max_capacity) + ").")
 
 	def before_insert(self):

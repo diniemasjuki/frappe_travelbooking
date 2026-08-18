@@ -33,6 +33,13 @@ PRINT_FORMAT_PROFORMA = "Rarecation Proforma Invoice"
 # item yang sama, kadar berbeza per baris).
 TRAVEL_ITEM_CODE = "TRAVEL-PKG"
 
+# Item code berasingan untuk SO addon (excursion/extras) dan SO insurance —
+# supaya laporan jualan admin (Item Group report ERPNext) boleh split ikut
+# jenis, bukan bercampur dengan TRAVEL_ITEM_CODE (cabin booking). Rujuk
+# api/addon_manager.py checkout_addons().
+ADDON_ITEM_CODE = "TRAVEL-ADDON"
+INSURANCE_ITEM_CODE = "TRAVEL-INSURANCE"
+
 # Prefix nombor booking ("RC" + 6 aksara rawak, rujuk _generate_booking_number).
 BOOKING_NUMBER_PREFIX = "RC"
 

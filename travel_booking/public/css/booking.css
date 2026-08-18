@@ -445,6 +445,44 @@ body {
   margin-bottom:5px;
 }
 
+/* Seats-left badge di step 0 date picker. seats_left datang dari
+   SUM(booked_pax) semua booking tak-cancelled (sepadan dengan gate
+   overbooking server), BUKAN current_participants. null = unlimited
+   (max_participants=0, cth cruise). */
+.rc-date-btn__seats {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 4px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.rc-date-btn__seats--ok {
+  background: var(--rc-gray-100);
+  color: var(--rc-gray-600);
+}
+.rc-date-btn__seats--few {
+  background: #FDF1E5;
+  color: #B5651D;
+}
+.rc-date-btn__seats--out {
+  background: #FBE7E7;
+  color: #B3261E;
+}
+.rc-date-btn.is-soldout {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.rc-date-btn.is-soldout:hover {
+  border-color: var(--rc-gray-200);
+  background: #fafafa;
+}
+.rc-date-btn:disabled {
+  cursor: not-allowed;
+}
+
 /* ─── TRIP BANNER ──────────────────────────────────────── */
 .rc-trip-banner {
   background: var(--rc-navy);
@@ -1446,6 +1484,47 @@ body {
   min-width: 14px;
   max-width: 56px;
   margin: 0 6px;
+}
+
+/* ─── DISPLAY CURRENCY CONVERTER BAR ───────────────────── */
+/* Harga sentiasa dicaj company currency; bar ni cuma tukar PAPARAN. */
+.rc-currency-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 1100px;
+  margin: 10px auto 0;
+  padding: 0 16px;
+  font-family: "Archivo", sans-serif;
+  font-size: 12px;
+  color: var(--rc-gray-600);
+  flex-wrap: wrap;
+}
+.rc-currency-bar__label {
+  font-weight: 600;
+  color: var(--rc-gray-700);
+}
+.rc-currency-bar__select {
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  border: 1px solid var(--rc-gray-200);
+  border-radius: var(--rc-radius);
+  background: var(--rc-white);
+  color: var(--rc-black);
+  cursor: pointer;
+}
+.rc-currency-bar__select:focus {
+  outline: none;
+  border-color: var(--rc-gold);
+}
+.rc-currency-bar__note {
+  color: var(--rc-gray-500);
+  font-size: 11px;
+}
+@media (max-width: 600px) {
+  .rc-currency-bar { justify-content: center; }
 }
 
 

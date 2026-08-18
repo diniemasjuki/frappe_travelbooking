@@ -18,7 +18,7 @@ def get_context(context):
     # ?ref=...). Saniti semula di sini: URL ini datang dari query string
     # yang boleh diubah sesiapa — jangan percaya ia selamat walaupun ia
     # kita yang jana di create_payment_intent().
-    from travel_booking.api._helpers import sanitize_portal_return_path
+    from travel_booking.api._helpers import sanitize_portal_return_path, get_company_currency
     ret = sanitize_portal_return_path(ret)
 
     context.pr_name  = pr_name
@@ -70,6 +70,7 @@ def get_context(context):
 
     context.amount    = amount
     context.currency  = pr.currency or "MYR"
+    context.company_currency = get_company_currency()
     context.already_paid = (pr.status == "Paid")
     context.no_cache = 1
     context.title    = "Payment — Rarecruise"

@@ -14,6 +14,10 @@
 
 import os
 
+import frappe
+
+from travel_booking.api._helpers import get_company_currency as _get_company_currency
+
 _PUBLIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "public")
 
 
@@ -23,3 +27,18 @@ def asset_v(relpath: str) -> str:
 		return str(int(os.path.getmtime(full)))
 	except OSError:
 		return "0"
+
+
+# ── Currency (untuk template Jinja) ──
+# SEMUA transaksi dalam company currency; template perlu tahu code+symbol
+# company currency untuk paparan default + converter frontend. Didedahkan
+# sebagai jinja "methods" (rujuk hooks.py) supaya boleh dipanggil terus
+# dalam mana-mana template: {{ get_company_currency() }}.
+def get_company_currency() -> str:
+	return _get_company_currency()
+
+
+def get_company_symbol() -> str:
+	cc = _get_company_currency()
+	return frappe.db.get_value("Currency", cc, "symbol") or cc
+

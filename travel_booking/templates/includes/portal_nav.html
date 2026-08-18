@@ -39,6 +39,11 @@
   </div>
 
   <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+    <span class="rc-nav-currency" style="display:flex;align-items:center;gap:5px;">
+      <span style="font-size:11px;color:#7D7A70;">Display</span>
+      <select id="portalCurrencySelect" title="Display currency (charged in {{ get_company_currency() }})"
+              style="font-size:12px;padding:4px 6px;border:1px solid #E8E5DF;border-radius:8px;background:#fff;color:#1E1C18;cursor:pointer;max-width:90px;"></select>
+    </span>
     <span id="nav-avatar" aria-hidden="true"
           style="width:32px;height:32px;border-radius:50%;background:#C9A84C;color:#fff;font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;"></span>
     <span id="nav-customer-name" style="font-size:13px;font-weight:500;color:#1E1C18;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
@@ -46,6 +51,10 @@
             style="background:none;border:1px solid #E8E5DF;border-radius:8px;padding:6px 10px;font-size:12px;color:#5C5850;cursor:pointer;white-space:nowrap;">Log out</button>
   </div>
 </nav>
+
+{# Company currency untuk portal_common.js (synchronous, sebelum render
+   page). SEMUA amaun dicaj company currency; converter cuma tukar paparan. #}
+<script id="rcCurrencyData" type="application/json">{"company_currency": "{{ get_company_currency() }}", "company_symbol": "{{ get_company_symbol() }}"}</script>
 
 {% if booking_ref %}
 <div class="nav-sub" style="display:flex;align-items:center;gap:6px;padding:8px 18px;background:#F5F3EE;border-bottom:1px solid #E8E5DF;overflow-x:auto;">
@@ -57,6 +66,8 @@
      style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if sub_active == 'info' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">Info</a>
   <a href="/traveller_portal/booking_traveller?ref={{ booking_ref | urlencode }}"
      style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if sub_active == 'traveller' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">Traveller</a>
+  <a href="/traveller_portal/booking_addons?ref={{ booking_ref | urlencode }}"
+     style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if sub_active == 'addons' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">Add-ons</a>
   <a href="/traveller_portal/booking_billing?ref={{ booking_ref | urlencode }}"
      style="padding:6px 12px;border-radius:8px;font-size:12px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if sub_active == 'billing' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">Billing</a>
 </div>

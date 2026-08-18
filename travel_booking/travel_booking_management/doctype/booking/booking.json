@@ -192,6 +192,14 @@
    "label": "Pending Traveller"
   },
   {
+   "fieldname": "booked_pax",
+   "fieldtype": "Int",
+   "label": "Booked Pax",
+   "non_negative": 1,
+   "read_only": 1,
+   "description": "Jumlah pax (Main Guest + Extra Bed + Infant) dirayang masa booking dicipta — sumber kebenaran untuk gate overbooking (sum merentasi semua booking tak-cancelled vs Trip Group Date.max_participants). Berbeza dari Total Traveller (virtual, kira Booking Reservation Confirmed)."
+  },
+  {
    "depends_on": "eval:doc.trip_name",
    "fieldname": "trip_date",
    "fieldtype": "Link",
