@@ -592,9 +592,29 @@ def _mark_payment_request_paid(pr_name):
     if not pr_name or not frappe.db.exists("Payment Request", pr_name):
         return False
 
-    pr = frappe.get_doc("Payment Request", pr_name)
-    if pr.status == "Paid":
-        return True  # idempotent — dah diproses (webhook boleh berulang dari Stripe)
+    # RACE CONDITION: webhook Stripe (_handle_payment_succeeded) dan fallback
+    # wizard (get_payment_result, di-poll setiap ~3s) BOLEH panggil ni untuk
+    # Payment Request yang SAMA secara serentak. Kedua-duanya baca status !=
+    # "Paid", kedua-duanya jalankan set_as_paid() -> create_payment_entry() ->
+    # kedua-duanya increment siri nama Payment Entry (tabSeries) serentak ->
+    # MariaDB error 1020 "Record has changed since last read in table
+    # 'tabSeries'" pada caller yang KALAH. TAPI caller yang MENANG berjaya
+    # cipta Payment Entry + tandakan PR Paid (disahkan: ACC-PRQ-2026-00026 &
+    # 00027 = Paid, PE wujud) — jadi bayaran customer sebenarnya BERJAYA; 1020
+    # tu cuma tanda kita kalah race, BUKAN kegagalan bayaran.
+    #
+    # JANGAN guna SELECT ... FOR UPDATE utk serialise di sini: get_payment_result
+    # dah baca pr.status (non-locking) lebih awal dalam transaction yang sama,
+    # jadi baris PR dah masuk snapshot REPEATABLE READ. FOR UPDATE (locking
+    # read) selepas tu akan throw 1020 "Record has changed since last read in
+    # table 'tabPayment Request'" SENDIRI bila webhook ubah baris tu — ia tak
+    # tunggu lock (inilah punca error QueryDeadlockError kedua, pada baris FOR
+    # UPDATE). Sebaliknya kita tangani 1020 secara graceful: rollback (reset
+    # snapshot + buang kerja separuh jalan), semak semula status committed, dan
+    # retry sekali. Idempotency check (status == "Paid") di awal setiap
+    # percubaan pastikan kita tak cipta Payment Entry pendua — caller yang
+    # menang dah tandakan Paid sebelum kita retry; tabSeries 1020 pula pastikan
+    # insert PE caller kalah diabort kalau dua-dua lepasi check serentak.
 
     # set_as_paid() → create_payment_entry() → get_party_account() →
     # account_perm_check() → frappe.has_permission("Account", ...). Laluan
@@ -631,12 +651,30 @@ def _mark_payment_request_paid(pr_name):
     _orig_session_user = frappe.local.session.user
     frappe.local.session.user = "Administrator"
     try:
-        pr.run_method("set_as_paid")
-        frappe.db.commit()
-        return True
-    except Exception as e:
-        frappe.log_error("set_as_paid failed for " + pr_name + ": " + str(e),
-                         "Stripe Payment Entry Error")
+        # Max 2 percubaan (1 cubaan + 1 retry). Selepas rollback (di except),
+        # snapshot transaction reset, jadi percubaan kedua baca status terkini.
+        for _attempt in range(2):
+            if frappe.db.get_value("Payment Request", pr_name, "status") == "Paid":
+                return True  # caller lain (webhook) dah selesai
+            pr = frappe.get_doc("Payment Request", pr_name)
+            try:
+                pr.run_method("set_as_paid")
+                frappe.db.commit()
+                return True
+            except Exception as e:
+                frappe.db.rollback()
+                # Caller serentak mungkin menang semasa kita gagal. Semak
+                # semula status committed — kalau dah Paid, bayaran BERJAYA;
+                # pulangkan True, JANGAN log error palsu yang buat customer
+                # nampak "not verified" sedangkan bayaran dah masuk.
+                if frappe.db.get_value("Payment Request", pr_name, "status") == "Paid":
+                    return True
+                if _attempt == 0:
+                    continue  # retry sekali (rollback di atas reset snapshot)
+                frappe.log_error(
+                    "set_as_paid failed for " + pr_name + ": " + str(e),
+                    "Stripe Payment Entry Error")
+                return False
         return False
     finally:
         frappe.local.session.user = _orig_session_user
