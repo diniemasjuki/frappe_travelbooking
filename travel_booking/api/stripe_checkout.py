@@ -596,17 +596,40 @@ def _mark_payment_request_paid(pr_name):
     if pr.status == "Paid":
         return True  # idempotent — dah diproses (webhook boleh berulang dari Stripe)
 
-    # set_as_paid() perlu baca Account (bank/cash default) untuk cipta
-    # Payment Entry — Guest/customer session tiada akses itu.
+    # set_as_paid() → create_payment_entry() → get_party_account() →
+    # account_perm_check() → frappe.has_permission("Account", ...). Laluan
+    # webhook & wizard berjalan sebagai Guest; customer login portal pula
+    # tiada role Accounts — kedua-duanya TIDAK LULUS semakan ini.
     #
-    # PENTING: guna frappe.flags.ignore_permissions, BUKAN frappe.set_user()
-    # — set_user() memadam frappe.local.session.data dan menulis-ganti
-    # session.sid, lalu Session.update() di hujung request menulis data
-    # sesi yang rosak ke cache bawah sid sebenar user → sesi customer
-    # TERKORUPSI bila fallback ini berjalan dari get_payment_result()
-    # (laluan portal login), menyebabkan terlogout tiba-tiba. Laluan
-    # webhook (Guest) tidak terkesan, tapi flags selamat untuk kedua-dua.
+    # frappe.flags.ignore_permissions = True SAHAJA tidak mencukupi: flag ni
+    # dihormati oleh check_permission() (yang throw) dan insert/submit, TETAPI
+    # frappe.has_permission() SENDIRI tidak check flag tersebut — ia hanya
+    # short-circuit bila frappe.session.user == "Administrator" (rujuk
+    # frappe/permissions.py). Jadi account_perm_check() throw
+    # "User don't have permissions to select/read this account" walaupun
+    # ignore_permissions sudah diset — inilah punca sebenar masalah permission
+    # bayaran online (webhook Stripe + fallback get_payment_result).
+    #
+    # frappe.set_user("Administrator") BOLEH luluskan semakan ni, TAPI ia
+    # memadam frappe.local.session.data DAN menulis-ganti session.sid (sentiasa
+    # menjadi username, bukan token sid sebenar) → Session.update() di hujung
+    # request menulis data sesi yang dikosongkan ke cache bawah sid sebenar
+    # customer → sesi customer TERKORUPSI / terlogout (rujuk memory
+    # frappe-set-user-corrupts-sessions). Restore via set_user(original_user)
+    # tak pulihkan sid sebenar (set_user sentiasa set sid=username), jadi
+    # pendekatan tu tak boleh dipakai untuk request authenticated.
+    #
+    # PENYELESAIAN: set frappe.local.session.user = "Administrator" SECARA
+    # LANGSUNG (bukan set_user()) — ini sentuh HANYA .user, BUKAN .sid/.data
+    # (frappe.local.session ialah self.data Session; update() tulis
+    # self.data["data"] di bawah self.data["sid"] — kedua-duanya tak
+    # disentuh). has_permission() short-circuit untuk Administrator →
+    # account_perm_check lulus. .user dipulihkan dalam finally, supaya
+    # Session.update() di hujung request menulis data sesi ASAL di bawah sid
+    # ASAL → tiada korupsi sesi untuk Guest mahupun customer login.
     frappe.flags.ignore_permissions = True
+    _orig_session_user = frappe.local.session.user
+    frappe.local.session.user = "Administrator"
     try:
         pr.run_method("set_as_paid")
         frappe.db.commit()
@@ -615,6 +638,8 @@ def _mark_payment_request_paid(pr_name):
         frappe.log_error("set_as_paid failed for " + pr_name + ": " + str(e),
                          "Stripe Payment Entry Error")
         return False
+    finally:
+        frappe.local.session.user = _orig_session_user
 
 
 def _handle_payment_succeeded(payment_intent):

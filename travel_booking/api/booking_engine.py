@@ -598,8 +598,23 @@ def _recompute_booking_status(so_name):
     # Reservation dicipta sebaik payment_status mula ada sebarang bayaran —
     # TIDAK bergantung pada status booking (Processing/Confirmed kini
     # ditetapkan admin secara manual, bukan auto dari sini).
+    #
+    # PENTING: _activate_booking dipanggil dari hook on_payment_entry_submit
+    # (semasa Payment Entry submit). Jika ia throw (cth room_category lapuk,
+    # rujuk _activate_booking), exception akan mengroll-back seluruh submit
+    # Payment Entry → bayaran customer tak direkodkan walhal Stripe dah berjaya.
+    # Tangkap exception di sini supaya bayaran SENTIASA direkodkan; reservation
+    # boleh dicipta/dibaiki admin kemudian (rujuk Error Log).
     if new_payment_status in ("Partially Paid", "Paid") and not had_any_payment:
-        _activate_booking(b.name)
+        try:
+            _activate_booking(b.name)
+        except Exception as e:
+            frappe.log_error(
+                "_activate_booking gagal untuk " + str(b.name) + " (SO " +
+                str(so_name) + "): " + str(e) + ". Bayaran tetap direkodkan; "
+                "reservation perlu dibuat/dibaiki manual.",
+                "Booking Activation Error"
+            )
 
    # Auto-invoice — SENGAJA berasingan dari new_payment_status di atas.
     # new_payment_status tu peringkat BOOKING (agregat SEMUA SO berkaitan

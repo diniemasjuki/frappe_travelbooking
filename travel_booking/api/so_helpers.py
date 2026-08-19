@@ -304,6 +304,31 @@ def _activate_booking(booking_name):
     is_cruise = bool(frappe.db.get_value("Booking", booking_name, "is_a_cruise_trip"))
     count = 0
     for cabin in _cabin_layout_from_so(so_name):
+        # room_category datang dari TEKS description SO Item (rujuk
+        # _cabin_layout_from_so) — snapshot dibekukan masa booking dicipta,
+        # BUKAN Link live. Bila admin rename Trip Price Category terus di DB
+        # (bukan via Frappe rename_doc, yang cascade ke semua rujukan Link),
+        # teks description SO Item kekal nama LAMA → validate_links() throw
+        # "Could not find Room Category: <nama lama>" LinkValidationError semasa
+        # insert reservation ni. Kerana _activate_booking dipanggil dari hook
+        # on_payment_entry_submit (semasa Payment Entry submit), exception ni
+        # akan MENGROLL-BACK seluruh submit Payment Entry → bayaran customer
+        # tak direkodkan walhal Stripe dah berjaya. Validasi di sini + skip
+        # cabin bermasalah supaya bayaran tetap direkodkan; admin fix data
+        # (rename balik ATAU kemaskini description SO Item) dan cipta reservation
+        # manual. (Bukan truncate keseluruhan — cabin yang sah masih dicipta.)
+        rc = cabin.get("room_category")
+        if rc and not frappe.db.exists("Trip Price Category", rc):
+            frappe.log_error(
+                "Booking " + str(booking_name) + " (SO " + str(so_name) +
+                ", Cabin " + str(cabin.get("cabin_no")) + "): room_category '" +
+                str(rc) + "' dari SO Item description tidak wujud dalam Trip "
+                "Price Category (kemungkinan telah direname terus di DB). "
+                "Reservation untuk cabin ini di-skip supaya bayaran tetap "
+                "direkodkan. Betulkan data dan cipta reservation manual.",
+                "Booking Reservation - Stale Room Category"
+            )
+            continue
         for pax_type, qty in cabin.get("pax_breakdown", {}).items():
             for _ in range(int(qty)):
                 frappe.get_doc({
