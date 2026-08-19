@@ -131,11 +131,15 @@ def _ensure_customer_company_currency(customer_name):
 # SALES ORDER ITEMS
 # ══════════════════════════════════════════════
 
-def _build_so_items(selections, pricing_map, trip_name="", group_label=""):
+def _build_so_items(selections, pricing_map, trip_name="", group_label="", is_cruise=True):
     """Bina SO items dengan harga dari backend pricing_map.
-    Model SLOT (posisi bilik): Main Guest (single/twin) / Extra Bed /
-    Infant. Harga ditentukan oleh SLOT, bukan label umur — kecuali Infant
-    yang sentiasa guna price_infant sendiri.
+
+    Cruise (is_cruise=True) — model SLOT (posisi bilik): Main Guest
+    (single/twin) / Extra Bed / Infant. Harga ditentukan SLOT.
+    Non-cruise (is_cruise=False) — model UMUR: Adult (price_adult) /
+    Children (price_children) / Infant (price_infant), flat per pax (tiada
+    single supplement). Field payload {main_guests, extra_beds, infants}
+    sama — hanya field harga + label pax_type berbeza.
     """
     items        = []
     default_item = _get_or_create_travel_item()
@@ -150,18 +154,29 @@ def _build_so_items(selections, pricing_map, trip_name="", group_label=""):
         if not price:
             frappe.throw("Price not found for category: " + str(room_category))
 
-        if main_guests == 1:
-            items.append(_so_line(default_item, room_category, "Main Guest (Single)",
-                                  1, float(price.price_adult_single or 0),
-                                  trip_name, group_label, cabin_no))
-        elif main_guests >= 2:
-            items.append(_so_line(default_item, room_category, "Main Guest",
-                                  main_guests, float(price.price_adult or 0),
-                                  trip_name, group_label, cabin_no))
-        if extra_beds > 0:
-            items.append(_so_line(default_item, room_category, "Extra Bed",
-                                  extra_beds, float(price.price_upperberth or 0),
-                                  trip_name, group_label, cabin_no))
+        if is_cruise:
+            if main_guests == 1:
+                items.append(_so_line(default_item, room_category, "Main Guest (Single)",
+                                      1, float(price.price_adult_single or 0),
+                                      trip_name, group_label, cabin_no))
+            elif main_guests >= 2:
+                items.append(_so_line(default_item, room_category, "Main Guest",
+                                      main_guests, float(price.price_adult or 0),
+                                      trip_name, group_label, cabin_no))
+            if extra_beds > 0:
+                items.append(_so_line(default_item, room_category, "Extra Bed",
+                                      extra_beds, float(price.price_upperberth or 0),
+                                      trip_name, group_label, cabin_no))
+        else:
+            # Non-cruise: flat per pax, tiada single supplement.
+            if main_guests > 0:
+                items.append(_so_line(default_item, room_category, "Adult",
+                                      main_guests, float(price.price_adult or 0),
+                                      trip_name, group_label, cabin_no))
+            if extra_beds > 0:
+                items.append(_so_line(default_item, room_category, "Children",
+                                      extra_beds, float(price.price_children or 0),
+                                      trip_name, group_label, cabin_no))
         if infants > 0:
             items.append(_so_line(default_item, room_category, "Infant",
                                   infants, float(price.price_infant or 0),
@@ -283,6 +298,10 @@ def _activate_booking(booking_name):
     so_name = _get_primary_so(booking_name)
     if not so_name:
         return 0
+    # is_a_cruise diwarisi dari Booking (field is_a_cruise_trip, fetch_from
+    # trip_date.is_a_cruise_trip) supaya validate_cabin_capacity tahu model
+    # mana (slot vs umur) yang perlu dipakai pada rekod Booking Reservation ni.
+    is_cruise = bool(frappe.db.get_value("Booking", booking_name, "is_a_cruise_trip"))
     count = 0
     for cabin in _cabin_layout_from_so(so_name):
         for pax_type, qty in cabin.get("pax_breakdown", {}).items():
@@ -293,6 +312,7 @@ def _activate_booking(booking_name):
                     "room_category":   cabin.get("room_category"),
                     "cabin_no":        cabin.get("cabin_no"),
                     "pax_type":        pax_type,
+                    "is_a_cruise":     is_cruise,
                     "status":          "Confirmed",
                     "document_status": "Pending",
                 }).insert(ignore_permissions=True)

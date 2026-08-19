@@ -113,7 +113,7 @@ def _apply_cruise_fetch(doc: object) -> None:
 @frappe.whitelist()
 def get_managed_trips(status: str = "", q: str = "") -> list[dict]:
 	"""Senarai Trip untuk sidebar + kiraan child (dates/packages).
-	Raw SQL ikut precedent web_data.py — role dah di-gate di atas."""
+	Raw SQL — role dah di-gate di atas."""
 	_require_manager()
 	conds, params = [], {"status": status, "q": f"%{q}%"}
 	if status:
@@ -171,7 +171,7 @@ def get_trip_bundle(trip: str) -> dict:
 	)
 	for d in dates:
 		# max_participants == 0 -> UNLIMITED (None), sepadan dengan
-		# available_slots @property TripGroupDate & konvensi web_data.py.
+		# available_slots @property TripGroupDate.
 		d.available_slots = None if not (d.max_participants or 0) else (d.max_participants - d.current_participants)
 
 	packages = frappe.get_all(

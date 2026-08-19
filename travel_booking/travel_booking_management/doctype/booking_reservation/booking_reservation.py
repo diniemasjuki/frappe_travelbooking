@@ -47,7 +47,10 @@ class BookingReservation(Document):
 		naming_series: DF.Literal[".{booking}.-.#", "RES.YY.MM.###"]
 		package_title: DF.Data | None
 		package_type: DF.Data | None
-		pax_type: DF.Literal["Main Guest", "Extra Bed", "Infant"]
+		passport_link_email: DF.Data | None
+		passport_link_expires_on: DF.Datetime | None
+		passport_link_token: DF.Data | None
+		pax_type: DF.Data | None
 		room_category: DF.Link | None
 		stateroom_no: DF.Data | None
 		status: DF.Literal["Pending Review", "Confirmed", "Cancelled"]
@@ -142,9 +145,17 @@ class BookingReservation(Document):
 				n += 1
 			return n
 
-		main_guest_count = _count("Main Guest")
-		extra_bed_count  = _count("Extra Bed")
-		infant_count     = _count("Infant")
+		# Model: cruise=slot (Main Guest/Extra Bed), non-cruise=umur
+		# (Adult/Children). Sumber Booking.is_a_cruise_trip (fetch_from
+		# trip_date) — boleh dipercaya untuk rekod wizard mahupun admin Desk.
+		is_cruise = bool(frappe.db.get_value("Booking", self.booking, "is_a_cruise_trip"))
+		if is_cruise:
+			main_guest_count = _count("Main Guest")
+			extra_bed_count  = _count("Extra Bed")
+		else:
+			main_guest_count = _count("Adult")
+			extra_bed_count  = _count("Children")
+		infant_count = _count("Infant")
 
 		info = frappe.db.get_value("Trip Price Category", self.room_category,
 									["capacity", "max_capacity"], as_dict=True)
@@ -165,12 +176,21 @@ class BookingReservation(Document):
 
 		cabin_label = "Cabin " + str(self.cabin_no) + " (" + str(self.room_category) + ")"
 
-		if capacity > 0 and main_guest_count > capacity:
-			frappe.throw(cabin_label + ": Main Guest exceeds the capacity (" + str(capacity) + ").")
-		if extra_bed_count > 0 and capacity > 0 and main_guest_count != capacity:
-			frappe.throw(cabin_label + ": Extra Bed is only valid when Main Guest is at full capacity (" + str(capacity) + ").")
-		if infant_count > 0 and main_guest_count < 1:
-			frappe.throw(cabin_label + ": Infant is only valid when there is at least 1 Main Guest.")
+		if is_cruise:
+			# SLOT: Extra Bed (upper berth) hanya sah bila Main Guest penuh
+			# capacity dulu — cermin _validate_selection_capacity (cruise).
+			if capacity > 0 and main_guest_count > capacity:
+				frappe.throw(cabin_label + ": Main Guest exceeds the capacity (" + str(capacity) + ").")
+			if extra_bed_count > 0 and capacity > 0 and main_guest_count != capacity:
+				frappe.throw(cabin_label + ": Extra Bed is only valid when Main Guest is at full capacity (" + str(capacity) + ").")
+			if infant_count > 0 and main_guest_count < 1:
+				frappe.throw(cabin_label + ": Infant is only valid when there is at least 1 Main Guest.")
+		else:
+			# UMUR: Children dibenarkan bila-bila (tiada syarat "adult penuh").
+			if extra_bed_count > 0 and main_guest_count < 1:
+				frappe.throw(cabin_label + ": Children is only valid when there is at least 1 Adult.")
+			if infant_count > 0 and main_guest_count < 1:
+				frappe.throw(cabin_label + ": Infant is only valid when there is at least 1 Adult.")
 
 		total = main_guest_count + extra_bed_count + infant_count
 		if not unlimited and total > max_capacity:

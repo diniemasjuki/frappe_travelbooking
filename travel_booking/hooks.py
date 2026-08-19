@@ -88,17 +88,9 @@ use_json_request_body = True
 # Generators
 # ----------
 
-# Trip doctype mempunyai is_website_scritable dan WebsiteRouteGenerator pattern
-# (rujuk trip.py controller) — route setiap Trip published ialah /trips/<slug>
-# (dijana oleh Trip.validate), dan list page catalog di /trips (www/trips.py).
+# Trip doctype ialah WebsiteGenerator (has_web_view=1) — route & list page
+# dikendalikan oleh Frappe secara default (rujuk trip.py controller).
 website_generators = ["Trip"]
-
-# Route rewrite: /trip (path default ListPage Frappe untuk doctype "Trip")
-# diteruskan ke list page catalog /trips — elak dua URL berbeza untuk isi sama.
-# Perlu `bench --site <site> clear-cache` selepas ubah (cache redis).
-website_route_rules = [
-	{"from_route": "/trip", "to_route": "trips"},
-]
 
 # automatically load and sync documents of this doctype from downstream apps
 # importable_doctypes = [doctype_1]

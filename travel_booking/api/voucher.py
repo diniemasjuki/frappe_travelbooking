@@ -18,7 +18,7 @@ from travel_booking.api.pricing import fmt_currency, _get_pricing_map, _price_se
 
 @frappe.whitelist(allow_guest=True)
 def validate_voucher(code: str, trip_group_date: str, grand_total: float, email: str = "",
-                     selections: str = "", trip_package: str = None):
+                     selections: str = "", trip_package: str = None, is_cruise: bool = True):
     """Validate voucher + kira discount ikut scope (Voucher doctype terkini).
 
     PENTING — model diskaun: diskaun HANYA dikira dari subtotal cabin/room
@@ -147,6 +147,7 @@ def validate_voucher(code: str, trip_group_date: str, grand_total: float, email:
                 int(sel.get("main_guests", 0)),
                 int(sel.get("extra_beds", 0)),
                 int(sel.get("infants", 0)),
+                is_cruise,
             )
 
         if eligible_amount <= 0:

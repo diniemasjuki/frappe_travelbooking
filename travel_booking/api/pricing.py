@@ -195,6 +195,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             tpp.price_adult_single,
             tpp.price_adult,
             tpp.price_upperberth,
+            tpp.price_children,
             tpp.price_infant
         FROM `tabTrip Package Price` tpp
         JOIN `tabTrip Price Category` tpc ON tpc.name = tpp.pricing_for_class
@@ -222,6 +223,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
                 "price_adult_single":     float(row.price_adult_single     or 0),
                 "price_adult":            float(row.price_adult           or 0),
                 "price_upperberth": float(row.price_upperberth or 0),
+                "price_children":         float(row.price_children        or 0),
                 "price_infant":           float(row.price_infant          or 0),
             },
             "available":    available,
@@ -466,48 +468,61 @@ def _get_pricing_map(trip_package):
     return {r.room_category: r for r in rows}
 
 
-def _price_selection(price, main_guests, extra_beds, infants):
-    """Kira harga satu selection — model SLOT (posisi dalam bilik), bukan
-    kategori umur:
-      - main_guests == 1  -> price_adult_single (satu org, single occupancy)
+def _price_selection(price, main_guests, extra_beds, infants, is_cruise=True):
+    """Kira harga satu selection.
+
+    Cruise (is_cruise=True) — model SLOT (posisi dalam bilik):
+      - main_guests == 1  -> price_adult_single (single occupancy)
       - main_guests >= 2  -> price_adult x setiap org (twin/multi occupancy)
-      - extra_beds        -> price_upperberth x setiap org, flat
-                             (tak kira umur), hanya sah bila main_guests
-                             sudah capai capacity (max) bilik tu
-      - infants           -> price_infant x setiap org (harga SEBENAR dari
-                             pakej, BUKAN percuma) — tak dikira dalam
-                             capacity bilik (Main Guest + Extra Bed)
+      - extra_beds        -> price_upperberth x setiap org, flat (upper berth)
+      - infants           -> price_infant x setiap org
+
+    Non-cruise (is_cruise=False) — model UMUR (flat per pax, tiada single
+    supplement): main_guests=Adult (price_adult), extra_beds=Children
+    (price_children), infants (price_infant). Field payload sama
+    (main_guests/extra_beds/infants) — hanya field harga + label berbeza.
     """
-    mg = int(main_guests or 0)
-    eb = int(extra_beds  or 0)
+    mg  = int(main_guests or 0)
+    eb  = int(extra_beds  or 0)
     inf = int(infants    or 0)
 
     total = 0.0
-    if mg == 1:
-        total += float(price.price_adult_single or 0)
-    elif mg >= 2:
+    if is_cruise:
+        if mg == 1:
+            total += float(price.price_adult_single or 0)
+        elif mg >= 2:
+            total += float(price.price_adult or 0) * mg
+        total += float(price.price_upperberth or 0) * eb
+    else:
         total += float(price.price_adult or 0) * mg
-
-    total += float(price.price_upperberth or 0) * eb
+        total += float(price.price_children or 0) * eb
     total += float(price.price_infant or 0) * inf
     return round(total, 2)
 
 
-def _validate_selection_capacity(selections, cabin_info_map):
-    """Sahkan setiap selection ikut had SLOT (server-side) — jangan percaya
+def _validate_selection_capacity(selections, cabin_info_map, is_cruise=True):
+    """Sahkan setiap selection ikut had server-side — jangan percaya
     client-side JS je, sebab payload boleh dimanipulasi.
+
+    Cruise (is_cruise=True) — model SLOT:
       - main_guests: 1..capacity
       - extra_beds : 0..(max_capacity - capacity), hanya sah bila
                      main_guests == capacity (bilik penuh Main Guest dulu)
       - infants    : 0..(max_capacity - main_guests - extra_beds), hanya
-                     sah bila main_guests >= 1. Had DINAMIK (bukan formula
-                     tetap max_capacity//2) — sepadan tepat dengan capFor()
-                     dalam booking.js (frontend).
+                     sah bila main_guests >= 1. Had DINAMIK — sepadan tepat
+                     dengan capFor() dalam booking.js (frontend).
+
+    Non-cruise (is_cruise=False) — model UMUR:
+      - main_guests (Adult)   : 1..max_capacity
+      - extra_beds (Children) : 0..(max_capacity - main_guests), bila-bila
+                                (TIADA syarat "adult penuh dulu" — bukan slot)
+      - infants               : 0..(max_capacity - main_guests - extra_beds),
+                                hanya sah bila main_guests >= 1.
 
     PERATURAN OVERBOOKING (max_capacity == 0 -> UNLIMITED): bila field
     max_capacity diset eksplisit ke 0, cabin dianggap TANPA had — semak
     jumlah total & had extra_bed/infant di-skip (overbooking dibenarkan).
-    Rule structural (main_guests >= 1, extra-bed-only-when-full) kekal.
+    Rule structural (main_guests >= 1) kekal untuk kedua-dua model.
     max_capacity NULL/kosong -> fallback ke capacity (behavior sedia,
     backward-compat untuk pakej lama yang tak isi max_capacity).
     cabin_info_map: {room_category: {"capacity":.., "max_capacity":..}}
@@ -544,26 +559,42 @@ def _validate_selection_capacity(selections, cabin_info_map):
         eb  = int(sel.get("extra_beds", 0))
         inf = int(sel.get("infants", 0))
 
-        if unlimited:
-            max_extra  = None  # unlimited
-            max_infant = None  # unlimited
-        else:
-            # max_infant DINAMIK — sama formula dengan capFor() frontend
-            # (maxCapacity - main_guests - extra_beds).
-            max_extra  = max(0, max_capacity - capacity)
-            max_infant = max(0, max_capacity - mg - eb)
+        # Label ikut model: cruise=slot (Main Guest/Extra Bed), non-cruise=
+        # umur (Adult/Children). Mesej ralat dipaparkan ke customer — kena
+        # sepadan dengan label yang nampak di wizard.
+        adult_lbl = "Main Guest" if is_cruise else "Adult"
+        child_lbl = "Extra Bed"  if is_cruise else "Children"
 
-        # main_guests: minimum 1 sentiasa. Upper = capacity (structural);
-        # capacity 0 juga dianggap unlimited upper (defensive).
+        # main_guests (Adult): minimum 1 sentiasa (kedua-dua model).
         if mg < 1:
-            frappe.throw("Main Guest for " + str(room_category) + " must be at least 1.")
-        if capacity > 0 and mg > capacity:
-            frappe.throw("Main Guest for " + str(room_category) + " must be between 1 and " + str(capacity) + ".")
-        if eb > 0 and capacity > 0 and mg != capacity:
-            frappe.throw("Extra Bed is only allowed when Main Guest is full (" + str(capacity) + ") for " + str(room_category) + ".")
-        if max_extra is not None and eb > max_extra:
-            frappe.throw("Extra Bed for " + str(room_category) + " exceeds the limit (" + str(max_extra) + ").")
+            frappe.throw(adult_lbl + " for " + str(room_category) + " must be at least 1.")
+
+        if is_cruise:
+            # Model SLOT: extra_bed (upper berth) hanya sah bila main_guest
+            # penuh capacity dulu. max_infant DINAMIK (maxCapacity - mg - eb).
+            if unlimited:
+                max_extra = max_infant = None
+            else:
+                max_extra  = max(0, max_capacity - capacity)
+                max_infant = max(0, max_capacity - mg - eb)
+            if capacity > 0 and mg > capacity:
+                frappe.throw(adult_lbl + " for " + str(room_category) + " must be between 1 and " + str(capacity) + ".")
+            if eb > 0 and capacity > 0 and mg != capacity:
+                frappe.throw(child_lbl + " is only allowed when " + adult_lbl + " is full (" + str(capacity) + ") for " + str(room_category) + ".")
+            if max_extra is not None and eb > max_extra:
+                frappe.throw(child_lbl + " for " + str(room_category) + " exceeds the limit (" + str(max_extra) + ").")
+        else:
+            # Model UMUR: children dibenarkan bila-bila sehingga
+            # (max_capacity - adult). TIADA syarat "adult penuh dulu".
+            if unlimited:
+                max_children = max_infant = None
+            else:
+                max_children = max(0, max_capacity - mg)
+                max_infant   = max(0, max_capacity - mg - eb)
+            if max_children is not None and eb > max_children:
+                frappe.throw(child_lbl + " for " + str(room_category) + " exceeds the limit (" + str(max_children) + ").")
+
         if inf > 0 and mg < 1:
-            frappe.throw("Infant is only allowed when Main Guest is at least 1 for " + str(room_category) + ".")
+            frappe.throw("Infant is only allowed when " + adult_lbl + " is at least 1 for " + str(room_category) + ".")
         if max_infant is not None and inf > max_infant:
             frappe.throw("Infant for " + str(room_category) + " exceeds the limit (" + str(max_infant) + ").")

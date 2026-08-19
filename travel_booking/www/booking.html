@@ -62,9 +62,11 @@ if ('serviceWorker' in navigator) {
      ({{ company_currency }}); pilihan di sini cuma tukar PAPARAN. Amaun
      converted ialah indicative (rate exchange ERPNext for_selling). -->
 <div class="rc-currency-bar">
-  <span class="rc-currency-bar__label">Display in</span>
-  <select id="displayCurrency" class="rc-currency-bar__select"></select>
-  <span class="rc-currency-bar__note" id="currencyNote"></span>
+  <div>
+    <span class="rc-currency-bar__label">Display in</span>
+    <select id="displayCurrency" class="rc-currency-bar__select"></select>
+  </div>
+  <p class="rc-currency-bar__note" id="currencyNote"></p>
 </div>
 
 <main class="rc-main">
@@ -99,7 +101,7 @@ if ('serviceWorker' in navigator) {
         </div>
 
         <div class="rc-form-group" id="dateGroup" style="display:none">
-          <label class="rc-label">Select Departure Date</label>
+          <label class="rc-label" id="dateLabel">Select Departure Date</label>
           <div class="rc-date-grid" id="dateGrid"></div>
         </div>
 
@@ -128,6 +130,7 @@ if ('serviceWorker' in navigator) {
       <div class="rc-card">
         <div class="rc-rooms-header">
           <h3 class="rc-rooms-title">Rooms &amp; Passengers</h3>
+          <span class="rc-capacity-hint" id="groupCapacityHint" style="display:none"></span>
         </div>
 
         <div class="rc-rooms-grid">
@@ -144,7 +147,7 @@ if ('serviceWorker' in navigator) {
               <span>Total Guests</span>
               <span id="step1TotalGuests">0</span>
             </div>
-            <div id="step1OrderLines"></div>
+            <div class="rc-totals" id="step1OrderLines"></div>
             <div class="rc-totals" id="totalsBox">
               <div class="rc-totals__row rc-totals__row--total">
                 <span>Total</span>
@@ -281,14 +284,16 @@ if ('serviceWorker' in navigator) {
                 <input type="radio" name="paymentMethod" value="Online Payment" checked onchange="onPaymentMethodChange(this)">
                 <div class="rc-radio-option__content">
                   <span class="rc-radio-option__label"><i class="ti ti-credit-card"></i> Online Payment</span>
+                  <small class="rc-cashback-note">Pay online with Visa, Mastercard, etc. </small>
                 </div>
               </label>
               <label class="rc-radio-option" id="labelManual">
                 <input type="radio" name="paymentMethod" value="Manual Transfer" onchange="onPaymentMethodChange(this)">
                 <div class="rc-radio-option__content">
                   <span class="rc-radio-option__label">
-                    <i class="ti ti-building-bank"></i> Manual Bank Transfer
+                    <i class="ti ti-building-bank"></i> Manual Transfer
                     <span class="rc-cashback-badge" id="cashbackBadge">5% cashback</span>
+                    <small class="rc-cashback-note">Pay on your own way, mostly goes to our bank</small>
                   </span>
                   <small class="rc-cashback-note" id="cashbackNote">Get 5% cashback when you pay via bank transfer</small>
                 </div>
@@ -386,7 +391,7 @@ if ('serviceWorker' in navigator) {
             </div>
             <div id="voucherMsg" style="display:none;margin-bottom:12px;font-size:12px"></div>
 
-            <p class="rc-card__title" style="margin-bottom:8px;font-size:13px">Referral Code</p>
+            <p class="rc-card__title" style="margin-bottom:8px;font-size:13px">Affiliate Referral Code</p>
             <div class="rc-voucher-row">
               <input type="text" class="rc-input rc-input--voucher" id="affiliateInput"
                      placeholder="Enter referral code" autocomplete="off"
@@ -468,7 +473,7 @@ if ('serviceWorker' in navigator) {
 
 <!-- Page data dari Frappe — elak Jinja syntax dalam JS -->
 <script id="pageData" type="application/json">
-{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "csrf_token": "{{ csrf_token }}", "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}"}
+{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_cruise_flags": {{ trip_cruise_flags }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "csrf_token": "{{ csrf_token }}", "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}"}
 </script>
 
 <!-- intl-tel-input — dial-code + bendera negara, SAMA library dengan fieldtype

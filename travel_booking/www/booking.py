@@ -24,7 +24,7 @@ def get_context(context):
     # efisien (berhenti scan sebaik jumpa satu match) dan elak duplicate
     # row yang perlukan DISTINCT tambahan.
     trips = frappe.db.sql("""
-        SELECT DISTINCT t.name, t.trip_name
+        SELECT DISTINCT t.name, t.trip_name, t.is_a_cruise_trip
         FROM `tabTrip` t
         WHERE t.status = 'Active'
           AND EXISTS (
@@ -44,6 +44,12 @@ def get_context(context):
         ORDER BY t.trip_name
     """, as_dict=True)
 
+    # Flag cruise per-trip — wizard papar & susun tarikh ikut SAILING date
+    # (sailing_start) untuk trip cruise, bukan departure_date. Untuk Fly
+    # Cruise, departure_date ialah tarikh penerbangan keluar (lebih awal dari
+    # sailing) — customer lebih peduli bila kapal berlayar, bukan bila terbang.
+    trip_is_cruise = {t.name: bool(t.is_a_cruise_trip) for t in trips}
+
     trip_group_dates = {}
     trip_packages    = {}
     if trips:
@@ -58,6 +64,7 @@ def get_context(context):
         dates = frappe.db.sql("""
             SELECT td.name, td.trip, td.trip_group_name, td.trip_group_code,
                    td.departure_date, td.return_date, td.total_days, td.total_nights,
+                   td.sailing_start, td.sailing_end, td.cruise_schedule,
                    td.max_participants, td.current_participants
             FROM `tabTrip Group Date` td
             WHERE td.trip IN %(trips)s
@@ -105,11 +112,26 @@ def get_context(context):
                 "trip_group_code": d.trip_group_code or "",
                 "departure_date":  str(d.departure_date) if d.departure_date else "",
                 "return_date":     str(d.return_date)    if d.return_date    else "",
+                "sailing_start":   str(d.sailing_start)  if d.sailing_start  else "",
+                "sailing_end":     str(d.sailing_end)    if d.sailing_end    else "",
+                "cruise_schedule": d.cruise_schedule or "",
                 "total_days":      d.total_days   or 0,
                 "total_nights":    d.total_nights or 0,
                 "max_participants": max_pax,
                 "seats_left":      seats_left,
             })
+
+        # Susun semula senarai tarikh per-trip: cruise ikut SAILING date
+        # (sailing_start), lain-lain ikut departure_date. Susunan SQL
+        # (departure_date ASC) cuma default — dirombak per-trip di sini supaya
+        # grid cruise papar sailing terawal dulu, sepadan dengan paparan tarikh
+        # sailing di frontend. Fallback departure_date kalau sailing kosong
+        # (cruise tanpa cruise_schedule terlink).
+        for _trip_name, _groups in trip_group_dates.items():
+            if trip_is_cruise.get(_trip_name):
+                _groups.sort(key=lambda g: g["sailing_start"] or g["departure_date"])
+            else:
+                _groups.sort(key=lambda g: g["departure_date"])
 
         # Trip Packages untuk setiap Trip Group Date (produk yang dijual).
         # Relationship Package -> Group Date adalah one-to-many melalui child
@@ -138,6 +160,11 @@ def get_context(context):
                     flight_label = "No Flight"
                 trip_packages[p.trip_group_date].append({
                     "name":         p.name,
+                    # td (Trip Group Date) yang pakej ini terlink — DIPERLUKAN
+                    # bila sailing cruise digabungkan (fly + cruise-only): td
+                    # sebenar untuk booking di TERBITKAN dari pakej yang dipilih
+                    # di frontend (rujak booking.js step0Next).
+                    "trip_group_date": p.trip_group_date,
                     "package_name": p.package_title or "",
                     "package_type": p.package_type or "",
                     "flight":       p.airport_form or "",
@@ -161,6 +188,7 @@ def get_context(context):
     context.trips            = trips
     context.trip_group_dates = json.dumps(trip_group_dates)
     context.trip_packages    = json.dumps(trip_packages)
+    context.trip_cruise_flags = json.dumps(trip_is_cruise)
     context.trip_master      = trip_master or ""
     context.trip_group_date  = trip_group_date or ""
     context.no_cache         = 1

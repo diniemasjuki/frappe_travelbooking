@@ -13,6 +13,9 @@
 const _data       = JSON.parse(document.getElementById("pageData").textContent);
 const trip_group_dateS    = _data.trip_group_dates;
 const TRIP_PACKAGES = _data.trip_packages;
+// {tripName: true|false} — cruise trip papar & susun tarikh ikut SAILING date
+// (sailing_start), bukan departure_date. Sumber: trip_is_cruise di booking.py.
+const TRIP_CRUISE_FLAGS = _data.trip_cruise_flags || {};
 const INIT_TRIP   = _data.trip_master;
 const INIT_DATE   = _data.trip_group_date;
 // Kosong untuk Guest (customer biasa, tak login) — cookie kosong dah
@@ -44,10 +47,51 @@ const state = {
   cabins:       [],
   rooms:        [],
   selections:   {},
+  is_cruise_trip: false,
+  group_seats_left: null,
   billing:      {},
   otp_verified: false,
   booking:      null,
 };
+
+// Kapasiti PERINGKAT TRIP (Trip Group Date.max_participants). group_seats_left
+// = baki tempat (max_participants − SUM booked_pax booking lain, dari
+// www/booking.py). null/undefined → UNLIMITED (max_participants = 0) → tiada
+// had di frontend. Dipakai groupCapFor() (mkStepper) supaya jumlah guest SEMUA
+// room tak melebihi baki kapasiti trip — sepadan dengan gate backend
+// confirm_booking() yang juga guna seats_left (bukan max_participants mentah).
+function syncGroupSeatsLeft() {
+  var all = (typeof trip_group_dateS !== "undefined" && trip_group_dateS)
+    ? (trip_group_dateS[state.trip_master] || []) : [];
+  var tgd = all.find(function(g) { return g.name === state.trip_group_date; });
+  state.group_seats_left = tgd ? tgd.seats_left : null;
+}
+
+// Jumlah guest (main_guests + extra_beds + infants) SEMUA room — dipakai
+// groupCapFor() untuk kira baki kapasiti trip selepas tolak guest room lain.
+function totalGuestsAllRooms() {
+  return state.rooms.reduce(function(a, r) {
+    return a + (r.main_guests || 0) + (r.extra_beds || 0) + (r.infants || 0);
+  }, 0);
+}
+
+// Papar petunjuk kapasiti trip di header section 2 (cth "3 / 10 pax").
+// Disembunyikan bila unlimited (max_participants = 0).
+function updateGroupCapacityHint(pax) {
+  var hint = document.getElementById("groupCapacityHint");
+  if (!hint) return;
+  var gs = state.group_seats_left;
+  if (gs == null) {
+    hint.style.display = "none";
+    hint.textContent = "";
+    hint.classList.remove("rc-capacity-hint--full");
+    return;
+  }
+  hint.style.display = "";
+  hint.textContent = pax + " / " + gs + " pax";
+  hint.title = "Selected / available trip capacity";
+  hint.classList.toggle("rc-capacity-hint--full", pax >= gs);
+}
 
 // ─── HELPERS ──────────────────────────────────────────────
 function fmtDate(iso) {
@@ -259,11 +303,22 @@ const tripPreview = document.getElementById("tripPreview");
 const step0Next    = document.getElementById("step0Next");
 const packageGroup = document.getElementById("packageGroup");
 const packageGrid  = document.getElementById("packageGrid");
-let selectedGroup   = null;
+let selectedGroup   = null;   // objek sailing {key, isCruise, tds:[...], ...}
 let selectedPackage = null;
+let currentSailings  = [];    // senarai sailing trip semasa (deep-link/restore: td → sailing.key)
 
-function renderPackages(TripGroupDate) {
-  const pkgs = (TRIP_PACKAGES && TRIP_PACKAGES[TripGroupDate]) || [];
+function renderPackages(sailing) {
+  // Gabung pakej dari SEMUA td dalam sailing (cruise: Fly Cruise + Cruise
+  // Only digabung jadi satu senarai pilih), dedup ikut nama pakej. Setiap
+  // pakej bawa trip_group_date (td) masing-masing supaya booking boleh
+  // selesaikan td betul dari pakej yang dipilih (rujak step0Next).
+  var seen = {};
+  var pkgs = [];
+  (sailing.tds || []).forEach(function(td) {
+    ((TRIP_PACKAGES && TRIP_PACKAGES[td.name]) || []).forEach(function(p) {
+      if (!seen[p.name]) { seen[p.name] = true; pkgs.push(p); }
+    });
+  });
   packageGrid.innerHTML = "";
   selectedPackage    = null;
   step0Next.disabled = true;
@@ -273,18 +328,17 @@ function renderPackages(TripGroupDate) {
   }
   packageGroup.style.display = "block";
   pkgs.forEach(function(p) {
-    
     var btn = document.createElement("button");
     btn.className    = "rc-date-btn";
     btn.dataset.name = p.name;
 
-  if (p.flight_label === "No Flight"){
+    if (p.flight_label === "No Flight"){
       var label = p.package_type + " (" + p.currency + ")";
-  }else{
-    var label = "<p class=\"rc-date-btn__dates\" style=\"font-weight:100; font-size: 10px;\">" + p.flight_label + "</p><p class=\"rc-date-btn__name\">Fly from <b>" + p.flight + "</b></p>";
-  }
-    
-      btn.innerHTML = '<span class="rc-date-btn__name">' + label + '</span>';
+    }else{
+      var label = "<p class=\"rc-date-btn__dates\" style=\"font-weight:100; font-size: 10px;\">" + p.flight_label + "</p><p class=\"rc-date-btn__name\">Fly from <b>" + p.flight + "</b></p>";
+    }
+
+    btn.innerHTML = '<span class="rc-date-btn__name">' + label + '</span>';
     btn.addEventListener("click", function() {
       packageGrid.querySelectorAll(".rc-date-btn").forEach(function(b) { b.classList.remove("selected"); });
       this.classList.add("selected");
@@ -293,6 +347,74 @@ function renderPackages(TripGroupDate) {
     });
     packageGrid.appendChild(btn);
   });
+}
+
+// Bina senarai "sailing" untuk trip. Cruise → kumpul td yang berkongsi
+// cruise_schedule (pelayaran sama: Fly Cruise + Cruise Only) jadi SATU
+// butang sailing; bukan-cruise → setiap td jadi sailing sendiri (tak merge,
+// paparan + seats kekal sedia ada).
+function buildSailings(trip, tds) {
+  if (!TRIP_CRUISE_FLAGS[trip]) {
+    return tds.map(function(g) {
+      return {
+        key: g.name,
+        isCruise: false,
+        tds: [g],
+        displayStart: g.departure_date,
+        displayEnd: g.return_date,
+        trip_group_name: g.trip_group_name,
+        seats_left: g.seats_left,
+      };
+    });
+  }
+  var buckets = {};
+  var order = [];
+  tds.forEach(function(g) {
+    // td tanpa cruise_schedule (tidak terlink) → grup sendiri, tak merge.
+    var k = g.cruise_schedule || g.name;
+    if (!buckets[k]) { buckets[k] = []; order.push(k); }
+    buckets[k].push(g);
+  });
+  return order.map(function(k) {
+    var tdsIn = buckets[k];
+    var ref = tdsIn[0];
+    // Label komposisi pakej dalam sailing: kumpul jenis cruise (Fly Cruise /
+    // Cruise Only) dari segmen ke-3 trip_group_name setiap td. Kedua-dua ada →
+    // "Fly Cruise & Cruise Only"; satu sahaja → jenis itu. Sumber: sama ada
+    // td Fly Cruise difilter (tarikh penerbangan dah lepas) tinggal Cruise
+    // Only, atau sailing memang satu jenis sahaja.
+    var _types = {};
+    tdsIn.forEach(function(g) {
+      var _seg = (g.trip_group_name || "").split(" : ");
+      var _t = _seg.length === 3 ? _seg[2] : "";
+      if (_t === "Fly Cruise" || _t === "Cruise Only") _types[_t] = true;
+    });
+    var compositionLabel = "";
+    if (_types["Fly Cruise"] && _types["Cruise Only"]) compositionLabel = "Fly Cruise & Cruise Only";
+    else if (_types["Cruise Only"]) compositionLabel = "Cruise Only";
+    else if (_types["Fly Cruise"]) compositionLabel = "Fly Cruise";
+    return {
+      key: k,
+      isCruise: true,
+      tds: tdsIn,
+      displayStart: ref.sailing_start || ref.departure_date,
+      displayEnd: ref.sailing_end || ref.return_date,
+      trip_group_name: ref.trip_group_name,
+      compositionLabel: compositionLabel,
+    };
+  });
+}
+
+// Mapping td.name → sailing.key untuk deep-link & restoreWizard. Bukan-cruise
+// → key === td.name (tiada merge), jadi fallback pulangkan td.name sendiri.
+function sailingKeyForTd(tdName) {
+  for (var i = 0; i < currentSailings.length; i++) {
+    var tds = currentSailings[i].tds || [];
+    for (var j = 0; j < tds.length; j++) {
+      if (tds[j].name === tdName) return currentSailings[i].key;
+    }
+  }
+  return tdName;
 }
 
 tripSelect.addEventListener("change", function() {
@@ -312,66 +434,91 @@ tripSelect.addEventListener("change", function() {
 
   tripPreview.style.display = "none";
 
+  // Cruise trip → tajuk section "Select Sailing Date"; sebaliknya "Select
+  // Departure Date". Grid juga papar & susun ikut sailing date untuk cruise
+  // (rujak render butang di bawah + susunan server-side di booking.py).
+  var isCruiseTrip = !!TRIP_CRUISE_FLAGS[trip];
+  var _dateLabel = document.getElementById("dateLabel");
+  if (_dateLabel) _dateLabel.textContent = isCruiseTrip ? "Select Sailing Date" : "Select Departure Date";
+
   const groups = trip_group_dateS[trip] || [];
-  if (!groups.length) { dateGroup.style.display = "none"; return; }
+  if (!groups.length) { dateGroup.style.display = "none"; currentSailings = []; return; }
 
   dateGroup.style.display = "block";
-  groups.forEach(function(g) {
-    
+  currentSailings = buildSailings(trip, groups);
+
+  currentSailings.forEach(function(sailing) {
     var btn = document.createElement("button");
     btn.className    = "rc-date-btn";
-    btn.dataset.name = g.name;
+    btn.dataset.name = sailing.key;
 
-    //detecting Cruise Trip Package
-    var a = g.trip_group_name.split(" : ");
-    if(a.length == 3){ 
-      var cruise = a[2] ; 
-      if(cruise == "Cruise Only" || cruise == "Fly Cruise") { cruise = cruise + " for ";  }
-      else{ cruise = ""; }
-    } else { var cruise = ""; }
-
-    if (cruise==""){
-      var this_is_group_no = " for group : " + a[2];
-    }else{
-      var this_is_group_no = "";
-    }
-    
-    var durTxt = (g.total_days ? (g.total_days + " Day ") : "") + (g.total_nights ? (" " + g.total_nights + " Night") : "");
-
-    // seats_left: null/undefined -> UNLIMITED (max_participants=0, cth cruise)
-    // -> "Available". 0 -> sold out (button disabled, tak boleh pilih).
-    // <=10 -> "N seats left" (urgency). else "Available". Sumber seats_left
-    // ialah SUM(booked_pax) semua booking tak-cancelled (sepadan dengan gate
-    // overbooking di confirm_booking), BUKAN current_participants.
-    var seatsLeft = g.seats_left;
-    var seatsBadge = "";
-    var soldOut = (seatsLeft !== null && seatsLeft !== undefined && seatsLeft <= 0);
-    if (seatsLeft === null || seatsLeft === undefined) {
-      seatsBadge = '<span class="rc-date-btn__seats rc-date-btn__seats--ok">Available</span>';
-    } else if (seatsLeft <= 0) {
-      seatsBadge = '<span class="rc-date-btn__seats rc-date-btn__seats--out">Sold Out</span>';
-    } else if (seatsLeft <= 10) {
-      seatsBadge = '<span class="rc-date-btn__seats rc-date-btn__seats--few">' + seatsLeft + ' seats left</span>';
+    if (sailing.isCruise) {
+      // ---- Sailing cruise (gabungan Fly Cruise + Cruise Only) ----
+      // Durasi pelayaran sebenar dari td cruise-only (departure == sailing_start,
+      // tak termasuk hari penerbangan); fallback td pertama dalam sailing.
+      var durTd = sailing.tds.find(function(g) {
+        return g.sailing_start && g.departure_date === g.sailing_start;
+      }) || sailing.tds[0];
+      var durTxt = (durTd.total_days ? (durTd.total_days + " Day ") : "") + (durTd.total_nights ? (" " + durTd.total_nights + " Night") : "");
+      // Label komposisi (Fly Cruise & Cruise Only / Cruise Only / Fly Cruise)
+      // dipaparkan bersama durasi pelayaran di baris atas butang sailing.
+      var _comp = sailing.compositionLabel || "";
+      var _topLine = _comp ? (_comp + (durTxt ? (" \u00b7 " + durTxt) : "")) : durTxt;
+      // Seats DIABAIKAN untuk sailing cruise — admin tutup tarikh pelayaran
+      // sendiri via status bila sudah penuh (rujak keputusan reka bentuk).
+      btn.innerHTML =
+        (_topLine ? '<span class="rc-date-btn__dates">' + _topLine + '</span>' : '')
+        + '<span class="rc-date-btn__name">' + fmtDate(sailing.displayStart) + '  \u2013  ' + fmtDate(sailing.displayEnd) + '</span>';
     } else {
-      seatsBadge = '<span class="rc-date-btn__seats rc-date-btn__seats--ok">Available</span>';
+      // ---- Bukan-cruise: setiap td satu butang (paparan + seats sedia ada) ----
+      var g = sailing.tds[0];
+      var a = g.trip_group_name.split(" : ");
+      if(a.length == 3){
+        var cruise = a[2] ;
+        if(cruise == "Cruise Only" || cruise == "Fly Cruise") { cruise = cruise + " for ";  }
+        else{ cruise = ""; }
+      } else { var cruise = ""; }
+      if (cruise==""){
+        var this_is_group_no = " for group : " + a[2];
+      }else{
+        var this_is_group_no = "";
+      }
+      var durTxt = (g.total_days ? (g.total_days + " Day ") : "") + (g.total_nights ? (" " + g.total_nights + " Night") : "");
+
+      // seats_left: null/undefined -> UNLIMITED (max_participants=0) ->
+      // "Available". 0 -> sold out (button disabled). <=10 -> "N seats left".
+      // Sumber seats_left ialah SUM(booked_pax) semua booking tak-cancelled
+      // (sepadan dengan gate overbooking di confirm_booking).
+      var seatsLeft = g.seats_left;
+      var seatsBadge = "";
+      var soldOut = (seatsLeft !== null && seatsLeft !== undefined && seatsLeft <= 0);
+      if (seatsLeft === null || seatsLeft === undefined) {
+        seatsBadge = '<span class="rc-date-btn__seats rc-date-btn__seats--ok">Available</span>';
+      } else if (seatsLeft <= 0) {
+        seatsBadge = '<span class="rc-date-btn__seats rc-date-btn__seats--out">Sold Out</span>';
+      } else if (seatsLeft <= 10) {
+        seatsBadge = '<span class="rc-date-btn__seats rc-date-btn__seats--few">' + seatsLeft + ' seats left</span>';
+      } else {
+        seatsBadge = '<span class="rc-date-btn__seats rc-date-btn__seats--ok">Available</span>';
+      }
+
+      btn.innerHTML    =
+        (durTxt ? '<span class="rc-date-btn__dates">' + cruise + durTxt + this_is_group_no + '</span>' : '')
+        + '<span class="rc-date-btn__name">' + fmtDate(sailing.displayStart) + '  \u2013  ' + fmtDate(sailing.displayEnd) + '</span>'
+        + seatsBadge;
+
+      if (soldOut) {
+        btn.disabled = true;
+        btn.classList.add("is-soldout");
+      }
     }
 
-    btn.innerHTML    =
-      (durTxt ? '<span class="rc-date-btn__dates">' + cruise + durTxt + this_is_group_no + '</span>' : '')
-      + '<span class="rc-date-btn__name">' + fmtDate(g.departure_date) + '  \u2013  ' + fmtDate(g.return_date) + '</span>'
-      + seatsBadge;
-
-    if (soldOut) {
-      btn.disabled = true;
-      btn.classList.add("is-soldout");
-    }
-
-      btn.addEventListener("click", function() {
+    btn.addEventListener("click", function() {
       if (this.disabled) return;
       dateGrid.querySelectorAll(".rc-date-btn").forEach(function(b) { b.classList.remove("selected"); });
       this.classList.add("selected");
-      selectedGroup = g;
-      renderPackages(g.name);
+      selectedGroup = sailing;
+      renderPackages(sailing);
     });
     dateGrid.appendChild(btn);
   });
@@ -380,10 +527,17 @@ tripSelect.addEventListener("change", function() {
 step0Next.addEventListener("click", async function() {
   if (!tripSelect.value || !selectedGroup || !selectedPackage) return;
   state.trip_master  = tripSelect.value;
-  state.trip_group_date    = selectedGroup.name;
+  // td (Trip Group Date) sebenar di TERBITKAN dari pakej yang dipilih. Untuk
+  // sailing cruise gabungan (Fly Cruise + Cruise Only), pakej fly → td fly-
+  // cruise, pakej cruise-only → td cruise-only. Backend confirm_booking guna
+  // trip_group_date terus (tak terbit dari pakej), jadi kena hantar td betul,
+  // bukan key sailing. Fallback td pertama kalau pakej tak bawa td (lama).
+  state.trip_group_date    = selectedPackage.trip_group_date || (selectedGroup.tds[0] && selectedGroup.tds[0].name) || selectedGroup.key;
   state.trip_package = selectedPackage.name;
   state.trip_name    = tripSelect.options[tripSelect.selectedIndex].text;
-  state.group_name   = selectedGroup.trip_group_name;
+  state.group_name   = selectedGroup.isCruise
+    ? (fmtDate(selectedGroup.displayStart) + '  \u2013  ' + fmtDate(selectedGroup.displayEnd))
+    : selectedGroup.trip_group_name;
   state.package_label = selectedPackage.package_name;
   // MULTI-CURRENCY: simpan currency package yang dipilih — dipakai untuk
   // paparan harga (fmt) DAN pilih bank details/pilihan payment method
@@ -435,7 +589,7 @@ function restoreWizard() {
   if (tripSelect) {
     tripSelect.value = snap.trip_master || "";
     tripSelect.dispatchEvent(new Event("change"));
-    var _d = dateGrid.querySelector('[data-name="' + snap.trip_group_date + '"]');
+    var _d = dateGrid.querySelector('[data-name="' + sailingKeyForTd(snap.trip_group_date) + '"]');
     if (_d) _d.click();
     var _p = packageGrid ? packageGrid.querySelector('[data-name="' + snap.trip_package + '"]') : null;
     if (_p) _p.click();
@@ -739,7 +893,7 @@ function _getBillingPhoneFull() {
 function resolvePackageDeepLink(packageId) {
   if (!packageId) return null;
 
-  var candidates = []; // { groupDateName, tripName, departureDate }
+  var candidates = []; // { groupDateName, tripName, departureDate, sailingDate }
 
   Object.keys(TRIP_PACKAGES).forEach(function(groupDateName) {
     var pkgs  = TRIP_PACKAGES[groupDateName] || [];
@@ -753,7 +907,8 @@ function resolvePackageDeepLink(packageId) {
         candidates.push({
           groupDateName: groupDateName,
           tripName:      tripName,
-          departureDate: match.departure_date || ""
+          departureDate: match.departure_date || "",
+          sailingDate:   match.sailing_start || ""
         });
       }
     });
@@ -762,10 +917,13 @@ function resolvePackageDeepLink(packageId) {
   if (!candidates.length) return null;  // package tak wujud/tak aktif
 
   var today    = new Date().toISOString().slice(0, 10);
-  var upcoming = candidates.filter(function(c) { return c.departureDate >= today; });
+  // Cruise: banding sailing date; sebaliknya departure. sailingDate kosong
+  // (non-cruise) → fallback departureDate, jadi satu ungkapan handle kedua-dua
+  // kes — sepadan dengan susunan grid (booking.py susun cruise ikut sailing).
+  var upcoming = candidates.filter(function(c) { return (c.sailingDate || c.departureDate) >= today; });
   var pool     = upcoming.length ? upcoming : candidates;
 
-  pool.sort(function(a, b) { return a.departureDate.localeCompare(b.departureDate); });
+  pool.sort(function(a, b) { return (a.sailingDate || a.departureDate).localeCompare(b.sailingDate || b.departureDate); });
 
   var chosen = pool[0];
   return { tripName: chosen.tripName, groupDateName: chosen.groupDateName, packageId: packageId };
@@ -855,7 +1013,7 @@ if (!_restored) {
     tripSelect.value = _finalPackageLink.tripName;
     tripSelect.dispatchEvent(new Event("change"));
     setTimeout(function() {
-      var dateBtn = dateGrid.querySelector('[data-name="' + _finalPackageLink.groupDateName + '"]');
+      var dateBtn = dateGrid.querySelector('[data-name="' + sailingKeyForTd(_finalPackageLink.groupDateName) + '"]');
       if (dateBtn) dateBtn.click();
       setTimeout(function() {
         var pkgBtn = packageGrid.querySelector('[data-name="' + _finalPackageLink.packageId + '"]');
@@ -868,7 +1026,7 @@ if (!_restored) {
     tripSelect.value = _resolvedDateLink.tripName;
     tripSelect.dispatchEvent(new Event("change"));
     setTimeout(function() {
-      var dateBtn = dateGrid.querySelector('[data-name="' + _resolvedDateLink.groupDateName + '"]');
+      var dateBtn = dateGrid.querySelector('[data-name="' + sailingKeyForTd(_resolvedDateLink.groupDateName) + '"]');
       if (dateBtn) dateBtn.click();
     }, 100);
   } else if (INIT_TRIP && INIT_DATE) {
@@ -878,7 +1036,7 @@ if (!_restored) {
     tripSelect.value = INIT_TRIP;
     tripSelect.dispatchEvent(new Event("change"));
     setTimeout(function() {
-      var btn = dateGrid.querySelector('[data-name="' + INIT_DATE + '"]');
+      var btn = dateGrid.querySelector('[data-name="' + sailingKeyForTd(INIT_DATE) + '"]');
       if (btn) btn.click();
     }, 100);
   }
@@ -886,6 +1044,12 @@ if (!_restored) {
 
 // ─── STEP 1: ROOMS & PAX ──────────────────────────────────
 var roomSeq = 0;
+// Array KONGSI untuk refreshButtons() SEMUA stepper (SEMUA room). Reset di
+// renderRooms() sebelum rebuild, supaya bila mana-mana counter berubah,
+// refreshAll() refresh SEMUA stepper — perlu untuk had PERINGKAT TRIP
+// (groupCapFor → state.group_seats_left) yang bergantung pada jumlah guest
+// SEMUA room, bukan satu room sahaja.
+var allStepperRefreshers = [];
 
 async function loadCabins() {
   showLoading("Loading room options...");
@@ -897,6 +1061,14 @@ async function loadCabins() {
     );
 
     state.cabins = data.cabins;
+    // is_cruise_trip: penentu model harga/kapasiti — cruise=slot (Main Guest/
+    // Extra Bed/Infant), non-cruise=umur (Adult/Children/Infant).
+    state.is_cruise_trip = !!(data.trip && data.trip.is_a_cruise_trip);
+    // Sync baki kapasiti trip (seats_left) untuk limiter groupCapFor() di
+    // stage 2 — null = unlimited (max_participants = 0). Dipanggil di sini
+    // (loadCabins) supaya kedua-dua flow — step0Next & restoreWizard — dapat
+    // nilai terkini tanpa duplikasi.
+    syncGroupSeatsLeft();
     state.rooms  = [];
 
     document.getElementById("bannerTripName").textContent  = data.trip.trip_name;
@@ -927,18 +1099,30 @@ function cabinByCategory(room_category) {
 //   extra_beds        -> price_upperberth x setiap org
 //   infants           -> price_infant x setiap org (harga SEBENAR dari
 //                        pakej, bukan percuma), tak masuk capacity bilik
-function priceRoomSelection(pricing, mainGuests, extraBeds, infants) {
+function priceRoomSelection(pricing, mainGuests, extraBeds, infants, isCruise) {
   var mg  = Number(mainGuests) || 0;
   var eb   = Number(extraBeds)  || 0;
   var inf  = Number(infants)    || 0;
   var total = 0;
 
-  if (mg === 1) {
-    total += Number(pricing.price_adult_single || 0);
-  } else if (mg >= 2) {
+  // isCruise tak dihantar (caller lama) -> ambil dari state.is_cruise_trip
+  // (sumber: data.trip.is_a_cruise_trip dari get_booking_details).
+  if (isCruise === undefined) isCruise = state.is_cruise_trip;
+
+  if (isCruise) {
+    // Cruise: model SLOT — single occupancy (price_adult_single) atau twin
+    // (price_adult x mg) + upper berth (price_upperberth).
+    if (mg === 1) {
+      total += Number(pricing.price_adult_single || 0);
+    } else if (mg >= 2) {
+      total += Number(pricing.price_adult || 0) * mg;
+    }
+    total += Number(pricing.price_upperberth || 0) * eb;
+  } else {
+    // Non-cruise: model UMUR — flat per pax (tiada single supplement).
     total += Number(pricing.price_adult || 0) * mg;
+    total += Number(pricing.price_children || 0) * eb;
   }
-  total += Number(pricing.price_upperberth || 0) * eb;
   total += Number(pricing.price_infant || 0) * inf;
   return total;
 }
@@ -965,9 +1149,12 @@ function addRoom() {
   }
   // Collapse cabin sedia ada supaya customer fokus isi cabin baharu.
   state.rooms.forEach(function(r) { r.open = false; });
+  // Non-cruise: kalau hanya 1 jenis bilik (pricing) tersenarai, auto-pilih
+  // terus — customer tak perlu buka dropdown "Select rooming type".
+  var _autoCat = (!state.is_cruise_trip && avail.length === 1) ? avail[0].room_category : "";
   state.rooms.push({
     uid:          ++roomSeq,
-    room_category: "",
+    room_category: _autoCat,
     main_guests:  0,
     extra_beds:   0,
     infants:      0,
@@ -985,6 +1172,10 @@ function renderRooms() {
   var list  = document.getElementById("roomList");
   list.innerHTML = "";
   var avail = availableCabins();
+
+  // Reset array stepper kongsi — stepper dibina semula oleh forEach di bawah
+  // dan akan mendaftar refreshButtons() masing-masing semula (rujuk mkStepper).
+  allStepperRefreshers.length = 0;
 
   state.rooms.forEach(function(room, idx) {
     var card = document.createElement("div");
@@ -1010,7 +1201,7 @@ function renderRooms() {
 
     var title = document.createElement("span");
     title.className = "rc-room__title";
-    title.textContent = "Cabin " + (idx + 1);
+    title.textContent = (state.is_cruise_trip ? "Cabin " : "Room ") + (idx + 1);
     headLeft.appendChild(title);
 
     var c = cabinByCategory(room.room_category);
@@ -1019,7 +1210,8 @@ function renderRooms() {
       var subtotal = c ? priceRoomSelection(c.pricing, room.main_guests, room.extra_beds, room.infants) : 0;
       var summary  = document.createElement("span");
       summary.className = "rc-room__summary";
-      summary.textContent = "\u00b7 " + (room.room_category || "No cabin selected") + " \u00b7 " + pax + " pax \u00b7 " + fmt(subtotal);
+      // summary.textContent = "\u00b7 " + (room.room_category || "No cabin selected") + " \u00b7 " + pax + " pax \u00b7 " + fmt(subtotal);
+      summary.textContent = "\u00b7 " + (room.room_category || "No cabin selected") + " \u00b7 " + pax + " pax";
       headLeft.appendChild(summary);
     }
     head.appendChild(headLeft);
@@ -1041,7 +1233,7 @@ function renderRooms() {
       
       var typeLbl = document.createElement("label");
       typeLbl.className = "rc-field__label";
-      typeLbl.textContent = "Cabin Type";
+      typeLbl.textContent = state.is_cruise_trip ? "Cabin Type" : "Rooming Type";
       
       var selWrap = document.createElement("div");
       selWrap.className = "rc-select-wrapper";
@@ -1051,19 +1243,22 @@ function renderRooms() {
       
       var ph = document.createElement("option");
       ph.value = "";
-      ph.textContent = " Select cabin type ";
+      ph.textContent = state.is_cruise_trip ? " Select cabin type " : " Select rooming type ";
       
       if (!room.room_category) ph.selected = true;
       
       sel.appendChild(ph);
       
       avail.forEach(function(cab) {
+        console.log(cab);
         var opt = document.createElement("option");
         opt.value = cab.room_category;
         var rangeLabel = (cab.capacity === cab.max_capacity)
           ? cab.capacity + " Pax"
           : cab.capacity + "-" + cab.max_capacity + " Pax";
-        opt.textContent = cab.room_category + " (" + rangeLabel + ")";
+        opt.textContent = cab.room_category;
+        if( cab.max_capacity > 0 )
+        opt.textContent += " (" + rangeLabel + ")";
         if (cab.room_category === room.room_category) opt.selected = true;
         sel.appendChild(opt);
       });
@@ -1159,21 +1354,33 @@ function renderRooms() {
       // Bed kekal disabled selepas Infant dikurangkan (walhal kapasiti dah
       // terbuka semula), sebab tiada apa trigger refresh Extra Bed punya
       // capFor() semula bila Infant yang berubah.
-      var stepperRefreshers = [];
+      var stepperRefreshers = allStepperRefreshers;  // kongsi array global (semua room)
 
 
-      counters.appendChild(mkStepper(room, "main_guests", "Main Guest (Adults 12 years old and above)", capacity, function() {
-        if(!pricing.price_adult ){ pricing.price_adult = 0; }
-        return room.main_guests === 1
-          ? fmt(pricing.price_adult_single) + " /pax"
-          : fmt(pricing.price_adult) + " /pax";
-      }, stepperRefreshers));
-      // }, stepperRefreshers, "12 years old and above"));
+      if (state.is_cruise_trip) {
+        counters.appendChild(mkStepper(room, "main_guests", "Main Guest (Adults 12 years old and above)", capacity, function() {
+          if(!pricing.price_adult ){ pricing.price_adult = 0; }
+          return room.main_guests === 1
+            ? fmt(pricing.price_adult_single) + " /pax"
+            : fmt(pricing.price_adult) + " /pax";
+        }, stepperRefreshers));
 
-      counters.appendChild(mkStepper(room, "extra_beds", "Extra Bed ", 0, function() {
-        if(!pricing.price_upperberth ){ pricing.price_upperberth = 0; }
-        return fmt(pricing.price_upperberth) + " /pax";
-      }, stepperRefreshers));
+        counters.appendChild(mkStepper(room, "extra_beds", "Extra Bed ", 0, function() {
+          if(!pricing.price_upperberth ){ pricing.price_upperberth = 0; }
+          return fmt(pricing.price_upperberth) + " /pax";
+        }, stepperRefreshers));
+      } else {
+        // Non-cruise (model UMUR): Adult (price_adult) + Children (price_children).
+        counters.appendChild(mkStepper(room, "main_guests", "Adult (12 years old and above)", capacity, function() {
+          if(!pricing.price_adult ){ pricing.price_adult = 0; }
+          return fmt(pricing.price_adult) + " /pax";
+        }, stepperRefreshers));
+
+        counters.appendChild(mkStepper(room, "extra_beds", "Children (2-11 years old)", 0, function() {
+          if(!pricing.price_children ){ pricing.price_children = 0; }
+          return fmt(pricing.price_children) + " /pax";
+        }, stepperRefreshers));
+      }
 
       counters.appendChild(mkStepper(room, "infants", "Infant (6-23 months old)", 0, function() {
         if(!pricing.price_infant ){ pricing.price_infant = 0; }
@@ -1270,6 +1477,23 @@ function mkStepper(room, key, label, max, rateFn, refreshers, tooltipText) {
     // padan dengan _validate_selection_capacity server).
     var mainCap     = capacity > 0 ? capacity : Infinity;
 
+    // Non-cruise (model UMUR): adult+children+infant berkongsi max_capacity;
+    // children dibenarkan bila-bila (tiada syarat "adult penuh") selagi ada
+    // >=1 adult. capacity (min) tak dipakai — had utama ialah max_capacity.
+    if (!state.is_cruise_trip) {
+      if (key === "main_guests") {
+        return unlimited ? Infinity : Math.max(0, maxCapacity - room.extra_beds - room.infants);
+      }
+      if (key === "extra_beds") {
+        if (room.main_guests < 1) return 0;
+        return unlimited ? Infinity : Math.max(0, maxCapacity - room.main_guests - room.infants);
+      }
+      if (key === "infants") {
+        if (room.main_guests < 1) return 0;
+        return unlimited ? Infinity : Math.max(0, maxCapacity - room.main_guests - room.extra_beds);
+      }
+      return 0;
+    }
 
     if (key === "main_guests") {
       // PENTING: bukan cuma capped oleh 'capacity' sendiri — Main Guest
@@ -1313,6 +1537,19 @@ function mkStepper(room, key, label, max, rateFn, refreshers, tooltipText) {
     return 0;
   }
 
+  // Had PERINGKAT TRIP: jumlah guest SEMUA room tak boleh melebihi baki
+  // kapasiti trip-group-date (state.group_seats_left). null → unlimited.
+  // Diaplikasikan DI SINI (bukan dalam capFor) supaya logik per-cabin
+  // capFor() yang telah disahkan tak diusik — groupCapFor() bungkus capFor()
+  // dan constrain dengan baki kapasiti trip (seats_left − guest room lain).
+  function groupCapFor() {
+    var cap = capFor();
+    var gs = state.group_seats_left;
+    if (gs == null) return cap;
+    var others = totalGuestsAllRooms() - room[key];
+    return Math.min(cap, Math.max(0, gs - others));
+  }
+
   function max_capacity_for_mg() {
     var c = cabinByCategory(room.room_category);
     return c ? (c.capacity || 0) : 0;
@@ -1324,7 +1561,7 @@ function mkStepper(room, key, label, max, rateFn, refreshers, tooltipText) {
 
   function refreshButtons() {
     minus.disabled = room[key] <= 0;
-    plus.disabled  = room[key] >= capFor();
+    plus.disabled  = room[key] >= groupCapFor();
     refreshRate();
   }
   refreshButtons();
@@ -1371,7 +1608,7 @@ function mkStepper(room, key, label, max, rateFn, refreshers, tooltipText) {
   // plus button action
   plus.addEventListener("click", function() {
 
-    room[key] = Math.min(capFor(), room[key] + 1);
+    room[key] = Math.min(groupCapFor(), room[key] + 1);
 
     if (key === "main_guests") {
       renderRooms();
@@ -1383,12 +1620,13 @@ function mkStepper(room, key, label, max, rateFn, refreshers, tooltipText) {
     updateTotals();
   });
 
+  // lblWrap.appendChild(rate);
   stepper.appendChild(minus);
   stepper.appendChild(val);
   stepper.appendChild(plus);
-  stepper.appendChild(rate);
 
   row.appendChild(lblWrap);
+  row.appendChild(rate);
   row.appendChild(stepper);
   
   return row;
@@ -1434,6 +1672,7 @@ function updateTotals() {
   document.getElementById("totalsGrand").textContent    = fmt(amt);
   document.getElementById("totalsDeposit").textContent  = fmt(Math.round(amt * (state_payment_settings.default_deposit_percent / 100) * 100) / 100);
   document.getElementById("step1Next").disabled = pax === 0;
+  updateGroupCapacityHint(pax);
   buildStep1Summary();
 }
 
@@ -1460,24 +1699,40 @@ function buildStep1Summary() {
     var guestLines = [];
     var guestNo = 1;
 
-    if (r.main_guests === 1) {
-      var singleRate = Number(p.price_adult_single || 0);
-      cabinFare += singleRate;
-      guestLines.push(["Guest " + guestNo + ": Main Guest", singleRate]);
-      guestNo++;
-    } else if (r.main_guests >= 2) {
-      var twinRate = Number(p.price_adult || 0);
-      for (var i = 0; i < r.main_guests; i++) {
-        cabinFare += twinRate;
-        guestLines.push(["Guest " + guestNo + ": Main Guest", twinRate]);
+    if (state.is_cruise_trip) {
+      if (r.main_guests === 1) {
+        var singleRate = Number(p.price_adult_single || 0);
+        cabinFare += singleRate;
+        guestLines.push(["Guest " + guestNo + ": Main Guest", singleRate]);
+        guestNo++;
+      } else if (r.main_guests >= 2) {
+        var twinRate = Number(p.price_adult || 0);
+        for (var i = 0; i < r.main_guests; i++) {
+          cabinFare += twinRate;
+          guestLines.push(["Guest " + guestNo + ": Main Guest", twinRate]);
+          guestNo++;
+        }
+      }
+      var upperRate = Number(p.price_upperberth || 0);
+      for (var j = 0; j < r.extra_beds; j++) {
+        cabinFare += upperRate;
+        guestLines.push(["Guest " + guestNo + ": Extra Bed", upperRate]);
         guestNo++;
       }
-    }
-    var upperRate = Number(p.price_upperberth || 0);
-    for (var j = 0; j < r.extra_beds; j++) {
-      cabinFare += upperRate;
-      guestLines.push(["Guest " + guestNo + ": Extra Bed", upperRate]);
-      guestNo++;
+    } else {
+      // Non-cruise: Adult (price_adult) + Children (price_children), flat per pax.
+      var adultRate = Number(p.price_adult || 0);
+      for (var i = 0; i < r.main_guests; i++) {
+        cabinFare += adultRate;
+        guestLines.push(["Guest " + guestNo + ": Adult", adultRate]);
+        guestNo++;
+      }
+      var childRate = Number(p.price_children || 0);
+      for (var j = 0; j < r.extra_beds; j++) {
+        cabinFare += childRate;
+        guestLines.push(["Guest " + guestNo + ": Children", childRate]);
+        guestNo++;
+      }
     }
     var infantRate = Number(p.price_infant || 0);
     for (var k = 0; k < r.infants; k++) {
@@ -1727,24 +1982,40 @@ function buildOrderSummary() {
     var guestLines = [];
     var guestNo = 1;
 
-    if (r.main_guests === 1) {
-      var singleRate = Number(p.price_adult_single || 0);
-      cabinFare += singleRate;
-      guestLines.push(["Guest " + guestNo + " \u00b7 Main Guest", singleRate]);
-      guestNo++;
-    } else if (r.main_guests >= 2) {
-      var twinRate = Number(p.price_adult || 0);
-      for (var i = 0; i < r.main_guests; i++) {
-        cabinFare += twinRate;
-        guestLines.push(["Guest " + guestNo + " \u00b7 Main Guest", twinRate]);
+    if (state.is_cruise_trip) {
+      if (r.main_guests === 1) {
+        var singleRate = Number(p.price_adult_single || 0);
+        cabinFare += singleRate;
+        guestLines.push(["Guest " + guestNo + " \u00b7 Main Guest", singleRate]);
+        guestNo++;
+      } else if (r.main_guests >= 2) {
+        var twinRate = Number(p.price_adult || 0);
+        for (var i = 0; i < r.main_guests; i++) {
+          cabinFare += twinRate;
+          guestLines.push(["Guest " + guestNo + " \u00b7 Main Guest", twinRate]);
+          guestNo++;
+        }
+      }
+      var upperRate = Number(p.price_upperberth || 0);
+      for (var j = 0; j < r.extra_beds; j++) {
+        cabinFare += upperRate;
+        guestLines.push(["Guest " + guestNo + " \u00b7 Extra Bed", upperRate]);
         guestNo++;
       }
-    }
-    var upperRate = Number(p.price_upperberth || 0);
-    for (var j = 0; j < r.extra_beds; j++) {
-      cabinFare += upperRate;
-      guestLines.push(["Guest " + guestNo + " \u00b7 Extra Bed", upperRate]);
-      guestNo++;
+    } else {
+      // Non-cruise: Adult (price_adult) + Children (price_children), flat per pax.
+      var adultRate = Number(p.price_adult || 0);
+      for (var i = 0; i < r.main_guests; i++) {
+        cabinFare += adultRate;
+        guestLines.push(["Guest " + guestNo + " \u00b7 Adult", adultRate]);
+        guestNo++;
+      }
+      var childRate = Number(p.price_children || 0);
+      for (var j = 0; j < r.extra_beds; j++) {
+        cabinFare += childRate;
+        guestLines.push(["Guest " + guestNo + " \u00b7 Children", childRate]);
+        guestNo++;
+      }
     }
     var infantRate = Number(p.price_infant || 0);
     for (var k = 0; k < r.infants; k++) {
@@ -2088,6 +2359,7 @@ async function applyVoucher() {
         email:           state.billing ? state.billing.email : "",
         selections:      JSON.stringify(activeSelectionsForVoucher),
         trip_package:    state.trip_package,
+        is_cruise:       state.is_cruise_trip,
       },
       true  // GET
     );

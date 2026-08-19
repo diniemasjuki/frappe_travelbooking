@@ -369,7 +369,7 @@
   },
   {
    "fieldname": "pax_type",
-   "fieldtype": "Select",
+   "fieldtype": "Data",
    "label": "Passenger / Bed Type Label",
    "options": "Main Guest\nExtra Bed\nInfant",
    "read_only_depends_on": "eval:doc.cabin_is_confirmed"
@@ -635,8 +635,8 @@
  ],
  "grid_page_length": 50,
  "links": [],
- "modified": "2026-08-13 10:33:08.690863",
- "modified_by": "Administrator",
+ "modified": "2026-08-19 07:44:33.022415",
+ "modified_by": "diniemasjuki@gmail.com",
  "module": "Travel Booking Management",
  "name": "Booking Reservation",
  "naming_rule": "By \"Naming Series\" field",

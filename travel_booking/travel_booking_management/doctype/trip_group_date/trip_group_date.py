@@ -140,7 +140,7 @@ class TripGroupDate(Document):
 	@property
 	def available_slots(self):
 		# max_participants == 0 -> UNLIMITED (None), sepadan dengan konvensi
-		# "0 = unlimited" di web_data.py (sold_out/seats_left). Elak pulangkan
+		# "0 = unlimited" (sold_out/seats_left). Elak pulangkan
 		# nilai negatif/0 yang mengelirukan admin (nampak "penuh" padahal
 		# unlimited sebenarnya).
 		if not (self.max_participants or 0):

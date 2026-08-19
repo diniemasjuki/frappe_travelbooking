@@ -117,7 +117,11 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
                              as_dict=True)
     if not td:
         frappe.throw("Trip Group Date not found.")
-    trip_name = frappe.db.get_value("Trip", td.trip, "trip_name") or ""
+    _trip = frappe.db.get_value("Trip", td.trip, ["trip_name", "is_a_cruise_trip"], as_dict=True) or {}
+    trip_name = _trip.trip_name or ""
+    # is_cruise: model harga/kapasiti bercabang slot (cruise) vs umur (non-cruise)
+    # di _validate_selection_capacity, _build_so_items, validate_voucher & pax_type.
+    is_cruise = bool(_trip.is_a_cruise_trip)
 
     if not trip_package:
         frappe.throw("Please select a package first.")
@@ -125,8 +129,9 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # Backend pricing (dari Trip Package yang dipilih)
     pricing_map = _get_pricing_map(trip_package)
 
-    # Sahkan had slot (Main Guest/Extra Bed/Infant) server-side sebelum kira
-    # harga — cabin_info_map dari Trip Price Category (capacity/max_capacity).
+    # Sahkan had kapasiti server-side sebelum kira harga — cruise guna model
+    # SLOT (Main Guest/Extra Bed/Infant), non-cruise guna model UMUR
+    # (Adult/Children/Infant). cabin_info_map dari Trip Price Category.
     cabin_info_rows = frappe.db.sql("""
         SELECT tpp.pricing_for_class AS room_category,
                tpc.capacity, tpc.max_capacity
@@ -135,7 +140,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         WHERE tpp.parent = %s AND tpp.parenttype = 'Trip Package'
     """, trip_package, as_dict=True)
     cabin_info_map = {r.room_category: r for r in cabin_info_rows}
-    _validate_selection_capacity(selections, cabin_info_map)
+    _validate_selection_capacity(selections, cabin_info_map, is_cruise)
 
     # Jumlah pax booking NI (Main Guest + Extra Bed + Infant) — diguna untuk
     # (a) gate overbooking trip-level di bawah, dan (b) di-set sebagai
@@ -176,7 +181,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
                 "size or select another date."
             )
 
-    so_items    = _build_so_items(selections, pricing_map, trip_name, td.trip_group_name)
+    so_items    = _build_so_items(selections, pricing_map, trip_name, td.trip_group_name, is_cruise)
     grand_total = sum(float(it["rate"]) * int(it["qty"]) for it in so_items)
     pre_discount_total = grand_total  # snapshot BEFORE any voucher/referral discount — used for affiliate commission calc later
 
@@ -185,7 +190,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     voucher_discount = 0
     if voucher_code:
         vr = validate_voucher(voucher_code, trip_group_date, grand_total,
-                              billing.get("email", ""), json.dumps(selections), trip_package)
+                              billing.get("email", ""), json.dumps(selections), trip_package, is_cruise)
         if vr.get("valid"):
             voucher_discount = float(vr.get("discount_amount", 0))
             grand_total = grand_total - voucher_discount
