@@ -172,6 +172,30 @@ def get_all_so_payments():
             "status":       r.status
         } for r in inv_rows]
 
+        # Proforma Invoice sebenar (ERPNext doctype, dipaut ke SO melalui
+        # field `sales_order`). Hanya SO submitted (docstatus=1) yang
+        # layak punya proforma issued; SO Cancelled dikecualikan. Frontend
+        # guna senarai ni untuk papar + download PDF sebenar (proforma_pdf)
+        # menggantikan cetakan SO semula yang lama (lihat get_document_pdf
+        # branch "Proforma Invoice").
+        proformas = []
+        if so.docstatus == 1:
+            pf_rows = frappe.db.sql("""
+                SELECT name, proforma_date, grand_total, proforma_pdf,
+                       status, currency
+                FROM `tabProforma Invoice`
+                WHERE sales_order = %s AND docstatus = 1
+                ORDER BY creation DESC
+            """, so_name, as_dict=True)
+            proformas = [{
+                "name":          r.name,
+                "proforma_date": str(r.proforma_date) if r.proforma_date else "",
+                "grand_total":   float(r.grand_total or 0),
+                "proforma_pdf":   r.proforma_pdf or "",
+                "status":         r.status or "",
+                "currency":       r.currency or so.currency or "MYR",
+            } for r in pf_rows]
+
         # NOTA: "Disable Rounded Total" kini global (Selling Settings,
         # terpakai untuk Sales Order & Sales Invoice) — standardize ke
         # grand_total sahaja, konsisten dengan create_payment_request()'s
@@ -190,6 +214,7 @@ def get_all_so_payments():
             "items":           items,
             "payments":        payments,
             "invoices":        invoices,
+            "proformas":       proformas,
             # MULTI-CURRENCY: rujuk dokumen reka bentuk — setiap SO boleh
             # currency BERBEZA (utama MYR, addon SGD, dsb — sepatutnya
             # jarang, guardrail "single currency per booking" masih
@@ -479,6 +504,52 @@ def get_document_pdf(doctype: str, docname: str):
             frappe.response["http_status_code"] = 403
             return {"status": "error", "message": "Document not found."}
         print_format = PRINT_FORMAT_INVOICE
+
+    elif doctype == "Proforma Invoice":
+        # Proforma Invoice sebenar (ERPNext doctype) — PDF dijana on_submit
+        # dan disimpan pada field `proforma_pdf` (private file). Pemilikan
+        # disahkan melalui SO yang dipautkan (proforma.sales_order) milik
+        # customer portal, bukan semak terus ke field customer proforma
+        # (selari dengan corak ownership Sales Invoice di atas). PDF diserv
+        # di sini supaya file private tak terdedah terus ke laluan awam.
+        proforma = frappe.db.get_value(
+            "Proforma Invoice", docname,
+            ["sales_order", "proforma_pdf"], as_dict=True
+        )
+        if not proforma or not proforma.sales_order or not proforma.proforma_pdf:
+            frappe.response["http_status_code"] = 404
+            return {"status": "error", "message": "Proforma PDF not available."}
+
+        so_owner = frappe.db.get_value("Sales Order", proforma.sales_order, "customer")
+        if so_owner != customer_name:
+            frappe.response["http_status_code"] = 403
+            return {"status": "error", "message": "Document not found."}
+
+        file_name = frappe.db.get_value(
+            "File",
+            {"file_url":          proforma.proforma_pdf,
+             "attached_to_doctype": "Proforma Invoice",
+             "attached_to_name":    docname},
+            "name"
+        )
+        if not file_name:
+            frappe.response["http_status_code"] = 404
+            return {"status": "error", "message": "Proforma PDF not available."}
+
+        try:
+            pdf_data = frappe.get_doc("File", file_name).get_content()
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "get_document_pdf proforma error")
+            frappe.response["http_status_code"] = 500
+            return {"status": "error", "message": "PDF could not be read."}
+
+        frappe.response.update({
+            "filename":     docname.replace("/", "-") + ".pdf",
+            "filecontent":   pdf_data,
+            "type":         "download",
+            "content_type": "application/pdf"
+        })
+        return
 
     elif doctype == "Sales Order":
         # PROFORMA — download SO sebagai "proforma invoice" dari page

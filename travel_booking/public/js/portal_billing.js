@@ -9,7 +9,9 @@
       - Header: no. SO + label booking + jumlah + status pill
       - Body: Line Items → Documents → Transactions → Make a Payment
    3. Documents (kondisional):
-      - SO belum lunas      → butang "Print Proforma Invoice"
+      - SO belum lunas + proforma issued → baris Proforma Invoice + "↓ Proforma"
+        (PDF sebenar dari doctype Proforma Invoice, dijana admin di Desk)
+      - SO belum lunas, tiada proforma   → nota "proforma akan muncul di sini"
       - SO lunas + SI wujud → baris Sales Invoice + "↓ Invoice"
       - SO lunas, tiada SI  → nota "invoice akan muncul di sini"
    4. Transactions — senarai Payment Entry untuk SO tersebut
@@ -253,17 +255,28 @@ function renderDocumentsSection(so, symbol, isPaid, isCancelled) {
 
   let body = '';
   if (!isPaid) {
-    // Belum lunas → proforma (SO dicetak sebagai proforma invoice).
-    body =
-      '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;">' +
-        '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
-          docIcon('#E6F1FB', '#185FA5') +
-          '<div><div style="font-size:13px;font-weight:500;color:#1E1C18;">Proforma Invoice</div>' +
-          '<div style="font-size:11px;color:#B0AC9F;margin-top:1px;">' +
-            (so.transaction_date ? _esc(fmtDate(so.transaction_date)) + ' · ' : '') +
-            'For reference — official invoice follows full payment</div></div>' +
-        '</div>' + dlBtn('Sales Order', so.name, '↓ Print Proforma') +
-      '</div>';
+    // Belum lunas → Proforma Invoice SEBENAR (ERPNext doctype, dipaut ke SO
+    // via sales_order). Kalau admin dah issue, papar senarai + download PDF
+    // sebenar (proforma_pdf). Kalau belum diissue, nota neutral — BUKAN
+    // cetakan SO semula seperti implementasi lama (lihat get_document_pdf
+    // branch "Proforma Invoice").
+    const proformas = so.proformas || [];
+    if (proformas.length) {
+      body = proformas.map((p, i) =>
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;' +
+          (i > 0 ? 'border-top:1px solid #EAE7E0;' : '') + '">' +
+          '<div style="display:flex;align-items:center;gap:10px;min-width:0;">' +
+            docIcon('#E6F1FB', '#185FA5') +
+            '<div><div style="font-size:13px;font-weight:500;color:#1E1C18;font-family:monospace;">' + _esc(p.name) + '</div>' +
+            '<div style="font-size:11px;color:#B0AC9F;margin-top:1px;">' +
+              (p.proforma_date ? _esc(fmtDate(p.proforma_date)) + ' · ' : '') +
+              fmtDual(p.grand_total, symbol) + '</div></div>' +
+          '</div>' + dlBtn('Proforma Invoice', p.name, '↓ Proforma') +
+        '</div>'
+      ).join('');
+    } else {
+      body = '<div style="font-size:12px;color:#B0AC9F;padding:8px 0;">Your proforma invoice will appear here once it has been issued.</div>';
+    }
   } else if ((so.invoices || []).length) {
     // Lunas + SI wujud → ganti proforma dengan invoice rasmi.
     body = so.invoices.map((inv, i) =>
