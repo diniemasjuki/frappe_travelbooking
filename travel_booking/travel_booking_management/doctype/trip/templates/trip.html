@@ -3,244 +3,300 @@
 {% block title %}{{ trip_name }} — {{ site_name or 'Rarecation' }}{% endblock %}
 
 {% block head_extra %}
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800;900&family=Rubik:wght@300;400;500;600;700;800;900&family=Sansita&family=Satisfy&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/assets/travel_booking/css/trips.css?v={{ asset_v('css/trips.css') }}"/>
 <link rel="stylesheet" href="/assets/travel_booking/css/trip_detail.css?v={{ asset_v('css/trip_detail.css') }}"/>
+{# ── PhotoSwipe 5 (fullscreen gallery slideshow) — ESM build #}
+<link rel="stylesheet" href="https://unpkg.com/photoswipe@5.4.4/dist/photoswipe.css"/>
 {% endblock %}
 
 {% block page_content %}
+{% set g = (group_dates or [{}])[0] if group_dates else {} %}
 <article class="rc-trip-detail" data-trip="{{ name }}">
 
-  {# ── 1. Hero gallery ── #}
-  <header class="rc-trip-hero" id="rcHero">
-    <div class="rc-hero-slides">
-      {% for img in gallery %}
-      <div class="rc-hero-slide{% if loop.first %} is-active{% endif %}" style="background-image:url('{{ img }}');"></div>
-      {% endfor %}
+  {# ── Page banner (trip_image sebagai background photo + breadcrumb) ── #}
+  <div class="rc-page-banner"{% if trip_image %} style="background-image:url('{{ trip_image }}')"{% endif %}>
+    <div class="rc-banner-content">
+      <nav class="rc-crumb">
+        <a href="/">Home</a><i class="ti ti-chevron-right"></i>
+        <a href="/trips">Trips</a><i class="ti ti-chevron-right"></i>
+        <span>{{ trip_name }}</span>
+      </nav>
     </div>
-    <div class="rc-trip-hero-overlay">
-      <div class="rc-trip-hero-inner">
-        <div class="rc-trip-badges">
-          <span class="rc-badge {{ 'rc-badge-cruise' if is_a_cruise_trip else 'rc-badge-trip' }}">
-            {{ 'Cruise' if is_a_cruise_trip else 'Trip' }}
-          </span>
-          {% if trip_categories %}<span class="rc-badge rc-badge-group">{{ trip_categories }}</span>{% endif %}
+  </div>
+
+  {# ── Photo gallery (white card, square grid) ── #}
+  {% set hero_imgs = gallery if gallery else [trip_image] %}
+  {% set show_imgs = hero_imgs[:5] %}
+  <div class="rc-gallery-area">
+    <div class="rc-gallery-grid" id="rcGalleryGrid"
+         data-gallery-urls="{{ hero_imgs|tojson|e }}"
+         data-gallery-caption="{{ trip_name|e }}">
+      {% if show_imgs|length > 1 %}
+      {# — Layout: kiri besar + kanan grid (max 5 thumbnail, tiada direct link) — #}
+      <div class="rc-gal-left">
+        <div class="rc-gal-wrap" data-i="0">
+          <img src="{{ show_imgs[0] }}" alt="{{ trip_name }} – Gambar 1" loading="lazy"/>
+          <span class="rc-gal-overlay"><i class="ti ti-photo"></i></span>
         </div>
-        <h1 class="rc-trip-title">{{ trip_name }}</h1>
-        {% if destinations %}
-        <p class="rc-trip-destinations">
-          <i class="ti ti-map-pin"></i>
-          {% for d in destinations %}{{ d.destination_name }}{% if d.country %}, {{ d.country }}{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}
-        </p>
-        {% endif %}
-        {% if organizer_name %}
-        <p class="rc-trip-organizer">
-          {% if organizer_logo %}<img src="{{ organizer_logo }}" alt="" class="rc-org-logo" onerror="this.style.display='none'"/>{% endif %}
-          by {{ organizer_name }}
-        </p>
-        {% endif %}
       </div>
-    </div>
-    {% if gallery|length > 1 %}
-    <button class="rc-hero-nav rc-hero-prev" type="button" aria-label="Previous image"><i class="ti ti-chevron-left"></i></button>
-    <button class="rc-hero-nav rc-hero-next" type="button" aria-label="Next image"><i class="ti ti-chevron-right"></i></button>
-    <div class="rc-hero-dots">
-      {% for img in gallery %}<button class="rc-hero-dot{% if loop.first %} is-active{% endif %}" data-i="{{ loop.index0 }}" aria-label="Go to image {{ loop.index }}"></button>{% endfor %}
-    </div>
-    {% endif %}
-  </header>
-
-  <div class="rc-trip-body">
-
-    {# ── 2. Overview ── #}
-    {% if description %}
-    <section class="rc-trip-section">
-      <h2 class="rc-section-h">Overview</h2>
-      <div class="rc-trip-description">{{ description }}</div>
-    </section>
-    {% endif %}
-
-    {# ── 3. Highlights ── #}
-    {% if highlights %}
-    <section class="rc-trip-section">
-      <h2 class="rc-section-h">Highlights</h2>
-      <ul class="rc-highlights">
-        {% for h in highlights %}
-        <li><i class="ti ti-star-filled"></i><span>{{ h.highlight }}</span></li>
+      <div class="rc-gal-right">
+        {% for img in show_imgs[1:] %}
+        <div class="rc-gal-wrap" data-i="{{ loop.index }}">
+          <img src="{{ img }}" alt="{{ trip_name }} – Gambar {{ loop.index + 1 }}" loading="lazy"/>
+          <span class="rc-gal-overlay"><i class="ti ti-photo"></i></span>
+        </div>
         {% endfor %}
-      </ul>
-    </section>
+      </div>
+      {% elif show_imgs|length == 1 %}
+      {# — Satu gambar: full width — #}
+      <div class="rc-gal-full">
+        <div class="rc-gal-wrap" data-i="0">
+          <img src="{{ show_imgs[0] }}" alt="{{ trip_name }} – Gambar 1" loading="lazy"/>
+          <span class="rc-gal-overlay"><i class="ti ti-photo"></i></span>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% if hero_imgs|length > 5 %}
+    <p class="rc-gallery-more">+{{ hero_imgs|length - 5 }} more photos</p>
     {% endif %}
+  </div>
 
-    {# ── 4. Facilities + Travel Styles ── #}
-    {% if facilities or travel_styles %}
-    <section class="rc-trip-section rc-trip-grid-2">
+  {# ── Content area (ikut reference: tag → title → meta → destinations → description) ── #}
+  <div class="rc-trip-layout">
+
+    {# ════ MAIN COLUMN (content) ════ #}
+    <div class="rc-trip-main">
+
+      {# ── Tag badge (eg-tag2 style) ── #}
+      {% if trip_categories %}
+      <span class="rc-eg-tag">{{ trip_categories }}</span>
+      {% elif is_a_cruise_trip %}
+      <span class="rc-eg-tag">Cruise</span>
+      {% else %}
+      <span class="rc-eg-tag">Tour</span>
+      {% endif %}
+
+      {# ── Title (repeated, main content heading) ── #}
+      <h1 class="rc-trip-title-main">{{ trip_name }}</h1>
+
+      {# ── Trip info (destinations, organizer) ── #}
+      {% if organizer_name %}
+      <p class="rc-trip-organizer">
+        {% if organizer_logo %}<img src="{{ organizer_logo }}" alt="" class="rc-org-logo" onerror="this.style.display='none'"/>{% endif %}
+        by {{ organizer_name }}
+      </p>
+      {% endif %}
+
+      {# ── Destinations (sebelum description) ── #}
+      {% if destinations %}
+      <section class="rc-trip-section rc-tour-planning">
+        <h2 class="rc-section-h">Destination</h2>
+        <div class="rc-planning-route">
+          {% for d in destinations %}
+          <div class="rc-route-point">
+            <div class="rc-route-icon"><i class="ti ti-map-pin"></i></div>
+            <div class="rc-route-info">
+              <span class="rc-route-value">{{ d.destination_name }}</span>
+              {% if d.country %}<span class="rc-route-country">{{ d.country }}</span>{% endif %}
+            </div>
+          </div>
+          {% if not loop.last %}<div class="rc-route-arrow"><i class="ti ti-arrow-right"></i></div>{% endif %}
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      {# ── Description (tanpa "Overview" heading, hanya text) ── #}
+      {% if description %}
+      <section class="rc-trip-section rc-description-only">
+        <div class="rc-trip-description">{{ description }}</div>
+      </section>
+      {% endif %}
+
+      {# ── Facilities (full width, tanpa Travel Styles) ── #}
       {% if facilities %}
-      <div class="rc-chips-block">
-        <h2 class="rc-section-h">Facilities</h2>
-        <ul class="rc-chips">
-          {% for f in facilities %}
-          <li class="rc-chip">
-            <i class="ti {{ f.icon or 'ti-circle-check' }}"></i>
-            <span>{{ f.facility }}</span>
+      <section class="rc-trip-section">
+        <div class="rc-chips-block">
+          <h2 class="rc-section-h">Facilities</h2>
+          <ul class="rc-chips">
+            {% for f in facilities %}
+            <li class="rc-chip"><i class="ti {{ f.icon or 'ti-circle-check' }}"></i><span>{{ f.facility }}</span></li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+      {% endif %}
+
+      {# ── Included / Excluded ── #}
+      {% if included or excluded %}
+      <section class="rc-trip-section rc-trip-grid-2">
+        {% if included %}
+        <div class="rc-feat-block rc-feat-incl">
+          <h2 class="rc-section-h"><i class="ti ti-circle-check"></i> Included</h2>
+          <ul class="rc-feat-list">
+            {% for f in included %}<li><i class="ti ti-circle-check"></i><span>{{ f.feature }}</span></li>{% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+        {% if excluded %}
+        <div class="rc-feat-block rc-feat-excl">
+          <h2 class="rc-section-h"><i class="ti ti-circle-x"></i> Excluded</h2>
+          <ul class="rc-feat-list">
+            {% for f in excluded %}<li><i class="ti ti-circle-x"></i><span>{{ f.feature }}</span></li>{% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      {# ── Highlights ── #}
+      {% if highlights %}
+      <section class="rc-trip-section">
+        <h2 class="rc-section-h">Highlights</h2>
+        <ul class="rc-highlights">
+          {% for h in highlights %}
+          <li><i class="ti ti-star-filled"></i><span>{{ h.highlight }}</span></li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+      {# ── Itinerary timeline (day-by-day) ── #}
+      {% if itinerary %}
+      <section class="rc-trip-section">
+        <h2 class="rc-section-h">Itinerary</h2>
+        <p class="rc-section-sub">Day-by-day plan. Select a departure in the booking panel to see exact dates.</p>
+        <ol class="rc-itinerary">
+          {% for row in itinerary %}
+          <li class="rc-itin-day" data-day="{{ row.day }}">
+            <div class="rc-itin-marker"><span>Day {{ row.day }}</span></div>
+            <div class="rc-itin-card">
+              <div class="rc-itin-head">
+                <h3 class="rc-itin-title">{{ row.day_title }}</h3>
+                {% if row.destination_name %}<span class="rc-itin-dest">{{ row.destination_name }}{% if row.country %} · {{ row.country }}{% endif %}</span>{% endif %}
+              </div>
+              {% if row.day_image %}
+              <img src="{{ row.day_image }}" alt="{{ row.day_title }}" class="rc-itin-img" onerror="this.style.display='none'"/>
+              {% endif %}
+              {% if row.description %}<div class="rc-itin-desc">{{ row.description }}</div>{% endif %}
+              {% if row.meals %}<p class="rc-itin-meals"><i class="ti ti-tools-kitchen2"></i> {{ row.meals }}</p>{% endif %}
+            </div>
           </li>
           {% endfor %}
-        </ul>
-      </div>
+        </ol>
+      </section>
       {% endif %}
-      {% if travel_styles %}
-      <div class="rc-chips-block">
-        <h2 class="rc-section-h">Travel Styles</h2>
-        <ul class="rc-chips">
-          {% for s in travel_styles %}
-          <li class="rc-chip rc-chip-style"><i class="ti ti-compass"></i><span>{{ s.name }}</span></li>
-          {% endfor %}
-        </ul>
-      </div>
-      {% endif %}
-    </section>
-    {% endif %}
 
-    {# ── 5. Included / Excluded ── #}
-    {% if included or excluded %}
-    <section class="rc-trip-section rc-trip-grid-2">
-      {% if included %}
-      <div class="rc-feat-block rc-feat-incl">
-        <h2 class="rc-section-h"><i class="ti ti-circle-check"></i> Included</h2>
-        <ul class="rc-feat-list">
-          {% for f in included %}<li><i class="ti ti-circle-check"></i><span>{{ f.feature }}</span></li>{% endfor %}
-        </ul>
-      </div>
-      {% endif %}
-      {% if excluded %}
-      <div class="rc-feat-block rc-feat-excl">
-        <h2 class="rc-section-h"><i class="ti ti-circle-x"></i> Excluded</h2>
-        <ul class="rc-feat-list">
-          {% for f in excluded %}<li><i class="ti ti-circle-x"></i><span>{{ f.feature }}</span></li>{% endfor %}
-        </ul>
-      </div>
-      {% endif %}
-    </section>
-    {% endif %}
-
-    {# ── 6. Itinerary timeline (day-by-day) ── #}
-    {% if itinerary %}
-    <section class="rc-trip-section">
-      <h2 class="rc-section-h">Itinerary</h2>
-      <p class="rc-section-sub">Day-by-day plan. Select a departure date below to see exact dates.</p>
-      <ol class="rc-itinerary">
-        {% for row in itinerary %}
-        <li class="rc-itin-day" data-day="{{ row.day }}">
-          <div class="rc-itin-marker"><span>Day {{ row.day }}</span></div>
-          <div class="rc-itin-card">
-            <div class="rc-itin-head">
-              <h3 class="rc-itin-title">{{ row.day_title }}</h3>
-              {% if row.destination_name %}<span class="rc-itin-dest">{{ row.destination_name }}{% if row.country %} · {{ row.country }}{% endif %}</span>{% endif %}
-            </div>
-            {% if row.day_image %}
-            <img src="{{ row.day_image }}" alt="{{ row.day_title }}" class="rc-itin-img" onerror="this.style.display='none'"/>
-            {% endif %}
-            {% if row.description %}<div class="rc-itin-desc">{{ row.description }}</div>{% endif %}
-            {% if row.meals %}<p class="rc-itin-meals"><i class="ti ti-tools-kitchen2"></i> {{ row.meals }}</p>{% endif %}
+      {# ── FAQ accordion ── #}
+      {% if faqs %}
+      <section class="rc-trip-section">
+        <h2 class="rc-section-h">Frequently Asked Questions</h2>
+        <div class="rc-faq" id="rcFaq">
+          {% for f in faqs %}
+          <div class="rc-faq-item">
+            <button class="rc-faq-q" type="button" aria-expanded="false">
+              <span>{{ f.question }}</span><i class="ti ti-chevron-down rc-faq-icon"></i>
+            </button>
+            <div class="rc-faq-a"><div class="rc-faq-a-inner">{{ f.answer }}</div></div>
           </div>
-        </li>
-        {% endfor %}
-      </ol>
-    </section>
-    {% endif %}
-
-    {# ── 7. Location map ── #}
-    {% if has_map %}
-    <section class="rc-trip-section">
-      <h2 class="rc-section-h">Location Map</h2>
-      <div class="rc-map-wrap">
-        <iframe
-          width="100%" height="340" frameborder="0" scrolling="no" marginheight="0" marginwidth="0"
-          src="https://maps.google.com/maps?q={{ map_lat }},{{ map_lng }}&z={{ map_zoom }}&output=embed"
-          title="Trip location map"></iframe>
-      </div>
-    </section>
-    {% endif %}
-
-    {# ── 8. FAQ accordion ── #}
-    {% if faqs %}
-    <section class="rc-trip-section">
-      <h2 class="rc-section-h">Frequently Asked Questions</h2>
-      <div class="rc-faq" id="rcFaq">
-        {% for f in faqs %}
-        <div class="rc-faq-item">
-          <button class="rc-faq-q" type="button" aria-expanded="false">
-            <span>{{ f.question }}</span><i class="ti ti-chevron-down rc-faq-icon"></i>
-          </button>
-          <div class="rc-faq-a"><div class="rc-faq-a-inner">{{ f.answer }}</div></div>
+          {% endfor %}
         </div>
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
-
-    {# ── 9. Departure dates + packages + pricing widget ── #}
-    <section class="rc-trip-section rc-trip-booking">
-      <h2 class="rc-section-h">Departures &amp; Pricing</h2>
-
-      {% if starting_from_price %}
-      <p class="rc-trip-fromprice">From {{ get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }} <span class="rc-muted">/ person</span></p>
+      </section>
       {% endif %}
 
-      {% if group_dates %}
-      <div class="rc-booking-widget">
-        <div class="rc-booking-row">
+    </div>{# /rc-trip-main #}
+
+    {# ════ SIDEBAR (booking widget) ════ #}
+    <aside class="rc-trip-sidebar">
+      <div class="rc-booking-card">
+        <h3 class="rc-booking-title">Reserve Your Activity</h3>
+        <p class="rc-booking-sub">Secure your spot for an unforgettable experience now!</p>
+
+        {% if starting_from_price %}
+        <p class="rc-trip-fromprice">From {{ get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }} <span class="rc-muted">/ person</span></p>
+        {% endif %}
+
+        {# ── meta bar (duration, max pax, type) ── #}
+        {% if g %}
+        <ul class="rc-booking-meta">
+          {% if g.total_days %}<li><i class="ti ti-clock-2"></i> {{ g.total_days }}D{% if g.total_nights %}/{{ g.total_nights }}N{% endif %}</li>{% endif %}
+          {% if g.max_participants %}<li><i class="ti ti-users"></i> Max {{ g.max_participants }} pax</li>{% else %}<li><i class="ti ti-users"></i> Open pax</li>{% endif %}
+          <li><i class="ti {{ 'ti-ship' if is_cruise else 'ti-route' }}"></i> {{ 'Cruise' if is_cruise else 'Tour' }}</li>
+        </ul>
+        {% endif %}
+
+        {% if group_dates %}
+        <div class="rc-booking-widget">
           <label class="rc-field">
             <span class="rc-field-label">Departure date</span>
             <select id="rcDetailGroupDate">
-              {% for g in group_dates %}
-              <option value="{{ g.name }}"
-                data-base="{{ g.sailing_start or g.departure_date }}"
+              {% if is_cruise and group_date_groups %}
+              {% set ns = namespace(first=true) %}
+              {% for grp in group_date_groups %}
+              <optgroup label="{{ grp.label }}">
+                {% for gd in grp.dates %}
+                <option value="{{ gd.name }}"
+                  data-base="{{ gd.sailing_start or gd.departure_date }}"
+                  {% if ns.first %}selected{% set ns.first = false %}{% endif %}>
+                  {{ gd.departure_date }}{% if gd.return_date or gd.sailing_end %} → {{ gd.return_date or gd.sailing_end }}{% endif %}
+                  {% if gd.seats_left is none %}{% elif gd.seats_left == 0 %} · Sold out{% elif gd.seats_left <= 3 %} · {{ gd.seats_left }} left{% endif %}
+                </option>
+                {% endfor %}
+              </optgroup>
+              {% endfor %}
+              {% else %}
+              {% for gd in group_dates %}
+              <option value="{{ gd.name }}"
+                data-base="{{ gd.sailing_start or gd.departure_date }}"
                 {% if loop.first %}selected{% endif %}>
-                {{ g.sailing_start or g.departure_date }}{% if g.return_date or g.sailing_end %} → {{ g.return_date or g.sailing_end }}{% endif %}
-                · {{ g.total_days }}D{% if g.total_nights %}/{{ g.total_nights }}N{% endif %}
-                {% if g.seats_left is none %}{% elif g.seats_left == 0 %} · Sold out{% elif g.seats_left <= 3 %} · {{ g.seats_left }} left{% endif %}
+                {{ gd.sailing_start or gd.departure_date }}{% if gd.return_date or gd.sailing_end %} → {{ gd.return_date or gd.sailing_end }}{% endif %}
+                {% if gd.seats_left is none %}{% elif gd.seats_left == 0 %} · Sold out{% elif gd.seats_left <= 3 %} · {{ gd.seats_left }} left{% endif %}
               </option>
               {% endfor %}
+              {% endif %}
             </select>
           </label>
           <label class="rc-field">
             <span class="rc-field-label">Package</span>
             <select id="rcDetailPackage"><option value="">Select a package</option></select>
           </label>
-        </div>
 
-        <div id="rcDetailCabins" class="rc-cabins-empty">
-          <p class="rc-muted">Pick a departure &amp; package to see room options and prices.</p>
-        </div>
+          <div id="rcDetailCabins" class="rc-cabins-empty">
+            <p class="rc-muted">Pick a package to see room options and prices.</p>
+          </div>
 
-        <div class="rc-booking-actions">
           <a id="rcDetailBookBtn" class="rc-btn-primary rc-btn-disabled" href="/booking?trip_master={{ name|urlencode }}">Book Now</a>
-          <span class="rc-muted rc-booking-note">Charged in {{ get_company_currency() }} · display currency convertible at checkout</span>
+          <p class="rc-booking-note">Charged in {{ get_company_currency() }}</p>
         </div>
+        {% else %}
+        <p class="rc-empty-inline">No upcoming departures. <a href="/trips">Browse other trips →</a></p>
+        {% endif %}
       </div>
-      {% else %}
-      <p class="rc-empty-inline">No upcoming departures for this trip right now. <a href="/trips">Browse other trips →</a></p>
-      {% endif %}
-    </section>
+    </aside>
 
-    {# ── 10. Related tours ── #}
-    {% if related %}
-    <section class="rc-trip-section rc-related">
-      <h2 class="rc-section-h">You may also like</h2>
-      <div class="rc-trip-grid-cards">
-        {% for r in related %}
-        {% with t=r, gds=[] %}
-        {% include "templates/includes/trip_card.html" %}
-        {% endwith %}
-        {% endfor %}
-      </div>
-    </section>
-    {% endif %}
+  </div>{# /rc-trip-layout #}
 
-  </div>
+  {# ── Related tours (full width) ── #}
+  {% if related %}
+  <section class="rc-trip-section rc-related">
+    <h2 class="rc-section-h">You may also like</h2>
+    <div class="rc-trip-grid-cards">
+      {% for r in related %}
+      {% with t=r, gds=[] %}
+      {% include "templates/includes/trip_card.html" %}
+      {% endwith %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
 </article>
 
-{# JSON untuk trip_detail.js (group dates + packages + gallery trip ni) #}
+{# JSON untuk trip_detail.js #}
 <script id="rcDetailData" type="application/json">{
   "trip_master": "{{ name }}",
   "is_cruise": {{ "true" if is_a_cruise else "false" }},
@@ -252,5 +308,90 @@
 {% endblock %}
 
 {% block footer_extra %}
+<script type="module">
+  // Load PhotoSwipe 5 (ESM) + initialize gallery slideshow
+  import PhotoSwipe from "https://unpkg.com/photoswipe@5.4.4/dist/photoswipe.esm.js";
+  window.PhotoSwipe = PhotoSwipe;
+
+  // Initialize gallery when DOM ready
+  var grid = document.getElementById("rcGalleryGrid");
+  if (!grid) return;
+
+  var raw = grid.getAttribute("data-gallery-urls");
+  var urls;
+  try { urls = raw ? JSON.parse(raw) : []; } catch (e) { urls = []; }
+  if (!urls.length) return;
+
+  var caption = grid.getAttribute("data-gallery-caption") || "";
+  var wraps = grid.querySelectorAll(".rc-gal-wrap");
+
+  // Build dataSource for PhotoSwipe
+  var dataSource = urls.map(function(url, i) {
+    return { src: url, w: 1920, h: 1080, alt: caption + " — Image " + (i+1) };
+  });
+
+  var pswpElement = document.createElement("div");
+  pswpElement.className="pswp";
+  pswpElement.setAttribute("tabindex","-1");
+  pswpElement.setAttribute("role","dialog");
+  pswpElement.setAttribute("aria-hidden","true");
+  pswpElement.innerHTML =
+    '<div class="pswp__bg"></div>'
+    + '<div class="pswp__scroll-wrap">'
+    +   '<div class="pswp__container">'
+    +     '<div class="pswp__item"></div>'
+    +     '<div class="pswp__item"></div>'
+    +     '<div class="pswp__item"></div>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="pswp__ui pswp__ui--hidden">'
+    +   '<div class="pswp__top-bar">'
+    +     '<div class="pswp__counter"></div>'
+    +     '<button class="pswp__button pswp__button--close" title="Close"></button>'
+    +     '<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>'
+    +     '<div class="pswp__preloader"><div class="pswp__preloader__icn"><div class="pswp__preloader__cut"><div class="pswp__preloader__donut"></div></div></div></div>'
+    +   '</div>'
+    +   '<div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class="pswp__share-tooltip"></div></div>'
+    +   '<button class="pswp__button pswp__button--arrow--left" title="Previous"></button>'
+    +   '<button class="pswp__button pswp__button--arrow--right" title="Next"></button>'
+    +   '<div class="pswp__caption"><div class="pswp__caption__center"></div></div>'
+    + '</div>';
+  document.body.appendChild(pswpElement);
+
+  function openPhotoSwipe(index) {
+    var options = {
+      index: index,
+      dataSource: dataSource,
+      showHideOpacity: true,
+      bgOpacity: 0.92,
+      spacing: 0.12,
+      allowPanToNext: true,
+      loop: true,
+      pinchToClose: true,
+      closeOnScroll: true,
+      closeOnVerticalDrag: true,
+      mouseUsed: false,
+      arrowKeys: true,
+      history: false,
+      focus: true,
+      modal: true,
+      showAnimationDuration: 333,
+      hideAnimationDuration: 333,
+      paddingFn: function() { return { top:20, bottom:80, left:20, right:20 }; }
+    };
+    var pswp = new PhotoSwipe(pswpElement, options);
+    pswp.init();
+  }
+
+  // Click handler on each thumbnail
+  Array.prototype.forEach.call(wraps, function(w) {
+    w.style.cursor = "pointer";
+    w.addEventListener("click", function(e) {
+      e.preventDefault();
+      var idx = parseInt(w.getAttribute("data-i"), 10);
+      openPhotoSwipe(isNaN(idx) ? 0 : idx);
+    });
+  });
+</script>
 <script src="/assets/travel_booking/js/trip_detail.js?v={{ asset_v('js/trip_detail.js') }}"></script>
 {% endblock %}

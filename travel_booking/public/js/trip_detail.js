@@ -130,39 +130,6 @@
   populatePackages(); // init (isi package utk group date pertama)
 })();
 
-// ── Hero gallery slider ──
-(function () {
-  "use strict";
-  var hero = document.getElementById("rcHero");
-  if (!hero) return;
-  var slides = hero.querySelectorAll(".rc-hero-slide");
-  if (slides.length < 2) return; // satu gambar — tiada kawalan slider
-  var dots = hero.querySelectorAll(".rc-hero-dot");
-  var prev = hero.querySelector(".rc-hero-prev");
-  var next = hero.querySelector(".rc-hero-next");
-  var idx = 0;
-  function show(n) {
-    idx = (n + slides.length) % slides.length;
-    Array.prototype.forEach.call(slides, function (s, i) {
-      s.classList.toggle("is-active", i === idx);
-    });
-    Array.prototype.forEach.call(dots, function (d, i) {
-      d.classList.toggle("is-active", i === idx);
-    });
-  }
-  if (prev) prev.addEventListener("click", function () { show(idx - 1); });
-  if (next) next.addEventListener("click", function () { show(idx + 1); });
-  Array.prototype.forEach.call(dots, function (d) {
-    d.addEventListener("click", function () { show(parseInt(d.getAttribute("data-i"), 10) || 0); });
-  });
-  // auto-advance 6s, jeda bila hover
-  var timer = setInterval(function () { show(idx + 1); }, 6000);
-  hero.addEventListener("mouseenter", function () { clearInterval(timer); });
-  hero.addEventListener("mouseleave", function () {
-    timer = setInterval(function () { show(idx + 1); }, 6000);
-  });
-})();
-
 // ── FAQ accordion (single-open) ──
 (function () {
   "use strict";

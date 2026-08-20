@@ -75,6 +75,7 @@ class Trip(Document):
 
 		d = get_trip_detail(self.name)
 		context.group_dates = d["group_dates"]
+		context.group_date_groups = d.get("group_date_groups") or []
 		context.trip_packages = d["trip_packages"]
 		context.starting_from_price = d["starting_from_price"]
 		context.destinations = d["destinations"]
@@ -242,11 +243,15 @@ class Trip(Document):
 				)
 		return rows
 
+	def autoname(self):
+		# Naming siri TRIP.YY.## — Frappe panggil ini sekali semasa insert
+		# (via set_new_name), selepas reset self.name. Override config/Property
+		# Setter → jamin siri. Tak dipanggil semasa update, jadi name stabil.
+		self.name = make_autoname(self.naming_series)
+
 	def before_save(self):
-		# JANGAN USIK, INI UNTUK SET TRIP CODE YANG PENTING
 		self.title = self.trip_name.upper()
-		self.route = "trip/" + self.trip_name.lower().replace(" ","-")
-		self.name = make_autoname(self.naming_series) 
+		self.route = "trip/" + self.trip_name.lower().replace(" ", "-")
 
 	def validate(self):
 		pass

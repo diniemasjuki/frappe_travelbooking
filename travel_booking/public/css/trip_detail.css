@@ -1,144 +1,166 @@
 /* travel_booking/public/css/trip_detail.css
-   Page detail trip /trip/<slug>. Butiran (hero, itinerary timeline, booking
-   widget, jadual kabin). Butang/badge/medan dikongsi dari trips.css. */
+   Page detail trip /trip/<slug>. Layout 2-kolum (content + sidebar booking)
+   berpandukan cruise.rarecation.com tour detail. */
 
-/* ── Hero ── */
-.rc-trip-hero {
-  position: relative;
-  min-height: 360px;
-  background-size: cover;
-  background-position: center;
-  display: flex;
-  align-items: flex-end;
+/* ── Font variables (ikut reference: Rubik=heading, Jost=body, Satisfy=tag, Sansita) ── */
+:root {
+  --font-rubik: "Rubik", sans-serif;
+  --font-jost: "Jost", sans-serif;
+  --font-satisfy: "Satisfy", cursive;
+  --font-sansita: "Sansita", serif;
 }
-.rc-trip-hero-overlay {
-  background: linear-gradient(180deg, rgba(30,28,24,0) 35%, rgba(30,28,24,.82) 100%);
-  width: 100%;
+/* Default body font — reference guna Jost untuk teks biasa */
+.rc-trip-detail { font-family: var(--font-jost); }
+
+/* ── Page banner (trip_image sebagai bg photo + breadcrumb overlay) ── */
+.rc-page-banner {
+  position: relative; background-color: #1E1C18;
+  background-size: cover; background-position: center;
+  padding: 100px 22px 70px; text-align: center;
+  overflow: hidden; min-height: 280px;
 }
-.rc-trip-hero-inner { max-width: 1180px; margin: 0 auto; padding: 70px 22px 26px; }
-.rc-trip-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.rc-badge {
-  display: inline-block; padding: 5px 11px; border-radius: 20px;
-  font-size: 12px; font-weight: 600; letter-spacing: .02em;
+.rc-page-banner::before {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(16,12,8,.5) 0%, rgba(16,12,8,.75) 100%);
 }
-.rc-badge-cruise { background: #C9A84C; color: #1E1C18; }
-.rc-badge-trip { background: #1E1C18; color: #fff; }
-.rc-badge-group { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.3); }
-.rc-trip-title {
-  font-family: 'DM Serif Display', serif; font-size: 42px; line-height: 1.1;
-  color: #fff; margin: 0;
+.rc-page-banner > * { position: relative; z-index: 1; }
+.rc-banner-content { max-width: 700px; margin: 0 auto; }
+.rc-page-banner .rc-crumb {
+  display: flex; align-items: center; justify-content: center; gap: 6px; flex-wrap: wrap;
+  font-size: 13px; color: rgba(255,255,255,.7); margin: 0;
 }
-.rc-trip-destinations { margin: 8px 0 0; color: #E8E5DF; font-size: 15px; }
-.rc-trip-organizer {
-  margin: 12px 0 0; color: #C9A84C; font-size: 14px; display: flex;
-  align-items: center; gap: 8px;
+.rc-page-banner .rc-crumb a { color: #C9A84C; text-decoration: none; }
+.rc-page-banner .rc-crumb a:hover { text-decoration: underline; }
+.rc-page-banner .rc-crumb .ti { font-size: 13px; opacity: .6; }
+.rc-page-banner .rc-crumb span { color: #fff; }
+
+/* ── Gallery area (white card container, SQUARE grid) ── */
+.rc-gallery-area {
+  max-width: 1180px; margin: -40px auto 0; padding: 0 22px;
+  position: relative; z-index: 2;
 }
+.rc-gallery-grid {
+  display: flex; gap: 10px; align-items: stretch;
+  border-radius: 10px; background: #fff; padding: 10px;
+  box-shadow: 0 4px 25px rgba(0,0,0,.08);
+}
+/* Single image → full width */
+.rc-gallery-grid > .rc-gal-full { width: 100%; }
+
+/* Left column (big image — square) */
+.rc-gal-left { flex: 0 0 50%; max-width: 50%; }
+/* Right column (2×2 small images — all square) */
+.rc-gal-right { flex: 0 0 50%; max-width: calc(50% - 10px);
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+}
+
+.rc-gal-wrap {
+  position: relative; overflow: hidden; border-radius: 8px;
+  transition: transform .35s ease, box-shadow .35s ease;
+  aspect-ratio: 1 / 1; /* SQUARE */
+}
+.rc-gal-wrap:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.12); }
+.rc-gal-wrap img {
+  display: block; width: 100%; height: 100%;
+  object-fit: cover; object-position: center;
+}
+/* ── Hover overlay (tiada direct link — slideshow via JS click handler) ── */
+.rc-gal-overlay {
+  position: absolute; inset: 0; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+  background-color: rgba(16,12,8,.6);
+  color: #fff; font-size: 14px; letter-spacing: .6px;
+  opacity: 0; transform: scale(.4);
+  transition: all .45s ease;
+  cursor: pointer; pointer-events: none;
+}
+.rc-gal-overlay i { font-size: 34px; color: #C9A84C; }
+.rc-gal-wrap:hover .rc-gal-overlay { opacity: 1; transform: scale(1); }
+
+@media (max-width: 767px) {
+  .rc-page-banner { padding: 60px 16px 44px; min-height: 200px; }
+  .rc-gallery-area { margin-top: -24px; padding: 0 16px; }
+  .rc-gallery-grid { flex-direction: column; gap: 8px; padding: 8px; }
+  .rc-gal-left, .rc-gal-right { flex: 1 1 100%; max-width: 100%; }
+  .rc-gal-right { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+}
+
+/* ── "+N more photos" indicator ── */
+.rc-gallery-more {
+  text-align: center; margin-top: 10px;
+  font-size: 13px; color: #888; font-family: var(--font-jost);
+}
+
+/* ── Tag badge (eg-tag2 style, orange brush) ── */
+.rc-eg-tag {
+  display: inline-block; padding: 6px 22px;
+  font-family: var(--font-satisfy); font-size: 18px; line-height: 1.3;
+  color: #fff; background-color: #F59E0B;
+  border-radius: 4px 20px 4px 20px;
+  margin-bottom: 14px; letter-spacing: .72px;
+}
+
+/* ── Main title (repeated di content area, bukan banner) ── */
+.rc-trip-title-main {
+  font-family: var(--font-rubik); font-size: 32px; font-weight: 500;
+  line-height: 1.25; letter-spacing: .75px;
+  color: #1a1a2e; margin: 0 0 12px;
+}
+
+/* ── Tour Planning / Destination section ── */
+.rc-tour-planning { margin-top: 32px; margin-bottom: 28px; }
+
+/* ── Description only (tanpa "Overview" heading) ── */
+.rc-description-only { margin-bottom: 30px; }
+.rc-description-only .rc-trip-description {
+  font-family: var(--font-jost); font-size: 15px; line-height: 1.85;
+  color: #555; margin: 0;
+}
+
+/* ── Organizer info ── */
+.rc-trip-organizer { margin: 12px 0 0; color: #777; font-size: 14px; display: flex; align-items: center; gap: 8px; }
 .rc-org-logo { width: 26px; height: 26px; object-fit: contain; border-radius: 5px; background: #fff; }
 
-/* ── Body ── */
-.rc-trip-body { max-width: 1180px; margin: 0 auto; padding: 28px 22px 60px; }
-.rc-trip-section { margin-bottom: 38px; }
+/* ── 2-column layout ── */
+.rc-trip-layout {
+  max-width: 1180px; margin: 0 auto; padding: 30px 22px 50px;
+  display: grid; grid-template-columns: 1fr 340px; gap: 36px;
+  align-items: start;
+}
+.rc-trip-main { min-width: 0; }
+.rc-trip-sidebar { position: sticky; top: 80px; }
+
+/* ── Sections (shared) ── */
+.rc-trip-section { margin-bottom: 34px; }
 .rc-section-h {
-  font-family: 'DM Serif Display', serif; font-size: 26px; color: #1E1C18;
-  margin: 0 0 6px;
+  font-family: var(--font-rubik); font-size: 26px; font-weight: 500; letter-spacing: .75px; color: #1E1C18;
+  margin: 0 0 12px; display: flex; align-items: center; gap: 8px;
 }
 .rc-section-sub { margin: 0 0 18px; font-size: 14px; color: #7D7A70; }
 .rc-trip-description { font-size: 15px; line-height: 1.7; color: #3A3730; }
 .rc-trip-description :is(h1,h2,h3) { color: #1E1C18; }
 .rc-trip-description img { max-width: 100%; height: auto; border-radius: 8px; }
 
-/* ── Itinerary timeline ── */
-.rc-itinerary { list-style: none; margin: 0; padding: 0; }
-.rc-itin-day {
-  display: grid; grid-template-columns: 70px 1fr; gap: 18px;
-  padding-bottom: 26px; position: relative;
+/* ── Tour Planning route visual ── */
+.rc-planning-route {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  background: #fff; border: 1px solid #E8E5DF; border-radius: 12px; padding: 16px 18px;
 }
-.rc-itin-day::before {
-  content: ""; position: absolute; left: 34px; top: 28px; bottom: -6px;
-  width: 2px; background: #E8E5DF;
+.rc-route-point { display: flex; align-items: center; gap: 10px; }
+.rc-route-icon {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  background: #C9A84C; color: #1E1C18;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
 }
-.rc-itin-day:last-child::before { display: none; }
-.rc-itin-marker {
-  position: relative; z-index: 1; text-align: center;
-}
-.rc-itin-marker span {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 70px; padding: 8px 6px; border-radius: 10px;
-  background: #1E1C18; color: #C9A84C; font-size: 11px; font-weight: 600;
-  line-height: 1.3;
-}
-.rc-itin-card {
-  background: #fff; border: 1px solid #E8E5DF; border-radius: 12px;
-  padding: 18px 20px;
-}
-.rc-itin-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
-.rc-itin-title { font-size: 18px; font-weight: 600; color: #1E1C18; margin: 0; }
-.rc-itin-dest { font-size: 13px; color: #7D7A70; }
-.rc-itin-img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 8px; margin: 12px 0; }
-.rc-itin-desc { font-size: 14px; line-height: 1.6; color: #3A3730; }
-.rc-itin-desc :is(p) { margin: 0 0 8px; }
-.rc-itin-meals { margin: 10px 0 0; font-size: 13px; color: #5C5850; display: flex; gap: 6px; align-items: center; }
+.rc-route-info { display: flex; flex-direction: column; line-height: 1.3; }
+.rc-route-value { font-size: 15px; font-weight: 600; color: #1E1C18; }
+.rc-route-country { font-size: 12px; color: #7D7A70; }
+.rc-route-arrow { color: #7D7A70; font-size: 18px; }
 
-/* ── Booking widget ── */
-.rc-trip-booking { background: #fff; border: 1px solid #E8E5DF; border-radius: 14px; padding: 24px; }
-.rc-trip-fromprice { font-size: 20px; color: #1E1C18; margin: 0 0 18px; font-weight: 600; }
-.rc-trip-fromprice .rc-muted { font-size: 13px; font-weight: 400; }
-.rc-booking-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
-.rc-booking-row .rc-field { flex: 1 1 200px; }
-#rcDetailCabins { margin-bottom: 18px; min-height: 50px; }
-.rc-cabins-empty, .rc-cabins-loading, .rc-cabins-error { padding: 8px 0; }
-.rc-cabin-tbl { width: 100%; border-collapse: collapse; font-size: 14px; }
-.rc-cabin-tbl th {
-  text-align: left; padding: 10px 12px; font-size: 12px; text-transform: uppercase;
-  letter-spacing: .04em; color: #7D7A70; border-bottom: 1px solid #E8E5DF;
-}
-.rc-cabin-tbl td { padding: 12px; border-bottom: 1px solid #F0EEE9; vertical-align: top; }
-.rc-cabin-tbl tr:hover td { background: #FBFAF7; }
-.rc-cabin-type { display: block; font-size: 12px; color: #9C9789; margin-top: 2px; }
-.rc-booking-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.rc-booking-note { font-size: 12px; }
-.rc-btn-disabled { opacity: .5; pointer-events: none; }
-.rc-empty-inline { padding: 14px 0; color: #5C5850; }
-.rc-empty-inline a { color: #C9A84C; text-decoration: none; font-weight: 600; }
+/* ── 2-column block ── */
+.rc-trip-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
 
-/* ── Hero gallery slider ── */
-.rc-hero-slides { position: absolute; inset: 0; overflow: hidden; }
-.rc-hero-slide {
-  position: absolute; inset: 0; background-size: cover; background-position: center;
-  opacity: 0; transition: opacity .7s ease; background-color: #1E1C18;
-}
-.rc-hero-slide.is-active { opacity: 1; }
-.rc-hero-nav {
-  position: absolute; top: 50%; transform: translateY(-50%); z-index: 3;
-  width: 42px; height: 42px; border-radius: 50%; border: none; cursor: pointer;
-  background: rgba(30,28,24,.45); color: #fff; font-size: 20px;
-  display: flex; align-items: center; justify-content: center;
-  transition: background .2s;
-}
-.rc-hero-nav:hover { background: rgba(30,28,24,.75); }
-.rc-hero-prev { left: 16px; }
-.rc-hero-next { right: 16px; }
-.rc-hero-dots {
-  position: absolute; bottom: 14px; left: 0; right: 0; z-index: 3;
-  display: flex; justify-content: center; gap: 7px;
-}
-.rc-hero-dot {
-  width: 9px; height: 9px; border-radius: 50%; border: none; cursor: pointer;
-  background: rgba(255,255,255,.4); padding: 0; transition: background .2s;
-}
-.rc-hero-dot.is-active { background: #C9A84C; }
-
-/* ── Highlights ── */
-.rc-highlights { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.rc-highlights li {
-  display: flex; gap: 10px; align-items: flex-start;
-  background: #fff; border: 1px solid #E8E5DF; border-radius: 10px; padding: 12px 14px;
-  font-size: 14px; line-height: 1.55; color: #3A3730;
-}
-.rc-highlights li i { color: #C9A84C; font-size: 16px; margin-top: 2px; }
-
-/* ── 2-column block (facilities/styles, include/exclude) ── */
-.rc-trip-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+/* ── Chips (facilities / travel styles) ── */
 .rc-chips-block .rc-section-h { font-size: 22px; }
 .rc-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .rc-chip {
@@ -146,13 +168,12 @@
   background: #F7F5F0; border: 1px solid #E8E5DF; border-radius: 999px;
   padding: 7px 13px; font-size: 13px; color: #3A3730;
 }
-.rc-chip i { font-size: 16px; color: #C9A84C; }
+.rc-chip > i { font-size: 16px; color: #C9A84C; }
 .rc-chip-style { background: #1E1C18; color: #F7F5F0; border-color: #1E1C18; }
-.rc-chip-style i { color: #C9A84C; }
 
 /* ── Included / Excluded ── */
 .rc-feat-block { background: #fff; border: 1px solid #E8E5DF; border-radius: 12px; padding: 18px 20px; }
-.rc-feat-block .rc-section-h { font-size: 20px; display: flex; align-items: center; gap: 8px; }
+.rc-feat-block .rc-section-h { font-size: 20px; }
 .rc-feat-incl .rc-section-h i { color: #2E7D4F; }
 .rc-feat-excl .rc-section-h i { color: #B45309; }
 .rc-feat-list { list-style: none; margin: 10px 0 0; padding: 0; }
@@ -166,9 +187,39 @@
 .rc-feat-incl .rc-feat-list li i { color: #2E7D4F; }
 .rc-feat-excl .rc-feat-list li i { color: #B45309; }
 
-/* ── Location map ── */
-.rc-map-wrap { border-radius: 12px; overflow: hidden; border: 1px solid #E8E5DF; line-height: 0; }
-.rc-map-wrap iframe { display: block; }
+/* ── Highlights ── */
+.rc-highlights { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rc-highlights li {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: #fff; border: 1px solid #E8E5DF; border-radius: 10px; padding: 12px 14px;
+  font-size: 14px; line-height: 1.55; color: #3A3730;
+}
+.rc-highlights li i { color: #C9A84C; font-size: 16px; margin-top: 2px; }
+
+/* ── Itinerary timeline ── */
+.rc-itinerary { list-style: none; margin: 0; padding: 0; }
+.rc-itin-day {
+  display: grid; grid-template-columns: 70px 1fr; gap: 18px;
+  padding-bottom: 26px; position: relative;
+}
+.rc-itin-day::before {
+  content: ""; position: absolute; left: 34px; top: 28px; bottom: -6px;
+  width: 2px; background: #E8E5DF;
+}
+.rc-itin-day:last-child::before { display: none; }
+.rc-itin-marker { position: relative; z-index: 1; text-align: center; }
+.rc-itin-marker span {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 70px; padding: 8px 6px; border-radius: 10px;
+  background: #1E1C18; color: #C9A84C; font-size: 11px; font-weight: 600; line-height: 1.3;
+}
+.rc-itin-card { background: #fff; border: 1px solid #E8E5DF; border-radius: 12px; padding: 18px 20px; }
+.rc-itin-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.rc-itin-title { font-size: 18px; font-weight: 600; color: #1E1C18; margin: 0; }
+.rc-itin-dest { font-size: 13px; color: #7D7A70; }
+.rc-itin-img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 8px; margin: 12px 0; }
+.rc-itin-desc { font-size: 14px; line-height: 1.6; color: #3A3730; }
+.rc-itin-meals { margin: 10px 0 0; font-size: 13px; color: #5C5850; display: flex; gap: 6px; align-items: center; }
 
 /* ── FAQ accordion ── */
 .rc-faq { border-top: 1px solid #E8E5DF; }
@@ -183,19 +234,66 @@
 .rc-faq-a { max-height: 0; overflow: hidden; transition: max-height .3s ease; }
 .rc-faq-a-inner { padding: 0 0 16px; font-size: 14px; line-height: 1.65; color: #3A3730; }
 
-/* ── Related tours grid ── */
-.rc-trip-grid-cards {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px;
+/* ── Sidebar booking card ── */
+.rc-booking-card {
+  background: #fff; border: 1px solid #E8E5DF; border-radius: 14px; padding: 22px;
+  box-shadow: 0 4px 18px rgba(30,28,24,.06);
 }
+.rc-booking-title { font-family: var(--font-rubik); font-size: 22px; font-weight: 500; letter-spacing: .5px; color: #1E1C18; margin: 0; }
+.rc-booking-sub { font-size: 13px; color: #7D7A70; margin: 4px 0 16px; }
+.rc-trip-fromprice { font-size: 22px; color: #1E1C18; margin: 0 0 14px; font-weight: 700; }
+.rc-trip-fromprice .rc-muted { font-size: 13px; font-weight: 400; color: #7D7A70; }
+.rc-booking-meta {
+  list-style: none; margin: 0 0 18px; padding: 14px 0; display: flex; flex-wrap: wrap; gap: 14px;
+  border-top: 1px solid #F0EEE9; border-bottom: 1px solid #F0EEE9;
+}
+.rc-booking-meta li { font-size: 13px; color: #3A3730; display: flex; align-items: center; gap: 6px; }
+.rc-booking-meta li i { color: #C9A84C; font-size: 16px; }
+.rc-booking-widget .rc-field { display: block; margin-bottom: 14px; }
+.rc-field-label { display: block; font-size: 12px; color: #7D7A70; margin-bottom: 5px; font-weight: 600; }
+.rc-field select {
+  width: 100%; padding: 10px 12px; border: 1px solid #E8E5DF; border-radius: 8px;
+  font-size: 14px; color: #1E1C18; background: #fff;
+}
+.rc-field select:focus { outline: none; border-color: #C9A84C; }
+#rcDetailCabins { margin-bottom: 16px; min-height: 40px; }
+.rc-cabins-empty, .rc-cabins-loading, .rc-cabins-error { padding: 6px 0; }
+.rc-cabin-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rc-cabin-tbl th {
+  text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .04em; color: #7D7A70; border-bottom: 1px solid #E8E5DF;
+}
+.rc-cabin-tbl td { padding: 10px; border-bottom: 1px solid #F0EEE9; vertical-align: top; }
+.rc-cabin-tbl tr:hover td { background: #FBFAF7; }
+.rc-cabin-type { display: block; font-size: 12px; color: #9C9789; margin-top: 2px; }
+.rc-btn-primary {
+  display: block; text-align: center; text-decoration: none; cursor: pointer;
+  background: #C9A84C; color: #1E1C18; font-weight: 700; font-size: 15px;
+  padding: 13px; border-radius: 10px; border: none;
+}
+.rc-btn-primary:hover { background: #B8983F; }
+.rc-btn-disabled { opacity: .5; pointer-events: none; }
+.rc-booking-note { font-size: 11px; color: #9C9789; margin: 8px 0 0; text-align: center; }
+.rc-empty-inline { padding: 10px 0; color: #5C5850; font-size: 14px; }
+.rc-empty-inline a { color: #C9A84C; text-decoration: none; font-weight: 600; }
 
+/* ── Related tours grid ── */
+.rc-related { max-width: 1180px; margin: 0 auto; padding: 0 22px 50px; }
+.rc-trip-grid-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+
+@media (max-width: 980px) {
+  .rc-trip-layout { grid-template-columns: 1fr; gap: 28px; }
+  .rc-trip-sidebar { position: static; }
+  .rc-trip-grid-cards { grid-template-columns: 1fr 1fr; }
+  .rc-trip-title { font-size: 30px; }
+}
 @media (max-width: 640px) {
-  .rc-trip-hero { min-height: 300px; }
-  .rc-trip-title { font-size: 32px; }
+  .rc-trip-title { font-size: 26px; }
+  .rc-trip-grid-2 { grid-template-columns: 1fr; gap: 22px; }
+  .rc-trip-grid-cards { grid-template-columns: 1fr; }
   .rc-itin-day { grid-template-columns: 56px 1fr; gap: 12px; }
   .rc-itin-day::before { left: 27px; }
   .rc-itin-marker span { min-width: 56px; font-size: 10px; }
-  .rc-trip-body { padding: 22px 16px 50px; }
-  .rc-trip-grid-2 { grid-template-columns: 1fr; gap: 22px; }
-  .rc-trip-grid-cards { grid-template-columns: 1fr 1fr; gap: 12px; }
-  .rc-hero-nav { width: 36px; height: 36px; font-size: 17px; }
+  .rc-planning-route { flex-direction: column; align-items: flex-start; }
+  .rc-route-arrow { transform: rotate(90deg); }
 }

@@ -470,6 +470,19 @@ def get_trip_detail(trip_name: str) -> dict:
 		as_dict=True,
 	)
 
+	# --- info cruise_schedule (ship + sail date) untuk grouping cruise ---
+	cruise_sched: dict = {}
+	if is_cruise and dates:
+		_cs = list({d.cruise_schedule for d in dates if d.cruise_schedule})
+		if _cs:
+			cruise_sched = {
+				r.name: r for r in frappe.db.get_values(
+					"Trip Cruise Schedule", _cs,
+					["name", "ship_name", "sail_start", "sail_end"],
+					as_dict=True,
+				)
+			}
+
 	# seats_left: SUM(booked_pax) booking tak-cancelled per group date
 	booked: dict = {}
 	if dates:
@@ -490,6 +503,21 @@ def get_trip_detail(trip_name: str) -> dict:
 		mx = int(d.max_participants or 0)
 		bk = int(booked.get(d.name, 0))
 		# max_participants == 0 -> UNLIMITED (None -> frontend "Available").
+		# Cruise: tentukan kunci/label grouping sailing (cluster group date
+		# yang kongsi cruise_schedule/sailing date sama) untuk <optgroup>.
+		sailing_group = ""
+		sailing_label = ""
+		if is_cruise:
+			cs = d.cruise_schedule
+			info = cruise_sched.get(cs) if cs else None
+			sail_date = (
+				str(info.sail_start) if info and info.sail_start else ""
+			) or (str(d.sailing_start) if d.sailing_start else "")
+			sailing_group = (cs or ("sail:" + sail_date)) if sail_date else ""
+			ship = info.ship_name if info else ""
+			sailing_label = ("Sailing " + sail_date) if sail_date else ""
+			if ship:
+				sailing_label += " · " + ship
 		group_dates.append(
 			{
 				"name": d.name,
@@ -504,11 +532,33 @@ def get_trip_detail(trip_name: str) -> dict:
 				"total_nights": d.total_nights or 0,
 				"max_participants": mx,
 				"seats_left": None if mx == 0 else max(0, mx - bk),
+				"sailing_group": sailing_group,
+				"sailing_label": sailing_label,
 			}
 		)
 	# Cruise disusun ikut sailing_start (sepadan get_ready_bundle).
 	if is_cruise and group_dates:
 		group_dates.sort(key=lambda g: g["sailing_start"] or g["departure_date"])
+
+	# Cluster group date cruise mengikut sailing (cruise_schedule / sailing
+	# date) untuk render <optgroup> per sailing di page detail. Bukan-cruise:
+	# kosong -> template render flat (tiada optgroup).
+	group_date_groups: list = []
+	if is_cruise and group_dates:
+		_seen: dict = {}
+		for g in group_dates:
+			key = g.get("sailing_group") or ("sail:" + (g.get("sailing_start") or ""))
+			grp = _seen.get(key)
+			if not grp:
+				grp = {
+					"key": key,
+					"label": g.get("sailing_label")
+					or ("Sailing " + (g.get("sailing_start") or "")),
+					"dates": [],
+				}
+				_seen[key] = grp
+				group_date_groups.append(grp)
+			grp["dates"].append(g)
 
 	# --- packages per group date (trip ni sahaja) ---
 	trip_packages: dict = {}
@@ -578,6 +628,7 @@ def get_trip_detail(trip_name: str) -> dict:
 
 	return {
 		"group_dates": group_dates,
+		"group_date_groups": group_date_groups,
 		"trip_packages": trip_packages,
 		"starting_from_price": starting_from_price,
 		"destinations": destinations,
