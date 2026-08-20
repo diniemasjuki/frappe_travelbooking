@@ -1,0 +1,46 @@
+{# ============================================================
+   travel_booking/templates/base_travel.html
+   Base standalone untuk page web awam (katalog /trips, detail trip
+   /trip/<slug>). MENGIKUT pola standalone portal sedia ada (booking.html
+   et al.) — bukan extend templates/web.html — supaya konsisten dan tak
+   bergantung pada block Frappe yang berubah antara versi.
+
+   Page turunan (trips.html, trip.html) extend fail ini & isi block:
+     {% block title %}        — <title>
+     {% block head_extra %}   — CSS/meta page-specific dalam <head>
+     {% block page_content %} — isi utama
+     {% block footer_extra %} — JS page-specific sebelum </body>
+
+   Variable global: company currency + symbol tersedia terus sebagai
+   kaedah Jinja (hooks jinja.methods = travel_booking.utils.assets):
+     {{ get_company_currency() }}  {{ get_company_symbol() }}
+   ============================================================ #}
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{% block title %}{{ site_name or 'Rarecation' }}{% endblock %}</title>
+  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') }}"/>
+  {% block head_extra %}{% endblock %}
+</head>
+<body style="margin:0;font-family:'Archivo',system-ui,sans-serif;color:#1E1C18;background:#F7F5F0;display:flex;flex-direction:column;min-height:100vh;">
+  {% include "templates/includes/public_nav.html" %}
+
+  <main class="rc-public-main" style="flex:1;width:100%;">
+    {% block page_content %}{% endblock %}
+  </main>
+
+  {% include "templates/includes/public_footer.html" %}
+
+  {# Data syarikat utk helper JS (currency converter dll). SEMUA amaun
+     dicaj company currency; currency lain cuma paparan. #}
+  <script id="rcCurrencyData" type="application/json">{"company_currency": "{{ get_company_currency() }}", "company_symbol": "{{ get_company_symbol() }}"}</script>
+  {% block footer_extra %}{% endblock %}
+</body>
+</html>

@@ -1,7 +1,6 @@
 {
  "actions": [],
  "allow_bulk_edit": 1,
- "allow_guest_to_view": 1,
  "allow_import": 1,
  "allow_rename": 1,
  "autoname": "naming_series:naming_series",
@@ -16,21 +15,34 @@
   "is_a_cruise_trip",
   "destination_list",
   "naming_series",
+  "trip_categories",
   "column_break_fkpo",
   "image_llpz",
   "trip_image",
-  "section_break_gqjd",
-  "route",
-  "column_break_scvv",
-  "published",
   "section_break_milf",
   "trip_organizer",
   "column_break_zkor",
   "status",
+  "section_break_hibe",
+  "title",
+  "route",
+  "published",
   "section_break_xmds",
   "attachment_gallery_okqc",
   "content_section",
-  "description"
+  "description",
+  "itinerary_section",
+  "itinerary",
+  "content_extra_section",
+  "highlights",
+  "features",
+  "faqs",
+  "facilities",
+  "location_section",
+  "column_break_map",
+  "map_lat",
+  "map_lng",
+  "map_zoom"
  ],
  "fields": [
   {
@@ -136,17 +148,6 @@
    "make_attachment_public": 1
   },
   {
-   "default": "0",
-   "fieldname": "published",
-   "fieldtype": "Check",
-   "label": "Published"
-  },
-  {
-   "fieldname": "route",
-   "fieldtype": "Data",
-   "label": "SEO URL"
-  },
-  {
    "default": "TRIP.YY.##",
    "fieldname": "naming_series",
    "fieldtype": "Select",
@@ -155,18 +156,105 @@
    "reqd": 1
   },
   {
-   "fieldname": "section_break_gqjd",
+   "fieldname": "trip_categories",
+   "fieldtype": "Link",
+   "label": "Item Group",
+   "options": "Item Group"
+  },
+  {
+   "fieldname": "section_break_hibe",
    "fieldtype": "Section Break"
   },
   {
-   "fieldname": "column_break_scvv",
+   "fieldname": "route",
+   "fieldtype": "Data",
+   "label": "Route"
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title"
+  },
+  {
+   "default": "0",
+   "fieldname": "published",
+   "fieldtype": "Check",
+   "label": "published"
+  },
+  {
+   "fieldname": "itinerary_section",
+   "fieldtype": "Section Break",
+   "label": "Itinerary"
+  },
+  {
+   "fieldname": "itinerary",
+   "fieldtype": "Table",
+   "label": "Trip Itinerary",
+   "options": "Trip Itinerary"
+  },
+  {
+   "fieldname": "content_extra_section",
+   "fieldtype": "Section Break",
+   "label": "Extra Content"
+  },
+  {
+   "fieldname": "highlights",
+   "fieldtype": "Table",
+   "label": "Highlights",
+   "options": "Trip Highlight"
+  },
+  {
+   "fieldname": "features",
+   "fieldtype": "Table",
+   "label": "Included / Excluded Features",
+   "options": "Trip Feature"
+  },
+  {
+   "fieldname": "faqs",
+   "fieldtype": "Table",
+   "label": "FAQ",
+   "options": "Trip FAQ"
+  },
+  {
+   "fieldname": "facilities",
+   "fieldtype": "Table",
+   "label": "Facilities",
+   "options": "Trip Facility"
+  },
+  {
+   "fieldname": "location_section",
+   "fieldtype": "Section Break",
+   "label": "Location Map"
+  },
+  {
+   "fieldname": "column_break_map",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "map_lat",
+   "fieldtype": "Float",
+   "label": "Map Latitude",
+   "precision": "6"
+  },
+  {
+   "fieldname": "map_lng",
+   "fieldtype": "Float",
+   "label": "Map Longitude",
+   "precision": "6"
+  },
+  {
+   "fieldname": "map_zoom",
+   "fieldtype": "Int",
+   "default": "8",
+   "label": "Map Zoom"
   }
  ],
  "grid_page_length": 50,
  "has_web_view": 1,
  "image_field": "trip_image",
+ "index_web_pages_for_search": 1,
  "is_published_field": "published",
+ "allow_guest_to_view": 1,
  "links": [
   {
    "link_doctype": "Trip Group Date",
@@ -190,8 +278,8 @@
   }
  ],
  "make_attachments_public": 1,
- "modified": "2026-08-19 01:35:56.065040",
- "modified_by": "diniemasjuki@gmail.com",
+ "modified": "2026-08-20 12:08:14.803533",
+ "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip",
  "naming_rule": "By \"Naming Series\" field",
@@ -232,5 +320,6 @@
  "sort_order": "DESC",
  "states": [],
  "title_field": "trip_name",
- "track_changes": 1
+ "track_changes": 1,
+ "website_search_field": "title"
 }

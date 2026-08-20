@@ -1,0 +1,59 @@
+{# ============================================================
+   travel_booking/templates/includes/trip_card.html
+   Satu card trip untuk grid katalog /trips. Dipakai oleh trips.html
+   (server-render) DAN bakal dipakai step-1 wizard (Fasa 4).
+
+   Variable jinja (dari loop + {% with %} di trips.html):
+     t   — dict trip (trip_name, trip_image, is_a_cruise_trip,
+           trip_categories, route, destinations[], starting_from_price,
+           next_departure, next_departure_label)
+     gds — list group_date dict untuk trip tu (dari trip_group_dates).
+           gds[0] = keberangkatan terdekat (total_days/nights, seats_left,
+           departure_date, sailing_start).
+   ============================================================ #}
+<article class="rc-trip-card">
+  <a class="rc-card-media" href="/{{ t.route }}">
+    <img src="{{ t.trip_image }}" alt="{{ t.trip_name }}" loading="lazy"
+         onerror="this.src='/assets/travel_booking/img/defaultaroyo.jpg'"/>
+    <span class="rc-card-badge rc-badge-{% if t.is_a_cruise_trip %}cruise{% else %}trip{% endif %}">
+      {% if t.is_a_cruise_trip %}Cruise{% else %}Trip{% endif %}
+    </span>
+    {% if t.trip_categories %}<span class="rc-card-badge rc-badge-cat">{{ t.trip_categories }}</span>{% endif %}
+  </a>
+  <div class="rc-card-body">
+    <h3 class="rc-card-title"><a href="/{{ t.route }}">{{ t.trip_name }}</a></h3>
+    {% if t.destinations %}
+    <p class="rc-card-dest">
+      <i class="ti ti-map-pin"></i>
+      {% for d in t.destinations %}{{ d.destination_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+    </p>
+    {% endif %}
+    <div class="rc-card-meta">
+      {% if gds %}
+        {% set g = gds[0] %}
+        <span class="rc-meta-item"><i class="ti ti-clock-2"></i> {{ g.total_days }}D / {{ g.total_nights }}N</span>
+        {% if t.next_departure %}<span class="rc-meta-item"><i class="ti ti-calendar-event"></i> {{ t.next_departure_label }}</span>{% endif %}
+        {% if g.seats_left is none %}
+          <span class="rc-seats rc-seats-ok"><i class="ti ti-armchair"></i> Available</span>
+        {% elif g.seats_left == 0 %}
+          <span class="rc-seats rc-seats-out"><i class="ti ti-ban"></i> Sold out</span>
+        {% elif g.seats_left <= 3 %}
+          <span class="rc-seats rc-seats-low"><i class="ti ti-flame"></i> Only {{ g.seats_left }} left</span>
+        {% else %}
+          <span class="rc-seats rc-seats-ok"><i class="ti ti-armchair"></i> {{ g.seats_left }} seats</span>
+        {% endif %}
+      {% endif %}
+    </div>
+    <div class="rc-card-foot">
+      <div class="rc-card-price">
+        {% if t.starting_from_price is not none %}
+          <span class="rc-price-label">From</span>
+          <span class="rc-price-value">{{ get_company_symbol() }}{{ "{:,.0f}".format(t.starting_from_price) }}</span>
+        {% else %}
+          <span class="rc-price-value rc-price-tba">Price on request</span>
+        {% endif %}
+      </div>
+      <a class="rc-card-cta" href="/booking?trip_master={{ t.name | urlencode }}">Book Now</a>
+    </div>
+  </div>
+</article>

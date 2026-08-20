@@ -1,0 +1,101 @@
+{% extends "templates/base_travel.html" %}
+
+{% block title %}Trips — {{ site_name or 'Rarecation' }}{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/assets/travel_booking/css/trips.css?v={{ asset_v('css/trips.css') }}"/>
+{% endblock %}
+
+{% block page_content %}
+<section class="rc-catalog">
+  <div class="rc-catalog-hero">
+    <h1>Explore Trips</h1>
+    <p>Cruise &amp; travel experiences, curated for you.</p>
+  </div>
+
+  {# ── Bar penapis (GET form → reload dgn query string; mesra SEO + deep-link) ── #}
+  <form class="rc-filters" method="get" action="/trips" id="rcTripFilters">
+    <div class="rc-filter-row">
+      <label class="rc-field rc-field-search">
+        <i class="ti ti-search"></i>
+        <input type="text" name="q" value="{{ active.q or '' }}" placeholder="Search trips…"/>
+      </label>
+      <label class="rc-field">
+        <span class="rc-field-label">Destination</span>
+        <select name="destination">
+          <option value="">All destinations</option>
+          {% for d in options.destinations %}
+          <option value="{{ d.name }}" {% if active.destination == d.name %}selected{% endif %}>{{ d.destination_name }}{% if d.destination_country %} — {{ d.destination_country }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="rc-field">
+        <span class="rc-field-label">Item group</span>
+        <select name="item_group">
+          <option value="">All groups</option>
+          {% for g in options.item_groups %}
+          <option value="{{ g }}" {% if active.item_group == g %}selected{% endif %}>{{ g }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="rc-field">
+        <span class="rc-field-label">Type</span>
+        <select name="cruise">
+          <option value="" {% if not active.cruise %}selected{% endif %}>Cruise &amp; Trips</option>
+          <option value="1" {% if active.cruise == '1' %}selected{% endif %}>Cruise only</option>
+          <option value="0" {% if active.cruise == '0' %}selected{% endif %}>Trips only</option>
+        </select>
+      </label>
+    </div>
+    <div class="rc-filter-row">
+      <label class="rc-field rc-field-date">
+        <span class="rc-field-label">From</span>
+        <input type="date" name="date_from" value="{{ active.date_from or '' }}"/>
+      </label>
+      <label class="rc-field rc-field-date">
+        <span class="rc-field-label">To</span>
+        <input type="date" name="date_to" value="{{ active.date_to or '' }}"/>
+      </label>
+      <label class="rc-field">
+        <span class="rc-field-label">Sort by</span>
+        <select name="sort">
+          <option value="date" {% if (active.sort or 'date') == 'date' %}selected{% endif %}>Departure date</option>
+          <option value="price" {% if active.sort == 'price' %}selected{% endif %}>Price (low to high)</option>
+          <option value="duration" {% if active.sort == 'duration' %}selected{% endif %}>Duration (longest)</option>
+        </select>
+      </label>
+      <div class="rc-filter-actions">
+        <button type="submit" class="rc-btn-primary"><i class="ti ti-search"></i> Search</button>
+        <a href="/trips" class="rc-btn-ghost">Reset</a>
+      </div>
+    </div>
+  </form>
+
+  {# ── Result count ── #}
+  <div class="rc-catalog-meta">
+    <span>{{ trips|length }} trip{{ 's' if trips|length != 1 else '' }} found</span>
+  </div>
+
+  {# ── Grid card ── #}
+  {% if trips %}
+  <div class="rc-trip-grid">
+    {% for t in trips %}
+      {% with gds = trip_group_dates.get(t.name, []) %}
+        {% include "templates/includes/trip_card.html" %}
+      {% endwith %}
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="rc-empty">
+    <i class="ti ti-mood-empty"></i>
+    <h3>No trips match your filters</h3>
+    <p>Try widening your dates or clearing some filters.</p>
+    <a href="/trips" class="rc-btn-primary">Clear filters</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block footer_extra %}
+<script src="/assets/travel_booking/js/trips.js?v={{ asset_v('js/trips.js') }}"></script>
+{% endblock %}

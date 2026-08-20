@@ -224,6 +224,17 @@ def get_trip_bundle(trip: str) -> dict:
 			"destinations": [
 				row.select_destination_point for row in trip_doc.destination_list
 			],
+			"itinerary": [
+				{
+					"day": row.day,
+					"day_title": row.day_title,
+					"destination_point": row.destination_point,
+					"meals": row.meals,
+					"day_image": row.day_image,
+					"description": row.description,
+				}
+				for row in (trip_doc.itinerary or [])
+			],
 			"modified": trip_doc.modified,
 		},
 		"dates": dates,
@@ -295,6 +306,23 @@ def save_trip(payload: dict) -> dict:
 			{"select_destination_point": d}
 			for d in (payload.get("destinations") or [])
 			if d
+		],
+	)
+
+	# itinerary: replace penuh — baris child table day-by-day
+	doc.set(
+		"itinerary",
+		[
+			{
+				"day": row.get("day"),
+				"day_title": row.get("day_title"),
+				"destination_point": row.get("destination_point"),
+				"meals": row.get("meals"),
+				"day_image": row.get("day_image"),
+				"description": row.get("description"),
+			}
+			for row in (payload.get("itinerary") or [])
+			if row
 		],
 	)
 

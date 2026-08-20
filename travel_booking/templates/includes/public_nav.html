@@ -1,0 +1,37 @@
+{# ============================================================
+   travel_booking/templates/includes/public_nav.html
+   Nav awam (pre-login) untuk page web customer-facing: katalog /trips,
+   detail trip /trip/<slug>, dll. Berbeza dari portal_nav (pasca-login).
+
+   Di-include oleh base_travel.html. Variable jinja (opsyenal):
+     active_nav — "trips" | "destinations" (highlight)
+
+   Nota: "My Bookings" bawa ke /traveller_portal (akan minta login).
+   ============================================================ #}
+<nav class="rc-public-nav" style="position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:16px;padding:12px 22px;background:#fff;border-bottom:1px solid #E8E5DF;">
+  <div style="flex-shrink:0;">
+    <a href="/trips" style="text-decoration:none;display:flex;align-items:center;gap:8px;">
+      <img src="/assets/travel_booking/img/logo-horizontal.png" alt="Rarecation"
+           style="width:148px;height:auto;display:block;"
+           onerror="this.style.display='none';this.nextElementSibling.style.display:flex'"/>
+      <span style="display:none;font-family:'DM Serif Display',serif;font-size:26px;line-height:1;color:#1E1C18;">rare<em style="font-style:normal;color:#C9A84C">cation</em></span>
+    </a>
+  </div>
+
+  <div style="flex:1;"></div>
+
+  <div class="rc-nav-links" style="display:flex;align-items:center;gap:2px;">
+    <a href="/trips"
+       class="rc-nav-link{% if active_nav == 'trips' %} on{% endif %}"
+       style="padding:8px 14px;border-radius:8px;font-size:14px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if active_nav == 'trips' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">Trips</a>
+    <a href="/destinations"
+       class="rc-nav-link{% if active_nav == 'destinations' %} on{% endif %}"
+       style="padding:8px 14px;border-radius:8px;font-size:14px;font-weight:500;white-space:nowrap;text-decoration:none;color:{% if active_nav == 'destinations' %}#fff;background:#C9A84C;{% else %}#5C5850;{% endif %}">Destinations</a>
+    <a href="/traveller_portal"
+       class="rc-nav-link"
+       style="padding:8px 14px;border-radius:8px;font-size:14px;font-weight:500;white-space:nowrap;text-decoration:none;color:#5C5850;">My Bookings</a>
+  </div>
+
+  <a href="/booking"
+     style="flex-shrink:0;padding:9px 18px;border-radius:9px;background:#1E1C18;color:#fff;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap;">Book Now</a>
+</nav>
