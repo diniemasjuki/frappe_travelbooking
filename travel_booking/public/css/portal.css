@@ -221,6 +221,66 @@ select option { background: var(--bg-primary); }
   color: var(--c-accent-text);
 }
 
+/* ── Public Nav (customer-facing header) ── */
+.rc-public-nav {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 12px 28px;
+  background: #fff; border-bottom: 1px solid #E8E5DF;
+}
+.rc-nav-logo { flex-shrink: 0; }
+.rc-nav-logo a { text-decoration: none; display: flex; align-items: center; gap: 8px; }
+.rc-nav-logo img { width: 140px; height: auto; display: block; }
+.rc-logo-fallback {
+  display: none; font-family: 'DM Serif Display', serif;
+  font-size: 24px; line-height: 1; color: #1E1C18;
+}
+.rc-logo-fallback em { font-style: normal; color: #C9A84C; }
+
+/* Centered menu */
+.rc-nav-menu {
+  display: flex; align-items: center; gap: 4px;
+  position: absolute; left: 50%; transform: translateX(-50%);
+}
+.rc-nav-link {
+  display: inline-flex; align-items: center;
+  padding: 8px 16px; border-radius: 8px;
+  font-size: 14px; font-weight: 500; white-space: nowrap;
+  text-decoration: none; color: #5C5850; transition: all .2s;
+}
+.rc-nav-link:hover { color: #1E1C18; background: #F7F5F0; }
+.rc-nav-link.on { color: #fff; background: #C9A84C; }
+
+/* Right action button */
+.rc-nav-btn {
+  flex-shrink: 0; padding: 9px 18px; border-radius: 9px;
+  background: #1E1C18; color: #fff;
+  font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap;
+  transition: background .2s;
+}
+.rc-nav-btn:hover { background: #333; }
+
+@media (max-width: 800px) {
+  .rc-public-nav { padding: 10px 16px; gap: 10px; flex-wrap: wrap; }
+  .rc-nav-menu {
+    position: static; left: auto; transform: none;
+    order: 3; width: 100%; justify-content: center;
+    padding: 8px 0 0; border-top: 1px solid #F0EDE7;
+    margin-top: 4px;
+  }
+  .rc-nav-link { padding: 7px 12px; font-size: 13px; }
+  .rc-nav-btn { padding: 7px 14px; font-size: 12px; }
+  .rc-nav-logo img { width: 120px; }
+}
+
+@media (max-width: 500px) {
+  .rc-public-nav { padding: 8px 12px; }
+  .rc-nav-menu { gap: 2px; }
+  .rc-nav-link { padding: 6px 8px; font-size: 12px; }
+  .rc-nav-btn { padding: 6px 12px; font-size: 11px; }
+  .rc-nav-logo img { width: 110px; }
+}
+
 /* ── Tabs ── */
 .tabs {
   background: var(--bg-primary);

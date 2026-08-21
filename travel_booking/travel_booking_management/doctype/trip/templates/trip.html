@@ -8,8 +8,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800;900&family=Rubik:wght@300;400;500;600;700;800;900&family=Sansita&family=Satisfy&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="/assets/travel_booking/css/trips.css?v={{ asset_v('css/trips.css') }}"/>
 <link rel="stylesheet" href="/assets/travel_booking/css/trip_detail.css?v={{ asset_v('css/trip_detail.css') }}"/>
-{# ── PhotoSwipe 5 (fullscreen gallery slideshow) — ESM build #}
-<link rel="stylesheet" href="https://unpkg.com/photoswipe@5.4.4/dist/photoswipe.css"/>
+{# ── PhotoSwipe 5 (fullscreen gallery slideshow) — local CSS + ESM JS #}
+<link rel="stylesheet" href="/assets/travel_booking/css/photoswipe.css?v={{ asset_v('css/photoswipe.css') }}"/>
 {% endblock %}
 
 {% block page_content %}
@@ -22,8 +22,8 @@
       <nav class="rc-crumb">
         <a href="/">Home</a><i class="ti ti-chevron-right"></i>
         <a href="/trips">Trips</a><i class="ti ti-chevron-right"></i>
-        <span>{{ trip_name }}</span>
       </nav>
+      <h1 class="rc-trip-title-main" style="color:white; font-weight:300; " >{{ trip_name }}</h1>
     </div>
   </div>
 
@@ -31,8 +31,9 @@
   {% set hero_imgs = gallery if gallery else [trip_image] %}
   {% set show_imgs = hero_imgs[:5] %}
   <div class="rc-gallery-area">
+    {# Gallery data sebagai JSON script — lebih reliable dari data-attribute untuk large payload #}
+    <script id="rcGalleryData" type="application/json">{{ hero_imgs|tojson }}</script>
     <div class="rc-gallery-grid" id="rcGalleryGrid"
-         data-gallery-urls="{{ hero_imgs|tojson|e }}"
          data-gallery-caption="{{ trip_name|e }}">
       {% if show_imgs|length > 1 %}
       {# — Layout: kiri besar + kanan grid (max 5 thumbnail, tiada direct link) — #}
@@ -110,9 +111,34 @@
       </section>
       {% endif %}
 
+      {# ── Video YouTube (antara gallery + content, ikut reference cruise.rarecation.com) ── #}
+      {% if video_id %}
+      <section class="rc-trip-section">
+        <div class="rc-video-card">
+          <h2 class="rc-video-title"><i class="ti ti-player-play-filled"></i> Watch Video </h2>
+          <div class="rc-video-embed">
+            <iframe
+              src="https://www.youtube.com/embed/{{ video_id }}?rel=0&modestbranding=1"
+              title="{{ trip_name }} – Video"
+              frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+              loading="lazy">
+            </iframe>
+          </div>
+          {% if video_url and not video_id %}
+          <a href="{{ video_url }}" target="_blank" rel="noopener noreferrer" class="rc-video-external">
+            <i class="ti ti-external-link"></i> Open video in new tab
+          </a>
+          {% endif %}
+        </div>
+      </section>
+      {% endif %}
+
       {# ── Description (tanpa "Overview" heading, hanya text) ── #}
       {% if description %}
       <section class="rc-trip-section rc-description-only">
+        <h2 class="rc-section-h">Overview</h2>
         <div class="rc-trip-description">{{ description }}</div>
       </section>
       {% endif %}
@@ -232,37 +258,22 @@
         {% if group_dates %}
         <div class="rc-booking-widget">
           <label class="rc-field">
-            <span class="rc-field-label">Departure date</span>
+            <span class="rc-field-label">{% if is_cruise %}Sailing Date{% else %}Departure date{% endif %}</span>
             <select id="rcDetailGroupDate">
-              {% if is_cruise and group_date_groups %}
-              {% set ns = namespace(first=true) %}
-              {% for grp in group_date_groups %}
-              <optgroup label="{{ grp.label }}">
-                {% for gd in grp.dates %}
-                <option value="{{ gd.name }}"
-                  data-base="{{ gd.sailing_start or gd.departure_date }}"
-                  {% if ns.first %}selected{% set ns.first = false %}{% endif %}>
-                  {{ gd.departure_date }}{% if gd.return_date or gd.sailing_end %} → {{ gd.return_date or gd.sailing_end }}{% endif %}
-                  {% if gd.seats_left is none %}{% elif gd.seats_left == 0 %} · Sold out{% elif gd.seats_left <= 3 %} · {{ gd.seats_left }} left{% endif %}
-                </option>
-                {% endfor %}
-              </optgroup>
-              {% endfor %}
-              {% else %}
+              {# ── Flat list: optgroup dah dibuang, dedup dah dibuat di Python ── #}
               {% for gd in group_dates %}
               <option value="{{ gd.name }}"
                 data-base="{{ gd.sailing_start or gd.departure_date }}"
                 {% if loop.first %}selected{% endif %}>
-                {{ gd.sailing_start or gd.departure_date }}{% if gd.return_date or gd.sailing_end %} → {{ gd.return_date or gd.sailing_end }}{% endif %}
+                {{ gd.sailing_start or gd.departure_date }}{% if is_cruise and gd.sailing_end %} → {{ gd.sailing_end }}{% elif gd.return_date %} → {{ gd.return_date }}{% endif %}
                 {% if gd.seats_left is none %}{% elif gd.seats_left == 0 %} · Sold out{% elif gd.seats_left <= 3 %} · {{ gd.seats_left }} left{% endif %}
               </option>
               {% endfor %}
-              {% endif %}
             </select>
           </label>
           <label class="rc-field">
             <span class="rc-field-label">Package</span>
-            <select id="rcDetailPackage"><option value="">Select a package</option></select>
+            <div id="rcDetailPackage" class="rc-pkg-buttons"></div>
           </label>
 
           <div id="rcDetailCabins" class="rc-cabins-empty">
@@ -299,7 +310,7 @@
 {# JSON untuk trip_detail.js #}
 <script id="rcDetailData" type="application/json">{
   "trip_master": "{{ name }}",
-  "is_cruise": {{ "true" if is_a_cruise else "false" }},
+  "is_cruise": {{ "true" if is_cruise else "false" }},
   "group_dates": {{ group_dates_json }},
   "trip_packages": {{ trip_packages_json }},
   "company_symbol": "{{ get_company_symbol() }}",
@@ -309,89 +320,123 @@
 
 {% block footer_extra %}
 <script type="module">
-  // Load PhotoSwipe 5 (ESM) + initialize gallery slideshow
-  import PhotoSwipe from "https://unpkg.com/photoswipe@5.4.4/dist/photoswipe.esm.js";
-  window.PhotoSwipe = PhotoSwipe;
+  // Simple Custom Lightbox — vanilla JS, tiada library dependency
+  (function () {
+  try {
+  console.log("[RC Lightbox] === INIT START ===");
 
-  // Initialize gallery when DOM ready
   var grid = document.getElementById("rcGalleryGrid");
-  if (!grid) return;
+  if (!grid) { console.warn("[RC Lightbox] No grid"); return; }
 
-  var raw = grid.getAttribute("data-gallery-urls");
-  var urls;
-  try { urls = raw ? JSON.parse(raw) : []; } catch (e) { urls = []; }
-  if (!urls.length) return;
+  // Parse URLs
+  var dataEl = document.getElementById("rcGalleryData");
+  var urls = [];
+  if (dataEl && dataEl.textContent) {
+    try { urls = JSON.parse(dataEl.textContent); } catch(e) { console.error("[RC Lightbox] JSON error:", e); }
+  }
+  if (!urls.length) { console.warn("[RC Lightbox] No URLs"); return; }
+  console.log("[RC Lightbox] ✅ URLs:", urls.length);
 
-  var caption = grid.getAttribute("data-gallery-caption") || "";
   var wraps = grid.querySelectorAll(".rc-gal-wrap");
+  console.log("[RC Lightbox] ✅ Wraps:", wraps.length);
 
-  // Build dataSource for PhotoSwipe
-  var dataSource = urls.map(function(url, i) {
-    return { src: url, w: 1920, h: 1080, alt: caption + " — Image " + (i+1) };
+  // Create lightbox container dengan thumbnail strip slideshow
+  var lb = document.createElement("div");
+  lb.id = "rcLightbox";
+  lb.innerHTML =
+    '<div class="lb-overlay"></div>'
+    + '<div class="lb-content">'
+    +   '<img class="lb-img" src="" alt=""/>'
+    +   '<div class="lb-close">×</div>'
+    +   '<div class="lb-prev">‹</div>'
+    +   '<div class="lb-next">›</div>'
+    +   '<div class="lb-counter"></div>'
+    +   '<div class="lb-thumbs"></div>'  // ← thumbnail strip untuk slideshow
+    + '</div>';
+  document.body.appendChild(lb);
+
+  var lbImg = lb.querySelector(".lb-img");
+  var lbCounter = lb.querySelector(".lb-counter");
+  var lbThumbs = lb.querySelector(".lb-thumbs");  // ← thumb container
+  var currentIndex = 0;
+
+  // Build thumbnail strip
+  urls.forEach(function(url, i) {
+    var thumb = document.createElement("img");
+    thumb.src = url;
+    thumb.className = "lb-thumb" + (i === 0 ? " active" : "");
+    thumb.setAttribute("data-index", i);
+    thumb.alt = "Image " + (i+1);
+    thumb.addEventListener("click", function(e) {
+      e.stopPropagation();
+      show(parseInt(this.getAttribute("data-index"), 10));
+    });
+    lbThumbs.appendChild(thumb);
   });
 
-  var pswpElement = document.createElement("div");
-  pswpElement.className="pswp";
-  pswpElement.setAttribute("tabindex","-1");
-  pswpElement.setAttribute("role","dialog");
-  pswpElement.setAttribute("aria-hidden","true");
-  pswpElement.innerHTML =
-    '<div class="pswp__bg"></div>'
-    + '<div class="pswp__scroll-wrap">'
-    +   '<div class="pswp__container">'
-    +     '<div class="pswp__item"></div>'
-    +     '<div class="pswp__item"></div>'
-    +     '<div class="pswp__item"></div>'
-    +   '</div>'
-    + '</div>'
-    + '<div class="pswp__ui pswp__ui--hidden">'
-    +   '<div class="pswp__top-bar">'
-    +     '<div class="pswp__counter"></div>'
-    +     '<button class="pswp__button pswp__button--close" title="Close"></button>'
-    +     '<button class="pswp__button pswp__button--zoom" title="Zoom in/out"></button>'
-    +     '<div class="pswp__preloader"><div class="pswp__preloader__icn"><div class="pswp__preloader__cut"><div class="pswp__preloader__donut"></div></div></div></div>'
-    +   '</div>'
-    +   '<div class="pswp__share-modal pswp__share-modal--hidden pswp__single-tap"><div class="pswp__share-tooltip"></div></div>'
-    +   '<button class="pswp__button pswp__button--arrow--left" title="Previous"></button>'
-    +   '<button class="pswp__button pswp__button--arrow--right" title="Next"></button>'
-    +   '<div class="pswp__caption"><div class="pswp__caption__center"></div></div>'
-    + '</div>';
-  document.body.appendChild(pswpElement);
-
-  function openPhotoSwipe(index) {
-    var options = {
-      index: index,
-      dataSource: dataSource,
-      showHideOpacity: true,
-      bgOpacity: 0.92,
-      spacing: 0.12,
-      allowPanToNext: true,
-      loop: true,
-      pinchToClose: true,
-      closeOnScroll: true,
-      closeOnVerticalDrag: true,
-      mouseUsed: false,
-      arrowKeys: true,
-      history: false,
-      focus: true,
-      modal: true,
-      showAnimationDuration: 333,
-      hideAnimationDuration: 333,
-      paddingFn: function() { return { top:20, bottom:80, left:20, right:20 }; }
-    };
-    var pswp = new PhotoSwipe(pswpElement, options);
-    pswp.init();
+  function show(index) {
+    currentIndex = index;
+    lbImg.src = urls[index];
+    lbCounter.textContent = (index + 1) + " / " + urls.length;
+    lb.classList.add("active");
+    // Highlight thumbnail aktif
+    var thumbs = lbThumbs.querySelectorAll(".lb-thumb");
+    thumbs.forEach(function(t, i) { t.classList.toggle("active", i === index); });
+    // Scroll thumb aktif ke center
+    var activeThumb = thumbs[index];
+    if (activeThumb) activeThumb.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    console.log("[RC Lightbox] 🖼️ Showing image:", index, urls[index]);
   }
 
-  // Click handler on each thumbnail
+  function close() { lb.classList.remove("active"); lbImg.src = ""; }
+  function next() { show((currentIndex + 1) % urls.length); }
+  function prev() { show((currentIndex - 1 + urls.length) % urls.length); }
+
+  // Events
+  lb.querySelector(".lb-close").addEventListener("click", close);
+  lb.querySelector(".lb-prev").addEventListener("click", prev);
+  lb.querySelector(".lb-next").addEventListener("click", next);
+  lb.querySelector(".lb-overlay").addEventListener("click", close);
+  document.addEventListener("keydown", function(e) {
+    if (!lb.classList.contains("active")) return;
+    if (e.key === "Escape") close();
+    if (e.key === "ArrowRight") next();
+    if (e.key === "ArrowLeft") prev();
+  });
+
+  // Click on gallery thumbnails
   Array.prototype.forEach.call(wraps, function(w) {
     w.style.cursor = "pointer";
     w.addEventListener("click", function(e) {
       e.preventDefault();
       var idx = parseInt(w.getAttribute("data-i"), 10);
-      openPhotoSwipe(isNaN(idx) ? 0 : idx);
+      show(isNaN(idx) ? 0 : idx);
     });
   });
+
+  console.log("[RC Lightbox] ✅ INIT COMPLETE");
+
+		  } catch(err) {
+		    console.error("[RC Lightbox] 💥 ERROR:", err);
+		  }
+	  })();
 </script>
+<style>
+#rcLightbox { display:none; position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,.92); }
+#rcLightbox.active { display:flex; align-items:center; justify-content:center; }
+#rcLightbox .lb-overlay { position:absolute; inset:0; }
+#rcLightbox .lb-content { position:relative; width:90vw; height:85vh; }
+#rcLightbox .lb-img { width:100%; height:100%; object-fit:contain; border-radius:4px; }
+#rcLightbox .lb-close { position:fixed; top:20px; right:30px; font-size:40px; color:#fff; cursor:pointer; line-height:1; user-select:none; z-index:10; }
+#rcLightbox .lb-prev, #rcLightbox .lb-next { position:fixed; top:50%; transform:translateY(-50%); font-size:50px; color:#fff; cursor:pointer; user-select:none; z-index:10; }
+#rcLightbox .lb-prev { left:20px; } #rcLightbox .lb-next { right:20px; }
+#rcLightbox .lb-counter { position:fixed; bottom:70px; left:50%; transform:translateX(-50%); color:#fff; font-size:14px; background:rgba(0,0,0,.5); padding:4px 12px; border-radius:12px; }
+/* Thumbnail strip untuk slideshow */
+#rcLightbox .lb-thumbs { display:flex; gap:6px; padding:10px 15px; overflow-x:auto; justify-content:center; max-width:90vw; scrollbar-width:none; }
+#rcLightbox .lb-thumbs::-webkit-scrollbar { display:none; }
+#rcLightbox .lb-thumb { width:60px; height:60px; object-fit:cover; border-radius:4px; cursor:pointer; opacity:.5; transition:all .2s; border:2px solid transparent; flex-shrink:0; }
+#rcLightbox .lb-thumb:hover { opacity:.8; transform:scale(1.05); }
+#rcLightbox .lb-thumb.active { opacity:1; border-color:#C9A84C; transform:scale(1.08); }
+</style>
 <script src="/assets/travel_booking/js/trip_detail.js?v={{ asset_v('js/trip_detail.js') }}"></script>
 {% endblock %}

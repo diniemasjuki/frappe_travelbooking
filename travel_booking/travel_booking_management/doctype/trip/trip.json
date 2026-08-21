@@ -11,25 +11,29 @@
  "field_order": [
   "information",
   "trip_details_section",
-  "column_break_exud",
   "trip_name",
+  "column_break_ezze",
   "is_a_cruise_trip",
+  "section_break_bhye",
+  "column_break_exud",
   "destination_list",
   "naming_series",
+  "column_break_iimz",
   "trip_categories",
-  "column_break_fkpo",
-  "image_llpz",
-  "trip_image",
-  "section_break_milf",
   "trip_organizer",
-  "column_break_zkor",
   "status",
   "section_break_hibe",
+  "published",
+  "column_break_cahp",
   "title",
   "route",
-  "published",
   "section_break_xmds",
+  "column_break_fkpo",
+  "trip_image",
+  "image_llpz",
+  "column_break_hapi",
   "attachment_gallery_okqc",
+  "video_url",
   "content_section",
   "description",
   "itinerary_section",
@@ -87,15 +91,12 @@
   {
    "allow_in_quick_entry": 1,
    "default": "0",
+   "description": "Define if this is a Tour Package with Cruise.",
    "fieldname": "is_a_cruise_trip",
    "fieldtype": "Check",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "is a Cruise Trip"
-  },
-  {
-   "fieldname": "column_break_zkor",
-   "fieldtype": "Column Break"
   },
   {
    "fieldname": "column_break_exud",
@@ -106,10 +107,6 @@
    "fieldtype": "HTML",
    "label": "Information",
    "options": "<style>\n    .wizard-ui {\n  font-family: Arial, sans-serif;\n  max-width: 800px;\n  margin: auto;\n  margin-bottom:10px;\n}\n\n.progressbar {\n  display: flex;\n  align-items: center;\n  margin: 20px 0;\n}\n\n.progress-step {\n  width: 30px;\n  height: 30px;\n  border-radius: 50%;\n  background: #ccc;\n  color: #fff;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.progress-step.completed {\n  background: #28a745;\n}\n\n.progress-step.active {\n  background: #007bff;\n}\n\n.progress-line {\n  flex: 1;\n  height: 4px;\n  background: #ccc;\n}\n\n.progress-line.completed {\n  background: #28a745;\n}\n\n.progress-line.active {\n  background: #007bff;\n}\n\n.wizard-steps {\n  display: flex;\n  gap: 20px;\n}\n\n.step-card {\n  flex: 1;\n  padding: 15px;\n  border: 1px solid #ddd;\n  border-radius: 6px;\n  background: #f9f9f9;\n  text-align:center;\n}\n\n.step-card > h3{\n    margin:0;\n}\n\n.step-card.active {\n  border: 2px solid #007bff;\n  background: #e9f2ff;\n}\n\n</style>\n<section id=\"trip-management\" class=\"wizard-ui\">\n  <div class=\"wizard-header\">\n    <h2>Trip Management Section</h2>\n    <p>Anda kini berada di <strong>Trip </strong></p>\n  </div>\n\n  <!-- Progress Bar -->\n  <div class=\"progressbar\">\n    <div class=\"progress-step active\">1</div>\n    <div class=\"progress-line \"></div>\n    <div class=\"progress-step \">2</div>\n    <div class=\"progress-line \"></div>\n    <div class=\"progress-step \">3</div>\n  </div>\n\n  <!-- Step Cards -->\n  <div class=\"wizard-steps \">\n    <div class=\"step-card active\"> \n      <h3><small>Step 1: </small><br/>Trip</h3>\n    </div>\n    <div class=\"step-card \">\n      <h3><a href=\"/desk/trip-group-date/\" style=\"text-decoration:none\" ><small>Step 2: </small><br/>Trip Group</a></h3>\n    </div>\n    <div class=\"step-card \">\n      <h3><a href=\"/desk/trip-package/\" style=\"text-decoration:none\" ><small>Step 3: </small><br/>Trip Package</a></h3>\n    </div>\n  </div>\n</section>\n<br/>"
-  },
-  {
-   "fieldname": "section_break_milf",
-   "fieldtype": "Section Break"
   },
   {
    "allow_in_quick_entry": 1,
@@ -127,21 +124,30 @@
    "default": "/assets/travel_booking/img/defaultaroya.jpg",
    "fieldname": "trip_image",
    "fieldtype": "Attach Image",
-   "label": "Trip Cover Image"
+   "label": "Cover Photo"
   },
   {
    "fieldname": "image_llpz",
    "fieldtype": "Image",
+   "label": "Main Photo",
    "options": "trip_image"
   },
   {
    "fieldname": "section_break_xmds",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Gallery Media"
   },
   {
    "fieldname": "attachment_gallery_okqc",
    "fieldtype": "Attachment Gallery",
+   "label": "Gallery Attachment",
    "make_attachment_public": 1
+  },
+  {
+   "description": "YouTube URL untuk embed di page detail. Contoh: https://www.youtube.com/watch?v=VIDEO_ID atau https://youtu.be/VIDEO_ID",
+   "fieldname": "video_url",
+   "fieldtype": "Data",
+   "label": "Video URL (YouTube)"
   },
   {
    "default": "TRIP.YY.##",
@@ -159,18 +165,22 @@
   },
   {
    "fieldname": "section_break_hibe",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Website Setting"
   },
   {
    "fieldname": "route",
    "fieldtype": "Data",
    "label": "Route",
+   "read_only": 1,
    "unique": 1
   },
   {
    "fieldname": "title",
    "fieldtype": "Data",
-   "label": "Title"
+   "hidden": 1,
+   "label": "Title",
+   "read_only": 1
   },
   {
    "default": "0",
@@ -192,7 +202,7 @@
   {
    "fieldname": "content_extra_section",
    "fieldtype": "Section Break",
-   "label": "Extra Content"
+   "label": "Extra Features"
   },
   {
    "fieldname": "highlights",
@@ -217,6 +227,26 @@
    "fieldtype": "Table",
    "label": "Facilities",
    "options": "Trip Facility"
+  },
+  {
+   "fieldname": "column_break_cahp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_iimz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_bhye",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_ezze",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_hapi",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
@@ -247,7 +277,7 @@
   }
  ],
  "make_attachments_public": 1,
- "modified": "2026-08-20 17:54:09.008499",
+ "modified": "2026-08-21 07:45:00.485023",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip",

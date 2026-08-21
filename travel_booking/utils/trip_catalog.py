@@ -14,7 +14,6 @@
 # mula, tarikh seterusnya — untuk card katalog).
 
 import frappe
-
 from travel_booking.api._helpers import get_company_currency
 
 
@@ -465,12 +464,12 @@ def get_trip_detail(trip_name: str) -> dict:
 		        AND tp.status = 'Active'
 		  )
 		ORDER BY td.departure_date ASC
-		""",
-		{"t": trip_name},
-		as_dict=True,
-	)
+			""",
+			{"t": trip_name},
+			as_dict=True,
+		)
 
-	# --- info cruise_schedule (ship + sail date) untuk grouping cruise ---
+		# --- info cruise_schedule (ship + sail date) untuk grouping cruise ---
 	cruise_sched: dict = {}
 	if is_cruise and dates:
 		_cs = list({d.cruise_schedule for d in dates if d.cruise_schedule})
@@ -537,10 +536,31 @@ def get_trip_detail(trip_name: str) -> dict:
 			}
 		)
 	# Cruise disusun ikut sailing_start (sepadan get_ready_bundle).
+	# Initialize merge tracker di sini supaya wujud scope function (untuk
+	# code merge yang jalankan selepas ini, di luar if block).
+	cruise_dedup_merge: dict = {}  # {kept_name: [removed_names...]}
 	if is_cruise and group_dates:
 		group_dates.sort(key=lambda g: g["sailing_start"] or g["departure_date"])
 
-	# Cluster group date cruise mengikut sailing (cruise_schedule / sailing
+		# ── Cruise dedup: gabung group_dates yang sama sailing_start ──
+		# Fly Cruise (RC2616) + Cruise Only (RC2618) yang sama sailing_start=2026-09-14
+		# digabung jadi SATU option sahaja. Packages dari yang dibuang akan dimerge.
+		_seen_sail: set = set()
+		_deduped: list = []
+		for gd in group_dates:
+			sail_key = gd.get("sailing_start") or ""
+			if sail_key and sail_key in _seen_sail:
+				# Duplicate — simpan untuk merge packages nanti
+				kept = _deduped[-1] if _deduped else None
+				if kept:
+					cruise_dedup_merge.setdefault(kept["name"], []).append(gd["name"])
+				continue
+			if sail_key:
+				_seen_sail.add(sail_key)
+			_deduped.append(gd)
+		group_dates = _deduped
+
+		# Cluster group date cruise mengikut sailing (cruise_schedule / sailing
 	# date) untuk render <optgroup> per sailing di page detail. Bukan-cruise:
 	# kosong -> template render flat (tiada optgroup).
 	group_date_groups: list = []
@@ -591,9 +611,23 @@ def get_trip_detail(trip_name: str) -> dict:
 					"currency": p.currency or "MYR",
 					"currency_symbol": p.currency_symbol or (p.currency or "MYR"),
 				}
-			)
+				)
 
-	# --- starting_from_price: MIN price_adult merentasi package Active trip ni ---
+	# ── Merge packages dari group dates yang dibuang (cruise dedup) ──
+	if cruise_dedup_merge and trip_packages:
+		for _kept_name, _removed_names in cruise_dedup_merge.items():
+			_kept_pkgs = trip_packages.get(_kept_name, [])
+			_seen_pkg: set = {p["name"] for p in _kept_pkgs}
+			for _rm_name in _removed_names:
+				_rm_pkgs = trip_packages.get(_rm_name, [])
+				for _p in _rm_pkgs:
+					if _p["name"] not in _seen_pkg:
+						_kept_pkgs.append(_p)
+						_seen_pkg.add(_p["name"])
+			# Buang entry untuk group date yang dah dibuang
+				trip_packages.pop(_rm_name, None)
+
+			# --- starting_from_price: MIN price_adult merentasi package Active trip ni ---
 	sp = frappe.db.sql(
 		"""
 		SELECT MIN(pr.price_adult) AS mn
@@ -615,8 +649,8 @@ def get_trip_detail(trip_name: str) -> dict:
 		ORDER BY dp.destination_name
 		""",
 		{"t": trip_name},
-		as_dict=True,
-	)
+			as_dict=True,
+		)
 	destinations = [
 		{
 			"name": r.name,

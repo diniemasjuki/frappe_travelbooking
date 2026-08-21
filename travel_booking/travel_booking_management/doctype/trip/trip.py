@@ -41,6 +41,7 @@ class Trip(Document):
 		trip_image: DF.AttachImage | None
 		trip_name: DF.Data
 		trip_organizer: DF.Link
+		video_url: DF.Data | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Trip"
@@ -74,7 +75,10 @@ class Trip(Document):
 		from travel_booking.utils.trip_catalog import get_trip_detail
 
 		d = get_trip_detail(self.name)
-		context.group_dates = d["group_dates"]
+		group_dates_raw = d["group_dates"]
+		is_cruise = d["is_cruise"]
+
+		context.group_dates = group_dates_raw
 		context.group_date_groups = d.get("group_date_groups") or []
 		context.trip_packages = d["trip_packages"]
 		context.starting_from_price = d["starting_from_price"]
@@ -83,7 +87,7 @@ class Trip(Document):
 		# JSON untuk widget keberangkatan di JS (select group date -> package
 		# -> pricing.get_booking_details). company currency/symbol via kaedah
 		# jinja ({{ get_company_symbol() }}) di template.
-		context.group_dates_json = json.dumps(d["group_dates"])
+		context.group_dates_json = json.dumps(context.group_dates)
 		context.trip_packages_json = json.dumps(d["trip_packages"])
 		context.trip_image = self.trip_image or "/assets/travel_booking/img/defaultaroyo.jpg"
 		# Organizer (Link -> Trip Organizer): papar nama + logo, bukan ID.
@@ -139,6 +143,18 @@ class Trip(Document):
 				gallery.append(url)
 		context.gallery = gallery
 		context.gallery_json = json.dumps(gallery)
+
+		# Video YouTube: extract ID dari URL untuk embed.
+		# Sokong format: youtube.com/watch?v=ID, youtu.be/ID, youtube.com/embed/ID
+		video_url = (self.video_url or "").strip()
+		video_id = ""
+		if video_url:
+			import re
+			m = re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([A-Za-z0-9_-]{11})", video_url)
+			if m:
+				video_id = m.group(1)
+		context.video_id = video_id
+		context.video_url = video_url
 
 		# Highlights — bullet ringkas.
 		context.highlights = [
@@ -244,10 +260,11 @@ class Trip(Document):
 		return rows
 
 	def autoname(self):
-		# Naming siri TRIP.YY.## — Frappe panggil ini sekali semasa insert
-		# (via set_new_name), selepas reset self.name. Override config/Property
-		# Setter → jamin siri. Tak dipanggil semasa update, jadi name stabil.
-		self.name = make_autoname(self.naming_series)
+		# Naming siri TRIP.YY.## — Hanya jana nama baharu untuk dokumen baru.
+		# Untuk existing document, name sudah stabil (TRIP26XX) — jangan
+		# regenerasi atau DB update akan gagal (WHERE clause match 0 rows).
+		if self.is_new():
+			self.name = make_autoname(self.naming_series)
 
 	def before_save(self):
 		self.title = self.trip_name.upper()

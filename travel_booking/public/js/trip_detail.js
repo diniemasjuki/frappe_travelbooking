@@ -8,6 +8,17 @@
 // fetch get_booking_details -> render jadual kabin/harga -> enable Book Now
 // (deep-link /booking?trip_master=&trip_group_date=). Bila group date
 // berubah, label setiap hari itinerary dikemaskini ikut tarikh sebenar
+
+// ── Block right-click pada gallery images ──
+(function () {
+  "use strict";
+  var gallery = document.getElementById("rcGalleryGrid");
+  if (!gallery) return;
+  gallery.addEventListener("contextmenu", function (e) {
+    e.preventDefault();
+    return false;
+  });
+})();
 // (base_date + day-1).
 (function () {
   "use strict";
@@ -43,25 +54,55 @@
     return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   }
 
+  var _selectedPkg = "";
+
   function populatePackages() {
     var gd = gdSel.value;
-    pkgSel.innerHTML = '<option value="">Select a package</option>';
-    (packages[gd] || []).forEach(function (p) {
-      var o = document.createElement("option");
-      o.value = p.name;
-      var label = p.package_name;
-      if (p.flight_label && p.flight_label !== "No Flight") label += " · " + p.flight_label;
-      o.textContent = label;
-      pkgSel.appendChild(o);
+    pkgSel.innerHTML = "";
+    var pkgs = packages[gd] || [];
+    if (!pkgs.length) {
+      pkgSel.innerHTML = '<p class="rc-muted">No packages available.</p>';
+      _selectedPkg = "";
+      cabinsEl.className = "rc-cabins-empty";
+      cabinsEl.innerHTML = '<p class="rc-muted">Pick a package to see room options and prices.</p>';
+      updateBookLink();
+      refreshItineraryDates();
+      return;
+    }
+    pkgs.forEach(function (p) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "rc-pkg-btn";
+      btn.setAttribute("data-value", p.name);
+      var pt = (p.package_type || "").toLowerCase();
+      var flight = p.flight || "";
+      if (pt === "cruise only") {
+        btn.innerHTML = "Cruise Only";
+      } else if (pt === "ground only") {
+        btn.innerHTML = "Ground Only";
+      } else if ((pt === "fly cruise" || pt.indexOf("fly") >= 0) && flight) {
+        btn.innerHTML = "Fly Cruise from <b>" + esc(flight) + "</b>";
+      } else if ((pt === "fly package" || pt.indexOf("fly") >= 0) && flight) {
+        btn.innerHTML = "Fly Package from <b>" + esc(flight) + "</b>";
+      } else {
+        btn.innerHTML = esc(p.package_name || p.name);
+      }
+      btn.addEventListener("click", function () { selectPackage(p.name); });
+      pkgSel.appendChild(btn);
     });
-    cabinsEl.className = "rc-cabins-empty";
-    cabinsEl.innerHTML = '<p class="rc-muted">Pick a package to see room options and prices.</p>';
-    updateBookLink();
+    selectPackage(pkgs[0].name);
     refreshItineraryDates();
   }
 
+  function selectPackage(name) {
+    _selectedPkg = name;
+    Array.prototype.forEach.call(pkgSel.querySelectorAll(".rc-pkg-btn"), function (b) {
+      b.classList.toggle("rc-pkg-active", b.getAttribute("data-value") === name);
+    });
+    loadCabins();
+  }
   function loadCabins() {
-    var gd = gdSel.value, pkg = pkgSel.value;
+    var gd = gdSel.value, pkg = _selectedPkg;
     if (!gd || !pkg) { updateBookLink(); return; }
     cabinsEl.className = "rc-cabins-loading";
     cabinsEl.innerHTML = '<p class="rc-muted">Loading…</p>';
@@ -87,22 +128,25 @@
       cabinsEl.innerHTML = '<p class="rc-muted">No room options for this package.</p>';
       return;
     }
-    var rows = cabins.map(function (c) {
+    // Cari harga terendah merentasi semua kabin
+    var minAdult = Infinity, minChild = Infinity;
+    cabins.forEach(function (c) {
       var pr = c.pricing || {};
-      var ch = pr.price_children ? fmt(pr.price_children) : '<span class="rc-muted">—</span>';
-      return '<tr>'
-        + '<td><strong>' + esc(c.room_name) + '</strong>'
-        + (c.room_type ? '<span class="rc-cabin-type">' + esc(c.room_type) + '</span>' : '')
-        + '</td>'
-        + '<td>' + (c.capacity || 2) + ' pax</td>'
-        + '<td>' + fmt(pr.price_adult) + '</td>'
-        + '<td>' + ch + '</td>'
-        + '</tr>';
-    }).join("");
-    cabinsEl.className = "rc-cabins-table";
-    cabinsEl.innerHTML = '<table class="rc-cabin-tbl"><thead><tr>'
-      + '<th>Room</th><th>Capacity</th><th>Adult</th><th>Child</th>'
-      + '</tr></thead><tbody>' + rows + '</tbody></table>';
+      if (pr.price_adult != null && Number(pr.price_adult) < minAdult) {
+        minAdult = Number(pr.price_adult);
+      }
+      if (pr.price_children != null && Number(pr.price_children) < minChild) {
+        minChild = Number(pr.price_children);
+      }
+    });
+    var html = '<div class="rc-price-summary">';
+    html += '<div class="rc-price-row"><span class="rc-price-label">Adult from</span><span class="rc-price-value">' + fmt(minAdult) + '</span></div>';
+    if (minChild < Infinity) {
+      html += '<div class="rc-price-row"><span class="rc-price-label">Child from</span><span class="rc-price-value">' + fmt(minChild) + '</span></div>';
+    }
+    html += '</div>';
+    cabinsEl.className = "rc-cabins-summary";
+    cabinsEl.innerHTML = html;
   }
 
   function updateBookLink() {
@@ -126,7 +170,6 @@
   }
 
   gdSel.addEventListener("change", populatePackages);
-  pkgSel.addEventListener("change", loadCabins);
   populatePackages(); // init (isi package utk group date pertama)
 })();
 
