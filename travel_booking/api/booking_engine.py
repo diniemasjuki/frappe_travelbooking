@@ -793,6 +793,15 @@ def _ensure_portal_user(email, customer_name):
     if not email:
         return False
     if frappe.db.exists("User", email):
+        # User dah wujud (cth signup via portal tanpa booking). Pastikan
+        # role Customer ada sekarang sebab user sedang buat booking.
+        user_doc = frappe.get_doc("User", email)
+        current_roles = [r.role for r in user_doc.roles]
+        if "Customer" not in current_roles:
+            user_doc.append("roles", {"role": "Customer"})
+            user_doc.flags.ignore_permissions = True
+            user_doc.save()
+            frappe.db.commit()
         return False
 
     customer_full_name = frappe.db.get_value("Customer", customer_name, "customer_name") or customer_name
@@ -808,7 +817,7 @@ def _ensure_portal_user(email, customer_name):
         "user_type":          "Website User",
         "send_welcome_email": 0,
         "new_password":       frappe.generate_hash(length=16),
-        "roles":              [{"role": "Traveller"}]
+        "roles":              [{"role": "Customer"}]
     })
     new_user.flags.ignore_permissions = True
     new_user.flags.ignore_password_policy = True

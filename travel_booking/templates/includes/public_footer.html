@@ -1,28 +1,36 @@
 {# ============================================================
    travel_booking/templates/includes/public_footer.html
-   Footer awam untuk base_travel.html.
+   Footer awam untuk base_travel.html. Sepenuhnya didorong oleh
+   konfigurasi Travel Website (singleton) — lajur link dikumpulkan
+   ikut column_title pada setiap baris Website Footer Link.
    ============================================================ #}
+{% set wc = get_website_config() %}
+{% set f = wc.footer %}
 <footer class="rc-public-footer" style="margin-top:auto;background:#1E1C18;color:#C9A84C;padding:34px 22px 22px;">
   <div style="max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start;">
     <div style="flex:1;min-width:220px;">
-      <img src="/assets/travel_booking/img/logo-horizontal.png" alt="Rarecation"
+      <img src="{{ wc.website_logo or '/assets/travel_booking/img/logo-horizontal.png' }}" alt="Rarecation"
            style="width:148px;height:auto;display:block;filter:brightness(0) invert(1);opacity:.9;"/>
       <p style="margin:14px 0 0;font-family:'DM Serif Display',serif;font-size:20px;color:#fff;">rare<em style="font-style:normal;color:#C9A84C">cation</em></p>
-      <p style="margin:6px 0 0;font-size:13px;color:#9C9789;">Cruise &amp; travel experiences, curated.</p>
+      {% if f.tagline %}<p style="margin:6px 0 0;font-size:13px;color:#9C9789;">{{ f.tagline }}</p>{% endif %}
     </div>
+    {% for col in f.columns %}
     <div style="min-width:160px;">
-      <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#9C9789;">Explore</p>
-      <a href="/trips" style="display:block;padding:3px 0;font-size:13px;color:#E8E5DF;text-decoration:none;">All Trips</a>
-      <a href="/destinations" style="display:block;padding:3px 0;font-size:13px;color:#E8E5DF;text-decoration:none;">Destinations</a>
-      <a href="/traveller_portal" style="display:block;padding:3px 0;font-size:13px;color:#E8E5DF;text-decoration:none;">My Bookings</a>
+      <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#9C9789;">{{ col.title }}</p>
+      {% for link in col.links %}
+      <a href="{{ link.url }}" style="display:block;padding:3px 0;font-size:13px;color:#E8E5DF;text-decoration:none;">{{ link.label }}</a>
+      {% endfor %}
     </div>
+    {% endfor %}
+    {% if f.support_email %}
     <div style="min-width:180px;">
       <p style="margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#9C9789;">Need help?</p>
-      <a href="mailto:{{ contact_email or 'contact@rpwp.my' }}"
-         style="display:block;padding:3px 0;font-size:13px;color:#E8E5DF;text-decoration:none;">{{ contact_email or 'contact@rpwp.my' }}</a>
+      <a href="mailto:{{ f.support_email }}"
+         style="display:block;padding:3px 0;font-size:13px;color:#E8E5DF;text-decoration:none;">{{ f.support_email }}</a>
     </div>
+    {% endif %}
   </div>
   <div style="max-width:1180px;margin:24px auto 0;padding-top:16px;border-top:1px solid #3A3730;font-size:12px;color:#6E6A5F;">
-    © {{ frappe.utils.now_datetime().year }} {{ site_name or 'Rarecation' }}. All rights reserved.
+    © {{ frappe.utils.now_datetime().year }} {{ f.copyright_text or (site_name or 'Rarecation') }}
   </div>
 </footer>

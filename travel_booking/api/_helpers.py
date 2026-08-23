@@ -85,7 +85,7 @@ def sanitize_portal_return_path(path):
     path = str(path).strip()
     if len(path) > 500:
         return ""
-    if not path.startswith("/traveller_portal/"):
+    if not (path.startswith("/traveller_portal/") or path.startswith("/traveller/")):
         return ""
     if path.startswith("//") or "\\" in path or ":" in path:
         return ""

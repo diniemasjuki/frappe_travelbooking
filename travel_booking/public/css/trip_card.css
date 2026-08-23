@@ -1,0 +1,280 @@
+/* ============================================================
+   travel_booking/public/css/trip_card.css
+   Komponen rc-trip-card — Template card untuk katalog trip.
+   
+   Digunakan oleh:
+   - /trips (trips.html)
+   - Trip detail "You may also like" (trip.html)
+   - Bakal: search results, wishlist, etc.
+   
+   Design System: Rarecation (Gold #C9A84C, Dark #1E1C18, Cream #F7F5F0)
+   ============================================================ */
+
+/* ── Card Container ── */
+.rc-trip-card {
+  background: #fff;
+  border: 1px solid #E8E5DF;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform .15s ease, box-shadow .15s ease;
+  height: 100%;
+}
+.rc-trip-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(30, 28, 24, .1);
+}
+
+/* ── Media / Image Section ── */
+.rc-card-media {
+  position: relative;
+  display: block;
+  aspect-ratio: 4/3;
+  overflow: hidden;
+  background: #F2EFE9;
+}
+.rc-card-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform .25s ease;
+}
+.rc-trip-card:hover .rc-card-media img {
+  transform: scale(1.04);
+}
+
+/* ── Badges (overlay on image) ── */
+/* Type Icon — bottom-right position with padding */
+.rc-card-icon {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  font-size: 16px;
+  color: #fff;
+}
+/* Icon variants */
+.rc-card-icon-cruise {
+  background: rgba(0, 119, 182, .92);    /* Bright Ocean Blue #0077B6 */
+}
+.rc-card-icon-tour {
+  background: rgba(201, 168, 76, .92);    /* Gold #C9A84C */
+}
+
+/* Category Badge (top-left, if needed) */
+
+/* ── Body Content ── */
+.rc-card-body {
+  padding: 16px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+/* Title */
+.rc-card-title {
+  margin: 0;
+  font-family: var(--font-rubik);
+  font-size: 20px;
+  line-height: 1.2;
+  color: #1E1C18;
+  font-weight: 500;
+}
+.rc-card-title a {
+  color: inherit;
+  text-decoration: none;
+}
+.rc-card-title a:hover {
+  color: #C9A84C;
+}
+
+/* Location / Destination */
+.rc-card-dest {
+  margin: 0;
+  font-size: 13px;
+  color: #7D7A70;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-jost);
+}
+.rc-card-dest i { font-size: 15px; }
+
+/* Meta Info Row (Duration, Date, Availability) */
+.rc-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #5C5850;
+  font-family: var(--font-jost);
+}
+.rc-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.rc-meta-item i { font-size: 14px; color: #9C9789; }
+
+/* Seats/Availability Badge */
+.rc-seats {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 11px;
+  font-family: var(--font-jost);
+  float: right;
+  right: 16px;
+  position: absolute;
+  margin-top: -5px;
+}
+.rc-seats i { font-size: 13px; }
+/* Seat status variants */
+.rc-seats-ok  { background: #E8F5E9; color: #2E7D32; }
+.rc-seats-low { background: #FFF3E0; color: #E65100; }
+.rc-seats-out { background: #FFEBEE; color: #C62828; }
+
+/* ── Footer (Price + CTA) ── */
+.rc-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid #F2EFE9;
+}
+
+/* Price Block */
+.rc-card-price {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.rc-price-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #9C9789;
+  font-family: var(--font-jost);
+}
+.rc-price-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1E1C18;
+  font-family: var(--font-rubik);
+}
+.rc-price-tba {
+  font-size: 13px;
+  color: #7D7A70;
+  font-weight: 500;
+  font-family: var(--font-jost);
+}
+
+/* CTA Button — Solid (primary) */
+.rc-card-cta {
+  padding: 9px 18px;
+  border-radius: 9px;
+  background: #C9A84C;
+  color: #1E1C18;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+  font-family: var(--font-jost);
+}
+.rc-card-cta:hover {
+  background: #1E1C18;
+  color: #fff;
+}
+
+/* CTA Button — Outline (secondary / View Details) — Gold Theme */
+.rc-card-cta-outline {
+  padding: 9px 18px;
+  border-radius: 9px;
+  background: transparent;
+  color: #C9A84C;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  border: 1.5px solid #C9A84C;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+  font-family: var(--font-jost);
+}
+.rc-card-cta-outline:hover {
+  background: #C9A84C;
+  color: #1E1C18;
+}
+
+/* ── Grid Layout (default 3 columns) ── */
+.rc-trip-grid,
+.rc-trip-grid-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 980px) {
+  .rc-trip-grid,
+  .rc-trip-grid-cards {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+  }
+}
+@media (max-width: 640px) {
+  .rc-trip-grid,
+  .rc-trip-grid-cards {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  /* Mobile card adjustments */
+  .rc-card-body { padding: 14px 14px 16px; }
+  .rc-card-title { font-size: 18px; }
+  .rc-price-value { font-size: 16px; }
+  .rc-card-cta { padding: 8px 14px; font-size: 12px; }
+}
+
+/* ── Empty State (for grids) ── */
+.rc-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #7D7A70;
+  font-family: var(--font-jost);
+  grid-column: 1 / -1;
+}
+.rc-empty i { font-size: 46px; color: #D8D3C8; }
+.rc-empty h3 { 
+  margin: 14px 0 4px; 
+  font-family: var(--font-rubik); 
+  font-size: 24px; 
+  color: #1E1C18; 
+  font-weight: 500; 
+}
+.rc-empty p { margin: 0 0 18px; font-size: 14px; }
+.rc-empty .rc-btn-primary { display: inline-flex; }
+
+/* ── Animation Utilities ── */
+@keyframes rcCardFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rc-trip-card {
+  animation: rcCardFadeIn .3s ease forwards;
+}
+.rc-trip-card:nth-child(2) { animation-delay: .05s; }
+.rc-trip-card:nth-child(3) { animation-delay: .1s; }

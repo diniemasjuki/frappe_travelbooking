@@ -1,0 +1,541 @@
+{% extends "templates/base_travel.html" %}
+
+{% block title %}Book Now — {{ site_name or 'Rarecation' }}{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/assets/travel_booking/css/booknow.css?v={{ asset_v('css/booknow.css') }}"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/css/intlTelInput.min.css"/>
+{% endblock %}
+
+{% block page_content %}
+{# ============================================================
+   BOOK NOW WIZARD — /booknow
+   Sistem flow & rules sama dengan /booking, tema Rarecation
+   (gold #C9A84C, dark #1E1C18, cream #F7F5F0).
+   5 langkah: Select Date → Rooms → Billing → Payment → Confirm.
+ ============================================================ #}
+
+{# ── Hide site header/footer for wizard page (full-screen checkout feel) ── #}
+<style>
+  .rc-public-nav, .rc-public-footer { display: none !important; }
+  body { background: #F7F5F0 !important; }
+  .rc-public-main { padding-top: 0 !important; }
+</style>
+
+{# ── Service Worker Cleanup (sama seperti /booking) ── #}
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    regs.forEach(function(reg) { reg.unregister(); });
+  });
+}
+</script>
+
+<main class="bnw-main">
+
+  {# ── STEP INDICATOR (4 steps for booknow — no trip selection) ── #}
+  <nav class="bnw-steps-nav">
+    <div class="bnw-container" style="text-align:center;">
+      <a href="/trips">
+        <img src="/assets/travel_booking/img/logo-horizontal.png" alt="Rarecation" style="max-height:36px;width:auto;margin: 20px auto 15px auto;" 
+        onerror=" this.style.display='none'; this.nextElementSibling.style.display='flex'; ">
+        <span class="rc-logo-fallback">rare<em>cation</em></span>
+      </a>
+    </div>
+    <div class="bnw-container">
+      <ol class="bnw-steps-track">
+        <li class="bnw-step active" data-step="1">
+          <span class="bnw-step-num">1</span>
+          <span class="bnw-step-label">Rooms &amp; Passengers</span>
+        </li>
+        <li class="bnw-step-line"></li>
+        <li class="bnw-step" data-step="2">
+          <span class="bnw-step-num">2</span>
+          <span class="bnw-step-label">Details</span>
+        </li>
+        <li class="bnw-step-line"></li>
+        <li class="bnw-step" data-step="3">
+          <span class="bnw-step-num">3</span>
+          <span class="bnw-step-label">Payment</span>
+        </li>
+        <li class="bnw-step-line"></li>
+        <li class="bnw-step" data-step="4">
+          <span class="bnw-step-num">4</span>
+          <span class="bnw-step-label">Confirm</span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  {# ── Display Currency Bar ── #}
+  <div class="bnw-currency-bar">
+    <div class="bnw-container">
+      <span class="bnw-currency-label">Display in</span>
+      <select id="bnwDisplayCurrency" class="bnw-currency-select"></select>
+      <p class="bnw-currency-note" id="bnwCurrencyNote"></p>
+    </div>
+  </div>
+
+  {# ════════════════════════════════════════════════════════ #}
+  {# STEP 1: ROOMS & PASSENGERS (first visible step)            #}
+  {# ════════════════════════════════════════════════════════ #}
+  <section class="bnw-section bnw-section--active" id="bnwStep1">
+    <div class="bnw-container">
+
+      <div class="bnw-trip-banner" id="bnwTripBanner">
+        <div class="bnw-banner-info">
+          <h2 id="bnwBannerTripName"></h2>
+          <p id="bnwBannerGroupName"></p>
+          <p id="bnwBannerDeparture" class="bnw-banner-date-row"></p>
+          <p id="bnwBannerDepartFrom" class="bnw-banner-date-row"></p>
+          <p id="bnwBannerSailing" class="bnw-banner-date-row"></p>
+        </div>
+        <div class="bnw-badge-wrap">
+          <span class="bnw-badge" id="bnwBannerTripType"></span>
+          <span class="bnw-fly-from" id="bnwBannerFlyFrom"></span>
+        </div>
+      </div>
+
+      <div class="bnw-grid-two-col">
+
+        {# LEFT: Room Cards #}
+        <div class="bnw-rooms-col">
+          <div class="bnw-card-header">
+            <h3>Rooms &amp; Passengers</h3>
+            <span class="bnw-capacity-hint" id="bnwGroupCapacityHint" style="display:none"></span>
+          </div>
+
+          <div id="bnwRoomList" class="bnw-room-list"></div>
+
+          <button class="bnw-btn-add-room" id="bnwAddRoomBtn" type="button">
+            <i class="ti ti-plus"></i> Add another room
+          </button>
+        </div>
+
+        {# RIGHT: Summary Panel #}
+        <div class="bnw-summary-col">
+          <div class="bnw-summary-card">
+            <h4 class="bnw-summary-title">Payment Summary</h4>
+            <div class="bnw-order-line">
+              <span>Total Guests</span>
+              <span id="bnwStep1TotalGuests">0</span>
+            </div>
+            <div class="bnw-order-lines" id="bnwStep1OrderLines"></div>
+            <div class="bnw-totals" id="bnwTotalsBox">
+              <div class="bnw-total-row bnw-total-row-grand">
+                <span>Total</span>
+                <strong id="bnwTotalsGrand">RM 0</strong>
+              </div>
+              <div class="bnw-total-row bnw-total-row-muted">
+                <span id="bnwTotalsDepositLabel">Deposit (20%)</span>
+                <span id="bnwTotalsDeposit">RM 0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>{# /.bnw-grid-two-col #}
+
+      <div class="bnw-form-actions">
+        <button class="bnw-btn bnw-btn-ghost" id="bnwStep1Back" type="button">
+          <i class="ti ti-arrow-left"></i> Back
+        </button>
+        <button class="bnw-btn bnw-btn-primary" id="bnwStep1Next" disabled>
+          Continue <i class="ti ti-arrow-right"></i>
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  {# ════════════════════════════════════════════════════════ #}
+  {# STEP 2: BILLING DETAILS + OTP                          #}
+  {# ════════════════════════════════════════════════════════ #}
+  <section class="bnw-section" id="bnwStep2">
+    <div class="bnw-container">
+
+      <div class="bnw-page-header">
+        <h1>Billing Details</h1>
+        <p>Contact details for the lead booking person</p>
+      </div>
+
+      <div class="bnw-trip-banner bnw-trip-banner--compact" id="bnwTripBanner2">
+        <div class="bnw-banner-info">
+          <h2 id="bnwBannerTripName2"></h2>
+          <p id="bnwBannerSummary2"></p>
+          <p id="bnwBannerDeparture2" class="bnw-banner-date-row"></p>
+          <p id="bnwBannerDepartFrom2" class="bnw-banner-date-row"></p>
+          <p id="bnwBannerSailing2" class="bnw-banner-date-row"></p>
+        </div>
+        <div class="bnw-badge-wrap">
+          <span class="bnw-badge" id="bnwBannerTripType2"></span>
+          <span class="bnw-fly-from" id="bnwBannerFlyFrom2"></span>
+        </div>
+      </div>
+
+      <div class="bnw-grid-two-col">
+
+        {# LEFT COLUMN: Billing Form #}
+        <div class="bnw-bill-col">
+
+      <div class="bnw-card bnw-card--narrow">
+
+        <div class="bnw-field">
+          <label class="bnw-label">Email Address <span class="bnw-required">*</span></label>
+          <div class="bnw-input-status-wrap">
+            <input type="email" class="bnw-input" id="bnwBillingEmail"
+                   placeholder="your@email.com" autocomplete="email"/>
+            <div class="bnw-email-status" id="bnwEmailStatus"></div>
+          </div>
+        </div>
+
+        {# Gmail recommendation hint #}
+        <div class="bnw-hint-block" id="bnwGmailHint" style="display:none;">
+          <div class="bnw-notice bnw-notice-info">
+            <i class="ti ti-brand-google"></i>
+            <span><strong>Tip:</strong> Use your <strong>Gmail</strong> address for quicker verification &amp; auto-fill of your details.</span>
+          </div>
+        </div>
+
+        {# OTP inline — shown when email not in system #}
+        <div class="bnw-field" >
+          <div class="bnw-otp-block" id="bnwOtpInline" style="display:none">
+            <div class="bnw-notice bnw-notice-info">
+              <i class="ti ti-mail"></i>
+              <span id="bnwOtpNoticeText">A verification code has been sent to your email.</span>
+            </div>
+            <div class="bnw-otp-row">
+              <input type="text" class="bnw-input bnw-input-otp" id="bnwOtpInput"
+                    placeholder="Enter 6-digit OTP" maxlength="6" inputmode="numeric"/>
+              <button class="bnw-btn bnw-btn-ghost bnw-btn-sm" id="bnwResendOtp" type="button">
+                <i class="ti ti-refresh"></i> Resend
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bnw-field">
+          <label class="bnw-label">Full Name <span class="bnw-required">*</span></label>
+          <input type="text" class="bnw-input" id="bnwBillingName" placeholder="Enter your full name"/>
+        </div>
+
+        <div class="bnw-field">
+          <label class="bnw-label">Phone Number <span class="bnw-required">*</span></label>
+          <input type="tel" class="bnw-input" id="bnwBillingPhone" placeholder="12-3456789"/>
+        </div>
+
+      </div>{# /.bnw-card #}
+
+        </div>{# /.bnw-bill-col #}
+
+        {# RIGHT COLUMN: Booking Summary #}
+        <div class="bnw-summary-col">
+          <div class="bnw-summary-card">
+            <h4 class="bnw-summary-title">Booking Summary</h4>
+            <p class="bnw-order-trip" id="bnwBookingSummaryTrip"></p>
+            <p class="bnw-order-sub" id="bnwBookingSummarySub" style="margin-bottom:16px"></p>
+
+            <div id="bnwBookingSummaryLines"></div>
+
+            <div class="bnw-divider"></div>
+            <div class="bnw-grand-total">
+              <span>Total</span>
+              <strong id="bnwBookingGrandTotal">RM 0</strong>
+            </div>
+          </div>
+        </div>
+
+      </div>{# /.bnw-grid-two-col #}
+
+      {# STEP 2: Form Actions — full width, outside grid #}
+      <div class="bnw-form-actions">
+        <button class="bnw-btn bnw-btn-ghost" id="bnwStep2Back" type="button">
+          <i class="ti ti-arrow-left"></i> Back
+        </button>
+        <button class="bnw-btn bnw-btn-primary" id="bnwStep2Next" disabled>
+          Continue <i class="ti ti-arrow-right"></i>
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  {# ════════════════════════════════════════════════════════ #}
+  {# STEP 3: PAYMENT                                       #}
+  {# ════════════════════════════════════════════════════════ #}
+  <section class="bnw-section" id="bnwStep3">
+    <div class="bnw-container">
+
+      <div class="bnw-page-header">
+        <h1>Payment</h1>
+        <p>Review your order and complete payment</p>
+      </div>
+
+      <div class="bnw-trip-banner bnw-trip-banner--compact" id="bnwTripBanner3">
+        <div class="bnw-banner-info">
+          <h2 id="bnwBannerTripName3"></h2>
+          <p id="bnwBannerSummary3"></p>
+          <p id="bnwBannerDeparture3" class="bnw-banner-date-row"></p>
+          <p id="bnwBannerDepartFrom3" class="bnw-banner-date-row"></p>
+          <p id="bnwBannerSailing3" class="bnw-banner-date-row"></p>
+        </div>
+        <div class="bnw-badge-wrap">
+          <span class="bnw-badge" id="bnwBannerTripType3"></span>
+          <span class="bnw-fly-from" id="bnwBannerFlyFrom3"></span>
+        </div>
+      </div>
+
+      <div class="bnw-grid-two-col">
+
+        {# LEFT COLUMN #}
+        <div class="bnw-pay-col">
+
+          {# Payment Amount Card #}
+          <div class="bnw-card" id="bnwPaymentAmountCard">
+            <h3 class="bnw-card-title">Payment Amount</h3>
+            <div class="bnw-pay-amount">
+              <span class="bnw-pay-prefix" id="bnwPayAmountPrefix">RM</span>
+              <input type="number" class="bnw-pay-input" id="bnwPayAmountInput"
+                     inputmode="decimal" step="50" placeholder="0"/>
+              <i class="ti ti-pencil bnw-pay-icon"></i>
+            </div>
+            <p class="bnw-pay-hint">Tap to enter a custom amount</p>
+            <div class="bnw-pay-chips">
+              <button type="button" class="bnw-chip" id="bnwPayDepositChip">
+                <span class="bnw-chip-label" id="bnwPayDepositChipLabel">Deposit (20%)</span>
+                <span id="bnwChipDeposit" class="bnw-chip-amt">RM 0</span>
+              </button>
+              <button type="button" class="bnw-chip" id="bnwPayFullChip">
+                <span class="bnw-chip-label">Pay in full</span>
+                <span id="bnwChipFull" class="bnw-chip-amt">RM 0</span>
+              </button>
+            </div>
+            <div class="bnw-pay-error" id="bnwPayAmountError" style="display:none"></div>
+            <div class="bnw-deposit-notice" id="bnwDepositNotice" style="display:none">
+              <i class="ti ti-alert-triangle"></i>
+              <span>
+                <strong>Without full payment, the booking cannot be processed.</strong><br/>
+                Balance of <strong id="bnwBalanceAmt">RM 0</strong> due before departure.
+              </span>
+            </div>
+          </div>
+
+          {# Payment Method Card #}
+          <div class="bnw-card">
+            <h3 class="bnw-card-title">Payment Method</h3>
+            <div class="bnw-radio-group">
+              <label class="bnw-radio-option bnw-radio-selected" id="bnwLabelOnline">
+                <input type="radio" name="paymentMethod" value="Online Payment" checked onchange="onPaymentMethodChange(this)"/>
+                <div class="bnw-radio-content">
+                  <span class="bnw-radio-label"><i class="ti ti-credit-card"></i> Online Payment</span>
+                  <small class="bnw-radio-note">Pay online with Visa, Mastercard, etc.</small>
+                </div>
+              </label>
+              <label class="bnw-radio-option" id="bnwLabelManual">
+                <input type="radio" name="paymentMethod" value="Manual Transfer" onchange="onPaymentMethodChange(this)"/>
+                <div class="bnw-radio-content">
+                  <span class="bnw-radio-label">
+                    <i class="ti ti-building-bank"></i> Manual Transfer
+                    <span class="bnw-cashback-badge" id="bnwCashbackBadge">5% cashback</span>
+                  </span>
+                  <small class="bnw-radio-note" >Pay at your way, verification time might be longer (3-5 working days)</small>
+                  <small class="bnw-radio-note" id="bnwCashbackNote">Get 5% cashback when you pay via bank transfer</small>
+                </div>
+              </label>
+              <label class="bnw-radio-option" id="bnwLabelPayLater">
+                <input type="radio" name="paymentMethod" value="Pay Later" onchange="onPaymentMethodChange(this)"/>
+                <div class="bnw-radio-content">
+                  <span class="bnw-radio-label"><i class="ti ti-clock"></i> Pay Later</span>
+                  <small class="bnw-radio-note">Secure your booking now, pay anytime via your portal</small>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {# Manual Transfer Details #}
+          <div class="bnw-card" id="bnwManualTransferCard" style="display:none">
+            <h3 class="bnw-card-title"><i class="ti ti-building-bank"></i> Bank Transfer Details</h3>
+            <div class="bnw-bank-details">
+              <div class="bnw-bank-row"><span>Bank</span><strong id="bnwBankNameDisplay">Maybank</strong></div>
+              <div class="bnw-bank-row"><span>Account Name</span><strong id="bnwBankAccountNameDisplay">Rarecation Sdn Bhd</strong></div>
+              <div class="bnw-bank-row"><span>Account No</span><strong id="bnwBankAccountNumberDisplay">1234 5678 9012</strong></div>
+            </div>
+            <div class="bnw-field" style="margin-top:16px">
+              <label class="bnw-label">Bank Transfer Reference No. <span class="bnw-required">*</span></label>
+              <input type="text" class="bnw-input" id="bnwBankTransferRefInput" placeholder="FPX1234567"/>
+            </div>
+            <div class="bnw-field" style="margin-top:16px">
+              <label class="bnw-label">Upload Payment Receipt <span class="bnw-required">*</span></label>
+              <div class="bnw-file-upload" id="bnwReceiptUploadArea">
+                <input type="file" id="bnwReceiptFile" accept="image/*,.pdf" style="display:none" onchange="onReceiptSelected(this)"/>
+                <div class="bnw-file-upload-inner" onclick="document.getElementById('bnwReceiptFile').click()">
+                  <i class="ti ti-upload"></i>
+                  <p>Click to upload receipt</p>
+                  <small>JPG, PNG or PDF — max 5MB</small>
+                </div>
+              </div>
+              <div id="bnwReceiptFileName" style="display:none;margin-top:8px;font-size:12px;color:#2e7d32">
+                <i class="ti ti-check"></i> <span id="bnwReceiptFileNameText"></span>
+              </div>
+
+              {# OCR analysis result — auto-runs after image receipt is selected #}
+              <div id="bnwReceiptOCR" style="display:none;margin-top:12px;">
+                <div id="bnwReceiptOCRStatus" style="font-size:12px;color:var(--bnw-text-muted,#6E6A5F);"></div>
+                <div id="bnwReceiptOCRResult" style="display:none;margin-top:8px;padding:12px 14px;border-radius:var(--bnw-radius-sm,8px);background:var(--bnw-cream,#F7F5F0);border:1px solid var(--bnw-border,#E8E5DF);font-size:12px;line-height:1.6;"></div>
+              </div>
+            </div>
+            <div class="bnw-notice bnw-notice-info" style="margin-top:12px">
+              <i class="ti ti-clock"></i>
+              <span>Your booking will be confirmed within 1-2 business days after payment verification.</span>
+            </div>
+          </div>
+
+        </div>{# /.bnw-pay-col #}
+
+        {# RIGHT COLUMN: Booking Summary #}
+        <div class="bnw-summary-col">
+          <div class="bnw-summary-card">
+            <h4 class="bnw-summary-title">Booking Summary</h4>
+            <p class="bnw-order-trip" id="bnwOrderSummaryTrip"></p>
+            <p class="bnw-order-sub" id="bnwOrderSummarySub" style="margin-bottom:20px"></p>
+
+            <div id="bnwOrderLines"></div>
+
+            {# Discount rows #}
+            <div class="bnw-discount-row" id="bnwVoucherDiscountRow" style="display:none">
+              <span><i class="ti ti-tag"></i> Voucher (<span id="bnwVoucherCodeApplied"></span>)</span>
+              <span id="bnwVoucherDiscountAmt" class="bnw-discount-amt">-RM 0</span>
+            </div>
+            <div class="bnw-discount-row" id="bnwAffiliateDiscountRow" style="display:none">
+              <span><i class="ti ti-user-star"></i> Referral (<span id="bnwAffiliateCodeApplied"></span>)</span>
+              <span id="bnwAffiliateDiscountAmt" class="bnw-discount-amt">-RM 0</span>
+            </div>
+            <div class="bnw-discount-row" id="bnwCashbackDiscountRow" style="display:none">
+              <span><i class="ti ti-building-bank"></i> Cashback (<span id="bnwCashbackPercentApplied"></span>%)</span>
+              <span id="bnwCashbackDiscountAmt" class="bnw-discount-amt">-RM 0</span>
+            </div>
+
+            {# Voucher + Referral inputs #}
+            <div class="bnw-divider"></div>
+            <div class="bnw-voucher-section">
+              <p class="bnw-card-title-sm">Voucher Code</p>
+              <div class="bnw-voucher-row">
+                <input type="text" class="bnw-input bnw-input-voucher" id="bnwVoucherInput"
+                       placeholder="Enter voucher code" autocomplete="off"
+                       onkeydown="if(event.key==='Enter') onVoucherBtnClick()"
+                       oninput="this.value=this.value.toUpperCase()"/>
+                <button class="bnw-btn bnw-btn-ghost bnw-btn-sm" onclick="onVoucherBtnClick()" id="bnwVoucherBtn">Apply</button>
+              </div>
+              <div id="bnwVoucherMsg" style="display:none;margin-bottom:12px;font-size:12px"></div>
+
+              <p class="bnw-card-title-sm">Affiliate Referral Code</p>
+              <div class="bnw-voucher-row">
+                <input type="text" class="bnw-input bnw-input-voucher" id="bnwAffiliateInput"
+                       placeholder="Enter referral code" autocomplete="off"
+                       onkeydown="if(event.key==='Enter') onAffiliateBtnClick()"
+                       oninput="this.value=this.value.toUpperCase()"/>
+                <button class="bnw-btn bnw-btn-ghost bnw-btn-sm" onclick="onAffiliateBtnClick()" id="bnwAffiliateBtn">Apply</button>
+              </div>
+              <div id="bnwAffiliateMsg" style="display:none;margin-top:8px;font-size:12px"></div>
+            </div>
+
+            {# Sales Person #}
+            <div class="bnw-divider"></div>
+            <div class="bnw-sales-section">
+              <div class="bnw-sales-header">
+                <h3 class="bnw-card-title-sm">Sales Person <span class="bnw-optional">(Optional)</span></h3>
+                <button class="bnw-btn-add-room" id="bnwAddSalesPersonBtn" type="button">
+                  <i class="ti ti-plus"></i> Add another
+                </button>
+              </div>
+              <div id="bnwSalesPersonList"></div>
+            </div>
+
+            {# Grand Total #}
+            <div class="bnw-divider"></div>
+            <div class="bnw-grand-total">
+              <span>Total</span>
+              <strong id="bnwOrderGrandTotal">RM 0</strong>
+            </div>
+
+          </div>{# /.bnw-summary-card #}
+        </div>{# /.bnw-summary-col #}
+
+      </div>{# /.bnw-grid-two-col #}
+
+      <div class="bnw-form-actions">
+        <button class="bnw-btn bnw-btn-ghost" id="bnwStep3Back" type="button">
+          <i class="ti ti-arrow-left"></i> Back
+        </button>
+        <button class="bnw-btn bnw-btn-primary bnw-btn-cta" id="bnwPayNowBtn">
+          <i class="ti ti-lock"></i>
+          <span id="bnwPayNowLabel">Pay Now</span>
+          <span id="bnwPayNowAmount"></span>
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  {# ════════════════════════════════════════════════════════ #}
+  {# STEP 4: CONFIRMATION                                  #}
+  {# ════════════════════════════════════════════════════════ #}
+  <section class="bnw-section" id="bnwStep4">
+    <div class="bnw-container">
+
+      <div class="bnw-trip-banner bnw-trip-banner--compact" id="bnwTripBanner4">
+        <div class="bnw-banner-info">
+          <h2 id="bnwBannerTripName4"></h2>
+          <p id="bnwBannerSummary4"></p>
+          <p id="bnwBannerDeparture4" class="bnw-banner-date-row"></p>
+          <p id="bnwBannerDepartFrom4" class="bnw-banner-date-row"></p>
+          <p id="bnwBannerSailing4" class="bnw-banner-date-row"></p>
+        </div>
+        <div class="bnw-badge-wrap">
+          <span class="bnw-badge" id="bnwBannerTripType4"></span>
+          <span class="bnw-fly-from" id="bnwBannerFlyFrom4"></span>
+        </div>
+      </div>
+
+      <div class="bnw-confirm-card">
+        <div class="bnw-confirm-icon">
+          <i class="ti ti-check"></i>
+        </div>
+        <div class="bnw-confirm-ref" id="bnwConfirmRef">RCXXXXXX</div>
+        <div id="bnwConfirmStatusBadge" style="margin:8px 0 4px"></div>
+        <div class="bnw-confirm-details" id="bnwConfirmDetails"></div>
+        <p class="bnw-confirm-email" id="bnwConfirmEmail"></p>
+        <div class="bnw-confirm-actions" id="bnwConfirmActions">
+          <a href="/traveller" class="bnw-btn bnw-btn-primary">
+            View Booking <i class="ti ti-arrow-right"></i>
+          </a>
+          <a href="/trips" class="bnw-btn bnw-btn-ghost">
+            Browse More Trips
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</main>{# /.bnw-main #}
+
+{# ── Loading Overlay ── #}
+<div class="bnw-loading" id="bnwLoadingOverlay" style="display:none">
+  <div class="bnw-loading-spinner"></div>
+  <p id="bnwLoadingMsg">Processing...</p>
+</div>
+
+{# ── Page Data JSON (dari Frappe context) ── #}
+<script id="pageData" type="application/json">
+{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_cruise_flags": {{ trip_cruise_flags }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "csrf_token": "{{ csrf_token }}", "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}"}
+</script>
+
+{% endblock %}
+
+{% block footer_extra %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/js/intlTelInputWithUtils.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1.11.20/bundle/libphonenumber-max.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="/assets/travel_booking/js/booknow.js?v={{ asset_v('js/booknow.js') }}"></script>
+{% endblock %}

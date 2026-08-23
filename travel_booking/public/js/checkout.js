@@ -70,14 +70,14 @@
 
   function returnUrl() {
     var base = window.location.origin;
+    // Redirect ke booknow untuk confirmation (bukan /booking)
     if (SOURCE === "wizard" && REF) {
-      return base + "/booking?ref=" + encodeURIComponent(REF) + "&step=confirm&pr=" + encodeURIComponent(PR_NAME);
+      return base + "/booknow?ref=" + encodeURIComponent(REF) + "&step=confirm&pr=" + encodeURIComponent(PR_NAME);
     }
-    // Pulangan portal — honori laluan asal customer (sudah disahkan
-    // server-side di create_payment_intent() & checkout.py; semakan
-    // prefix di sini hanya safety net tambahan). Fallback lalai ke
-    // Transactions page (tingkah laku lama).
-    if (RET && RET.indexOf("/traveller_portal/") === 0 && RET.indexOf("//") !== 0) {
+    // Pulangan portal — honori laluan asal customer
+    // (portal lama /traveller_portal/ + portal baharu /traveller/)
+    if (RET && RET.indexOf("//") !== 0 &&
+        (RET.indexOf("/traveller_portal/") === 0 || RET.indexOf("/traveller/") === 0)) {
       return base + RET;
     }
     return base + "/traveller_portal/transactions";

@@ -108,25 +108,63 @@ def get_wizard_confirmation(booking_number: str, pr: str = None):
     """Data ringan untuk papar step Confirm selepas redirect dari checkout (Stripe).
     Tiada data sensitif traveller — hanya untuk paparan status booking.
     Loose-token check via 'pr' (Payment Request) untuk elak sesiapa teka booking_number.
+
+    Approach: Baca terus dari Booking doctype — field trip_name, departure_date,
+    return_date, is_a_cruise_trip dah ada pada Booking sendiri!
     """
-    booking = frappe.db.sql("""
-        SELECT
-            b.name, b.booking_number, b.status,
-            tm.trip_name, td.trip_group_name, td.departure_date, td.return_date
-        FROM `tabBooking` b
-        LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
-        LEFT JOIN `tabTrip` tm ON tm.name = td.trip
-        WHERE b.booking_number = %s
-    """, booking_number, as_dict=True)
+    # === STEP 1: Dapatkan Booking record dengan SEMUA field yang diperlukan ===
+    # NOTE: Booking guna 'cruise_start'/'cruise_end', BUKAN 'sailing_start'/'sailing_end'
+    try:
+        booking = frappe.db.get_value("Booking", {"booking_number": booking_number},
+            ["name", "booking_number", "status", "trip_package", "trip_date",
+             "trip_name", "departure_date", "return_date",
+             "cruise_start", "cruise_end", "is_a_cruise_trip", "is_cruise_only"],
+            as_dict=True)
+    except Exception as e:
+        frappe.throw(f"Booking not found: {e}")
 
     if not booking:
         frappe.throw("Booking not found.")
-    booking = booking[0]
+
+    # === STEP 2: Extract data dari Booking (field-field ni wujud pada Booking) ===
+    trip_name = booking.trip_name or ""
+    trip_group_name = ""
+    departure_date = str(booking.departure_date) if booking.departure_date else ""
+    return_date = str(booking.return_date) if booking.return_date else ""
+    # Map cruise_start/end → sailing_start/end untuk frontend consistency
+    sailing_start = str(booking.cruise_start) if getattr(booking, 'cruise_start', None) else ""
+    sailing_end = str(booking.cruise_end) if getattr(booking, 'cruise_end', None) else ""
+    is_cruise_trip = bool(booking.is_a_cruise_trip)
+
+    # === STEP 3: Dapatkan group name dari Trip Group Date (field ni tak ada di Booking) ===
+    if booking.trip_date:
+        try:
+            tgd = frappe.db.get_value("Trip Group Date", booking.trip_date,
+                ["trip_group_name"], as_dict=True)
+            if tgd:
+                trip_group_name = tgd.trip_group_name or ""
+        except Exception:
+            pass  # Non-critical
+
+    # === STEP 3: Dapatkan package type dari Trip Package ===
+    package_label = ""
+    if booking.trip_package:
+        try:
+            pkg_data = frappe.db.get_value("Trip Package", booking.trip_package,
+                                          ["package_type"],
+                                          as_dict=True)
+            if pkg_data:
+                package_label = pkg_data.package_type or ""
+        except Exception:
+            pass  # Non-critical
 
     primary_so = _get_primary_so(booking.name)
 
     if pr:
-        pr_so = frappe.db.get_value("Payment Request", pr, "reference_name")
+        try:
+            pr_so = frappe.db.get_value("Payment Request", pr, "reference_name")
+        except Exception:
+            pr_so = None  # Payment Request mungkin dah di-delete selepas payment
         if pr_so and pr_so != primary_so:
             frappe.throw("Invalid reference.", frappe.PermissionError)
 
@@ -136,19 +174,31 @@ def get_wizard_confirmation(booking_number: str, pr: str = None):
     grand_total = 0
     advance_paid = 0
     if primary_so:
-        so = frappe.db.get_value("Sales Order", primary_so,
-                                 ["grand_total", "advance_paid"], as_dict=True)
-        if so:
-            grand_total  = float(so.grand_total or 0)
-            advance_paid = float(so.advance_paid or 0)
+        try:
+            so = frappe.db.get_value("Sales Order", primary_so,
+                                     ["grand_total", "advance_paid"], as_dict=True)
+            if so:
+                grand_total  = float(so.grand_total or 0)
+                advance_paid = float(so.advance_paid or 0)
+        except Exception as _so_err:
+            frappe.log_error(f"SO lookup failed: {_so_err}", "Wizard Confirmation")
 
     return {
         "booking_number":  booking.booking_number,
         "booking_status":  booking.status,
+        # Data terus daripada Booking doctype (field dah wujud semasa create)
         "trip_name":       booking.trip_name or "",
-        "group_name":      booking.trip_group_name or "",
+        "group_name":      trip_group_name,  # Dari Trip Group Date (Step 2)
         "departure_date":  str(booking.departure_date) if booking.departure_date else "",
         "return_date":     str(booking.return_date) if booking.return_date else "",
+        "sailing_start":   sailing_start,
+        "sailing_end":     sailing_end,
+        "is_cruise_trip":  bool(booking.is_a_cruise_trip),
+        "package_label":   package_label,  # Dari Trip Package (Step 3)
+        # Flight info tak ada dalam doctype — frontend snapshot akan supply
+        "flight_label":    "",
+        "flight":          "",
+        # Payment info dari Sales Order
         "grand_total":     grand_total,
         "advance_paid":    advance_paid,
         "payment_status":  _compute_payment_status(advance_paid, grand_total),
@@ -192,6 +242,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             tpc.max_capacity,
             tpc.description,
             tpc.room_profile,
+            tpc.read_more_url,
             tpp.price_adult_single,
             tpp.price_adult,
             tpp.price_upperberth,
@@ -219,6 +270,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             "max_capacity":  row.max_capacity if row.max_capacity is not None else (row.capacity or 2),
             "description":   row.description or "",
             "room_image":    row.room_profile or "",
+            "read_more_url": row.read_more_url or "",
             "pricing": {
                 "price_adult_single":     float(row.price_adult_single     or 0),
                 "price_adult":            float(row.price_adult           or 0),
@@ -598,3 +650,152 @@ def _validate_selection_capacity(selections, cabin_info_map, is_cruise=True):
             frappe.throw("Infant is only allowed when " + adult_lbl + " is at least 1 for " + str(room_category) + ".")
         if max_infant is not None and inf > max_infant:
             frappe.throw("Infant for " + str(room_category) + " exceeds the limit (" + str(max_infant) + ").")
+
+
+
+@frappe.whitelist(allow_guest=True)
+def test_endpoint():
+    return {"test": "hello", "list": [1, 2, 3]}
+
+
+@frappe.whitelist(allow_guest=True)
+def get_price_category_config(trip_type="non_cruise"):
+    """
+    Return active price category labels untuk trip type tertentu.
+    Configurable dalam Travel Settings > Price Category Labels.
+    Fallback ke defaults kalau setting kosong atau error.
+    """
+    # Normalize (hyphen/underscore/space seragam) — selari dengan
+    # price_config._norm_trip_type supaya kedua endpoint konsisten.
+    from travel_booking.api.price_config import _norm_trip_type
+    trip_type = _norm_trip_type(trip_type or "non_cruise")
+    
+    # Default labels (fallback)
+    if trip_type == "cruise":
+        defaults = [
+            {"price_key": "price_adult", "display_label": "Main Adult", "display_note": "Main Guest must be adult at 12+ years old and above.", "sort_order": 0},
+            {"price_key": "price_upperberth", "display_label": "Extra Bed", "display_note": "Extra bed such as sofa bed or upper-berth configuration.", "sort_order": 1},
+            {"price_key": "price_infant", "display_label": "Infant", "display_note": "Valid for 0-23 month on embarkation date.", "sort_order": 2},
+        ]
+    else:
+        defaults = [
+            {"price_key": "price_adult", "display_label": "Adult", "display_note": "12 years old and above.", "sort_order": 0},
+            {"price_key": "price_children", "display_label": "Children", "display_note": "2-11 years old on departure date.", "sort_order": 1},
+            {"price_key": "price_infant", "display_label": "Infant", "display_note": "Valid for 0-23 month on embarkation date.", "sort_order": 2},
+        ]
+    
+    # Cuba baca dari Travel Settings
+    try:
+        settings = frappe.get_doc("Travel Settings", "Travel Settings")
+        result = []
+        for row in (settings.price_category_labels or []):
+            active = row.get("is_active") if hasattr(row, "get") else row.is_active
+            if not active:
+                continue
+            applies = _norm_trip_type(row.get("applies_to") or getattr(row, "applies_to", ""))
+            if applies not in (trip_type, "both"):
+                continue
+            result.append({
+                "price_key": str(row.get("price_key") or getattr(row, "price_key", "")),
+                "display_label": str(row.get("display_label") or getattr(row, "display_label", "")),
+                "display_note": str(row.get("display_note") or getattr(row, "display_note", "")),
+                "sort_order": int(row.get("sort_order") or getattr(row, "sort_order", 0) or 0),
+            })
+        if result:
+            result.sort(key=lambda x: x.get("sort_order", 0))
+            return result
+    except Exception:
+        pass
+    
+    return defaults
+
+
+@frappe.whitelist(allow_guest=True)
+def search_packages_by_date(start_date: str, end_date: str, trip: str = None):
+    """Cari packages berdasarkan sailing/departure dates.
+
+    Query guna sailing_start:sailing_end (cruise) atau
+    departure_date:return_date (non-cruise). Dipanggil oleh
+    trip_detail.js bila user pilih tarikh — bukan pre-loaded.
+    Filter `trip` (Trip doctype name) hadkan carian kepada trip yang aktif sahaja.
+    """
+    if not start_date or not end_date:
+        return []
+
+    params = {"start": start_date, "end": end_date, "trip": trip}
+    trip_clause = "AND tgd.trip = %(trip)s" if trip else ""
+
+    packages = frappe.db.sql(
+        """
+        SELECT tp.name AS trip_package, sel.trip_group_date AS group_date,
+               tp.package_title, tp.package_type, tp.airport_form,
+               ap.airport_name, tp.currency, cur.symbol AS currency_symbol
+        FROM `tabTrip Package` AS tp
+        JOIN `tabTrip Package Group Date Select` AS sel ON sel.parent = tp.name
+        JOIN `tabTrip Group Date` AS tgd ON tgd.name = sel.trip_group_date
+        LEFT JOIN `tabFlight Airport` ap ON ap.name = tp.airport_form
+        LEFT JOIN `tabCurrency` cur ON cur.name = tp.currency
+        WHERE tp.status = 'Active'
+          {trip_clause}
+          AND (
+            (tgd.sailing_start = %(start)s AND tgd.sailing_end = %(end)s)
+            OR
+            (tgd.departure_date = %(start)s AND tgd.return_date = %(end)s)
+          )
+        ORDER BY tp.package_type ASC, tp.package_title ASC
+        LIMIT 100
+        """.format(trip_clause=trip_clause),
+        params,
+        as_dict=True,
+    )
+
+    result = []
+    for p in packages:
+        flight_label = (p.airport_name or p.airport_form) if p.airport_form else "No Flight"
+        result.append({
+            "name": p.trip_package,
+            "trip_group_date": p.group_date,
+            "package_name": p.package_title or "",
+            "package_type": p.package_type or "",
+            "flight": p.airport_form or "",
+            "flight_label": flight_label,
+            "currency": p.currency or "MYR",
+            "currency_symbol": p.currency_symbol or (p.currency or "MYR"),
+        })
+    return result
+
+
+@frappe.whitelist(allow_guest=True)
+def share_trip_link(url: str):
+    """Generate a QR code for a trip share URL.
+
+    No shortening — the full URL is used directly. Returns a base64 PNG
+    data URI that the client can display in an <img> tag.
+
+    Returns:
+        qr_data_uri: base64 PNG data URI of the QR code
+        share_url: the original URL (unchanged)
+    """
+    import io
+    import base64
+    import qrcode
+
+    url = (url or "").strip()
+    if not url:
+        frappe.throw("URL is required.")
+
+    qr = qrcode.QRCode(
+        version=1, box_size=10, border=2,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+    )
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    qr_data_uri = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+    return {
+        "share_url": url,
+        "qr_data_uri": qr_data_uri,
+    }

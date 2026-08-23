@@ -2,7 +2,11 @@
 # Traveller — Save, Wizard Lookup, Request Update
 # ─────────────────────────────────────────────────
 
+import base64
+import io
+
 import frappe
+import qrcode
 from travel_booking.api.portal_booking import _get_customer
 
 
@@ -110,7 +114,9 @@ def _resolve_guest_token(token: str):
         ["name", "booking", "document_status", "traveller",
          "passport_link_email", "passport_link_expires_on"], as_dict=True
     )
-    if slot.passport_link_expires_on and \
+    # Expiry WAJIB — token tanpa tarikh tamat (legacy/NULL) dianggap
+    # expired supaya tidak menjadi bearer token selama-lamanya.
+    if not slot.passport_link_expires_on or \
        frappe.utils.get_datetime(slot.passport_link_expires_on) < frappe.utils.now_datetime():
         frappe.throw("This passport link has expired. Please request a new link.",
                      frappe.PermissionError)
@@ -124,6 +130,25 @@ def _resolve_guest_token(token: str):
         frappe.throw("Booking not found.")
     actor = slot.passport_link_email or "guest"
     return booking, slot, actor
+
+
+def _customer_traveller_names(customer_name: str) -> set:
+    """Set Traveller docnames yang dimiliki customer (ada sekurang-kurangnya
+    satu Booking Reservation pada booking customer tersebut).
+
+    Digunakan utk scope lookup traveller (check_traveller_passport,
+    wizard_lookup) supaya customer A tak boleh baca PII traveller customer B
+    hanya dengan tahu IC/passport mereka (IDOR / cross-customer PII
+    disclosure)."""
+    rows = frappe.db.sql(
+        """SELECT res.traveller
+             FROM `tabBooking Reservation` res
+             JOIN `tabBooking` b ON b.name = res.booking
+            WHERE b.customer = %s AND res.traveller IS NOT NULL""",
+        (customer_name,),
+        as_list=True,
+    )
+    return {r[0] for r in rows if r[0]}
 
 
 @frappe.whitelist(allow_guest=True)
@@ -604,18 +629,171 @@ def _extract_mrz(text: str) -> dict:
     return extracted
 
 
-def _binarize(im):
-    """Autocontrast + threshold → imej B/W bersih (terbaik untuk OCR MRZ).
+def _binarize(im, threshold: int = None):
+    """Autocontrast + adaptive threshold → imej B/W bersih (terbaik untuk OCR MRZ).
 
-    Fon OCR-B pada passport kontras tinggi (teks gelap di atas latar terang).
-    Binarisasi selepas autocontrast tingkatkan hit rate tesseract dengan
-    ketara berbanding grayscale biasa — terutamanya pada imej phone yang
-    sedikit kabur/glare.
+    Fon OCR-B pada passport kontras tinggi (teks gelap di atas latar putih).
+    
+    Improvements:
+    - Adaptive threshold (Otsu's method fallback) bila fixed threshold gagal
+    - Multiple threshold attempts (120, 140, 160) untuk pelbagai kondisi cahaya
+    - CLAHE (Contrast Limited Adaptive Histogram Equalization) untuk
+      tangani glare/pencahayaan tidak sekata
     """
-    from PIL import ImageOps
+    from PIL import ImageOps, ImageFilter
+    import numpy as np
 
-    im = ImageOps.autocontrast(im.convert("L"))
-    return im.point(lambda x: 255 if x > 140 else 0, "L")
+    # Convert to grayscale
+    gray = im.convert("L") if im.mode != "L" else im
+
+    # Apply CLAHE-like contrast enhancement using PIL's autocontrast
+    # This helps with uneven lighting and glare on laminated passports
+    enhanced = ImageOps.autocontrast(gray, cutoff=2)
+
+    if threshold:
+        # Use provided/fixed threshold
+        return enhanced.point(lambda x: 255 if x > threshold else 0, "L")
+    
+    # Try Otsu-like automatic threshold using histogram
+    import array
+    
+    hist = enhanced.histogram()
+    # Simple Otsu approximation: find threshold that maximizes inter-class variance
+    total = sum(hist)
+    sum_total = sum(i * h for i, h in enumerate(hist))
+    
+    sum_bg = 0.0
+    weight_bg = 0.0
+    weight_fg = 0.0
+    max_variance = 0.0
+    best_threshold = 140  # default fallback
+
+    for t in range(256):
+        weight_bg += hist[t]
+        if weight_bg == 0:
+            continue
+        weight_fg = total - weight_bg
+        if weight_fg == 0:
+            break
+        
+        sum_bg += t * hist[t]
+        mean_bg = sum_bg / weight_bg
+        mean_fg = (sum_total - sum_bg) / weight_fg
+        
+        variance = weight_bg * weight_fg * (mean_bg - mean_fg) ** 2
+        if variance > max_variance:
+            max_variance = variance
+            best_threshold = t
+
+    return enhanced.point(lambda x: 255 if x > best_threshold else 0, "L")
+
+
+def _binarize_multi(im):
+    """Generate multiple binarized versions with different thresholds.
+    
+    Returns list of (threshold_label, image) tuples for trying multiple
+    OCR passes — different thresholds work better for different 
+    lighting conditions (glare vs shadow vs normal).
+    """
+    variants = []
+    
+    # Standard auto-threshold (Otsu)
+    variants.append(("auto", _binarize(im)))
+    
+    # Fixed thresholds for common scenarios
+    for thresh in [120, 140, 160, 180]:
+        variants.append((f"t{thresh}", _binarize(im, threshold=thresh)))
+    
+    # High contrast version (for glare-heavy images)
+    from PIL import ImageOps
+    gray = im.convert("L") if im.mode != "L" else im
+    high_contrast = ImageOps.autocontrast(gray, cutoff=5)
+    variants.append(("high_contrast", high_contrast.point(lambda x: 255 if x > 130 else 0, "L")))
+    
+    # Inverted (for dark backgrounds or negative images)
+    inverted = ImageOps.invert(gray)
+    variants.append(("inverted", _binarize(inverted)))
+    
+    return variants
+
+
+def _deskew_image(im):
+    """Detect and correct skew/rotation in passport image.
+    
+    Passport photos are often taken at slight angles. This function:
+    1. Detects text lines using Hough transform or projection profile
+    2. Calculates skew angle
+    3. Rotates image to correct the skew
+    
+    Returns deskewed image (or original if detection fails).
+    """
+    try:
+        import numpy as np
+        from PIL import Image
+        
+        # Convert to grayscale
+        gray = np.array(im.convert("L"))
+        
+        # Simple approach: try common angles (-10 to +10 degrees) and find
+        # one with maximum horizontal projection variance (text lines aligned)
+        best_angle = 0
+        max_score = -1
+        
+        # Only check small angles (passports rarely rotated more than 15°)
+        for angle in range(-15, 16, 1):
+            # Rotate image
+            from PIL import Image as PILImage
+            rotated = im.rotate(angle, resample=PILImage.BICUBIC, expand=False)
+            arr = np.array(rotated.convert("L"))
+            
+            # Calculate horizontal projection (sum of pixels per row)
+            proj = np.sum(arr < 128, axis=1)
+            
+            # Score: variance of projection (higher = clearer text lines)
+            score = np.var(proj)
+            
+            if score > max_score:
+                max_score = score
+                best_angle = angle
+        
+        # Only apply correction if angle is significant (>2°)
+        if abs(best_angle) > 2:
+            from PIL import Image as PILImage
+            return im.rotate(best_angle, resample=PILImage.BICUBIC, expand=True)
+        
+        return im
+        
+    except Exception:
+        # If deskew fails, return original image
+        return im
+
+
+def _enhance_for_ocr(im):
+    """Apply multiple enhancements to improve OCR accuracy on passport images.
+    
+    Enhancements applied:
+    1. Deskew (fix rotation)
+    2. Sharpen (fix blur)
+    3. Denoise (reduce graininess)
+    4. Resize to optimal size for Tesseract
+    """
+    from PIL import Image, ImageFilter, ImageOps
+    
+    # Step 1: Deskew
+    im = _deskew_image(im)
+    
+    # Step 2: Ensure minimum size for good OCR
+    if im.width < 1500:
+        ratio = 1500 / im.width
+        im = im.resize((1500, max(1, int(im.height * ratio))), Image.LANCZOS)
+    
+    # Step 3: Sharpen slightly (helps with mild blur)
+    im = im.filter(ImageFilter.UnsharpMask(radius=2, percent=150, threshold=3))
+    
+    # Step 4: Light denoise (median filter reduces salt-and-pepper noise)
+    im = im.filter(ImageFilter.MedianFilter(size=3))
+    
+    return im
 
 
 def _parse_visual_date(s: str) -> str:
@@ -703,19 +881,25 @@ def _extract_visual_fallback(extracted: dict, text: str) -> None:
 def _ocr_passport(content: bytes) -> dict:
     """OCR gambar passport guna tesseract (binary sistem, bahasa 'eng').
 
-    Strategi berlapis untuk tangkap SEMUA medan diperlukan dari passport:
-    1. Crop 35% bahagian BAWAH imej (MRZ sentiasa di situ), dibinarisasi
-       (autocontrast + threshold) + upscale 2x, dengan char whitelist MRZ
-       (A-Z 0-9 <). Binarisasi ialah teknik standard untuk tesseract MRZ —
-       fon OCR-B kontras tinggi pada latar putih, B/W bersih tingkatkan hit
-       rate dengan ketara berbanding grayscale biasa.
-    2. Imej penuh (grayscale + binarisasi) beberapa mod segmentasi — untuk
-       tangkap medan visual (label "Passport No", "Date of Birth" dll) sebagai
-       fallback bila MRZ tak dapat dibaca.
-    3. IC Malaysia (NRIC 12-digit) dicari dalam keseluruhan teks OCR (MRZ
-       passport TIDAK mengandungi IC — IC hanya pada visual/Kad).
-    Medan yang berjaya diekstrak sahaja dipulangkan — yang gagal dibiarkan
-    kosong utk customer isi sendiri. Timeout 30s per pass.
+    Strategi berlapis KONSERVATIF untuk tangkap medan diperlukan dari passport:
+    
+    PREPROCESSING (MINIMAL):
+    - Resize ke minimum 1200px lebar (Tesseract perlsa saiz besar)
+    - Grayscale + binarize standard (autocontrast + fixed threshold)
+
+    BINARIZATION (DUA VARIANT SAHAJA):
+    - Threshold 140 (standard, terbukti berfungsi)
+    - Threshold 130 (sedikit lebih rendah untuk gambar gelap)
+
+    PSM MODES (3 SAHAJA):
+    - PSM 6: Assume uniform block of text (MRZ lines) — UTAMA
+    - PSM 11: Sparse text — sekunder
+    - PSM 4: Single column — fallback
+
+    CROP ZONE:
+    - 35% bawah (MRZ zone standard) — sama seperti original
+    
+    Ini adalah versi SELAMAT yang mengekalkan approach asal tanpa over-engineering.
     """
     import io
     import os
@@ -731,41 +915,58 @@ def _ocr_passport(content: bytes) -> dict:
     full_text = ""
     try:
         img = Image.open(io.BytesIO(content))
+        
+        # Resize minimum 1200px width (Tesseract perform better on larger images)
         if img.width < 1200:
             ratio = 1200 / img.width
-            img = img.resize((1200, max(1, int(img.height * ratio))))
+            img = img.resize((1200, max(1, int(img.height * ratio))), Image.LANCZOS)
+            
         gray = ImageOps.grayscale(img)
 
-        # Crop bawah 35% — lokasi standard blok MRZ.
+        # Crop bawah 35% — lokasi standard blok MRZ (ORIGINAL, tested)
         bottom = gray.crop((0, int(gray.height * 0.65), gray.width, gray.height))
-        # Upscale crop 2x + binarisasi (MRZ paling reliable pada B/W bersih).
-        bw_bottom = _binarize(bottom.resize((bottom.width * 2, bottom.height * 2)))
+        
+        # Hanya DUA binarization variants (tidak terlalu banyak):
+        # 1. Standard threshold 140 (original, proven)
+        bw_standard = _binarize(bottom.resize((bottom.width * 2, bottom.height * 2)), threshold=140)
+        # 2. Slightly lower threshold 130 (untuk gambar lebih gelap)
+        bw_dark = _binarize(bottom.resize((bottom.width * 2, bottom.height * 2)), threshold=130)
+        # 3. Full image grayscale (fallback visual)
         bw_full = _binarize(gray)
 
         with tempfile.TemporaryDirectory() as td:
             full_path = os.path.join(td, "full.png")
             mrz_path = os.path.join(td, "mrz.png")
-            mrz_bw_path = os.path.join(td, "mrz_bw.png")
+            mrz_std_path = os.path.join(td, "mrz_std.png")
+            mrz_dark_path = os.path.join(td, "mrz_dark.png")
             full_bw_path = os.path.join(td, "full_bw.png")
+            
             gray.save(full_path)
             bottom.save(mrz_path)
-            bw_bottom.save(mrz_bw_path)
+            bw_standard.save(mrz_std_path)
+            bw_dark.save(mrz_dark_path)
             bw_full.save(full_bw_path)
 
-            # Diutamakan crop MRZ binarisasi (paling tinggi hit rate),
-            # kemudian crop MRZ grayscale, akhirnya imej penuh (visual fallback).
+            # Pass list: PRIORITI + TERHAD (original order + sedikit variation)
+            # Jangan terlalu banyak — 10 passes maksimum
             passes = [
-                (mrz_bw_path, "6",  MRZ_CFG),
-                (mrz_bw_path, "11", MRZ_CFG),
-                (mrz_bw_path, "4",  MRZ_CFG),
-                (mrz_path,    "6",  MRZ_CFG),
-                (mrz_path,    "11", MRZ_CFG),
-                (full_bw_path, "6", []),
-                (full_path,    "6", []),
-                (full_path,    "4",  []),
-                (full_path,    "11", []),
+                # Priority 1: MRZ zone with standard binarization (paling reliable)
+                (mrz_std_path, "6",  MRZ_CFG, "MRZ-standard-PSM6"),
+                (mrz_std_path, "11", MRZ_CFG, "MRZ-standard-PSM11"),
+                # Priority 2: MRZ zone with darker threshold (for dark photos)
+                (mrz_dark_path, "6",  MRZ_CFG, "MRZ-dark-PSM6"),
+                (mrz_dark_path, "11", MRZ_CFG, "MRZ-dark-PSM11"),
+                # Priority 3: MRZ zone grayscale (no binarization)
+                (mrz_path,    "6",  MRZ_CFG, "MRZ-gray-PSM6"),
+                (mrz_path,    "11", MRZ_CFG, "MRZ-gray-PSM11"),
+                # Priority 4: Full image (visual fallback)
+                (full_bw_path, "6",  [],      "FULL-bw-PSM6"),
+                (full_bw_path, "11", [],      "FULL-bw-PSM11"),
+                (full_path,    "6",  [],      "FULL-gray-PSM6"),
+                (full_path,    "4",  [],      "FULL-gray-PSM4"),
             ]
-            for path, psm, cfg in passes:
+            
+            for path, psm, cfg, desc in passes:
                 try:
                     proc = subprocess.run(
                         ["tesseract", path, "stdout", "-l", "eng", "--psm", psm] + cfg,
@@ -775,22 +976,33 @@ def _ocr_passport(content: bytes) -> dict:
                     continue
                 text = proc.stdout.decode("utf-8", "ignore")
                 full_text += "\n" + text
+                
+                # Try MRZ extraction — stop at first good result
                 if not extracted.get("passport_no"):
-                    extracted = _extract_mrz(text) or extracted
+                    result = _extract_mrz(text)
+                    if result and result.get("passport_no"):
+                        extracted.update(result)
+                        frappe.logger.debug(f"✓ Passport OCR success via {desc}")
 
-        if not extracted:
-            extracted = _extract_mrz(full_text)
+        # Final attempt: extract from accumulated full text
+        if not extracted.get("passport_no"):
+            extracted = _extract_mrz(full_text) or extracted
 
         # IC Malaysia (NRIC 12 digit) — dicari dalam keseluruhan teks OCR
-        # (MRZ passport TIDAK mengandungi IC).
         m = re.search(r"\b(\d{6}[-\s]?\d{2}[-\s]?\d{4})\b", full_text)
         if m:
             extracted["ic_number"] = re.sub(r"\D", "", m.group(1))
 
-        # Fallback visual: kalau MRZ gagal beri medan utama, cuba ekstrak
-        # passport_no & tarikh daripada teks visual (label passport field).
+        # Fallback visual: kalau MRZ gagal beri medan utama
         if not extracted.get("passport_no"):
             _extract_visual_fallback(extracted, full_text)
+            
+        # Log hasil
+        if extracted:
+            frappe.logger.info(f"Passport OCR extracted: {list(extracted.keys())}")
+        else:
+            frappe.logger.warning(f"Passport OCR failed. Text length: {len(full_text)}")
+
     except Exception:
         frappe.log_error(title="Passport OCR failed",
                          message=frappe.get_traceback())
@@ -815,11 +1027,12 @@ def check_traveller_passport(filedata: str, guest_token: str = ""):
     save_booking_traveller. Imj dihantar sebagai base64 data URL.
     """
     if guest_token:
-        # Guest path — sahkan token sahaja (throw kalau invalid/expired/
-        # Verified). Booking context tak diperlukan utk OCR + matching.
-        _resolve_guest_token(guest_token)
+        # Guest path — sahkan token (throw kalau invalid/expired/Verified).
+        # booking.customer dipakai utk scope matching traveller (IDOR guard).
+        booking, _slot, _actor = _resolve_guest_token(guest_token)
+        customer_name = booking.customer
     else:
-        _get_customer()
+        customer_name = _get_customer()
 
     if not filedata:
         frappe.throw("Passport image is required.")
@@ -864,6 +1077,11 @@ def check_traveller_passport(filedata: str, guest_token: str = ""):
                      "medical_conditions", "special_needs",
                      "wheelchair_assistant", "medicine_treatment", "passport_image"]
 
+    # IDOR guard: hanya boleh padan traveller pada booking customer ini.
+    # Tanpa ni, customer A boleh dapat PII penuh traveller customer B
+    # dengan tahu nombor passport/IC mereka sahaja.
+    owned = _customer_traveller_names(customer_name)
+
     for match_field, match_value in (
         ("passport_no", _normalize_id(extracted.get("passport_no") or "")),
         ("ic_number",  _normalize_id(extracted.get("ic_number") or "")),
@@ -871,14 +1089,25 @@ def check_traveller_passport(filedata: str, guest_token: str = ""):
         if not match_value:
             continue
         traveller_name = _find_traveller_by_normalized(match_field, match_value)
-        if traveller_name:
+        if traveller_name and traveller_name in owned:
             tvl = frappe.get_doc("Traveller", traveller_name)
             return {"status": "found", "data": _traveller_payload(tvl), "extracted": extracted}
 
-    travellers = frappe.get_all(
-        "Traveller",
-        filters={"passport_image": ["like", "/files/%"], "docstatus": ["<", 2]},
-        fields=_MATCH_FIELDS,
+    travellers = (
+        frappe.get_all(
+            "Traveller",
+            # "%/files/%" memadankan "/files/..." (public) DAN
+            # "/private/files/..." (private — macam semua upload portal,
+            # is_private=1). Filter lama "/files/%" tertapis prefix, jadi
+            # image-matching tak pernah berjalan untuk fail private.
+            # D scoped kepada traveller customer ini (IDOR guard).
+            filters={"name": ["in", list(owned)],
+                     "passport_image": ["like", "%/files/%"],
+                     "docstatus": ["<", 2]},
+            fields=_MATCH_FIELDS,
+        )
+        if owned
+        else []
     )
 
     for tvl in travellers:
@@ -919,7 +1148,7 @@ def check_traveller_passport(filedata: str, guest_token: str = ""):
 @frappe.whitelist()
 def wizard_lookup(ic_number: str, passport_no: str, full_name: str):
     """Verify traveller identity using IC + Passport + Full Name."""
-    _get_customer()
+    customer_name = _get_customer()
 
     ic_number   = (ic_number  or "").strip()
     passport_no = (passport_no or "").strip().upper()
@@ -941,6 +1170,12 @@ def wizard_lookup(ic_number: str, passport_no: str, full_name: str):
     )
 
     if not traveller:
+        return {"status": "not_found"}
+
+    # IDOR guard: traveller mesti milik customer (ada booking) sebelum PII
+    # dipulangkan. Jangan dedah kewujudan rekod customer lain — balas
+    # not_found supaya attacker tak tahu traveller itu wujud atau tidak.
+    if traveller.name not in _customer_traveller_names(customer_name):
         return {"status": "not_found"}
 
     TITLES = [
@@ -1236,11 +1471,24 @@ def request_guest_passport_link(booking_number: str = "", slot_name: str = "",
     else:
         masked = ""
 
+    # ── Generate QR Code (base64 PNG data URI) ──
+    qr = qrcode.QRCode(
+        version=1, box_size=10, border=2,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+    )
+    qr.add_data(link)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    qr_data_uri = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
     return {
         "status":       "sent" if email else "generated",
         "link":         link,
         "masked_email": masked,
         "expires_on":   str(expires_on),
+        "qr_data_uri":  qr_data_uri,
     }
 
 

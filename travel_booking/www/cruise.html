@@ -1,0 +1,215 @@
+{% extends "templates/base_travel.html" %}
+
+{% block title %}Luxury Cruise Vacations — {{ site_name or 'Rarecation' }}{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/assets/travel_booking/css/cruise.css?v={{ asset_v('css/cruise.css') }}"/>
+{% endblock %}
+
+{% block page_content %}
+{# ============================================================
+   CRUISE HOMEPAGE — /cruise
+   Luxury cruise travel homepage. Marketing copy (hero, section
+   headers, benefits, testimonials, CTA) comes from Travel Website
+   config (wc.cruise.*). Dynamic grids (featured cruises, popular
+   destinations) fetched by cruise.py via trip_catalog.
+   ============================================================ #}
+{% set wc = get_website_config() %}
+{% set hp = wc.cruise %}
+
+{# ── HERO SECTION ── #}
+<section class="rc-cruise-hero">
+  <div class="rc-hero-bg"></div>
+  <div class="rc-hero-overlay"></div>
+  <div class="rc-hero-content">
+    <span class="rc-hero-tag">{{ hp.hero.tag }}</span>
+    <h1>{{ hp.hero.title|safe }}</h1>
+    <p>{{ hp.hero.intro }}</p>
+
+    {# Search Widget #}
+    <form class="rc-hero-search" action="/trips" method="get">
+      <input type="hidden" name="cruise" value="1"/>
+      <div class="rc-search-grid">
+        <label class="rc-search-field">
+          <i class="ti ti-map-pin"></i>
+          <select name="destination">
+            <option value="">Where to?</option>
+            {% for d in options.destinations %}
+            <option value="{{ d.name }}">{{ d.destination_name }}{% if d.destination_country %}, {{ d.destination_country }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="rc-search-field">
+          <i class="ti ti-calendar-event"></i>
+          <input type="date" name="date_from" placeholder="Departure"/>
+        </label>
+        <button type="submit" class="rc-search-btn">
+          <i class="ti ti-search"></i> {{ hp.hero.search_label }}
+        </button>
+      </div>
+    </form>
+
+    <div class="rc-hero-stats">
+      {% for stat in hp.hero.stats %}
+      <div class="rc-stat">
+        <strong>{{ stat.stat_value }}</strong>
+        <span>{{ stat.stat_label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# ── FEATURED CRUISES ── #}
+<section class="rc-section rc-featured">
+  <div class="rc-container">
+    <div class="rc-section-header">
+      <span class="rc-tag">{{ hp.featured.tag }}</span>
+      <h2>{{ hp.featured.title }}</h2>
+      <p>{{ hp.featured.subtitle }}</p>
+    </div>
+
+    {% if featured_cruises %}
+    <div class="rc-cruise-grid">
+      {% for cruise in featured_cruises %}
+      <article class="rc-cruise-card">
+        <a class="rc-cruise-img" href="/{{ cruise.route }}">
+          <img src="{{ cruise.trip_image }}" alt="{{ cruise.trip_name }}" loading="lazy"
+               onerror="this.src='/assets/travel_booking/img/defaultaroyo.jpg'"/>
+          <span class="rc-cruise-badge">{{ cruise.days_nights }}</span>
+          {% if cruise.is_hot_sale %}
+          <span class="rc-cruise-hot">🔥 Hot Deal</span>
+          {% endif %}
+        </a>
+        <div class="rc-cruise-body">
+          <div class="rc-cruise-meta">
+            <span><i class="ti ti-route"></i> {{ cruise.route_name }}</span>
+            <span><i class="ti ti-ship"></i> {{ cruise.ship_name }}</span>
+          </div>
+          <h3 class="rc-cruise-title"><a href="/{{ cruise.route }}">{{ cruise.trip_name }}</a></h3>
+          <p class="rc-cruise-desc">{{ cruise.short_description }}</p>
+          <div class="rc-cruise-foot">
+            <div class="rc-cruise-price">
+              <span class="rc-price-from">From</span>
+              <strong>{{ get_company_symbol() }}{{ "{:,.0f}".format(cruise.starting_from_price) }}</strong>
+              <span class="rc-price-per">/pax</span>
+            </div>
+            <a href="/{{ cruise.route }}" class="rc-btn-view">View Details</a>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="rc-empty-state">
+      <i class="ti ti-ship-off"></i>
+      <h3>No featured cruises yet</h3>
+      <p>Check back soon for our curated voyage selections.</p>
+      <a href="{{ hp.featured.cta_url }}" class="rc-btn-primary">Browse All Cruises</a>
+    </div>
+    {% endif %}
+
+    <div class="rc-section-cta">
+      <a href="{{ hp.featured.cta_url }}" class="rc-btn-outline">{{ hp.featured.cta_label }}</a>
+    </div>
+  </div>
+</section>
+
+{# ── WHY CRUISE WITH US ── #}
+<section class="rc-section rc-why-us">
+  <div class="rc-container">
+    <div class="rc-section-header rc-light">
+      <span class="rc-tag rc-tag-outline">{{ hp.whyus.tag }}</span>
+      <h2>{{ hp.whyus.title }}</h2>
+      <p>{{ hp.whyus.subtitle }}</p>
+    </div>
+
+    <div class="rc-benefits-grid">
+      {% for b in hp.whyus.benefits %}
+      <div class="rc-benefit-card">
+        <div class="rc-benefit-icon"><i class="ti {{ b.icon }}"></i></div>
+        <h3>{{ b.title }}</h3>
+        <p>{{ b.description }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{# ── POPULAR DESTINATIONS ── #}
+<section class="rc-section rc-destinations">
+  <div class="rc-container">
+    <div class="rc-section-header">
+      <span class="rc-tag">{{ hp.dest.tag }}</span>
+      <h2>{{ hp.dest.title }}</h2>
+      <p>{{ hp.dest.subtitle }}</p>
+    </div>
+
+    {% if popular_destinations %}
+    <div class="rc-dest-grid">
+      {% for dest in popular_destinations %}
+      <a href="/trips?cruise=1&destination={{ dest.name | urlencode }}" class="rc-dest-card">
+        <div class="rc-dest-img" style="background-image:url('{{ dest.image or '/assets/travel_booking/img/defaultaroyo.jpg' }}')">
+          <div class="rc-dest-overlay">
+            <h3>{{ dest.destination_name }}</h3>
+            <span>{{ dest.cruise_count or '' }} Cruises</span>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{# ── TESTIMONIALS ── #}
+<section class="rc-section rc-testimonials">
+  <div class="rc-container">
+    <div class="rc-section-header">
+      <span class="rc-tag">{{ hp.testi.tag }}</span>
+      <h2>{{ hp.testi.title }}</h2>
+      <p>{{ hp.testi.subtitle }}</p>
+    </div>
+
+    <div class="rc-testimonial-slider" id="rcTestimonialSlider">
+      <div class="rc-track">
+        {% for item in hp.testi.testimonials %}
+        <div class="rc-testi-card">
+          <div class="rc-testi-stars">{% for i in range(item.rating) %}★{% endfor %}</div>
+          <blockquote>"{{ item.quote }}"</blockquote>
+          <div class="rc-testi-author">
+            <strong>{{ item.author }}</strong>
+            {% if item.context_label %}<span>{{ item.context_label }}</span>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="rc-slider-dots" id="rcSliderDots"></div>
+    </div>
+  </div>
+</section>
+
+{# ── FINAL CTA BANNER ── #}
+<section class="rc-final-cta">
+  <div class="rc-cta-bg"></div>
+  <div class="rc-cta-glow"></div>
+  <div class="rc-container">
+    <div class="rc-cta-content">
+      <div class="rc-cta-icon"><i class="ti {{ hp.cta.icon }}"></i></div>
+      <span class="rc-cta-tag">{{ hp.cta.tag }}</span>
+      <h2>{{ hp.cta.title }}</h2>
+      <p>{{ hp.cta.body }}</p>
+      <div class="rc-cta-buttons">
+        <a href="{{ hp.cta.primary_url }}" class="rc-btn-primary rc-btn-lg">{{ hp.cta.primary_label }}</a>
+        {% if hp.cta.secondary_label %}
+        <a href="{{ hp.cta.secondary_url }}" class="rc-btn-outline rc-btn-lg rc-btn-light">{{ hp.cta.secondary_label }}</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block footer_extra %}
+<script src="/assets/travel_booking/js/cruise.js?v={{ asset_v('js/cruise.js') }}"></script>
+{% endblock %}

@@ -80,6 +80,17 @@ def _fetch_bookings(customer_name):
     return bookings
 
 
+def _email_has_booking(email):
+    """True kalau ada rekod Booking dengan cust_email = email ni.
+    Guna cust_email snapshot field (ditulis semasa booking dicipta oleh
+    confirm_booking). Ini jadi kelayakan utama utk assign role Customer
+    pada signup — bukan kewujudan Customer (yang mungkin belum dicipta).
+    """
+    if not email:
+        return False
+    return bool(frappe.db.exists("Booking", {"cust_email": email}))
+
+
 # ══════════════════════════════════════════════
 # CHECK SESSION
 # ══════════════════════════════════════════════
@@ -92,7 +103,7 @@ def check_session():
       1. Ada rekod Customer link kepada email ni (customer sebenar,
          biasa datang dari booking pertama — rujuk _ensure_portal_user()
          dalam booking.py) — keadaan paling biasa untuk customer tulen.
-      2. TIADA Customer, tapi User ada role "Traveller" — cth staff/admin
+      2. TIADA Customer, tapi User ada role "Customer" — cth staff/admin
          yang sengaja diberi role ni secara manual di Desk untuk tujuan
          testing/akses dalaman, tanpa perlu 'booking palsu' semata-mata
          untuk cipta rekod Customer (yang boleh mengotorkan data
@@ -101,7 +112,7 @@ def check_session():
          mengelirukan — sebab dari segi Frappe session, mereka MEMANG
          dah authenticated dengan sah.
 
-    NOTA: untuk customer SEBENAR, role "Traveller" dan rekod Customer
+    NOTA: untuk customer SEBENAR, role "Customer" dan rekod Customer
     SENTIASA dicipta serentak dalam SATU transaksi confirm_booking() —
     jadi keadaan "ada role tapi tiada Customer" hanya berlaku untuk
     akaun yang role-nya diberi terus di Desk (staff/testing), bukan
@@ -110,7 +121,7 @@ def check_session():
     DIAGNOSTIC: jika user AUTHENTICATED (bukan Guest) tetapi tiada rekod
     Customer link (cth Contact putus, admin edit di Desk, data migrate)
     pulang status "no_customer_link" BUKAN no_customer. no_customer
-    (logged_in: False) HANYA untuk user yang TIADA role Traveller dan
+    (logged_in: False) HANYA untuk user yang TIADA role Customer dan
     TIADA Customer — kemungkinan akaun separuh jadi. Sebelum ni, customer
     yang login sah tapi Contact putus dapat skrin login berulang
     (logged_in: False) — mengelirukan sebab mereka MEMANG dah login,
@@ -123,32 +134,40 @@ def check_session():
     if not user_email or user_email == "Guest":
         return {"status": "guest", "logged_in": False}
 
+    # Profile photo (User.user_image) — dipakai oleh nav avatar dropdown.
+    user_image = frappe.db.get_value("User", user_email, "user_image") or ""
+
+    # Gatekeeper: hanya role "Customer" dibenarkan akses portal.
+    # Tiada role = akaun "under review" (signup tanpa booking). Customer
+    # record bukan syarat utama lagi — role adalah satu-satunya pintu
+    # masuk. Sebelum ni, Customer jadi gatekeeper; sekarang role.
+    if "Customer" not in frappe.get_roles(user_email):
+        return {
+            "status":     "under_review",
+            "logged_in":  True,
+            "email":      user_email,
+            "user_image": user_image,
+            "message":    (
+                "Your account is under review. "
+                "Portal access is granted after your first booking."
+            ),
+        }
+
     customer_name = get_customer_by_email(user_email)
 
     if not customer_name:
-        if "Traveller" in frappe.get_roles(user_email):
-            full_name = frappe.db.get_value("User", user_email, "full_name") or user_email
-            return {
-                "status":        "ok",
-                "logged_in":     True,
-                "customer_name": full_name,
-                "customer_id":   None,
-                "email":         user_email,
-                "bookings":      [],
-            }
-        # User authenticated tapi BUKAN Guest, tiada Customer, tiada role
-        # Traveller. Pulang status diagnostic + logged_in: True (jangan
-        # tipu frontend yang customer "belum login" — session Frappe
-        # valid). Frontend tunjuk mesej hubungi sokongan, BUKAN skrin
-        # login yang buat customer rasa perlu login semula.
+        # Ada role Customer tapi tiada Customer (cth staff/testing, atau
+        # user yang role-nya diberi manual di Desk). Dashboard kosong —
+        # bukan redirect ke login, sebab session mereka sah.
+        full_name = frappe.db.get_value("User", user_email, "full_name") or user_email
         return {
-            "status":    "no_customer_link",
-            "logged_in": True,
-            "email":     user_email,
-            "message":   (
-                "You are signed in, but no customer record was found. "
-                "Please contact support to review your account."
-            ),
+            "status":        "ok",
+            "logged_in":     True,
+            "customer_name": full_name,
+            "customer_id":   None,
+            "email":         user_email,
+            "user_image":    user_image,
+            "bookings":      [],
         }
 
     customer = frappe.db.get_value(
@@ -163,6 +182,7 @@ def check_session():
             "status":    "no_customer_link",
             "logged_in": True,
             "email":     user_email,
+            "user_image": user_image,
             "message":   "No customer record found. Please contact support.",
         }
 
@@ -173,6 +193,7 @@ def check_session():
         "customer_name": customer.customer_name,
         "customer_id":   customer.name,
         "email":         user_email,
+        "user_image":    user_image,
         "bookings":      bookings
     }
 
@@ -224,8 +245,8 @@ def forgot_password(email: str):
     # cara reset password (dpt mesej "jika email ini berdaftar" tapi tiada
     # link dihantar). Ini bug: user authenticated sah tak boleh reset.
     is_customer   = bool(get_customer_by_email(email))
-    is_traveller  = "Traveller" in frappe.get_roles(user)
-    if not is_customer and not is_traveller:
+    is_customer_role  = "Customer" in frappe.get_roles(user)
+    if not is_customer and not is_customer_role:
         return {"status": "ok", "message": "If this email is registered, a link will be sent."}
 
     reset_key = frappe.generate_hash(length=32)
@@ -276,8 +297,8 @@ def send_magic_link_by_email(email: str):
     # Sama macam forgot_password(): benarkan magic link kalau ada Customer
     # link ATAU ada role "Traveller" — jangan kunci staff/testing user.
     is_customer  = bool(get_customer_by_email(email))
-    is_traveller = "Traveller" in frappe.get_roles(user)
-    if not is_customer and not is_traveller:
+    is_customer_role = "Customer" in frappe.get_roles(user)
+    if not is_customer and not is_customer_role:
         return {"status": "ok", "message": generic_msg}
 
     expiry_minutes = 30
@@ -435,3 +456,82 @@ def _record_login_audit(email: str):
             "Magic-link audit record failed for {0}: {1}".format(email, str(e)),
             "Portal Login Audit"
         )
+
+
+# ══════════════════════════════════════════════
+# SIGNUP
+# ══════════════════════════════════════════════
+
+@frappe.whitelist(allow_guest=True)
+def signup(full_name: str, email: str, password: str):
+    """Self-serve signup untuk portal /traveller.
+
+    Model authorization: role "Customer" hanya diberi jika email ni
+    ada rekod Booking (cust_email). Kalau tiada booking, akaun dicipta
+    TANPA role — status "under review" sehingga user buat booking
+    pertama (booking flow akan assign role via _ensure_portal_user).
+
+    Customer + Contact TIDAK dicipta di sini — ia dicipta semasa
+    booking flow (_create_customer dalam so_helpers.py). Jika user
+    dah ada booking, Customer sudah wujud dan get_customer_by_email
+    akan jumpa ia melalui Contact/Dynamic Link.
+    """
+    frappe.flags.ignore_permissions = True
+
+    email = (email or "").strip().lower()
+    full_name = (full_name or "").strip()
+    password = password or ""
+
+    if not email or not full_name or not password:
+        frappe.throw("Please fill in all fields.")
+    if len(password) < 8:
+        frappe.throw("Password must be at least 8 characters.")
+    if frappe.db.exists("User", email):
+        frappe.throw(
+            "An account with this email already exists. "
+            "Please sign in instead."
+        )
+
+    name_parts = full_name.split()
+    first_name = name_parts[0] if name_parts else "Customer"
+    last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+
+    # Cipta User TANPA role — role Customer hanya diberi jika booking wujud
+    new_user = frappe.get_doc({
+        "doctype":            "User",
+        "email":              email,
+        "first_name":         first_name,
+        "last_name":          last_name,
+        "enabled":            1,
+        "user_type":          "Website User",
+        "send_welcome_email": 0,
+        "new_password":       password,
+    })
+    new_user.flags.ignore_permissions = True
+    new_user.insert()
+
+    # Semak jika email ni ada booking — guna cust_email snapshot field
+    if _email_has_booking(email):
+        # Booking wujud → assign role Customer → portal access
+        new_user.append("roles", {"role": "Customer"})
+        new_user.flags.ignore_permissions = True
+        new_user.save()
+        frappe.db.commit()
+        return {
+            "status":        "ok",
+            "role_assigned": True,
+            "email":         email,
+            "message":       "Account created! Redirecting to your bookings...",
+        }
+
+    # Tiada booking → akaun under review, tiada role diberi
+    frappe.db.commit()
+    return {
+        "status":        "ok",
+        "role_assigned": False,
+        "email":         email,
+        "message":       (
+            "Your account is under review. "
+            "Portal access is granted after your first booking."
+        ),
+    }

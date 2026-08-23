@@ -47,12 +47,32 @@ def get_booking_data(booking_number: str):
     booking = frappe.db.sql("""
         SELECT
             b.name, b.booking_number, b.customer, b.trip_date,
-            b.status,
+            b.trip_package, b.status,
+            -- Trip info
             tm.trip_name,
-            td.trip_group_name, td.departure_date, td.return_date
+            tm.is_a_cruise_trip AS trip_is_cruise,
+            -- Trip Group Date info (dates, sailing, ports)
+            td.trip_group_name, td.departure_date, td.return_date,
+            td.embarkation_port, td.disembarkation_port,
+            td.sailing_start, td.sailing_end,
+            td.ship_name, td.ship_code,
+            td.is_cruise_only AS tgd_cruise_only,
+            -- Trip Package info (package type, airport)
+            tp.package_title, tp.package_code, tp.package_type,
+            tp.is_cruise_only AS pkg_cruise_only,
+            tp.airport_form AS depart_airport,
+            -- Flight Airport info
+            fa.airport_name, fa.airport_code, fa.airport_city,
+            -- Port names (resolve Link fields to display names)
+            ep.destination_name AS embark_port_name,
+            dp.destination_name AS disembark_port_name
         FROM `tabBooking` b
-        LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
-        LEFT JOIN `tabTrip` tm ON tm.name = td.trip
+        LEFT JOIN `tabTrip Group Date`        td  ON td.name  = b.trip_date
+        LEFT JOIN `tabTrip`                    tm  ON tm.name  = td.trip
+        LEFT JOIN `tabTrip Package`            tp  ON tp.name  = b.trip_package
+        LEFT JOIN `tabFlight Airport`          fa  ON fa.name  = tp.airport_form
+        LEFT JOIN `tabTrip Destination Point`  ep  ON ep.name  = td.embarkation_port
+        LEFT JOIN `tabTrip Destination Point`  dp  ON dp.name  = td.disembarkation_port
         WHERE b.booking_number = %s
     """, booking_number, as_dict=True)
 
@@ -252,23 +272,27 @@ def get_booking_data(booking_number: str):
     # (single source of truth) — elak papar nilai stale.
     from travel_booking.api.booking import _compute_payment_status, _get_all_booking_sales_orders, _get_primary_so
 
+    primary_so = _get_primary_so(booking_name)
+
+    # Bina senarai SEMUA SO (untuk paparan "Bill Orders" di portal)
+    so_list = []
     grand_total  = 0.0
     advance_paid = 0.0
     for so_name in _get_all_booking_sales_orders(booking_name):
         so_vals = frappe.db.get_value("Sales Order", so_name,
-                                      ["grand_total", "advance_paid"], as_dict=True)
+                                      ["grand_total", "advance_paid", "status"], as_dict=True)
         if so_vals:
-            # NOTA: "Disable Rounded Total" kini global (Selling Settings) —
-            # standardize ke grand_total sahaja, konsisten dengan
-            # get_all_so_payments() (portal_payment.py) dan
-            # _recompute_booking_status()/create_payment_request() (booking.py/
-            # stripe_checkout.py) supaya payment_status & total yang dipapar
-            # di sini SEPADAN dengan apa yang backend guna untuk validate
-            # bayaran sebenar.
-            grand_total  += float(so_vals.grand_total or 0)
-            advance_paid += float(so_vals.advance_paid or 0)
-
-    primary_so = _get_primary_so(booking_name)
+            gt = float(so_vals.grand_total or 0)
+            ap = float(so_vals.advance_paid or 0)
+            grand_total  += gt
+            advance_paid += ap
+            so_list.append({
+                "name":         so_name,
+                "grand_total":  gt,
+                "advance_paid": ap,
+                "balance":      gt - ap,
+                "status":       so_vals.status or "Draft",
+            })
 
     so_data = {
         "grand_total":  grand_total,
@@ -284,26 +308,73 @@ def get_booking_data(booking_number: str):
 
     payment_status = _compute_payment_status(advance_paid, grand_total)
 
+    # Determine trip classification
+    is_cruise = bool(booking.trip_is_cruise)
+    cruise_only = bool(booking.pkg_cruise_only or booking.tgd_cruise_only)
+    pkg_type = booking.package_type or ""
+
+    # Build display labels based on type
+    if is_cruise:
+        if cruise_only:
+            trip_category = "Cruise Only"
+        elif pkg_type == "Fly Cruise":
+            trip_category = "Fly Cruise"
+        elif pkg_type == "Customed":
+            trip_category = "Cruise (Custom)"
+        else:
+            trip_category = "Cruise Trip"
+    else:
+        if pkg_type == "Ground Only":
+            trip_category = "Ground Only"
+        elif pkg_type == "Fly Package":
+            trip_category = "Fly Package"
+        elif pkg_type == "Customed":
+            trip_category = "Tour (Custom)"
+        else:
+            trip_category = "Tour Package"
+
     return {
         "booking": {
             "name":           booking.name,
             "booking_number": booking.booking_number or booking.name,
             "trip_name":      booking.trip_name       or "-",
-            "trip_type":      "",
-            "group_name":     booking.trip_group_name or "",
-            "sailing_no":     booking.trip_group_name or "",
+            # Trip classification
+            "is_cruise":      is_cruise,
+            "cruise_only":    cruise_only,
+            "package_type":   pkg_type,
+            "trip_category":  trip_category,
+            # Package info
+            "package_title":  booking.package_title  or "",
+            "package_code":   booking.package_code   or "",
+            # Dates
             "departure_date": str(booking.departure_date) if booking.departure_date else "",
             "return_date":    str(booking.return_date)    if booking.return_date    else "",
-            "sales_order":    primary_so or "",
-            "total_slots":    total_slots,
-            "filled_count":   filled_count,
-            "booking_status": booking.status or "",
-            "payment_status": payment_status,
+            # Sailing (cruise only)
+            "sailing_start":  str(booking.sailing_start) if booking.sailing_start else "",
+            "sailing_end":    str(booking.sailing_end)   if booking.sailing_end   else "",
+            # Ports & Ship (resolve Link names)
+            "embarkation_port":   booking.embark_port_name    or booking.embarkation_port   or "",
+            "disembarkation_port": booking.disembark_port_name or booking.disembarkation_port or "",
+            "ship_name":          booking.ship_name          or "",
+            "ship_code":          booking.ship_code          or "",
+            # Airport (for fly packages)
+            "depart_airport":     booking.depart_airport     or "",
+            "airport_name":       booking.airport_name       or "",
+            "airport_code":       booking.airport_code       or "",
+            "airport_city":       booking.airport_city         or "",
+            # Group/Trip code
+            "group_name":         booking.trip_group_name    or "",
+            # Status & counts
+            "sales_order":        primary_so or "",
+            "total_slots":        total_slots,
+            "filled_count":       filled_count,
+            "booking_status":     booking.status or "",
+            "payment_status":     payment_status,
             "can_edit_traveller_details": can_edit_traveller_details,
         },
         "slots":   slots,
         "cabins":  cabins,
-        "payment": {"so": so_data},
+        "payment": {"so": so_data, "so_list": so_list},
     }
 
 

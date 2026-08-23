@@ -43,28 +43,29 @@ def after_install():
 	Semua langkah idempotent — selamat dipanggil berulang (migrate/upgrade)
 	tanpa cipta duplikat. Tidak sentuh schema DocType langsung.
 	"""
-	_create_traveller_role()
+	_create_customer_portal_role()
 	_create_travel_item()
 	_create_default_travel_settings()
+	_create_default_travel_website()
 	_create_email_templates()
 	_create_print_format()
 
 
 # ══════════════════════════════════════════════
-# 1. ROLE — "Traveller"
+# 1. ROLE — "Customer" (portal)
 # ══════════════════════════════════════════════
 
-def _create_traveller_role():
+def _create_customer_portal_role():
 	"""Role untuk pengguna portal (Website User) yang buat booking.
 	Role ni di-assign kepada setiap User yang dicipta oleh
 	_ensure_portal_user() dalam booking_engine.py.
 	"""
-	if frappe.db.exists("Role", "Traveller"):
+	if frappe.db.exists("Role", "Customer"):
 		return
 
 	role = frappe.get_doc({
 		"doctype":           "Role",
-		"role_name":         "Traveller",
+		"role_name":         "Customer",
 		"home_page":         "/traveller_portal",
 		"desk_access":       0,  # portal-only — tiada akses Desk
 		"disabled":          0,
@@ -126,8 +127,194 @@ def _create_default_travel_settings():
 
 
 # ══════════════════════════════════════════════
-# 4. EMAIL TEMPLATES — lalai (boleh edit di Desk)
+# 3b. TRAVEL WEBSITE — lalai (singleton)
 # ══════════════════════════════════════════════
+
+def _create_default_travel_website():
+	"""Travel Website adalah Single doctype (satu rekod). Seed dengan
+	keseluruhan kandungan hardcoded yang asal daripada cruise.html,
+	tour.html, public_nav.html, public_footer.html — supaya halaman
+	awam kelihatan sama sebelum dan selepas refactor config-driven.
+
+	Footer link /destinations (404 lama) dibetulkan → /cruises + /tours.
+	"""
+	doc = frappe.get_doc("Travel Website", "Travel Website")
+	if doc.cruise_hero_tag:
+		return  # sudah di-seed
+
+	menu = [
+		{"label": "Tour", "url": "/tour", "active_nav_key": "tour",
+		 "open_in_new_tab": 0, "is_active": 1, "sort_order": 1},
+		{"label": "Cruise", "url": "/cruise", "active_nav_key": "cruise",
+		 "open_in_new_tab": 0, "is_active": 1, "sort_order": 2},
+		{"label": "All Trip", "url": "/trips", "active_nav_key": "trips",
+		 "open_in_new_tab": 0, "is_active": 1, "sort_order": 3},
+	]
+	nav_cta_label = "Manage Booking"
+	nav_cta_url = "/traveller_portal"
+
+	footer_links = [
+		{"column_title": "Explore", "label": "All Trips", "url": "/trips",
+		 "is_active": 1, "sort_order": 1},
+		{"column_title": "Explore", "label": "Cruises", "url": "/cruises",
+		 "is_active": 1, "sort_order": 2},
+		{"column_title": "Explore", "label": "Tours", "url": "/tours",
+		 "is_active": 1, "sort_order": 3},
+		{"column_title": "Explore", "label": "My Bookings", "url": "/traveller_portal",
+		 "is_active": 1, "sort_order": 4},
+	]
+
+	cruise_benefits = [
+		{"icon": "ti-utensils", "title": "All-Inclusive Dining",
+		 "description": "Gourmet meals from around the world. Specialty restaurants, casual buffets, and 24-hour room service included in every package.",
+		 "is_active": 1, "sort_order": 1},
+		{"icon": "ti-theater", "title": "World-Class Entertainment",
+		 "description": "Broadway-style shows, live music, casinos, and themed parties every night. Entertainment that rivals top land resorts.",
+		 "is_active": 1, "sort_order": 2},
+		{"icon": "ti-building-arch", "title": "Luxury Accommodations",
+		 "description": "From cozy interior staterooms to expansive suites with private balconies. Your floating hotel offers unparalleled comfort at sea.",
+		 "is_active": 1, "sort_order": 3},
+		{"icon": "ti-map-2", "title": "Multiple Destinations",
+		 "description": "Wake up in a new port every day. Visit multiple countries without repacking. The most efficient way to see the world.",
+		 "is_active": 1, "sort_order": 4},
+		{"icon": "ti-kids", "title": "Kids Cruise Free*",
+		 "description": "Select voyages offer complimentary passage for children. Dedicated kids' clubs and family activities keep everyone entertained.",
+		 "is_active": 1, "sort_order": 5},
+		{"icon": "ti-headset", "title": "24/7 Concierge",
+		 "description": "Our travel specialists support you before, during, and after your voyage. Shore excursion bookings, special requests — we handle it all.",
+		 "is_active": 1, "sort_order": 6},
+	]
+	cruise_testimonials = [
+		{"rating": 5, "quote": "The Mediterranean cruise exceeded all expectations. The ship was immaculate, food phenomenal, and the Greek island stops were absolutely magical.",
+		 "author": "Amina & Family", "context_label": "Mediterranean Voyage · Aug 2025", "sort_order": 1},
+		{"rating": 5, "quote": "First-time cruisers here — Rarecation made everything seamless. The kids club was a lifesaver! Already booked our Alaska cruise for next year.",
+		 "author": "The Tan Family", "context_label": "Caribbean Explorer · Jul 2025", "sort_order": 2},
+		{"rating": 5, "quote": "Anniversary trip of a lifetime. Balcony cabin, specialty dining every night, and the Northern Lights from deck — unforgettable.",
+		 "author": "David & Sarah M.", "context_label": "Norwegian Fjords · Jun 2025", "sort_order": 3},
+	]
+
+	tour_benefits = [
+		{"icon": "ti-user-heart", "title": "Expert Local Guides",
+		 "description": "Knowledgeable, passionate guides who bring each destination to life. Gain insights only locals know — from hidden gems to cultural context.",
+		 "is_active": 1, "sort_order": 1},
+		{"icon": "ti-building-hotel", "title": "Handpicked Hotels",
+		 "description": "From boutique stays to 5-star resorts, we select accommodations for comfort, location, and character. Rest well after every adventure.",
+		 "is_active": 1, "sort_order": 2},
+		{"icon": "ti-world", "title": "Cultural Immersion",
+		 "description": "Go beyond tourist spots. Cook with locals, visit artisans, and experience traditions that define each destination's soul.",
+		 "is_active": 1, "sort_order": 3},
+		{"icon": "ti-users-group", "title": "Small Group Sizes",
+		 "description": "Intimate groups of 8–16 travellers mean personal attention, flexible pacing, and authentic interactions — never a herd.",
+		 "is_active": 1, "sort_order": 4},
+		{"icon": "ti-route", "title": "Flexible Itineraries",
+		 "description": "Balanced schedules with free time to explore. Optional excursions let you customise each day to your interests and energy.",
+		 "is_active": 1, "sort_order": 5},
+		{"icon": "ti-headset", "title": "24/7 Support",
+		 "description": "From pre-departure planning to on-the-ground assistance, our team is one call away — anytime, anywhere in the world.",
+		 "is_active": 1, "sort_order": 6},
+	]
+	tour_testimonials = [
+		{"rating": 5, "quote": "The Japan cultural tour was beyond expectations. Our guide knew every hidden temple and the best local restaurants. The ryokan stay was unforgettable.",
+		 "author": "Mei Ling & Family", "context_label": "Japan Cultural Journey · Apr 2025", "sort_order": 1},
+		{"rating": 5, "quote": "Turkey exceeded all our expectations. From hot air balloons in Cappadocia to the markets of Istanbul — every day was a new adventure. Perfectly organised.",
+		 "author": "The Rahman Family", "context_label": "Turkey Explorer · May 2025", "sort_order": 2},
+		{"rating": 5, "quote": "Our Europe multi-country tour was seamless. Hotels were centrally located, guides were knowledgeable, and the small group felt like travelling with friends.",
+		 "author": "Aisha & Kamal", "context_label": "European Grand Tour · Jun 2025", "sort_order": 3},
+	]
+
+	data = {
+		"doctype": "Travel Website",
+
+		# ── Common tab ──
+		"website_logo": "",
+		"footer_tagline": "Cruise & travel experiences, curated.",
+		"footer_links": footer_links,
+		"support_email": "contact@rpwp.my",
+		"copyright_text": "Rarecation. All rights reserved.",
+		"social_facebook": "",
+		"social_instagram": "",
+		"social_whatsapp": "",
+
+		# ── Cruise tab ──
+		"cruise_menu": menu,
+		"cruise_nav_cta_label": nav_cta_label,
+		"cruise_nav_cta_url": nav_cta_url,
+		"cruise_hero_tag": "✦ Set Sail on Extraordinary Voyages",
+		"cruise_hero_title": "Discover Your Perfect<br/><em>Cruise Adventure</em>",
+		"cruise_hero_intro": "Explore breathtaking destinations aboard world-class luxury liners. All-inclusive dining, entertainment, and unforgettable experiences await.",
+		"cruise_hero_search_label": "Search Cruises",
+		"cruise_hero_stats": [
+			{"stat_value": "500+", "stat_label": "Voyages", "sort_order": 1},
+			{"stat_value": "50+", "stat_label": "Destinations", "sort_order": 2},
+			{"stat_value": "98%", "stat_label": "Happy Travellers", "sort_order": 3},
+		],
+		"cruise_featured_tag": "Featured Voyages",
+		"cruise_featured_title": "Most Popular Cruises",
+		"cruise_featured_subtitle": "Hand-picked itineraries favoured by our seasoned travellers",
+		"cruise_featured_cta_label": "View All Cruises →",
+		"cruise_featured_cta_url": "/cruises",
+		"cruise_whyus_tag": "Why Choose Us",
+		"cruise_whyus_title": "The Rarecation Difference",
+		"cruise_whyus_subtitle": "Everything you need, all included — no hidden surprises",
+		"cruise_benefits": cruise_benefits,
+		"cruise_dest_tag": "Explore",
+		"cruise_dest_title": "Sought-After Destinations",
+		"cruise_dest_subtitle": "Discover the world's most spectacular ports of call",
+		"cruise_testi_tag": "Traveller Stories",
+		"cruise_testi_title": "What Our Guests Say",
+		"cruise_testi_subtitle": "Real experiences from real cruisers",
+		"cruise_testimonials": cruise_testimonials,
+		"cruise_cta_icon": "ti-sail-boat",
+		"cruise_cta_tag": "Your Voyage Awaits",
+		"cruise_cta_title": "Ready to Set Sail?",
+		"cruise_cta_body": "Your perfect cruise is just a few clicks away. Start exploring today.",
+		"cruise_cta_primary_label": "Browse Cruises",
+		"cruise_cta_primary_url": "/cruises",
+		"cruise_cta_secondary_label": "View All Trips",
+		"cruise_cta_secondary_url": "/trips",
+
+		# ── Tour tab ──
+		"tour_menu": menu,
+		"tour_nav_cta_label": nav_cta_label,
+		"tour_nav_cta_url": nav_cta_url,
+		"tour_hero_tag": "✦ Discover the World, One Journey at a Time",
+		"tour_hero_title": "Explore the World<br/><em>Beyond the Seas</em>",
+		"tour_hero_intro": "From ancient cities to breathtaking landscapes — curated international tours designed for the curious traveller. Expert guides, handpicked hotels, and authentic local experiences.",
+		"tour_hero_search_label": "Search Tours",
+		"tour_hero_stats": [
+			{"stat_value": "300+", "stat_label": "Tours", "sort_order": 1},
+			{"stat_value": "40+", "stat_label": "Countries", "sort_order": 2},
+			{"stat_value": "95%", "stat_label": "Happy Travellers", "sort_order": 3},
+		],
+		"tour_featured_tag": "Featured Journeys",
+		"tour_featured_title": "Most Popular Tours",
+		"tour_featured_subtitle": "Hand-picked itineraries loved by our travellers worldwide",
+		"tour_featured_cta_label": "View All Tours →",
+		"tour_featured_cta_url": "/tours",
+		"tour_whyus_tag": "Why Choose Us",
+		"tour_whyus_title": "The Rarecation Difference",
+		"tour_whyus_subtitle": "Thoughtfully crafted tours with authentic experiences at every stop",
+		"tour_benefits": tour_benefits,
+		"tour_dest_tag": "Explore",
+		"tour_dest_title": "Sought-After Destinations",
+		"tour_dest_subtitle": "Discover the world's most captivating travel destinations",
+		"tour_testi_tag": "Traveller Stories",
+		"tour_testi_title": "What Our Guests Say",
+		"tour_testi_subtitle": "Real experiences from real travellers",
+		"tour_testimonials": tour_testimonials,
+		"tour_cta_icon": "ti-mountain",
+		"tour_cta_tag": "Your Adventure Awaits",
+		"tour_cta_title": "Ready to Explore?",
+		"tour_cta_body": "Your next adventure is just a few clicks away. Start discovering today.",
+		"tour_cta_primary_label": "Browse Tours",
+		"tour_cta_primary_url": "/tours",
+		"tour_cta_secondary_label": "View All Trips",
+		"tour_cta_secondary_url": "/trips",
+	}
+	data.pop("doctype", None)
+	doc.update(data)
+	doc.flags.ignore_mandatory = True
+	doc.save(ignore_permissions=True)
 
 def _create_email_templates():
 	"""Template lalai untuk semua e-mel yang app hantar. Semua nama

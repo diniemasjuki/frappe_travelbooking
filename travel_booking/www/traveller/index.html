@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Sign In — {{ site_name or 'Rarecation' }} Portal</title>
+  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800;900&family=Rubik:wght@300;400;500;600;700;800;900&family=Satisfy&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') }}"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/traveller.css?v={{ asset_v('css/traveller.css') }}"/>
+</head>
+<body class="tv-page tv-login-wrapper">
+
+  <!-- Login View -->
+  <div id="V-login" class="tv-view{% if not account_issue %} on{% endif %}">
+    <div class="tv-login-box tv-animate-in">
+      <!-- Logo -->
+      <div class="tv-login-logo">
+        <img src="/assets/travel_booking/img/logo-horizontal.png" alt="{{ site_name or 'Rarecation' }}"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+        <span class="tv-nav-logo" style="justify-content:center;display:none;">rare<em>cation</em></span>
+      </div>
+
+      <h1 class="tv-login-title">Welcome Back</h1>
+      <p class="tv-login-subtitle">Sign in to manage your bookings</p>
+
+      <!-- Error Message -->
+      <div id="login-error" class="tv-msg tv-msg--error" role="alert"></div>
+
+      <!-- Session Expired Notice -->
+      {% if session_expired %}
+      <div class="tv-msg tv-msg--info on" role="alert">
+        Your session has expired. Please sign in again.
+      </div>
+      {% endif %}
+
+      <!-- Login Form -->
+      <form id="login-form" autocomplete="off">
+        <div class="tv-form-group">
+          <label class="tv-label" for="login-email">Email Address</label>
+          <input type="email" id="login-email" class="tv-input" placeholder="you@example.com"
+                 required autofocus/>
+        </div>
+
+        <div class="tv-form-group">
+          <label class="tv-label" for="login-password">Password</label>
+          <input type="password" id="login-password" class="tv-input" placeholder="Enter your password"
+                 required/>
+        </div>
+
+        <button type="submit" id="btn-login" class="tv-btn tv-btn--primary" style="width:100%">
+          Sign In with Password
+        </button>
+      </form>
+
+      <!-- Divider -->
+      <div class="tv-divider">or Easy Access with</div>
+
+      <!-- Alternative Methods -->
+      <div class="tv-login-alt-buttons">
+        <button type="button" id="btn-magic-toggle" class="tv-btn tv-btn--ghost tv-btn--sm">
+          ✨ Magic Link
+        </button>
+        <button type="button" id="btn-google" class="tv-btn tv-btn--ghost tv-btn--sm">
+          🔵 Google
+        </button>
+      </div>
+
+      <!-- Footer Links -->
+      <div class="tv-login-footer">
+        <a href="#" id="link-forgot">Forgot password?</a>
+        &nbsp;&middot;&nbsp;
+        <a href="#" id="link-signup">Sign Up</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Magic Link View -->
+  <div id="V-magic" class="tv-view">
+    <div class="tv-login-box tv-animate-in">
+      <div class="tv-login-logo">
+        <img src="/assets/travel_booking/img/logo-horizontal.png" alt="{{ site_name or 'Rarecation' }}"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+        <span class="tv-nav-logo" style="justify-content:center;display:none;">rare<em>cation</em></span>
+      </div>
+
+      <h1 class="tv-login-title">Sign in with Email</h1>
+      <p class="tv-login-subtitle">We'll send you a one-time login link. No password needed.</p>
+
+      <div id="magic-error" class="tv-msg tv-msg--error" role="alert"></div>
+      <div id="magic-success" class="tv-msg tv-msg--success" role="alert"></div>
+
+      <form id="magic-form" autocomplete="off">
+        <div class="tv-form-group">
+          <label class="tv-label" for="magic-email">Email Address</label>
+          <input type="email" id="magic-email" class="tv-input" placeholder="you@example.com"
+                 required/>
+        </div>
+
+        <button type="submit" id="btn-magic-send" class="tv-btn tv-btn--primary" style="width:100%">
+          Send Login Link
+        </button>
+      </form>
+
+      <div style="text-align:center;margin-top:24px;">
+        <a href="#" id="link-back-login" class="tv-btn-link">← Back to Sign in</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Forgot Password View -->
+  <div id="V-forgot" class="tv-view">
+    <div class="tv-login-box tv-animate-in">
+      <div class="tv-login-logo">
+        <img src="/assets/travel_booking/img/logo-horizontal.png" alt="{{ site_name or 'Rarecation' }}"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+        <span class="tv-nav-logo" style="justify-content:center;display:none;">rare<em>cation</em></span>
+      </div>
+
+      <h1 class="tv-login-title">Reset Password</h1>
+      <p class="tv-login-subtitle">Enter your email and we'll send you a reset link.</p>
+
+      <div id="forgot-error" class="tv-msg tv-msg--error" role="alert"></div>
+      <div id="forgot-success" class="tv-msg tv-msg--success" role="alert"></div>
+
+      <form id="forgot-form" autocomplete="off">
+        <div class="tv-form-group">
+          <label class="tv-label" for="forgot-email">Email Address</label>
+          <input type="email" id="forgot-email" class="tv-input" placeholder="you@example.com"
+                 required/>
+        </div>
+
+        <button type="submit" id="btn-forgot-send" class="tv-btn tv-btn--primary" style="width:100%">
+          Send Reset Link
+        </button>
+      </form>
+
+      <div style="text-align:center;margin-top:24px;">
+        <a href="#" id="link-back-from-forgot" class="tv-btn-link">← Back to Sign in</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sign Up View -->
+  <div id="V-signup" class="tv-view">
+    <div class="tv-login-box tv-animate-in">
+      <div class="tv-login-logo">
+        <img src="/assets/travel_booking/img/logo-horizontal.png" alt="{{ site_name or 'Rarecation' }}"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+        <span class="tv-nav-logo" style="justify-content:center;display:none;">rare<em>cation</em></span>
+      </div>
+
+      <h1 class="tv-login-title">Create Account</h1>
+      <p class="tv-login-subtitle">Sign up to book trips and manage your travels</p>
+
+      <div id="signup-error" class="tv-msg tv-msg--error" role="alert"></div>
+      <div id="signup-success" class="tv-msg tv-msg--success" role="alert"></div>
+
+      <form id="signup-form" autocomplete="off">
+        <div class="tv-form-group">
+          <label class="tv-label" for="signup-name">Full Name</label>
+          <input type="text" id="signup-name" class="tv-input" placeholder="John Doe" required/>
+        </div>
+
+        <div class="tv-form-group">
+          <label class="tv-label" for="signup-email">Email Address</label>
+          <input type="email" id="signup-email" class="tv-input" placeholder="you@example.com" required/>
+        </div>
+
+        <div class="tv-form-group">
+          <label class="tv-label" for="signup-password">Password</label>
+          <input type="password" id="signup-password" class="tv-input" placeholder="Min. 8 characters"
+                 required minlength="8"/>
+        </div>
+
+        <div class="tv-form-group">
+          <label class="tv-label" for="signup-confirm">Confirm Password</label>
+          <input type="password" id="signup-confirm" class="tv-input" placeholder="Re-enter your password"
+                 required minlength="8"/>
+        </div>
+
+        <button type="submit" id="btn-signup" class="tv-btn tv-btn--primary" style="width:100%">
+          Create Account
+        </button>
+      </form>
+
+      <div style="text-align:center;margin-top:24px;">
+        <a href="#" id="link-back-from-signup" class="tv-btn-link">← Back to Sign in</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Account Issue View -->
+  {% if account_issue %}
+  <div id="V-issue" class="tv-view on">
+    <div class="tv-login-box tv-animate-in" style="text-align:center;">
+      <div style="font-size:48px;margin-bottom:16px;">⚠️</div>
+      <h1 class="tv-login-title">Account Under Review</h1>
+      <p class="tv-login-subtitle">
+        Your account is under review. Portal access is granted after your first booking.
+        If you believe this is an error, please contact support.
+      </p>
+      <p style="font-size:13px;color:var(--text-muted);margin-top:12px;">
+        Support: <strong>support@rarecation.com</strong>
+      </p>
+      <button onclick="doLogout()" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:20px;">
+        Log Out
+      </button>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Navigation Card: explore tour / cruise without signing in -->
+  <div class="tv-login-nav-card">
+    <p class="tv-login-nav-title">Not ready to sign in?</p>
+    <p class="tv-login-nav-subtitle">Explore our travel experiences</p>
+    <div class="tv-login-nav-buttons">
+      <a href="/tour" class="tv-btn tv-btn--ghost">🌴 Rarecation Tour</a>
+      <a href="/cruise" class="tv-btn tv-btn--ghost">🚢 Rarecation Cruise</a>
+    </div>
+  </div>
+
+  <script type="application/json" id="pageData">{{ page_data | tojson | safe }}</script>
+  <script src="/assets/travel_booking/js/traveller_common.js?v={{ asset_v('js/traveller_common.js') }}"></script>
+  <script src="/assets/travel_booking/js/traveller_login.js?v={{ asset_v('js/traveller_login.js') }}"></script>
+</body>
+</html>

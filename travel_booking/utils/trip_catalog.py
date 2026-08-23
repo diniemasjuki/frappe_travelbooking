@@ -621,9 +621,11 @@ def get_trip_detail(trip_name: str) -> dict:
 			for _rm_name in _removed_names:
 				_rm_pkgs = trip_packages.get(_rm_name, [])
 				for _p in _rm_pkgs:
-					if _p["name"] not in _seen_pkg:
-						_kept_pkgs.append(_p)
-						_seen_pkg.add(_p["name"])
+						if _p["name"] not in _seen_pkg:
+							# Update trip_group_date supaya konsisten dengan key baru
+							_p["trip_group_date"] = _kept_name
+							_kept_pkgs.append(_p)
+							_seen_pkg.add(_p["name"])
 			# Buang entry untuk group date yang dah dibuang
 				trip_packages.pop(_rm_name, None)
 

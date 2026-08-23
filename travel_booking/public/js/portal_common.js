@@ -252,7 +252,7 @@ async function ensureSession() {
       _CACHE.set('session', s, _CACHE.TTL.session);
       return s;
     }
-    if (s && s.status === 'no_customer_link') {
+    if (s && s.status === 'under_review') {
       window.location.href = '/traveller_portal';
       return null;
     }

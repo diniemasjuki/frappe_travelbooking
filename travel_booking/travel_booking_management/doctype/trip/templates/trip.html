@@ -3,9 +3,7 @@
 {% block title %}{{ trip_name }} — {{ site_name or 'Rarecation' }}{% endblock %}
 
 {% block head_extra %}
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800;900&family=Rubik:wght@300;400;500;600;700;800;900&family=Sansita&family=Satisfy&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="/assets/travel_booking/css/trip_card.css?v={{ asset_v('css/trip_card.css') }}"/>
 <link rel="stylesheet" href="/assets/travel_booking/css/trips.css?v={{ asset_v('css/trips.css') }}"/>
 <link rel="stylesheet" href="/assets/travel_booking/css/trip_detail.css?v={{ asset_v('css/trip_detail.css') }}"/>
 {# ── PhotoSwipe 5 (fullscreen gallery slideshow) — local CSS + ESM JS #}
@@ -243,7 +241,7 @@
         <p class="rc-booking-sub">Secure your spot for an unforgettable experience now!</p>
 
         {% if starting_from_price %}
-        <p class="rc-trip-fromprice">From {{ get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }} <span class="rc-muted">/ person</span></p>
+        <p class="rc-trip-fromprice"><small>Start from</small> {{ get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }} <span class="rc-muted">/ person</span></p>
         {% endif %}
 
         {# ── meta bar (duration, max pax, type) ── #}
@@ -257,30 +255,26 @@
 
         {% if group_dates %}
         <div class="rc-booking-widget">
+          {# ── FLOW: Date first → Package second ── #}
           <label class="rc-field">
             <span class="rc-field-label">{% if is_cruise %}Sailing Date{% else %}Departure date{% endif %}</span>
-            <select id="rcDetailGroupDate">
-              {# ── Flat list: optgroup dah dibuang, dedup dah dibuat di Python ── #}
-              {% for gd in group_dates %}
-              <option value="{{ gd.name }}"
-                data-base="{{ gd.sailing_start or gd.departure_date }}"
-                {% if loop.first %}selected{% endif %}>
-                {{ gd.sailing_start or gd.departure_date }}{% if is_cruise and gd.sailing_end %} → {{ gd.sailing_end }}{% elif gd.return_date %} → {{ gd.return_date }}{% endif %}
-                {% if gd.seats_left is none %}{% elif gd.seats_left == 0 %} · Sold out{% elif gd.seats_left <= 3 %} · {{ gd.seats_left }} left{% endif %}
-              </option>
-              {% endfor %}
-            </select>
+            <div id="rcDetailGroupDate" class="rc-date-radios">
+              <p class="rc-muted">Loading dates…</p>
+            </div>
           </label>
           <label class="rc-field">
             <span class="rc-field-label">Package</span>
-            <div id="rcDetailPackage" class="rc-pkg-buttons"></div>
+            <div id="rcDetailPackage" class="rc-pkg-buttons">
+              <p class="rc-muted">Pick a date to see available packages.</p>
+            </div>
           </label>
 
           <div id="rcDetailCabins" class="rc-cabins-empty">
             <p class="rc-muted">Pick a package to see room options and prices.</p>
           </div>
 
-          <a id="rcDetailBookBtn" class="rc-btn-primary rc-btn-disabled" href="/booking?trip_master={{ name|urlencode }}">Book Now</a>
+          <button id="rcDetailBookBtn" class="rc-btn-primary rc-btn-disabled" disabled>Book Now</button>
+          <button id="rcDetailShareBtn" class="rc-btn-share rc-btn-disabled" disabled>Share My Trip</button>
           <p class="rc-booking-note">Charged in {{ get_company_currency() }}</p>
         </div>
         {% else %}
@@ -291,13 +285,13 @@
 
   </div>{# /rc-trip-layout #}
 
-  {# ── Related tours (full width) ── #}
+  {# ── Related tours (max 3 cards, full width) ── #}
   {% if related %}
   <section class="rc-trip-section rc-related">
     <h2 class="rc-section-h">You may also like</h2>
     <div class="rc-trip-grid-cards">
       {% for r in related %}
-      {% with t=r, gds=[] %}
+      {% with t=r, gds=[r.get('_first_gd', {})] %}
       {% include "templates/includes/trip_card.html" %}
       {% endwith %}
       {% endfor %}
@@ -307,15 +301,26 @@
 
 </article>
 
-{# JSON untuk trip_detail.js #}
+{# JSON untuk trip_detail.js — packages di-preload dari get_trip_detail (sudah
+   cruise-dedup: group dates yang sama sailing_start digabung, jadi
+   trip_group_date setiap package konsisten dengan radio button yang dipaparkan).
+   Ini mengelakkan search_packages_by_date (yang tak dedup) pulangkan package
+   dari group date yang telah digabung, menyebabkan wish-matching gagal. #}
 <script id="rcDetailData" type="application/json">{
-  "trip_master": "{{ name }}",
+  "trip_master": {{ name|tojson }},
+  "trip_name": {{ trip_name|tojson }},
   "is_cruise": {{ "true" if is_cruise else "false" }},
+  "trip_type": {{ ("cruise" if is_cruise else "non_cruise")|tojson }},
   "group_dates": {{ group_dates_json }},
   "trip_packages": {{ trip_packages_json }},
-  "company_symbol": "{{ get_company_symbol() }}",
+  "company_symbol": {{ get_company_symbol()|tojson }},
   "gallery_count": {{ gallery|length }}
 }</script>
+
+{# Widget logic hidup dalam /assets/travel_booking/js/trip_detail.js (single source of truth).
+   JANGAN inline salinan script di sini — duplicate IIFE berlawan atas DOM sama
+   (butang package dirender dua kali, race render cabins). #}
+
 {% endblock %}
 
 {% block footer_extra %}
@@ -323,10 +328,8 @@
   // Simple Custom Lightbox — vanilla JS, tiada library dependency
   (function () {
   try {
-  console.log("[RC Lightbox] === INIT START ===");
-
   var grid = document.getElementById("rcGalleryGrid");
-  if (!grid) { console.warn("[RC Lightbox] No grid"); return; }
+  if (!grid) return;
 
   // Parse URLs
   var dataEl = document.getElementById("rcGalleryData");
@@ -334,11 +337,9 @@
   if (dataEl && dataEl.textContent) {
     try { urls = JSON.parse(dataEl.textContent); } catch(e) { console.error("[RC Lightbox] JSON error:", e); }
   }
-  if (!urls.length) { console.warn("[RC Lightbox] No URLs"); return; }
-  console.log("[RC Lightbox] ✅ URLs:", urls.length);
+  if (!urls.length) return;
 
   var wraps = grid.querySelectorAll(".rc-gal-wrap");
-  console.log("[RC Lightbox] ✅ Wraps:", wraps.length);
 
   // Create lightbox container dengan thumbnail strip slideshow
   var lb = document.createElement("div");
@@ -385,7 +386,6 @@
     // Scroll thumb aktif ke center
     var activeThumb = thumbs[index];
     if (activeThumb) activeThumb.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-    console.log("[RC Lightbox] 🖼️ Showing image:", index, urls[index]);
   }
 
   function close() { lb.classList.remove("active"); lbImg.src = ""; }
@@ -413,8 +413,6 @@
       show(isNaN(idx) ? 0 : idx);
     });
   });
-
-  console.log("[RC Lightbox] ✅ INIT COMPLETE");
 
 		  } catch(err) {
 		    console.error("[RC Lightbox] 💥 ERROR:", err);

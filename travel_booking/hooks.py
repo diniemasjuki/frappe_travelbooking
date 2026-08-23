@@ -9,6 +9,9 @@ app_license = "mit"
 # bodies instead of form-encoded, per-key JSON-stringified values.
 use_json_request_body = True
 
+# Patches (run once at app init, before any request handling)
+app_init = "travel_booking.patches.patch_create_contact.apply"
+
 
 # Jinja
 # ----------
@@ -18,7 +21,7 @@ use_json_request_body = True
 # nginx cache assets setahun (max-age=31536000) — tanpa ni, perubahan JS
 # tak sampai ke browser customer selepas deploy.
 jinja = {
-	"methods": "travel_booking.utils.assets",
+	"methods": ["travel_booking.utils.assets", "travel_booking.utils.website_config"],
 }
 
 # Installation

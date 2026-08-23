@@ -15,6 +15,10 @@ class TripFAQ(Document):
 		from frappe.types import DF
 
 		answer: DF.TextEditor
+		faq_link: DF.Link | None
+		parent: DF.Data
+		parentfield: DF.Data
+		parenttype: DF.Data
 		question: DF.Data
 	# end: auto-generated types
 

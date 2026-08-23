@@ -568,31 +568,68 @@ def get_document_pdf(doctype: str, docname: str):
         frappe.response["http_status_code"] = 400
         return {"status": "error", "message": "Invalid document type."}
 
-    try:
-        pf = frappe.db.get_value(
-            "Print Format", print_format,
-            ["html", "custom_format"], as_dict=True
-        )
-        if not pf or not pf.get("html"):
-            frappe.response["http_status_code"] = 404
-            return {"status": "error", "message": "Print format not found."}
+    # Try primary print format, fallback to Standard if fails
+    print_formats_to_try = [print_format]
+    if print_format == PRINT_FORMAT_INVOICE:
+        print_formats_to_try.append("Standard")
 
-        doc       = frappe.get_doc(doctype, docname)
-        html      = frappe.render_template(pf["html"], {"doc": doc, "frappe": frappe})
-        full_html = ("""<!DOCTYPE html><html><head>
+    last_error = None
+    for pf_name in print_formats_to_try:
+        try:
+            pf = frappe.db.get_value(
+                "Print Format", pf_name,
+                ["html", "custom_format"], as_dict=True
+            )
+            if not pf or not pf.get("html"):
+                continue
+
+            doc       = frappe.get_doc(doctype, docname)
+            html      = frappe.render_template(pf["html"], {"doc": doc, "frappe": frappe})
+            full_html = ("""<!DOCTYPE html><html><head>
 <meta charset="utf-8">
 <style>@page{margin:0}body{margin:0;padding:0}</style>
 </head><body>""" + html + """</body></html>""")
 
-        pdf_data = frappe.utils.pdf.get_pdf(full_html)
-    except Exception:
-        frappe.log_error(frappe.get_traceback(), "get_document_pdf error")
-        frappe.response["http_status_code"] = 500
-        return {"status": "error", "message": "PDF could not be generated."}
+            pdf_data = frappe.utils.pdf.get_pdf(full_html)
 
-    frappe.response.update({
-        "filename":     docname.replace("/", "-") + ".pdf",
-        "filecontent":  pdf_data,
-        "type":         "download",
-        "content_type": "application/pdf"
-    })
+            # Success - return PDF
+            frappe.response.update({
+                "filename":     docname.replace("/", "-") + ".pdf",
+                "filecontent":  pdf_data,
+                "type":         "download",
+                "content_type": "application/pdf"
+            })
+            return
+        except Exception as e:
+            last_error = str(e)
+            frappe.log_error(frappe.get_traceback(), f"get_document_pdf error for format {pf_name}")
+            continue  # Try next format
+
+    # All formats failed - return file_url fallback for invoices if available
+    if doctype == "Sales Invoice":
+        try:
+            # Try to get file URL from Print Format HTML or default location
+            file_url = None
+            si = frappe.get_doc("Sales Invoice", docname)
+            # Check if there's an attached PDF file
+            files = frappe.get_all("File", filters={
+                "attached_to_doctype": "Sales Invoice",
+                "attached_to_name": docname,
+                "file_name": ["like", "%.pdf%"]
+            }, fields=["file_url", "name"])
+            if files:
+                file_url = files[0].get("file_url")
+                if file_url:
+                    return {
+                        "status": "ok",
+                        "file_url": file_url,
+                        "message": "Invoice downloaded from attached file."
+                    }
+        except Exception:
+            pass
+
+    frappe.response["http_status_code"] = 500
+    return {
+        "status": "error",
+        "message": f"PDF generation failed. Please contact support. ({last_error or 'Unknown error'})"
+    }

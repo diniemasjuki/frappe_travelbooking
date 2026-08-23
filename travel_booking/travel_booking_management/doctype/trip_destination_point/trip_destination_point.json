@@ -73,10 +73,9 @@
   }
  ],
  "grid_page_length": 50,
- "hide_toolbar": 1,
  "image_field": "destination_image",
  "links": [],
- "modified": "2026-08-05 02:02:11.669809",
+ "modified": "2026-08-21 20:00:06.614441",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Destination Point",

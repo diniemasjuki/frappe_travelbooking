@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>My Profile — {{ site_name or 'Rarecation' }} Portal</title>
+  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800;900&family=Rubik:wght@300;400;500;600;700;800;900&family=Satisfy&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') }}"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/traveller.css?v={{ asset_v('css/traveller.css') }}"/>
+</head>
+<body class="tv-page">
+
+{% include "templates/includes/traveller_nav.html" %}
+
+<div class="body">
+  <div class="tv-container ">
+
+    <!-- Page Header -->
+    <h1 class="tv-section-title">My Profile</h1>
+
+    <!-- Loading State -->
+    <div id="profile-loading" class="tv-text-center" style="padding:40px;">
+      <div style="font-size:24px;color:var(--text-muted);">⏳ Loading...</div>
+    </div>
+
+    <!-- Content (populated by JS) -->
+    <div id="profile-content" style="display:none;"></div>
+
+    <!-- Message containers -->
+    <div id="profile-error" class="tv-msg tv-msg--error" role="alert"></div>
+    <div id="profile-success" class="tv-msg tv-msg--success" role="alert"></div>
+
+  </div>
+</div>
+
+<script id="rcCurrencyData" type="application/json">{"company_currency": "{{ get_company_currency() }}", "company_symbol": "{{ get_company_symbol() }}"}</script>
+<script type="application/json" id="pageData">{{ page_data | tojson | safe }}</script>
+<script src="/assets/travel_booking/js/traveller_common.js?v={{ asset_v('js/traveller_common.js') }}"></script>
+<script src="/assets/travel_booking/js/traveller_profile.js?v={{ asset_v('js/traveller_profile.js') }}"></script>
+</body>
+</html>

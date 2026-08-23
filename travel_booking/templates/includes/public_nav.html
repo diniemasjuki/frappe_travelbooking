@@ -1,32 +1,34 @@
 {# ============================================================
    travel_booking/templates/includes/public_nav.html
-   Nav awam (pre-login) untuk page web customer-facing: katalog /trips,
-   detail trip /trip/<slug>, dll. Berbeza dari portal_nav (pasca-login).
+   Nav awam (pre-login) untuk page web customer-facing.
 
-   Di-include oleh base_travel.html. Variable jinja (opsyenal):
-     active_nav — "trips" | "destinations" (highlight)
+   Di-include oleh base_travel.html. Menu datang dari Travel Website
+   (singleton) — setiap homepage (cruise/tour) ada menu sendiri. Page
+   bukan-homepage (trips, booking, dll.) guna menu cruise sebagai fallback.
 
-   Nota: "My Bookings" bawa ke /traveller_portal (akan minta login).
+   Variable jinja:
+     active_nav — kunci nav halaman ini (cth "cruise", "tour", "trips").
+                   Menentukan menu mana dipaparkan + highlight item aktif.
    ============================================================ #}
+{% set wc = get_website_config() %}
+{% set nav_items = get_nav_menu(active_nav) %}
+{% set cta = wc['tour'].nav_cta if active_nav == 'tour' else wc['cruise'].nav_cta %}
 <nav class="rc-public-nav">
   <div class="rc-nav-logo">
     <a href="/trips">
-      <img src="/assets/travel_booking/img/logo-horizontal.png" alt="Rarecation"
-           onerror="this.style.display='none';this.nextElementSibling.style.display:flex'"/>
+      <img src="{{ wc.website_logo or '/assets/travel_booking/img/logo-horizontal.png' }}"
+           alt="Rarecation"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
       <span class="rc-logo-fallback">rare<em>cation</em></span>
     </a>
   </div>
 
   <div class="rc-nav-menu">
-    <a href="/trips"
-       class="rc-nav-link{% if active_nav == 'trips' %} on{% endif %}">All Trip</a>
-    <a href="/trips?cruise=0"
-       class="rc-nav-link">Tour</a>
-    <a href="/trips?cruise=1"
-       class="rc-nav-link">Cruise</a>
-    <a href="/destinations"
-       class="rc-nav-link{% if active_nav == 'destinations' %} on{% endif %}">Destinations</a>
+    {% for item in nav_items %}
+    <a href="{{ item.url }}"{% if item.open_in_new_tab %} target="_blank" rel="noopener"{% endif %}
+       class="rc-nav-link{% if active_nav and item.active_nav_key == active_nav %} on{% endif %}">{{ item.label }}</a>
+    {% endfor %}
   </div>
 
-  <a href="/traveller_portal" class="rc-nav-btn">Manage Booking</a>
+  <a href="{{ cta.url }}" class="rc-nav-btn">{{ cta.label }}</a>
 </nav>

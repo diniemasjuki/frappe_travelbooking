@@ -365,6 +365,7 @@ select option { background: var(--bg-primary); }
   max-width: 400px;
   width: 100%;
   text-align: center;
+  margin:auto;
 }
 .pr-icon {
   width: 56px;

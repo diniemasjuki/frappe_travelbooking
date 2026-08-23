@@ -198,20 +198,22 @@ class Trip(Document):
 		context.has_map = bool(self.map_lat and self.map_lng)
 
 		# Related tours — sama trip_categories, isi dgn trip lain jika kurang.
-		context.related = self._related_tours(limit=4)
+		context.related = self._related_tours(limit=3)
 
 		context.no_cache = 1
 		context.active_nav = "trips"
 
-	def _related_tours(self, limit=4):
-		# Trip berkaitan: sama trip_categories (Item Group); kalau kurang dari
-		# `limit`, isi dengan trip Active+published lain (eksklusif diri).
+	def _related_tours(self, limit=3):
+		"""Return list of related trip dicts with complete card data."""
 		cat = self.trip_categories
 		rows: list = []
+
+		# 1. Main query - same category
 		if cat:
 			rows = frappe.db.sql(
 				"""
-				SELECT t.name, t.trip_name, t.route, t.trip_image, t.is_a_cruise_trip
+				SELECT t.name, t.trip_name, t.route, t.trip_image, t.is_a_cruise_trip,
+				       t.trip_categories
 				FROM `tabTrip` t
 				WHERE t.name != %(me)s AND t.status='Active' AND t.published=1
 				  AND t.trip_categories = %(cat)s
@@ -221,12 +223,15 @@ class Trip(Document):
 				{"me": self.name, "cat": cat},
 				as_dict=True,
 			)
+
+		# 2. Fill up if less than limit
 		if len(rows) < limit:
 			excl = [r.name for r in rows] + [self.name]
 			rest = limit - len(rows)
 			more = frappe.db.sql(
 				"""
-				SELECT t.name, t.trip_name, t.route, t.trip_image, t.is_a_cruise_trip
+				SELECT t.name, t.trip_name, t.route, t.trip_image, t.is_a_cruise_trip,
+				       t.trip_categories
 				FROM `tabTrip` t
 				WHERE t.name NOT IN %(ex)s AND t.status='Active' AND t.published=1
 				ORDER BY t.trip_name
@@ -236,27 +241,79 @@ class Trip(Document):
 				as_dict=True,
 			)
 			rows += more
-		# Harga terendah "from" setiap related trip (satu query berkelompok).
-		if rows:
-			price_map = {
-				r["trip"]: r["mn"]
-				for r in frappe.db.sql(
-					"""
-					SELECT tp.trip_link AS trip, MIN(pr.price_adult) AS mn
-					FROM `tabTrip Package` tp
-					JOIN `tabTrip Package Price` pr ON pr.parent = tp.name
-					WHERE tp.trip_link IN %(names)s AND tp.status='Active'
-					GROUP BY tp.trip_link
-					""",
-					{"names": [r.name for r in rows]},
-					as_dict=True,
-				)
-			}
-			for r in rows:
-				r["trip_image"] = r.trip_image or "/assets/travel_booking/img/defaultaroyo.jpg"
-				r["starting_from_price"] = (
-					float(price_map[r.name]) if r.name in price_map and price_map[r.name] else None
-				)
+
+		# 3. Fetch destinations for each trip (child table: Trip Destination Point Select)
+		for r in rows:
+			r["destinations"] = frappe.db.sql(
+				"""SELECT dp.destination_name
+				   FROM `tabTrip Destination Point Select` ds
+				   LEFT JOIN `tabTrip Destination Point` dp ON ds.select_destination_point = dp.name
+				   WHERE ds.parent=%s
+				   ORDER BY ds.idx LIMIT 5""",
+				(r.name,), as_dict=True
+			) or []
+
+			# 4. Price + Group Date data
+			if rows:
+				price_map = {
+					r["trip"]: r["mn"]
+					for r in frappe.db.sql(
+						"""
+						SELECT tp.trip_link AS trip, MIN(pr.price_adult) AS mn
+						FROM `tabTrip Package` tp
+						JOIN `tabTrip Package Price` pr ON pr.parent = tp.name
+						WHERE tp.trip_link IN %(names)s AND tp.status='Active'
+						GROUP BY tp.trip_link
+						""",
+						{"names": [r.name for r in rows]},
+						as_dict=True,
+					)
+				}
+
+				# First group_date per trip
+				gd_map = {}
+				if rows:
+					trips_tuple = tuple([r.name for r in rows])
+					in_clause = ",".join(["%s"] * len(trips_tuple))
+					gd_rows = frappe.db.sql(
+						f"""
+						SELECT trip, total_days, total_nights, departure_date,
+						       sailing_start, max_participants
+						FROM `tabTrip Group Date`
+						WHERE trip IN ({in_clause})
+						  AND status='Active'
+						ORDER BY trip, departure_date ASC
+						""",
+						trips_tuple,
+						as_dict=True
+					)
+				else:
+					gd_rows = []
+				for gd in gd_rows:
+					if gd["trip"] not in gd_map:
+						gd_map[gd["trip"]] = gd
+
+				# 5. Assemble final dict
+				for r in rows:
+					r["trip_image"] = r.trip_image or "/assets/travel_booking/img/defaultaroyo.jpg"
+					r["starting_from_price"] = (
+						float(price_map[r.name]) if r.name in price_map and price_map[r.name] else None
+					)
+					gd = gd_map.get(r.name, {})
+					r["_first_gd"] = gd
+
+					if gd:
+						base = gd.get("sailing_start") or gd.get("departure_date")
+						# Convert date to string for JSON output
+						base_str = str(base) if base else ""
+						r["next_departure"] = base_str
+						r["next_departure_label"] = (
+							("Sail" if r.get("is_a_cruise_trip") else "Departs") + " " + base_str
+						)
+					else:
+						r["next_departure"] = ""
+						r["next_departure_label"] = ""
+
 		return rows
 
 	def autoname(self):

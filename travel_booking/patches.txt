@@ -6,3 +6,4 @@
 # Patches added in this section will be executed after doctypes are migrated
 travel_booking.patches.v1_backfill_booked_pax
 travel_booking.patches.v1_set_price_review_flag
+travel_booking.patches.v1_add_customer_display_currency

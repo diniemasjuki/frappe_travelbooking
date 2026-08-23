@@ -4,8 +4,6 @@
 import frappe
 import frappe.sessions
 
-from travel_booking.api._helpers import get_customer_by_email
-
 no_cache = 1
 allow_guest = True
 
@@ -20,17 +18,12 @@ def get_context(context):
     )
 
     if frappe.session.user != "Guest":
-        customer = get_customer_by_email(frappe.session.user)
-        if customer:
-            # Customer sah login → terus ke My Bookings. Ini kekalkan
-            # SEMUA pautan lama (emel status, magic link, Google redirect,
-            # emel set-password) yang menuju ke /traveller_portal terus
-            # berfungsi tanpa login semula.
+        if "Customer" in frappe.get_roles(frappe.session.user):
+            # Customer role = portal access → terus ke My Bookings.
             frappe.local.flags.redirect_location = "/traveller_portal/bookings"
             raise frappe.Redirect
-        # Logged-in tapi rekod Customer putus — papar skrin isu akaun
-        # (bukan login box; customer akan cuba login semula dan tetap gagal
-        # sebab punca sebenar ialah data, bukan authentication).
+        # Logged-in tapi tiada role Traveller — akaun "under review"
+        # (signup tanpa booking). Papar skrin isu akaun.
         context.account_issue = True
     else:
         context.account_issue = False

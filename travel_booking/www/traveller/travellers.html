@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{% if slot_res %}Traveller Details{% else %}Manage Travellers{% endif %} — {{ site_name or 'Rarecation' }} Portal</title>
+  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800;900&family=Rubik:wght@300;400;500;600;700;800;900&family=Satisfy&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') }}"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/traveller.css?v={{ asset_v('css/traveller.css') }}"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/trip_detail.css?v={{ asset_v('css/trip_detail.css') }}"/>
+</head>
+<body class="tv-page">
+
+{% include "templates/includes/traveller_nav.html" %}
+
+<div class="body">
+  <div class="tv-container">
+    {% if not booking_ref %}
+    <!-- Missing ref guard -->
+    <div class="tv-card tv-text-center" style="padding:40px 24px;">
+      <p style="color:var(--c-danger-text);font-size:14px;">Booking reference missing.</p>
+      <a href="/traveller/bookings" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:16px;">
+        ← Back to My Bookings
+      </a>
+    </div>
+
+    {% elif slot_res %}
+    <!-- ════════════════════════════════════════════
+         MOD INDIVIDU (res=slot_name)
+         Passport OCR wizard → form traveller
+         ════════════════════════════════════════════ -->
+
+    <!-- Loading State -->
+    <div id="tvl-docs-loading" class="tv-text-center" style="padding:60px 24px;">
+      <div style="font-size:32px;color:var(--text-muted);margin-bottom:12px;">⏳</div>
+      <p style="color:var(--text-muted);">Loading traveller details...</p>
+    </div>
+
+    <!-- Wizard View: Step 1 — Upload passport for OCR -->
+    <div id="V-wizard" style="display:none;">
+      <div style="margin-bottom:20px;">
+        <a href="/traveller/travellers?ref={{ booking_ref | e }}" class="tv-btn-link">← Back to Traveller List</a>
+      </div>
+
+      <!-- Upload area -->
+      <div id="wiz-input-card" class="tv-card">
+        <h2 style="font-family:var(--font-heading);font-size:18px;margin-bottom:4px;">Step 1: Passport Verification</h2>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">Upload a clear photo of the passport page. We'll extract the details automatically.</p>
+
+        <!-- Photo Tips (collapsible) -->
+        <details style="margin-bottom:16px;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border-light);">
+          <summary style="padding:10px 14px;font-size:12px;font-weight:600;color:var(--c-gold-dark);cursor:pointer;display:flex;align-items:center;gap:6px;">
+            💡 Tips for best OCR results
+            <span style="margin-left:auto;font-size:10px;background:var(--c-gold-light);padding:2px 8px;border-radius:10px;">Click to expand</span>
+          </summary>
+          <div style="padding:0 14px 12px;font-size:11px;color:var(--text-secondary);line-height:1.6;">
+            <div class="wiz-tips-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <strong style="color:var(--c-success);">✓ Do:</strong><br>
+                • Lay flat on dark surface<br>
+                • Include MRZ zone (bottom)<br>
+                • Use even lighting (no flash)<br>
+                • Ensure text is sharp & clear<br>
+                • Photo at least 1200px wide
+              </div>
+              <div>
+                <strong style="color:var(--c-danger);">✗ Avoid:</strong><br>
+                • Glare from flash/lamination<br>
+                • Blurry or out-of-focus shots<br>
+                • Cropped MRZ zone<br>
+                • Dark or underexposed photos<br>
+                • Angled/rotated images
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <!-- Notification: placed INSIDE card after subtitle for visibility -->
+        <div id="wiz-msg" class="tv-msg" style="display:none;margin-bottom:16px;" role="alert"></div>
+
+        <div id="wiz-upload-area"
+             onclick="triggerWizardPassportUpload()"
+             style="border:2px dashed var(--border-default);border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--bg-secondary);">
+          <div style="font-size:48px;margin-bottom:8px;">📷</div>
+          <div id="wiz-upload-txt" style="font-size:14px;font-weight:600;color:var(--text-primary);">Upload passport copy</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">JPG or PNG, max 5MB • We'll check image quality automatically</div>
+        </div>
+
+        <!-- Checking state (shown while OCR processing) -->
+        <div id="wiz-checking-state" style="display:none;padding:32px 20px;text-align:center;">
+          <div style="font-size:36px;margin-bottom:12px;animation:spin 1s linear infinite;">⏳</div>
+          <div style="font-size:14px;font-weight:600;color:var(--c-gold-dark);">Scanning passport...</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Extracting your details automatically</div>
+        </div>
+
+        <div style="margin-top:16px;text-align:center;">
+          <button id="wiz-btn" type="button" class="tv-btn tv-btn--primary" style="display:none;" onclick="checkWizardPassport()">
+            Check passport →
+          </button>
+        </div>
+      </div>
+
+      <!-- Result: Existing traveller found -->
+      <div id="wiz-result-card" class="tv-card" style="display:none;margin-top:16px;">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
+          <div id="wiz-result-initial" style="width:48px;height:48px;border-radius:50%;background:var(--c-gold);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;"></div>
+          <div>
+            <div id="wiz-result-name" style="font-size:16px;font-weight:600;"></div>
+            <div id="wiz-result-ic" style="font-size:13px;color:var(--text-muted);"></div>
+          </div>
+        </div>
+
+        <!-- All extracted fields display -->
+        <div id="wiz-result-fields" style="display:none;"></div>
+
+        <p style="font-size:13px;color:var(--text-secondary);margin-top:12px;margin-bottom:16px;">
+          ✅ <strong>Existing traveller record found.</strong> We'll pre-fill the form with their details.
+        </p>
+        <button type="button" class="tv-btn tv-btn--primary" onclick="wizardConfirm()">Continue to form →</button>
+      </div>
+
+      <!-- Result: New traveller (OCR extracted) -->
+      <div id="wiz-new-card" class="tv-card" style="display:none;margin-top:16px;">
+        <h3 style="font-size:15px;margin-bottom:8px;">✓ Passport scanned successfully</h3>
+        <div id="wiz-new-read" style="font-size:13px;color:var(--text-secondary);display:none;margin-bottom:16px;"></div>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">Please verify the extracted information and fill in any missing details.</p>
+        <button type="button" class="tv-btn tv-btn--primary" onclick="wizardContinueNew()">Continue to form →</button>
+      </div>
+    </div>
+
+    <!-- Form View: Tabs (Passport / Contact / Health) -->
+    <div id="V-form" style="display:none;">
+      <div style="margin-bottom:16px;">
+        <a href="/traveller/travellers?ref={{ booking_ref | e }}" class="tv-btn-link">← Back to Traveller List</a>
+      </div>
+
+      <!-- Slot header info -->
+      <div id="tvl-slot-header" class="tv-card" style="margin-bottom:16px;"></div>
+
+      <!-- Error message -->
+      <div id="tvl-form-error" class="tv-msg tv-msg--error" style="display:none;margin-bottom:16px;" role="alert"></div>
+
+      <!-- Saved notification -->
+      <div id="tvl-saved-note" class="tv-msg tv-msg--success" style="display:none;margin-bottom:16px;" role="status">
+        ✓ Section saved successfully!
+      </div>
+
+      <!-- Tabs -->
+      <div class="tvl-tabs" style="margin-bottom:0;">
+        <button class="tvl-tab on" data-tab="passport" onclick="tvlShowTab('passport')" aria-selected="true">Passport</button>
+        <button class="tvl-tab" data-tab="contact" onclick="tvlShowTab('contact')" aria-selected="false">Contact</button>
+        <button class="tvl-tab" data-tab="health" onclick="tvlShowTab('health')" aria-selected="false">Health</button>
+      </div>
+
+      <!-- Panels -->
+      <div class="tv-card" style="border-top-left-radius:0;border-top-right-radius:0;">
+
+        <!-- Passport Panel -->
+        <div class="tvl-panel on" data-panel="passport">
+          <div class="tv-grid">
+            <div class="tv-form-group"><label class="tv-label">First Name *</label><input type="text" id="tvl-firstname" class="tv-input" required/></div>
+            <div class="tv-form-group"><label class="tv-label">Last Name *</label><input type="text" id="tvl-lastname" class="tv-input" required/></div>
+          </div>
+          <div class="tv-grid">
+            <div class="tv-form-group"><label class="tv-label">IC / Passport Number *</label><input type="text" id="tvl-ic" class="tv-input" required placeholder="e.g., 900101-10-1234"/></div>
+            <div class="tv-form-group"><label class="tv-label">Full Name</label><input type="text" id="tvl-name" class="tv-input"/></div>
+          </div>
+          <div class="tv-grid">
+            <div class="tv-form-group"><label class="tv-label">Date of Birth</label><input type="date" id="tvl-dob" class="tv-input"/></div>
+            <div class="tv-form-group"><label class="tv-label">Gender</label><select id="tvl-gender" class="tv-input tv-select"><option value="">Select...</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
+          </div>
+          <div class="tv-grid">
+            <div class="tv-form-group"><label class="tv-label">Nationality</label><select id="tvl-nat" class="tv-input tv-select"><option value="">Select nationality</option></select></div>
+            <div class="tv-form-group"><label class="tv-label">Passport Number</label><input type="text" id="tvl-pp" class="tv-input"/></div>
+          </div>
+          <div class="tv-form-group"><label class="tv-label">Passport Expiry</label><input type="date" id="tvl-ppexp" class="tv-input"/></div>
+
+          <!-- Passport validity badge -->
+          <div id="pp-validity-badge" style="display:none;font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;margin-bottom:8px;"></div>
+          <div id="pp-validity-note" style="display:none;font-size:12px;margin-bottom:8px;"></div>
+          <div id="pp-validity-info" style="display:none;font-size:12px;padding:10px;background:var(--bg-secondary);border-radius:6px;margin-bottom:12px;"><span id="pp-validity-info-text"></span></div>
+          <div id="tvl-pp-reset-notice" class="tv-msg tv-msg--warning" style="display:none;font-size:12px;margin-bottom:12px;">Passport number reset — please re-enter and upload a new copy.</div>
+
+          <!-- Passport Image Section -->
+          <div style="margin-top:16px;">
+            <label class="tv-label">Passport Image</label>
+
+            <!-- State A: Passport already uploaded — show preview + replace option -->
+            <div id="passport-uploaded" style="display:none;">
+              <div style="background:var(--bg-secondary);border:1px solid var(--c-success-bg);border-radius:10px;padding:16px;">
+                <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">
+                  <!-- Thumbnail preview -->
+                  <div style="flex-shrink:0;">
+                    <img id="passport-preview" src="" alt="Passport"
+                         style="max-width:220px;max-height:150px;width:auto;height:auto;border-radius:8px;border:2px solid var(--c-success-bg);object-fit:cover;cursor:zoom-in;"
+                         onclick="this.classList.toggle('preview-zoom');"/>
+                  </div>
+                  <!-- Info + actions -->
+                  <div style="flex:1;min-width:180px;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                      <span style="color:var(--c-success);font-size:16px;">✓</span>
+                      <strong style="font-size:14px;color:var(--text-primary);">Passport uploaded</strong>
+                    </div>
+                    <div id="passport-filename" style="font-size:12px;color:var(--text-muted);margin-bottom:10px;word-break:break-all;"></div>
+                    <p style="font-size:11px;color:var(--text-secondary);margin-bottom:12px;">Click image to zoom. Upload a new file to replace.</p>
+                    <!-- Replace button -->
+                    <div id="passport-replace-area"
+                         onclick="triggerPassportUpload()"
+                         style="display:inline-flex;align-items:center;gap:8px;padding:8px 16px;background:var(--bg-card);border:1px solid var(--border-default);border-radius:8px;cursor:pointer;font-size:12px;color:var(--c-gold-dark);transition:all .2s;">
+                      <span>📷</span> Replace passport image
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- State B: No passport yet — show upload area -->
+            <div id="passport-upload-area"
+                 onclick="triggerPassportUpload()"
+                 style="border:2px dashed var(--border-default);border-radius:10px;padding:32px 20px;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--bg-secondary);">
+              <div style="font-size:36px;margin-bottom:8px;">📷</div>
+              <div id="passport-upload-txt" style="font-size:14px;font-weight:500;color:var(--text-secondary);">Upload passport copy</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">JPG or PNG, max 5MB • We'll extract details automatically</div>
+            </div>
+            <div id="passport-upload-err" class="f-err" style="display:none;margin-top:4px;"></div>
+          </div>
+
+          <div style="margin-top:20px;"><button type="button" class="tv-btn tv-btn--primary tv-btn--sm" onclick="saveTraveller('passport', this)">Save Passport</button></div>
+        </div>
+
+        <!-- Contact Panel -->
+        <div class="tvl-panel" data-panel="contact">
+          <div class="tv-grid">
+            <div class="tv-form-group"><label class="tv-label">Email *</label><input type="email" id="tvl-email" class="tv-input" required placeholder="co-traveller@email.com"/></div>
+            <div class="tv-form-group"><label class="tv-label">Phone *</label><input type="tel" id="tvl-phone-num" class="tv-input" required placeholder="+60-xx-xxxx xxxx"/></div>
+          </div>
+          <h4 style="font-size:13px;font-weight:600;margin:20px 0 12px;color:var(--c-gold-dark);">Emergency Contact</h4>
+          <div class="tv-grid">
+            <div class="tv-form-group"><label class="tv-label">Contact Name</label><input type="text" id="tvl-ec-name" class="tv-input"/></div>
+            <div class="tv-form-group"><label class="tv-label">Relationship</label><input type="text" id="tvl-ec-relationship" class="tv-input" placeholder="Spouse, Parent, etc."/></div>
+          </div>
+          <div class="tv-form-group"><label class="tv-label">Emergency Phone</label><input type="tel" id="tvl-ec-phone" class="tv-input"/></div>
+
+          <!-- Visa photo (optional) -->
+          <details style="margin-top:20px;">
+            <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);padding:8px 0;display:flex;align-items:center;gap:8px;">
+              <span id="visa-photo-chevron" style="transition:transform .2s;">▶</span> Visa Photo (if applicable)
+              <span id="visa-photo-badge" style="display:none;font-size:10px;background:var(--c-gold);color:#fff;padding:2px 8px;border-radius:10px;margin-left:auto;">Uploaded</span>
+            </summary>
+            <div id="visa-photo-body" style="display:none;padding:12px 0 0;">
+              <div id="visa-photo-existing" style="display:none;margin-bottom:10px;">
+                <div class="tv-msg tv-msg--info" style="font-size:12px;">Visa photo already on file.</div>
+              </div>
+              <div id="visa-photo-upload-area"
+                   onclick="triggerVisaPhotoUpload()"
+                   style="border:2px dashed var(--border-default);border-radius:10px;padding:20px;text-align:center;cursor:pointer;">
+                <div id="visa-photo-upload-txt" style="font-size:13px;color:var(--text-muted);">Upload visa photo</div>
+              </div>
+              <div id="visa-upload-err" class="f-err" style="display:none;margin-top:4px;"></div>
+            </div>
+          </details>
+
+          <div style="margin-top:20px;"><button type="button" class="tv-btn tv-btn--primary tv-btn--sm" onclick="saveTraveller('contact', this)">Save Contact</button></div>
+        </div>
+
+        <!-- Health Panel -->
+        <div class="tvl-panel" data-panel="health">
+          <div class="tv-form-group"><label class="tv-label">Dietary Requirements</label><input type="text" id="tvl-dietary" class="tv-input" placeholder="Halal, Vegetarian, Allergies..."/></div>
+          <div class="tv-form-group"><label class="tv-label">Medical Conditions</label><textarea id="tvl-medical" class="tv-input" rows="2" placeholder="Any medical conditions staff should know about..."></textarea></div>
+          <div class="tv-form-group"><label class="tv-label">Medicine / Treatment</label><input type="text" id="tvl-medicine" class="tv-input" placeholder="Current medication or treatment..."/></div>
+          <div class="tv-form-group"><label class="tv-label">Special Needs</label><textarea id="tvl-special-needs" class="tv-input" rows="2" placeholder="Wheelchair access, etc."></textarea></div>
+          <div class="tv-form-group"><label class="tv-label">Wheelchair Assistant Required</label><select id="tvl-wheelchair" class="tv-input tv-select"><option value="">No</option><option value="Yes">Yes</option></select></div>
+          <div style="margin-top:20px;"><button type="button" class="tv-btn tv-btn--primary tv-btn--sm" onclick="saveTraveller('health', this)">Save Health Info</button></div>
+        </div>
+
+      </div><!-- /card -->
+
+      <!-- PDPA Consent + Confirm -->
+      <div class="tv-card" style="margin-top:16px;padding:16px;background:var(--c-gold-light);">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;color:var(--text-secondary);">
+          <input type="checkbox" id="tvl-pdpa-consent" required style="margin-top:2px;"/>
+          <span>I confirm that the information provided is accurate and consent to Rarecation processing this data for travel arrangements.</span>
+        </label>
+      </div>
+
+      <div style="margin-top:16px;text-align:center;">
+        <button id="tvl-confirm-btn" type="button" class="tv-btn tv-btn--primary" style="padding:12px 32px;font-size:15px;" onclick="confirmTravellerDocs()">✓ I confirm all information is complete</button>
+      </div>
+    </div><!-- /V-form -->
+
+    {% else %}
+    <!-- ════════════════════════════════════════════
+         MOD SENARAI (tiada 'res')
+         Pilih traveller untuk diisi detail
+         ════════════════════════════════════════════ -->
+
+    <!-- Loading State -->
+    <div id="travellers-loading" class="tv-text-center" style="padding:60px 24px;">
+      <div style="font-size:32px;color:var(--text-muted);margin-bottom:12px;">⏳</div>
+      <p style="color:var(--text-muted);">Loading traveller information...</p>
+    </div>
+
+    <!-- Content (populated by JS) -->
+    <div id="travellers-content" style="display:none;"></div>
+
+    <!-- Message containers -->
+    <div id="travellers-error" class="tv-msg tv-msg--error" role="alert"></div>
+    <div id="travellers-success" class="tv-msg tv-msg--success" role="alert"></div>
+    {% endif %}
+  </div>
+</div>
+
+<script id="rcCurrencyData" type="application/json">{"company_currency": "{{ get_company_currency() }}", "company_symbol": "{{ get_company_symbol() }}"}</script>
+<script type="application/json" id="pageData">{{ page_data | tojson | safe }}</script>
+<script src="/assets/travel_booking/js/traveller_common.js?v={{ asset_v('js/traveller_common.js') }}"></script>
+<script src="/assets/travel_booking/js/traveller_travellers.js?v={{ asset_v('js/traveller_travellers.js') }}"></script>
+</body>
+</html>

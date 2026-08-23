@@ -68,7 +68,34 @@ def _compute_payment_status(paid, total):
 # CUSTOMER CREATION
 # ══════════════════════════════════════════════
 
+def _find_customer_by_email_raw(email):
+    """Cari Customer name melalui email — query terus ke DB tanpa bergantung
+    pada get_customer_by_email() (yang mungkin ada logic tambahan/cache yang
+    menyebabkan ia gagal jumpa Customer yang sebenarnya wujud).
+
+    Return: customer name (str) atau None.
+    """
+    result = frappe.db.sql("""
+        SELECT dl.link_name
+        FROM `tabContact Email` ce
+        INNER JOIN `tabDynamic Link` dl ON dl.parent = ce.parent AND dl.parenttype = 'Contact'
+        WHERE ce.email_id = %s AND dl.link_doctype = 'Customer'
+        LIMIT 1
+    """, email)
+    return result[0][0] if result else None
+
+
 def _create_customer(billing):
+    email = billing.get("email")
+
+    # Cuba cari Customer sedia ada untuk email ni dulu — elakkan
+    # DuplicateEntryError kalau Customer dah wujud (cth: dicipta manual
+    # di Desk, atau get_customer_by_email() gagal jumpa sebab Contact
+    # link putus). Kalau dah ada, guna semula.
+    existing = _find_customer_by_email_raw(email) if email else None
+    if existing:
+        return existing
+
     customer = frappe.get_doc({
         "doctype":        "Customer",
         "customer_name":  billing.get("full_name"),
@@ -78,16 +105,42 @@ def _create_customer(billing):
         "territory":      frappe.db.get_single_value(
                             "Selling Settings", "territory") or "All Territories",
     })
-    customer.insert(ignore_permissions=True)
+    try:
+        customer.insert(ignore_permissions=True)
+    except frappe.DuplicateEntryError:
+        # Race condition: Customer baru sahaja dicipta oleh request lain
+        # (ataupun wujud tapi lookup atas gagal jumpa). Return yang sedia ada.
+        frappe.clear_messages()
+        existing = _find_customer_by_email_raw(email)
+        if existing:
+            return existing
+        raise  # re-raise if we still can't find it
 
-    contact = frappe.get_doc({
-        "doctype":    "Contact",
-        "first_name": billing.get("full_name"),
-        "email_ids":  [{"email_id": billing.get("email"), "is_primary": 1}],
-        "phone_nos":  [{"phone": billing.get("phone"), "is_primary_phone": 1}],
-        "links":      [{"link_doctype": "Customer", "link_name": customer.name}],
-    })
-    contact.insert(ignore_permissions=True)
+    # FIX: Check if Contact already exists for this email before creating
+    # Prevents race condition/deadlock with Frappe's standard create_contact
+    # background job which also tries to create Contact after User signup.
+    # Only create Contact here if one doesn't already exist for this email.
+    existing_contact = frappe.db.sql("""
+        SELECT parent FROM `tabContact Email`
+        WHERE email_id = %s AND parenttype = 'Contact'
+        LIMIT 1
+    """, email) if email else []
+
+    if not existing_contact:
+        try:
+            contact = frappe.get_doc({
+                "doctype":    "Contact",
+                "first_name": billing.get("full_name"),
+                "email_ids":  [{"email_id": email, "is_primary": 1}],
+                "phone_nos":  [{"phone": billing.get("phone"), "is_primary_phone": 1}],
+                "links":      [{"link_doctype": "Customer", "link_name": customer.name}],
+            })
+            contact.insert(ignore_permissions=True)
+        except (frappe.QueryDeadlockError, frappe.db.InternalError) as e:
+            # Race with Frappe's create_contact BG job — let it handle this.
+            # Also catches raw MariaDB deadlock/timeout (errno 1213/1205/1020).
+            pass
+
     return customer.name
 
 

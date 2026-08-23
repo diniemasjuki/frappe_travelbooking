@@ -21,6 +21,7 @@ class TripPriceCategory(Document):
 		gred: DF.Rating
 		is_a_cruise: DF.Check
 		max_capacity: DF.Int
+		read_more_url: DF.Data | None
 		room_profile: DF.AttachImage | None
 		room_type: DF.Literal["", "Cabin", "Suite", "Villa", "Room"]
 	# end: auto-generated types

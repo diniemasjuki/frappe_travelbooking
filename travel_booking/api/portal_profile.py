@@ -14,7 +14,7 @@
 
 import frappe
 
-from travel_booking.api._helpers import get_customer_by_email, get_customer_phone
+from travel_booking.api._helpers import get_company_currency, get_customer_by_email, get_customer_phone
 from travel_booking.api.portal_booking import _get_customer
 
 
@@ -44,9 +44,52 @@ def get_profile():
     customer_label = frappe.db.get_value("Customer", customer_name, "customer_name") or customer_name
 
     return {
-        "email":          email,
-        "customer_name":  customer_label,
-        "phone":          get_customer_phone(customer_name) or "",
+        "email":           email,
+        "customer_name":   customer_label,
+        "phone":           get_customer_phone(customer_name) or "",
+        "display_currency": frappe.db.get_value(
+            "Customer", customer_name, "rc_display_currency"
+        ) or "",
+        "company_currency": get_company_currency(),
+    }
+
+
+@frappe.whitelist()
+def set_display_currency(currency: str = ""):
+    """Simpan pilihan display currency customer pada Customer doctype.
+
+    Currency mesti dalam senarai get_display_currencies() — elak simpan
+    code yang tiada rate exchange. String kosong / company currency =
+    clear preference (paparan = company currency sahaja).
+    """
+    frappe.flags.ignore_permissions = True
+    customer_name = _get_customer()
+    company_currency = get_company_currency()
+
+    currency = (currency or "").strip().upper()
+
+    if currency and currency != company_currency:
+        from travel_booking.api.pricing import get_display_currencies
+
+        valid = {c["code"] for c in (get_display_currencies() or [])}
+        if currency not in valid:
+            frappe.throw(
+                "That currency is not available for display. "
+                "Please choose from the list."
+            )
+
+    frappe.db.set_value(
+        "Customer",
+        customer_name,
+        "rc_display_currency",
+        currency if currency and currency != company_currency else None,
+    )
+
+    return {
+        "status": "ok",
+        "display_currency": currency if currency and currency != company_currency else "",
+        "company_currency": company_currency,
+        "message": "Display currency preference updated.",
     }
 
 

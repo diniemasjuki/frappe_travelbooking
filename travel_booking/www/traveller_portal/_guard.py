@@ -50,11 +50,12 @@ def guard_context(require_customer=True):
 
     Behaviour:
       - Guest                          → redirect ke /traveller_portal (login).
-      - Logged-in TANPA Customer       → redirect ke /traveller_portal juga —
-        index.py akan papar skrin "Account requires review" (bukan login box
-        yang mengelirukan; punca sebenar ialah data, bukan authentication).
-        index.py TIDAK memanggil guard_context, jadi tiada redirect loop.
-      - Logged-in + Customer wujud     → context penuh, page render biasa.
+      - Logged-in TANPA role Traveller → redirect ke /traveller_portal juga —
+        index.py papar skrin "Account Under Review" (signup tanpa booking;
+        role hanya diberi selepas booking pertama).
+      - Logged-in + role Traveller     → context penuh, page render biasa.
+        Customer mungkin tiada (edge case: staff/testing) — page handle
+        empty state sendiri.
     """
     ctx = {
         "no_cache": 1,
@@ -69,12 +70,15 @@ def guard_context(require_customer=True):
         raise frappe.Redirect
 
     ctx["email"] = user
-    customer = get_customer_by_email(user)
 
-    if require_customer and not customer:
+    # Gatekeeper: hanya role "Customer" dibenarkan akses portal.
+    # Tiada role = "under review" (signup tanpa booking) → redirect ke
+    # login page, di mana index.py papar skrin "Account Under Review".
+    if "Customer" not in frappe.get_roles(user):
         frappe.local.flags.redirect_location = "/traveller_portal"
         raise frappe.Redirect
 
+    customer = get_customer_by_email(user)
     ctx["account_issue"] = False
     if customer:
         ctx["customer_name"] = customer

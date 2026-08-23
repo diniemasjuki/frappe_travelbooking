@@ -1,0 +1,81 @@
+{# ============================================================
+   travel_booking/templates/includes/traveller_nav.html
+   Shared navigation untuk semua page /traveller/* (post-login).
+   Includes: Logo, nav links, user menu dropdown (profile photo →
+   name + currency selector + logout).
+   ============================================================ #}
+
+<nav class="tv-nav">
+  <div class="tv-nav-inner">
+    <!-- Logo -->
+    <a href="/traveller/bookings" class="tv-nav-logo">
+      <img src="/assets/travel_booking/img/logo-horizontal.png"
+           alt="{{ site_name or 'Rarecation' }}"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+      <span style="display:none;">rare<em>cation</em></span>
+    </a>
+
+    <!-- Nav Links -->
+    <div class="tv-nav-links">
+      <a href="/traveller/bookings" class="tv-nav-link{% if active_nav == 'bookings' %} on{% endif %}">
+        My Bookings
+      </a>
+      <a href="/traveller/transactions" class="tv-nav-link{% if active_nav == 'transactions' %} on{% endif %}">
+        Transactions
+      </a>
+      <a href="/traveller/profile" class="tv-nav-link{% if active_nav == 'profile' %} on{% endif %}">
+        Profile
+      </a>
+    </div>
+
+    <!-- Right Side: User menu (profile photo trigger + dropdown) -->
+    <div class="tv-nav-right">
+      <button id="tv-user-trigger" class="tv-user-trigger" type="button"
+              aria-expanded="false" aria-haspopup="true" aria-label="User menu">
+        <span id="tv-avatar" class="tv-avatar">?</span>
+        <svg class="tv-user-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </button>
+
+      <div id="tv-user-menu" class="tv-user-menu" hidden>
+        <!-- User header -->
+        <div class="tv-user-menu-header">
+          <div id="tv-menu-name" class="tv-menu-name">—</div>
+          <div id="tv-menu-email" class="tv-menu-email">—</div>
+        </div>
+
+        <!-- Currency selector -->
+        <div class="tv-menu-section">
+          <span class="tv-menu-label">💱 Display Currency</span>
+          <select id="tvCurrencySelect" title="Display currency (charged in {{ get_company_currency() }})"
+                  class="tv-menu-currency">
+            <option>{{ get_company_currency() }}</option>
+          </select>
+        </div>
+
+        <!-- Links -->
+        <a href="/traveller/profile" class="tv-menu-link">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          My Profile
+        </a>
+        <button type="button" onclick="doLogout()" class="tv-menu-link tv-menu-logout">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          Logout
+        </button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+

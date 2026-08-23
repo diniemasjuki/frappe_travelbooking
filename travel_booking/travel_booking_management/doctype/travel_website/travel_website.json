@@ -1,0 +1,663 @@
+{
+ "actions": [],
+ "creation": "2026-08-23 15:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "tab_common",
+  "branding_section",
+  "website_logo",
+  "footer_section",
+  "footer_tagline",
+  "footer_links",
+  "footer_cb",
+  "support_email",
+  "copyright_text",
+  "social_section",
+  "social_facebook",
+  "social_instagram",
+  "social_whatsapp",
+  "tab_cruise",
+  "cruise_menu_section",
+  "cruise_menu",
+  "cruise_menu_cb",
+  "cruise_nav_cta_label",
+  "cruise_nav_cta_url",
+  "cruise_hero_section",
+  "cruise_hero_tag",
+  "cruise_hero_title",
+  "cruise_hero_intro",
+  "cruise_hero_search_label",
+  "cruise_hero_stats",
+  "cruise_featured_section",
+  "cruise_featured_tag",
+  "cruise_featured_title",
+  "cruise_featured_subtitle",
+  "cruise_featured_cb",
+  "cruise_featured_cta_label",
+  "cruise_featured_cta_url",
+  "cruise_whyus_section",
+  "cruise_whyus_tag",
+  "cruise_whyus_title",
+  "cruise_whyus_subtitle",
+  "cruise_benefits",
+  "cruise_dest_section",
+  "cruise_dest_tag",
+  "cruise_dest_title",
+  "cruise_dest_subtitle",
+  "cruise_testi_section",
+  "cruise_testi_tag",
+  "cruise_testi_title",
+  "cruise_testi_subtitle",
+  "cruise_testimonials",
+  "cruise_cta_section",
+  "cruise_cta_icon",
+  "cruise_cta_tag",
+  "cruise_cta_title",
+  "cruise_cta_body",
+  "cruise_cta_cb",
+  "cruise_cta_primary_label",
+  "cruise_cta_primary_url",
+  "cruise_cta_secondary_label",
+  "cruise_cta_secondary_url",
+  "tab_tour",
+  "tour_menu_section",
+  "tour_menu",
+  "tour_menu_cb",
+  "tour_nav_cta_label",
+  "tour_nav_cta_url",
+  "tour_hero_section",
+  "tour_hero_tag",
+  "tour_hero_title",
+  "tour_hero_intro",
+  "tour_hero_search_label",
+  "tour_hero_stats",
+  "tour_featured_section",
+  "tour_featured_tag",
+  "tour_featured_title",
+  "tour_featured_subtitle",
+  "tour_featured_cb",
+  "tour_featured_cta_label",
+  "tour_featured_cta_url",
+  "tour_whyus_section",
+  "tour_whyus_tag",
+  "tour_whyus_title",
+  "tour_whyus_subtitle",
+  "tour_benefits",
+  "tour_dest_section",
+  "tour_dest_tag",
+  "tour_dest_title",
+  "tour_dest_subtitle",
+  "tour_testi_section",
+  "tour_testi_tag",
+  "tour_testi_title",
+  "tour_testi_subtitle",
+  "tour_testimonials",
+  "tour_cta_section",
+  "tour_cta_icon",
+  "tour_cta_tag",
+  "tour_cta_title",
+  "tour_cta_body",
+  "tour_cta_cb",
+  "tour_cta_primary_label",
+  "tour_cta_primary_url",
+  "tour_cta_secondary_label",
+  "tour_cta_secondary_url"
+ ],
+ "fields": [
+  {
+   "fieldname": "tab_common",
+   "fieldtype": "Tab Break",
+   "label": "Common (Shared)"
+  },
+  {
+   "fieldname": "branding_section",
+   "fieldtype": "Section Break",
+   "label": "Branding"
+  },
+  {
+   "fieldname": "website_logo",
+   "fieldtype": "Attach Image",
+   "label": "Website Logo",
+   "description": "Logo used by both the nav and footer. Falls back to /assets/travel_booking/img/logo-horizontal.png if empty."
+  },
+  {
+   "fieldname": "footer_section",
+   "fieldtype": "Section Break",
+   "label": "Footer"
+  },
+  {
+   "fieldname": "footer_tagline",
+   "fieldtype": "Small Text",
+   "label": "Footer Tagline"
+  },
+  {
+   "fieldname": "footer_links",
+   "fieldtype": "Table",
+   "label": "Footer Link Columns",
+   "options": "Website Footer Link",
+   "description": "Group links by setting the same Column Title. Links with the same Column Title appear under one footer column."
+  },
+  {
+   "fieldname": "footer_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "support_email",
+   "fieldtype": "Data",
+   "label": "Support Email",
+   "default": "contact@rpwp.my"
+  },
+  {
+   "fieldname": "copyright_text",
+   "fieldtype": "Data",
+   "label": "Copyright Text",
+   "default": "Rarecation. All rights reserved."
+  },
+  {
+   "fieldname": "social_section",
+   "fieldtype": "Section Break",
+   "label": "Social Media (optional)",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "social_facebook",
+   "fieldtype": "Data",
+   "label": "Facebook URL"
+  },
+  {
+   "fieldname": "social_instagram",
+   "fieldtype": "Data",
+   "label": "Instagram URL"
+  },
+  {
+   "fieldname": "social_whatsapp",
+   "fieldtype": "Data",
+   "label": "WhatsApp URL"
+  },
+  {
+   "fieldname": "tab_cruise",
+   "fieldtype": "Tab Break",
+   "label": "Cruise Homepage"
+  },
+  {
+   "fieldname": "cruise_menu_section",
+   "fieldtype": "Section Break",
+   "label": "Cruise Main Menu"
+  },
+  {
+   "fieldname": "cruise_menu",
+   "fieldtype": "Table",
+   "label": "Cruise Menu Items",
+   "options": "Website Menu Item",
+   "description": "Nav links shown on the cruise homepage. Set active_nav_key to match the page's active_nav to highlight it."
+  },
+  {
+   "fieldname": "cruise_menu_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cruise_nav_cta_label",
+   "fieldtype": "Data",
+   "label": "Nav CTA Button Label",
+   "default": "Manage Booking"
+  },
+  {
+   "fieldname": "cruise_nav_cta_url",
+   "fieldtype": "Data",
+   "label": "Nav CTA Button URL",
+   "default": "/traveller_portal"
+  },
+  {
+   "fieldname": "cruise_hero_section",
+   "fieldtype": "Section Break",
+   "label": "Hero Section"
+  },
+  {
+   "fieldname": "cruise_hero_tag",
+   "fieldtype": "Data",
+   "label": "Hero Tag Line"
+  },
+  {
+   "fieldname": "cruise_hero_title",
+   "fieldtype": "Text",
+   "label": "Hero Title"
+  },
+  {
+   "fieldname": "cruise_hero_intro",
+   "fieldtype": "Text",
+   "label": "Hero Intro Paragraph"
+  },
+  {
+   "fieldname": "cruise_hero_search_label",
+   "fieldtype": "Data",
+   "label": "Hero Search Button Label",
+   "default": "Search Cruises"
+  },
+  {
+   "fieldname": "cruise_hero_stats",
+   "fieldtype": "Table",
+   "label": "Hero Stats",
+   "options": "Website Stat"
+  },
+  {
+   "fieldname": "cruise_featured_section",
+   "fieldtype": "Section Break",
+   "label": "Featured Cruises — Section Header"
+  },
+  {
+   "fieldname": "cruise_featured_tag",
+   "fieldtype": "Data",
+   "label": "Section Tag"
+  },
+  {
+   "fieldname": "cruise_featured_title",
+   "fieldtype": "Text",
+   "label": "Section Title"
+  },
+  {
+   "fieldname": "cruise_featured_subtitle",
+   "fieldtype": "Text",
+   "label": "Section Subtitle"
+  },
+  {
+   "fieldname": "cruise_featured_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cruise_featured_cta_label",
+   "fieldtype": "Data",
+   "label": "Section CTA Label",
+   "default": "View All Cruises"
+  },
+  {
+   "fieldname": "cruise_featured_cta_url",
+   "fieldtype": "Data",
+   "label": "Section CTA URL",
+   "default": "/cruises"
+  },
+  {
+   "fieldname": "cruise_whyus_section",
+   "fieldtype": "Section Break",
+   "label": "Why Us Section"
+  },
+  {
+   "fieldname": "cruise_whyus_tag",
+   "fieldtype": "Data",
+   "label": "Section Tag"
+  },
+  {
+   "fieldname": "cruise_whyus_title",
+   "fieldtype": "Text",
+   "label": "Section Title"
+  },
+  {
+   "fieldname": "cruise_whyus_subtitle",
+   "fieldtype": "Text",
+   "label": "Section Subtitle"
+  },
+  {
+   "fieldname": "cruise_benefits",
+   "fieldtype": "Table",
+   "label": "Benefit Cards",
+   "options": "Website Benefit Card"
+  },
+  {
+   "fieldname": "cruise_dest_section",
+   "fieldtype": "Section Break",
+   "label": "Destinations Section Header"
+  },
+  {
+   "fieldname": "cruise_dest_tag",
+   "fieldtype": "Data",
+   "label": "Section Tag"
+  },
+  {
+   "fieldname": "cruise_dest_title",
+   "fieldtype": "Text",
+   "label": "Section Title"
+  },
+  {
+   "fieldname": "cruise_dest_subtitle",
+   "fieldtype": "Text",
+   "label": "Section Subtitle"
+  },
+  {
+   "fieldname": "cruise_testi_section",
+   "fieldtype": "Section Break",
+   "label": "Testimonials Section"
+  },
+  {
+   "fieldname": "cruise_testi_tag",
+   "fieldtype": "Data",
+   "label": "Section Tag"
+  },
+  {
+   "fieldname": "cruise_testi_title",
+   "fieldtype": "Text",
+   "label": "Section Title"
+  },
+  {
+   "fieldname": "cruise_testi_subtitle",
+   "fieldtype": "Text",
+   "label": "Section Subtitle"
+  },
+  {
+   "fieldname": "cruise_testimonials",
+   "fieldtype": "Table",
+   "label": "Testimonials",
+   "options": "Website Testimonial"
+  },
+  {
+   "fieldname": "cruise_cta_section",
+   "fieldtype": "Section Break",
+   "label": "Final CTA Section"
+  },
+  {
+   "fieldname": "cruise_cta_icon",
+   "fieldtype": "Data",
+   "label": "CTA Icon (Tabler class)"
+  },
+  {
+   "fieldname": "cruise_cta_tag",
+   "fieldtype": "Data",
+   "label": "CTA Tag Line"
+  },
+  {
+   "fieldname": "cruise_cta_title",
+   "fieldtype": "Data",
+   "label": "CTA Title"
+  },
+  {
+   "fieldname": "cruise_cta_body",
+   "fieldtype": "Text",
+   "label": "CTA Body Text"
+  },
+  {
+   "fieldname": "cruise_cta_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cruise_cta_primary_label",
+   "fieldtype": "Data",
+   "label": "Primary Button Label"
+  },
+  {
+   "fieldname": "cruise_cta_primary_url",
+   "fieldtype": "Data",
+   "label": "Primary Button URL"
+  },
+  {
+   "fieldname": "cruise_cta_secondary_label",
+   "fieldtype": "Data",
+   "label": "Secondary Button Label"
+  },
+  {
+   "fieldname": "cruise_cta_secondary_url",
+   "fieldtype": "Data",
+   "label": "Secondary Button URL"
+  },
+  {
+   "fieldname": "tab_tour",
+   "fieldtype": "Tab Break",
+   "label": "Tour Homepage"
+  },
+  {
+   "fieldname": "tour_menu_section",
+   "fieldtype": "Section Break",
+   "label": "Tour Main Menu"
+  },
+  {
+   "fieldname": "tour_menu",
+   "fieldtype": "Table",
+   "label": "Tour Menu Items",
+   "options": "Website Menu Item",
+   "description": "Nav links shown on the tour homepage. Set active_nav_key to match the page's active_nav to highlight it."
+  },
+  {
+   "fieldname": "tour_menu_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "tour_nav_cta_label",
+   "fieldtype": "Data",
+   "label": "Nav CTA Button Label",
+   "default": "Manage Booking"
+  },
+  {
+   "fieldname": "tour_nav_cta_url",
+   "fieldtype": "Data",
+   "label": "Nav CTA Button URL",
+   "default": "/traveller_portal"
+  },
+  {
+   "fieldname": "tour_hero_section",
+   "fieldtype": "Section Break",
+   "label": "Hero Section"
+  },
+  {
+   "fieldname": "tour_hero_tag",
+   "fieldtype": "Data",
+   "label": "Hero Tag Line"
+  },
+  {
+   "fieldname": "tour_hero_title",
+   "fieldtype": "Text",
+   "label": "Hero Title"
+  },
+  {
+   "fieldname": "tour_hero_intro",
+   "fieldtype": "Text",
+   "label": "Hero Intro Paragraph"
+  },
+  {
+   "fieldname": "tour_hero_search_label",
+   "fieldtype": "Data",
+   "label": "Hero Search Button Label",
+   "default": "Search Tours"
+  },
+  {
+   "fieldname": "tour_hero_stats",
+   "fieldtype": "Table",
+   "label": "Hero Stats",
+   "options": "Website Stat"
+  },
+  {
+   "fieldname": "tour_featured_section",
+   "fieldtype": "Section Break",
+   "label": "Featured Tours — Section Header"
+  },
+  {
+   "fieldname": "tour_featured_tag",
+   "fieldtype": "Data",
+   "label": "Section Tag"
+  },
+  {
+   "fieldname": "tour_featured_title",
+   "fieldtype": "Text",
+   "label": "Section Title"
+  },
+  {
+   "fieldname": "tour_featured_subtitle",
+   "fieldtype": "Text",
+   "label": "Section Subtitle"
+  },
+  {
+   "fieldname": "tour_featured_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "tour_featured_cta_label",
+   "fieldtype": "Data",
+   "label": "Section CTA Label",
+   "default": "View All Tours"
+  },
+  {
+   "fieldname": "tour_featured_cta_url",
+   "fieldtype": "Data",
+   "label": "Section CTA URL",
+   "default": "/tours"
+  },
+  {
+   "fieldname": "tour_whyus_section",
+   "fieldtype": "Section Break",
+   "label": "Why Us Section"
+  },
+  {
+   "fieldname": "tour_whyus_tag",
+   "fieldtype": "Data",
+   "label": "Section Tag"
+  },
+  {
+   "fieldname": "tour_whyus_title",
+   "fieldtype": "Text",
+   "label": "Section Title"
+  },
+  {
+   "fieldname": "tour_whyus_subtitle",
+   "fieldtype": "Text",
+   "label": "Section Subtitle"
+  },
+  {
+   "fieldname": "tour_benefits",
+   "fieldtype": "Table",
+   "label": "Benefit Cards",
+   "options": "Website Benefit Card"
+  },
+  {
+   "fieldname": "tour_dest_section",
+   "fieldtype": "Section Break",
+   "label": "Destinations Section Header"
+  },
+  {
+   "fieldname": "tour_dest_tag",
+   "fieldtype": "Data",
+   "label": "Section Tag"
+  },
+  {
+   "fieldname": "tour_dest_title",
+   "fieldtype": "Text",
+   "label": "Section Title"
+  },
+  {
+   "fieldname": "tour_dest_subtitle",
+   "fieldtype": "Text",
+   "label": "Section Subtitle"
+  },
+  {
+   "fieldname": "tour_testi_section",
+   "fieldtype": "Section Break",
+   "label": "Testimonials Section"
+  },
+  {
+   "fieldname": "tour_testi_tag",
+   "fieldtype": "Data",
+   "label": "Section Tag"
+  },
+  {
+   "fieldname": "tour_testi_title",
+   "fieldtype": "Text",
+   "label": "Section Title"
+  },
+  {
+   "fieldname": "tour_testi_subtitle",
+   "fieldtype": "Text",
+   "label": "Section Subtitle"
+  },
+  {
+   "fieldname": "tour_testimonials",
+   "fieldtype": "Table",
+   "label": "Testimonials",
+   "options": "Website Testimonial"
+  },
+  {
+   "fieldname": "tour_cta_section",
+   "fieldtype": "Section Break",
+   "label": "Final CTA Section"
+  },
+  {
+   "fieldname": "tour_cta_icon",
+   "fieldtype": "Data",
+   "label": "CTA Icon (Tabler class)"
+  },
+  {
+   "fieldname": "tour_cta_tag",
+   "fieldtype": "Data",
+   "label": "CTA Tag Line"
+  },
+  {
+   "fieldname": "tour_cta_title",
+   "fieldtype": "Data",
+   "label": "CTA Title"
+  },
+  {
+   "fieldname": "tour_cta_body",
+   "fieldtype": "Text",
+   "label": "CTA Body Text"
+  },
+  {
+   "fieldname": "tour_cta_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "tour_cta_primary_label",
+   "fieldtype": "Data",
+   "label": "Primary Button Label"
+  },
+  {
+   "fieldname": "tour_cta_primary_url",
+   "fieldtype": "Data",
+   "label": "Primary Button URL"
+  },
+  {
+   "fieldname": "tour_cta_secondary_label",
+   "fieldtype": "Data",
+   "label": "Secondary Button Label"
+  },
+  {
+   "fieldname": "tour_cta_secondary_url",
+   "fieldtype": "Data",
+   "label": "Secondary Button URL"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-08-23 15:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Travel Website",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Tour Manager",
+   "share": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Tour Operator",
+   "share": 1
+  }
+ ],
+ "protect_attached_files": 1,
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

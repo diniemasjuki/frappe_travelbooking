@@ -34,7 +34,9 @@
   "otp_expiry_minutes",
   "email_verified_session_minutes",
   "referral_and_voucher_section",
-  "default_referral_discount_percent"
+  "default_referral_discount_percent",
+  "price_category_section",
+  "price_category_labels"
  ],
  "fields": [
   {
@@ -143,6 +145,18 @@
    "fieldname": "default_referral_discount_percent",
    "fieldtype": "Percent",
    "label": "Default Referral Discount Percent"
+  },
+  {
+   "fieldname": "price_category_section",
+   "fieldtype": "Section Break",
+   "label": "Price Category Labels"
+  },
+  {
+   "description": "Configure price labels and notes for Cruise vs Non-Cruise trips. These labels appear on the trip detail page when a package is selected.",
+   "fieldname": "price_category_labels",
+   "fieldtype": "Table",
+   "label": "Price Category Labels",
+   "options": "Price Category Label"
   },
   {
    "fieldname": "column_break_acfc",

@@ -36,7 +36,7 @@
 
 /* ── Gallery area (white card container, SQUARE grid) ── */
 .rc-gallery-area {
-  max-width: 1180px; margin: 20px auto 0; padding: 0 22px;
+  max-width: 1180px; margin: 50px auto 0; padding: 0 22px;
   position: relative; z-index: 2;
 }
 .rc-gallery-grid {
@@ -59,10 +59,12 @@
   transition: transform .35s ease, box-shadow .35s ease;
   aspect-ratio: 1 / 1; /* SQUARE */
   user-select: none; -webkit-user-select: none;
+  max-height:550px;
+  min-width:100%;
 }
 .rc-gal-wrap:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.12); }
 .rc-gal-wrap img {
-  display: block; width: 100%; height: 100%;
+  display: block; width: 100%; height: 100%; 
   object-fit: cover; object-position: center;
   -webkit-touch-callout: none;
 }
@@ -256,7 +258,7 @@
 .rc-itin-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
 .rc-itin-title { font-size: 18px; font-weight: 600; color: #1E1C18; margin: 0; }
 .rc-itin-dest { font-size: 13px; color: #7D7A70; }
-.rc-itin-img { width: 100%; max-height: 330px; object-fit: cover; border-radius: 8px; margin: 12px 0; }
+.rc-itin-img { width: 100%; height:auto; object-fit: cover; border-radius: 8px; margin: 12px 0; }
 .rc-itin-desc { font-size: 14px; line-height: 1.6; color: #3A3730; }
 .rc-itin-meals { margin: 10px 0 0; font-size: 13px; color: #5C5850; display: flex; gap: 6px; align-items: center; }
 
@@ -295,6 +297,105 @@
   font-size: 14px; color: #1E1C18; background: #fff;
 }
 .rc-field select:focus { outline: none; border-color: #C9A84C; }
+
+/* ── Group Date Radio Buttons (ganti select dropdown — lebih stabil!) ── */
+.rc-date-radios {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Hide actual radio, guna label sebagai card */
+.rc-date-radio {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Label sebagai clickable card (sibling of radio) */
+.rc-date-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 2px solid #E8E5DF;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rc-date-radio-label:hover {
+  border-color: #C9A84C;
+  background: #FBFAF7;
+}
+
+/* Custom indicator circle (pada label) */
+.rc-date-radio-label::before {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  border: 2px solid #d4c5a9;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+/* Selected state (radio:checked + sibling label) */
+.rc-date-radio:checked + .rc-date-radio-label {
+  border-color: #C9A84C;
+  background: #FBFAF7;
+}
+
+.rc-date-radio:checked + .rc-date-radio-label::before {
+  border-color: #C9A84C;
+  background: #C9A84C;
+  box-shadow: inset 0 0 0 3px #fff;
+}
+
+/* Date text */
+.rc-date-radio-text {
+  font-size: 14px;
+  color: #1E1C18;
+  line-height: 1.4;
+}
+
+.rc-date-radio-text strong {
+  color: #dc2626;
+}
+
+/* Focus state untuk accessibility (keyboard nav) */
+.rc-date-radio:focus-visible + .rc-date-radio-label {
+  outline: 2px solid #C9A84C;
+  outline-offset: 2px;
+}
+
+/* Scrollbar styling */
+.rc-date-radios::-webkit-scrollbar {
+  width: 6px;
+}
+.rc-date-radios::-webkit-scrollbar-track {
+  background: #f5f5f5;
+  border-radius: 3px;
+}
+.rc-date-radios::-webkit-scrollbar-thumb {
+  background: #d4c5a9;
+  border-radius: 3px;
+}
+
+@media (max-width: 480px) {
+  .rc-date-radios { max-height: 150px; gap: 6px; }
+  .rc-date-radio-label { padding: 10px 12px; }
+  .rc-date-radio-text { font-size: 13px; }
+}
 #rcDetailCabins { margin-bottom: 16px; min-height: 40px; }
 .rc-cabins-empty, .rc-cabins-loading, .rc-cabins-error { padding: 6px 0; }
 .rc-cabin-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -306,19 +407,75 @@
 .rc-cabin-tbl tr:hover td { background: #FBFAF7; }
 .rc-cabin-type { display: block; font-size: 12px; color: #9C9789; margin-top: 2px; }
 .rc-btn-primary {
-  display: block; text-align: center; text-decoration: none; cursor: pointer;
+  display: block; width: 100%; text-align: center; text-decoration: none; cursor: pointer;
   background: #C9A84C; color: #1E1C18; font-weight: 700; font-size: 15px;
-  padding: 13px; border-radius: 10px; border: none;
+  padding: 14px 20px; border-radius: 10px; border: none;
+  transition: all .2s ease;
 }
 .rc-btn-primary:hover { background: #B8983F; }
+.rc-btn-share {
+  display: block; width: 100%; text-align: center; text-decoration: none; cursor: pointer;
+  background: transparent; color: #C9A84C; font-weight: 600; font-size: 13px;
+  padding: 10px 20px; border-radius: 10px; border: 1.5px solid #C9A84C;
+  margin-top: 8px; transition: all .2s ease;
+}
+.rc-btn-share:hover { background: rgba(201,168,76,.08); }
 .rc-btn-disabled { opacity: .5; pointer-events: none; }
+
+/* ── Share toast ── */
+.rc-share-toast {
+  position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: #1E1C18; color: #fff; font-size: 14px; font-weight: 500;
+  padding: 12px 24px; border-radius: 10px; z-index: 9999;
+  opacity: 0; transition: all .3s ease; box-shadow: 0 4px 20px rgba(0,0,0,.3);
+  max-width: 90vw; text-align: center;
+}
+.rc-share-toast-show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── Share modal ── */
+.rc-share-modal {
+  position: fixed; inset: 0; z-index: 10000;
+  background: rgba(30,28,24,.6); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .3s ease;
+}
+.rc-share-modal-show { opacity: 1; }
+.rc-share-card {
+  position: relative; background: #fff; border-radius: 18px;
+  padding: 32px 28px 28px; width: 320px; max-width: 90vw;
+  text-align: center; box-shadow: 0 12px 48px rgba(0,0,0,.25);
+  transform: translateY(16px) scale(.96); transition: transform .3s ease;
+}
+.rc-share-modal-show .rc-share-card { transform: translateY(0) scale(1); }
+.rc-share-close {
+  position: absolute; top: 12px; right: 14px;
+  background: none; border: none; font-size: 24px; line-height: 1;
+  color: #9C9789; cursor: pointer; padding: 4px 8px; border-radius: 6px;
+}
+.rc-share-close:hover { background: rgba(0,0,0,.05); color: #1E1C18; }
+.rc-share-title { font-size: 18px; font-weight: 700; color: #1E1C18; margin: 0 0 20px; }
+.rc-share-qr-wrap {
+  display: flex; justify-content: center; margin-bottom: 18px;
+}
+.rc-share-qr { width: 200px; height: 200px; border-radius: 12px; border: 1px solid #eee; }
+.rc-share-url {
+  font-size: 13px; color: #5C5850; word-break: break-all;
+  background: #f5f3ef; padding: 10px 14px; border-radius: 8px;
+  margin-bottom: 16px; cursor: text; user-select: all;
+}
+.rc-share-copy {
+  width: 100%; padding: 12px; border-radius: 10px; border: none;
+  background: #C9A84C; color: #1E1C18; font-weight: 700; font-size: 14px;
+  cursor: pointer; transition: background .2s ease;
+}
+.rc-share-copy:hover { background: #B8983F; }
 .rc-booking-note { font-size: 11px; color: #9C9789; margin: 8px 0 0; text-align: center; }
 .rc-empty-inline { padding: 10px 0; color: #5C5850; font-size: 14px; }
 .rc-empty-inline a { color: #C9A84C; text-decoration: none; font-weight: 600; }
 
 /* ── Related tours grid ── */
 .rc-related { max-width: 1180px; margin: 0 auto; padding: 0 22px 50px; }
-.rc-trip-grid-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.rc-trip-grid-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 
 @media (max-width: 980px) {
   .rc-trip-layout { grid-template-columns: 1fr; gap: 28px; }
@@ -337,7 +494,7 @@
   .rc-route-arrow { transform: rotate(90deg); }
 }
 
-/* ── Package buttons (ganti select dropdown) ── */
+/* ── Package buttons (Radio Button Style) ── */
 .rc-pkg-buttons {
   display: flex;
   flex-direction: column;
@@ -345,34 +502,62 @@
 }
 .rc-pkg-btn {
   width: 100%;
-  padding: 14px 20px;
-  border: 2px solid #d4c5a9;
-  border-radius: 8px;
+  padding: 14px 16px;
+  border: 2px solid #E8E5DF;
+  border-radius: 10px;
   background: #fff;
   color: #1E1C18;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
-  font-family: inherit;
+  font-family: var(--font-jost);
   cursor: pointer;
   transition: all 0.2s ease;
   line-height: 1.4;
   text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+/* Radio circle indicator */
+.rc-pkg-btn::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border: 2px solid #D6D2CA;
+  border-radius: 50%;
+  background: #fff;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
 }
 .rc-pkg-btn:hover {
-  border-color: #b89a5e;
-  background: #faf6ed;
+  border-color: #C9A84C;
+  background: #FDF8EC;
 }
+.rc-pkg-btn:hover::before {
+  border-color: #C9A84C;
+}
+/* Selected/Active state */
 .rc-pkg-btn.rc-pkg-active {
-  border-color: #b89a5e;
-  background: #b89a5e;
-  color: #fff;
+  border-color: #C9A84C;
+  background: #FDF8EC;
+  color: #1E1C18;
+  font-weight: 600;
+}
+.rc-pkg-active::before {
+  border-color: #C9A84C;
+  background: #C9A84C;
+  box-shadow: inset 0 0 0 4px rgba(201,168,76,.15);
 }
 .rc-pkg-btn.rc-pkg-active b {
-  color: #fff;
+  color: #1E1C18;
+  font-weight: 700;
 }
 .rc-pkg-btn b {
-  font-weight: 700;
-  color: #b89a5e;
+  font-weight: 600;
+  color: #5C5850;
+  flex: 1;
 }
 
 @media (max-width: 480px) {
@@ -401,11 +586,15 @@
   border-top: 1px solid #e8dcc8;
 }
 .rc-price-label {
+  display:block;
+  width:49%;
   font-size: 15px;
   color: #5a5247;
   font-weight: 500;
 }
 .rc-price-value {
+  display:block;
+  width:auto;
   font-size: 18px;
   font-weight: 700;
   color: #1E1C18;
@@ -415,4 +604,24 @@
   .rc-price-summary { padding: 14px 16px; }
   .rc-price-label { font-size: 14px; }
   .rc-price-value { font-size: 16px; }
+}
+
+/* ── Price label group (label + note) ── */
+.rc-price-label-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.rc-price-note {
+  display:block;
+  width:100%;
+  font-size: 11px;
+  color: #999;
+  line-height: 1.35;
+}
+.rc-price-row {
+  display:block;
+  align-items: flex-start;
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
