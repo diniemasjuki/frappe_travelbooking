@@ -29,6 +29,11 @@ window.TripCommandCenter = (function () {
 	'use strict';
 
 	const esc = (v) => frappe.utils.escape_html(String(v ?? ''));
+	// Strip HTML tags untuk medan Text Editor yang kini bawa HTML mentah
+	const strip = (v) => {
+		const s = String(v ?? '');
+		return s.replace(/<[^>]+>/g, '').trim();
+	};
 
 	const S = {
 		page: null,
@@ -886,8 +891,8 @@ window.TripCommandCenter = (function () {
 			<div class="tcc-hp-section">
 				<div class="tcc-hp-block">
 					<h4>${__('Hero Section')}</h4>
-					<p><strong>${__('Title')}</strong>: ${esc(wc[`${prefix}_hero_title`] || '-')}</p>
-					<p><strong>${__('Subtitle')}</strong>: ${esc(wc[`${prefix}_hero_subtitle`] || '-')}</p>
+					<p><strong>${__('Title')}</strong>: ${strip(wc[`${prefix}_hero_title`] || '-')}</p>
+					<p><strong>${__('Subtitle')}</strong>: ${strip(wc[`${prefix}_hero_subtitle`] || '-')}</p>
 				</div>
 				<div class="tcc-hp-block">
 					<h4>${__('Stats')}</h4>

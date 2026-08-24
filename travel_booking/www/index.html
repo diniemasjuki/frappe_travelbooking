@@ -23,12 +23,12 @@
 {# === CRUISE HOMEPAGE === %}
 {% if page_type == "cruise" %}
 <section class="rc-cruise-hero">
-  <div class="rc-hero-bg"></div>
+  <div class="rc-hero-bg"{% if hero_background %} style="background-image: url('{{ hero_background }}')"{% endif %}></div>
   <div class="rc-hero-overlay"></div>
   <div class="rc-hero-content">
     {% if hero_tag %}<span class="rc-hero-tag">{{ hero_tag }}</span>{% endif %}
     {% if hero_title %}<h1>{{ hero_title|safe }}</h1>{% endif %}
-    {% if hero_intro %}<p>{{ hero_intro }}</p>{% endif %}
+    {% if hero_intro %}<div class="rc-hero-intro">{{ hero_intro|safe }}</div>{% endif %}
     
     {% if show_search_widget | default(true) %}
     <form class="rc-hero-search" action="/trips" method="get">
@@ -100,12 +100,12 @@
 {# === TOUR HOMEPAGE === %}
 {% elif page_type == "tour" %}
 <section class="rc-tour-hero">
-  <div class="rc-hero-bg"></div>
+  <div class="rc-hero-bg"{% if hero_background %} style="background-image: url('{{ hero_background }}')"{% endif %}></div>
   <div class="rc-hero-overlay"></div>
   <div class="rc-hero-content">
     {% if hero_tag %}<span class="rc-hero-tag">{{ hero_tag }}</span>{% endif %}
     {% if hero_title %}<h1>{{ hero_title|safe }}</h1>{% endif %}
-    {% if hero_intro %}<p>{{ hero_intro }}</p>{% endif %}
+    {% if hero_intro %}<div class="rc-hero-intro">{{ hero_intro|safe }}</div>{% endif %}
     
     {% if show_search_widget | default(true) %}
     <form class="rc-hero-search" action="/trips" method="get">

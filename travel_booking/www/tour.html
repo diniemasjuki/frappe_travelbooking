@@ -17,13 +17,13 @@
 {% set hp = wc.tour %}
 
 {# ── HERO SECTION ── #}
-<section class="rc-tour-hero"{% if hp.hero.background %} style="background-image: url('{{ hp.hero.background }}');"{% endif %}>
-  <div class="rc-hero-bg"></div>
+<section class="rc-tour-hero">
+  <div class="rc-hero-bg"{% if hp.hero.background %} style="background-image: url('{{ hp.hero.background }}')"{% endif %}></div>
   <div class="rc-hero-overlay"></div>
   <div class="rc-hero-content">
     <span class="rc-hero-tag">{{ hp.hero.tag }}</span>
     <h1>{{ hp.hero.title|safe }}</h1>
-    <p>{{ hp.hero.intro }}</p>
+    <div class="rc-hero-intro">{{ hp.hero.intro|safe }}</div>
 
     {# Search Widget #}
     <form class="rc-hero-search" action="/trips" method="get">
@@ -64,8 +64,8 @@
   <div class="rc-container">
     <div class="rc-section-header">
       <span class="rc-tag">{{ hp.featured.tag }}</span>
-      <h2>{{ hp.featured.title }}</h2>
-      <p>{{ hp.featured.subtitle }}</p>
+      <h2>{{ hp.featured.title|safe }}</h2>
+      <p>{{ hp.featured.subtitle|safe }}</p>
     </div>
 
     {% if featured_tours %}
@@ -119,8 +119,8 @@
   <div class="rc-container">
     <div class="rc-section-header rc-light">
       <span class="rc-tag rc-tag-outline">{{ hp.whyus.tag }}</span>
-      <h2>{{ hp.whyus.title }}</h2>
-      <p>{{ hp.whyus.subtitle }}</p>
+      <h2>{{ hp.whyus.title|safe }}</h2>
+      <p>{{ hp.whyus.subtitle|safe }}</p>
     </div>
 
     <div class="rc-benefits-grid">
@@ -140,8 +140,8 @@
   <div class="rc-container">
     <div class="rc-section-header">
       <span class="rc-tag">{{ hp.dest.tag }}</span>
-      <h2>{{ hp.dest.title }}</h2>
-      <p>{{ hp.dest.subtitle }}</p>
+      <h2>{{ hp.dest.title|safe }}</h2>
+      <p>{{ hp.dest.subtitle|safe }}</p>
     </div>
 
     {% if popular_destinations %}
@@ -166,8 +166,8 @@
   <div class="rc-container">
     <div class="rc-section-header">
       <span class="rc-tag">{{ hp.testi.tag }}</span>
-      <h2>{{ hp.testi.title }}</h2>
-      <p>{{ hp.testi.subtitle }}</p>
+      <h2>{{ hp.testi.title|safe }}</h2>
+      <p>{{ hp.testi.subtitle|safe }}</p>
     </div>
 
     <div class="rc-testimonial-slider" id="rcTestimonialSlider">
@@ -196,8 +196,8 @@
     <div class="rc-cta-content">
       <div class="rc-cta-icon"><i class="ti {{ hp.cta.icon }}"></i></div>
       <span class="rc-cta-tag">{{ hp.cta.tag }}</span>
-      <h2>{{ hp.cta.title }}</h2>
-      <p>{{ hp.cta.body }}</p>
+      <h2>{{ hp.cta.title|safe }}</h2>
+      <div class="rc-cta-body-text">{{ hp.cta.body|safe }}</div>
       <div class="rc-cta-buttons">
         <a href="{{ hp.cta.primary_url }}" class="rc-btn-primary rc-btn-lg">{{ hp.cta.primary_label }}</a>
         {% if hp.cta.secondary_label %}

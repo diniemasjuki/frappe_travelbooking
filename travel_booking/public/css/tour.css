@@ -84,7 +84,6 @@
 .rc-hero-bg {
   position: absolute; inset: 0;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
-  background-image: url('/assets/travel_booking/img/tour-hero-bg.jpg');
   background-size: cover; background-position: center;
 }
 .rc-hero-bg::after {
@@ -133,11 +132,13 @@
 .rc-tour-hero h1 em {
   font-style: normal; color: #C9A84C;
 }
-.rc-tour-hero > .rc-hero-content > p {
+.rc-hero-intro {
   font-size: 17px; line-height: 1.68; color: rgba(255,255,255,.82);
   margin: 0 0 38px;
   animation: rcFadeInUp .7s ease .3s both;
 }
+.rc-hero-intro p { margin: 0 0 10px; }
+.rc-hero-intro p:last-child { margin-bottom: 0; }
 
 @keyframes rcFadeInUp {
   from { opacity: 0; transform: translateY(24px); }
@@ -520,11 +521,14 @@
   font-family: var(--font-rubik); font-size: 42px; font-weight: 500;
   color: #1E1C18; margin: 0 0 16px; letter-spacing: -.3px;
 }
-.rc-cta-content p {
+.rc-cta-content p,
+.rc-cta-body-text {
   font-size: 18px; color: #5C5850; margin: 0 0 36px;
   max-width: 520px; margin-left: auto; margin-right: auto;
   line-height: 1.6;
 }
+.rc-cta-body-text p { margin: 0 0 8px; }
+.rc-cta-body-text p:last-child { margin-bottom: 0; }
 .rc-cta-buttons {
   display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
 }
