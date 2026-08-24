@@ -188,12 +188,6 @@ class Trip(Document):
 			styles.append({"name": self.trip_categories})
 		context.travel_styles = styles
 
-		# Location map (lat/lng pada Trip). has_map = False kalau tiada koordinat.
-		context.map_lat = float(self.map_lat or 0)
-		context.map_lng = float(self.map_lng or 0)
-		context.map_zoom = int(self.map_zoom or 8)
-		context.has_map = bool(self.map_lat and self.map_lng)
-
 		# Related tours — sama trip_categories, isi dgn trip lain jika kurang.
 		context.related = self._related_tours(limit=3)
 
