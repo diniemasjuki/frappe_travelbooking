@@ -231,11 +231,13 @@
   {
    "fieldname": "cruise_hero_title",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Hero Title"
   },
   {
    "fieldname": "cruise_hero_intro",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Hero Intro Paragraph"
   },
   {
@@ -259,7 +261,7 @@
   {
    "fieldname": "cruise_featured_section",
    "fieldtype": "Section Break",
-   "label": "Featured Cruises — Section Header"
+   "label": "Featured Cruises \u2014 Section Header"
   },
   {
    "fieldname": "cruise_featured_tag",
@@ -269,11 +271,13 @@
   {
    "fieldname": "cruise_featured_title",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Title"
   },
   {
    "fieldname": "cruise_featured_subtitle",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Subtitle"
   },
   {
@@ -305,11 +309,13 @@
   {
    "fieldname": "cruise_whyus_title",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Title"
   },
   {
    "fieldname": "cruise_whyus_subtitle",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Subtitle"
   },
   {
@@ -331,11 +337,13 @@
   {
    "fieldname": "cruise_dest_title",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Title"
   },
   {
    "fieldname": "cruise_dest_subtitle",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Subtitle"
   },
   {
@@ -351,11 +359,13 @@
   {
    "fieldname": "cruise_testi_title",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Title"
   },
   {
    "fieldname": "cruise_testi_subtitle",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Subtitle"
   },
   {
@@ -382,11 +392,13 @@
   {
    "fieldname": "cruise_cta_title",
    "fieldtype": "Data",
+   "max_height": 110,
    "label": "CTA Title"
   },
   {
    "fieldname": "cruise_cta_body",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "CTA Body Text"
   },
   {
@@ -465,11 +477,13 @@
   {
    "fieldname": "tour_hero_title",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Hero Title"
   },
   {
    "fieldname": "tour_hero_intro",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Hero Intro Paragraph"
   },
   {
@@ -493,7 +507,7 @@
   {
    "fieldname": "tour_featured_section",
    "fieldtype": "Section Break",
-   "label": "Featured Tours — Section Header"
+   "label": "Featured Tours \u2014 Section Header"
   },
   {
    "fieldname": "tour_featured_tag",
@@ -503,11 +517,13 @@
   {
    "fieldname": "tour_featured_title",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Title"
   },
   {
    "fieldname": "tour_featured_subtitle",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Subtitle"
   },
   {
@@ -539,11 +555,13 @@
   {
    "fieldname": "tour_whyus_title",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Title"
   },
   {
    "fieldname": "tour_whyus_subtitle",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Subtitle"
   },
   {
@@ -565,11 +583,13 @@
   {
    "fieldname": "tour_dest_title",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Title"
   },
   {
    "fieldname": "tour_dest_subtitle",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Subtitle"
   },
   {
@@ -585,11 +605,13 @@
   {
    "fieldname": "tour_testi_title",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Title"
   },
   {
    "fieldname": "tour_testi_subtitle",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "Section Subtitle"
   },
   {
@@ -616,11 +638,13 @@
   {
    "fieldname": "tour_cta_title",
    "fieldtype": "Data",
+   "max_height": 110,
    "label": "CTA Title"
   },
   {
    "fieldname": "tour_cta_body",
    "fieldtype": "Text",
+   "max_height": 110,
    "label": "CTA Body Text"
   },
   {
@@ -650,7 +674,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-23 15:00:00.000000",
+ "modified": "2026-08-24 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Website",
