@@ -59,6 +59,7 @@
   "naming_series",
   "column_break_cncs",
   "status",
+  "days_before_closure",
   "description_section",
   "trip_group_description"
  ],
@@ -76,6 +77,13 @@
    "in_standard_filter": 1,
    "label": "Status",
    "options": "Active\nFull\nClosed\nCompleted\nPending Review\nCancelled"
+  },
+  {
+   "description": "Bilangan hari sebelum tarikh departure untuk auto-set status sebagai 'Closed'. Default: 7 hari. Isi 0 untuk disable auto-close.",
+   "fieldname": "days_before_closure",
+   "fieldtype": "Int",
+   "label": "Days Before Auto-Close",
+   "default": "7"
   },
   {
    "fieldname": "column_break_obcw",

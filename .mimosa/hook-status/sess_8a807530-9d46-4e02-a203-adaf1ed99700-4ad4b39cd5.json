@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-08-23T10:43:10.100Z",
+  "sessionId": "sess_8a807530-9d46-4e02-a203-adaf1ed99700",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "travel_booking/api/so_helpers.py",
+  "outcome": "clear",
+  "coverage": "complete",
+  "findingCount": 0,
+  "durationMs": 7,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}

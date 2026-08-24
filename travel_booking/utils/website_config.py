@@ -55,8 +55,25 @@ def _build_config() -> dict:
         return _empty_config()
 
     footer_links = _active_rows(doc.get("footer_links"), has_active=True)
+
+    # Multi-domain configuration
+    multi_domain_enabled = doc.get("enable_multi_domain") or False
+    domain_mappings_raw = doc.get("domain_mappings") or []
+    domain_mappings = []
+    if multi_domain_enabled:
+        for d in domain_mappings_raw:
+            if d.get("is_active"):
+                domain_mappings.append({
+                    "domain": d.get("domain_name", ""),
+                    "redirect_url": d.get("redirect_url", "/cruise"),
+                })
+
     return {
         "website_logo": doc.get("website_logo") or "",
+        "multi_domain": {
+            "enabled": bool(multi_domain_enabled),
+            "mappings": domain_mappings,
+        },
         "footer": {
             "tagline": doc.get("footer_tagline") or "",
             "links": footer_links,
@@ -90,7 +107,11 @@ def _group_footer_columns(links: list) -> list:
 
 def _homepage_block(doc, prefix: str) -> dict:
     """Bina satu blok konfigurasi homepage (cruise atau tour)."""
+    # Logo: page-specific fallback ke shared website_logo
+    page_logo = doc.get(f"{prefix}_logo") or doc.get("website_logo") or ""
+
     return {
+        "logo": page_logo,
         "nav_cta": {
             "label": doc.get(f"{prefix}_nav_cta_label") or "Manage Booking",
             "url": doc.get(f"{prefix}_nav_cta_url") or "/traveller_portal",
@@ -100,6 +121,7 @@ def _homepage_block(doc, prefix: str) -> dict:
             "tag": doc.get(f"{prefix}_hero_tag") or "",
             "title": doc.get(f"{prefix}_hero_title") or "",
             "intro": doc.get(f"{prefix}_hero_intro") or "",
+            "background": doc.get(f"{prefix}_hero_background") or None,
             "search_label": doc.get(f"{prefix}_hero_search_label")
             or ("Search Cruises" if prefix == "cruise" else "Search Tours"),
             "stats": _active_rows(doc.get(f"{prefix}_hero_stats"), has_active=False),
@@ -161,9 +183,10 @@ def _active_rows(rows, has_active: bool = True) -> list:
 def _empty_config() -> dict:
     """Fallback apabila singleton belum wujud (sebelum install/migrate)."""
     hp = {
+        "logo": "",
         "nav_cta": {"label": "Manage Booking", "url": "/traveller_portal"},
         "menu": [],
-        "hero": {"tag": "", "title": "", "intro": "", "search_label": "", "stats": []},
+        "hero": {"tag": "", "title": "", "intro": "", "background": None, "search_label": "", "stats": []},
         "featured": {"tag": "", "title": "", "subtitle": "", "cta_label": "", "cta_url": ""},
         "whyus": {"tag": "", "title": "", "subtitle": "", "benefits": []},
         "dest": {"tag": "", "title": "", "subtitle": ""},
@@ -176,6 +199,10 @@ def _empty_config() -> dict:
     }
     return {
         "website_logo": "",
+        "multi_domain": {
+            "enabled": False,
+            "mappings": [],
+        },
         "footer": {
             "tagline": "", "links": [], "columns": [],
             "support_email": "contact@rpwp.my",

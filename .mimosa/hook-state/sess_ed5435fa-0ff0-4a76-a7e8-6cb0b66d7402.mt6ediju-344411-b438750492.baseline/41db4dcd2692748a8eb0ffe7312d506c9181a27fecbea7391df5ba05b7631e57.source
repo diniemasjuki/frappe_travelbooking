@@ -1,0 +1,635 @@
+# travel_booking/api/portal_payment.py
+# Payment & Invoice — Portal (ERPNext-native: Payment Request + Payment Entry)
+# ─────────────────────────────────────────────────────────────────────────
+
+import frappe
+from travel_booking.api.portal_booking import _get_customer
+from travel_booking.api.constants import PRINT_FORMAT_RECEIPT
+from travel_booking.api._helpers import sanitize_portal_return_path
+
+
+# ══════════════════════════════════════════════
+# GET ALL PAYMENTS (per Sales Order)
+# ══════════════════════════════════════════════
+
+@frappe.whitelist()
+def get_all_so_payments():
+    """Sejarah bayaran customer — baca Payment Entry (bukan RPE) + Sales Invoice.
+    SO Cancelled (docstatus=2) TETAP disertakan (transparency di UI, badge
+    'Cancelled') tapi dikecualikan dari kiraan Total/Balance di frontend
+    (renderMergedBookingCard filters is_cancelled sebelum jumlah).
+    """
+    frappe.flags.ignore_permissions = True
+    customer_name = _get_customer()
+
+    so_rows = frappe.db.sql("""
+        SELECT so.name, so.grand_total, so.advance_paid, so.status, so.docstatus,
+               so.currency, so.transaction_date, cur.symbol AS currency_symbol
+        FROM `tabSales Order` so
+        LEFT JOIN `tabCurrency` cur ON cur.name = so.currency
+        WHERE so.customer = %s AND so.docstatus IN (1, 2)
+        ORDER BY so.creation DESC
+    """, customer_name, as_dict=True)
+
+    orders = []
+    for so in so_rows:
+        so_name = so.name
+
+        # Booking (nama trip sebenar) untuk SO ini — SO boleh jadi SO utama
+        # ATAU SO addon (dikaitkan melalui Sales Order.custom_booking), jadi
+        # JOIN terus melalui custom_booking (bukan Booking.sales_order yang
+        # cuma menyimpan rujukan sehala dari Booking → SO utama).
+        bk_rows = frappe.db.sql("""
+            SELECT b.name, b.booking_number, tm.trip_name AS trip_label, td.trip_group_name
+            FROM `tabSales Order` so
+            JOIN `tabBooking` b ON b.name = so.custom_booking
+            LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
+            LEFT JOIN `tabTrip` tm ON tm.name = td.trip
+            WHERE so.name = %s AND b.customer = %s
+        """, (so_name, customer_name), as_dict=True)
+        booking_names   = []
+        booking_numbers = []
+        for b in bk_rows:
+            label = b.trip_label or b.name
+            if b.trip_group_name:
+                label = label + " · " + b.trip_group_name
+            booking_names.append(label)
+            booking_numbers.append(b.booking_number or b.name)
+
+        # Item lines
+        item_rows = frappe.db.sql("""
+            SELECT item_name, qty, rate, amount, description
+            FROM `tabSales Order Item`
+            WHERE parent = %s ORDER BY idx ASC
+        """, so_name, as_dict=True)
+        items = [{
+            "item_name":   r.item_name,
+            "description": r.description or "",
+            "qty":         r.qty,
+            "rate":        float(r.rate),
+            "amount":      float(r.amount)
+        } for r in item_rows]
+
+        # Payment Entry references ke SO ini (draft + submitted).
+        #
+        # PENTING: Payment Entry boleh rujuk terus ke Sales Order (kes
+        # biasa) ATAU ke Sales Invoice yang dijana DARI SO ni (kes bila
+        # admin cipta Sales Invoice secara manual dan guna "Get Advances
+        # Received" ERPNext untuk reconcile bayaran sedia ada — mekanisme
+        # ni SECARA LITERAL menukar reference_doctype pada Payment Entry
+        # Reference dari 'Sales Order' kepada 'Sales Invoice', mengalihkan
+        # rujukan Payment Entry YANG SAMA ke dokumen invois baharu).
+        # Kalau kita cuma check reference_doctype='Sales Order', payment
+        # yang dah "dialihkan" ni akan senyap HILANG dari portal walaupun
+        # bayaran tu masih sah — inilah punca "payment history hilang
+        # bila dah create Sales Invoice".
+        #
+        # PENTING JUGA: guna SUM(per.allocated_amount) — BUKAN pe.paid_amount.
+        # Admin boleh cipta SATU Payment Entry (dari Desk) yang allocate ke
+        # BANYAK Sales Order sekaligus (customer bayar borong beberapa trip
+        # dalam satu transaksi bank) — pe.paid_amount ialah jumlah PENUH
+        # Payment Entry tu (cth RM15,000 untuk 3 SO), BUKAN jumlah yang
+        # betul-betul di-allocate ke SO NI sahaja (cth RM5,000). Guna
+        # pe.paid_amount di sini akan papar jumlah PENUH yang mengelirukan
+        # pada senarai payment history SETIAP SO (nampak macam overpayment/
+        # bayaran salah), walhal advance_paid (jumlah agregat, di bawah)
+        # sendiri betul (ERPNext kira allocated_amount dengan tepat).
+        # GROUP BY + SUM elakkan double-count kalau satu PE ada >1 baris
+        # reference untuk SO/SI yang sama (jarang, tapi selamat).
+        pe_rows = frappe.db.sql("""
+            SELECT pe.name, SUM(per.allocated_amount) AS allocated_amount,
+                   pe.reference_date, pe.mode_of_payment, pe.reference_no,
+                   pe.docstatus, pe.creation,
+                   CASE pe.docstatus
+                     WHEN 1 THEN 'Verified'
+                     WHEN 2 THEN 'Cancelled'
+                     ELSE 'Pending'
+                   END AS status
+            FROM `tabPayment Entry` pe
+            JOIN `tabPayment Entry Reference` per ON per.parent = pe.name
+            WHERE (per.reference_doctype = 'Sales Order' AND per.reference_name = %(so_name)s)
+               OR (per.reference_doctype = 'Sales Invoice' AND per.reference_name IN (
+                     SELECT DISTINCT sii.parent
+                     FROM `tabSales Invoice Item` sii
+                     WHERE sii.sales_order = %(so_name)s
+                   ))
+            GROUP BY pe.name, pe.reference_date, pe.mode_of_payment,
+                     pe.reference_no, pe.docstatus, pe.creation
+            ORDER BY pe.creation DESC
+        """, {"so_name": so_name}, as_dict=True)
+
+        payments = []
+        for r in pe_rows:
+            proof = frappe.db.get_value(
+                "File",
+                {"attached_to_doctype": "Payment Entry", "attached_to_name": r.name},
+                "file_url"
+            ) or ""
+
+            # Saluran bayaran (manual upload vs payment gateway):
+            # - ONLINE: PE ciptaan ERPNext set_as_paid() (dipanggil webhook
+            #   Stripe) SENTIASA menulis reference_no = nama Payment Request
+            #   (rujuk payment_request.py create_payment_entry) — jadi
+            #   kewujudan PR dengan nama itu adalah penanda muktamad.
+            # - MANUAL: PE ciptaan portal submit_manual_payment() (customer
+            #   upload resit → fail bukti terlampir). PE desk tanpa bukti
+            #   dilabel ikut mode_of_payment admin, fallback "Bank Transfer".
+            #   (mode_of_payment kosong untuk kedua-dua laluan portal.)
+            is_online = bool(
+                r.reference_no and frappe.db.exists("Payment Request", r.reference_no)
+            )
+            if is_online:
+                channel, channel_label = "online", "Online Payment"
+            else:
+                channel = "manual"
+                channel_label = r.mode_of_payment or ("Manual Bank Transfer" if proof else "Bank Transfer")
+
+            payments.append({
+                "name":             r.name,
+                "paid_amount":      float(r.allocated_amount or 0),
+                "payment_date":     str(r.reference_date) if r.reference_date else "",
+                "mode_of_payment":  r.mode_of_payment or "",
+                "channel":          channel,
+                "channel_label":    channel_label,
+                "reference_no":     r.reference_no or "",
+                "status":           r.status,
+                "docstatus":        r.docstatus,
+                "proof_of_payment": proof,
+            })
+
+        # Sales Invoice (kalau admin dah generate)
+        inv_rows = frappe.db.sql("""
+            SELECT DISTINCT sii.parent, si.posting_date,
+                   si.grand_total, si.status
+            FROM `tabSales Invoice Item` sii
+            JOIN `tabSales Invoice` si ON si.name = sii.parent
+            WHERE sii.sales_order = %s AND si.docstatus = 1
+        """, so_name, as_dict=True)
+        invoices = [{
+            "name":         r.parent,
+            "posting_date": str(r.posting_date) if r.posting_date else "",
+            "grand_total":  float(r.grand_total or 0),
+            "status":       r.status
+        } for r in inv_rows]
+
+        # Proforma Invoice sebenar (ERPNext doctype, dipaut ke SO melalui
+        # field `sales_order`). Hanya SO submitted (docstatus=1) yang
+        # layak punya proforma issued; SO Cancelled dikecualikan. Frontend
+        # guna senarai ni untuk papar + download PDF sebenar (proforma_pdf)
+        # menggantikan cetakan SO semula yang lama (lihat get_document_pdf
+        # branch "Proforma Invoice").
+        proformas = []
+        if so.docstatus == 1:
+            pf_rows = frappe.db.sql("""
+                SELECT name, proforma_date, grand_total, proforma_pdf,
+                       status, currency
+                FROM `tabProforma Invoice`
+                WHERE sales_order = %s AND docstatus = 1
+                ORDER BY creation DESC
+            """, so_name, as_dict=True)
+            proformas = [{
+                "name":          r.name,
+                "proforma_date": str(r.proforma_date) if r.proforma_date else "",
+                "grand_total":   float(r.grand_total or 0),
+                "proforma_pdf":   r.proforma_pdf or "",
+                "status":         r.status or "",
+                "currency":       r.currency or so.currency or "MYR",
+            } for r in pf_rows]
+
+        # NOTA: "Disable Rounded Total" kini global (Selling Settings,
+        # terpakai untuk Sales Order & Sales Invoice) — standardize ke
+        # grand_total sahaja, konsisten dengan create_payment_request()'s
+        # outstanding calc.
+        effective_total = float(so.grand_total or 0)
+
+        orders.append({
+            "name":            so_name,
+            "grand_total":     effective_total,
+            "advance_paid":    float(so.advance_paid or 0),
+            "status":          so.status,
+            "transaction_date": str(so.transaction_date) if so.transaction_date else "",
+            "is_cancelled":    so.docstatus == 2,
+            "bookings":        booking_names,
+            "booking_numbers": booking_numbers,
+            "items":           items,
+            "payments":        payments,
+            "invoices":        invoices,
+            "proformas":       proformas,
+            # MULTI-CURRENCY: rujuk dokumen reka bentuk — setiap SO boleh
+            # currency BERBEZA (utama MYR, addon SGD, dsb — sepatutnya
+            # jarang, guardrail "single currency per booking" masih
+            # berkuatkuasa DALAM satu booking, tapi across booking BERBEZA
+            # customer boleh ada currency lain-lain). Frontend guna field
+            # ni untuk papar simbol yang BETUL untuk card SO ni.
+            "currency":        so.currency or "MYR",
+            "currency_symbol": so.currency_symbol or (so.currency or "MYR"),
+        })
+
+    return {"orders": orders}
+
+
+# ══════════════════════════════════════════════
+# CREATE PAYMENT REQUEST (Stripe / online)
+# ══════════════════════════════════════════════
+
+@frappe.whitelist()
+def create_payment_request(booking_number: str = None, amount: float = None,
+                           sales_order: str = None, return_to: str = None):
+    """Cipta Payment Request + Stripe PaymentIntent (checkout.html custom kita
+    sendiri, Stripe Elements — BUKAN pr.get_payment_url() ERPNext standard).
+    Open amount: min = deposit 20% kalau belum bayar apa-apa, selepas itu bebas; max = baki.
+
+    'return_to' (opsyenal): laluan portal untuk Stripe hantar customer
+    BALIK selepas bayar (cth "/traveller_portal/booking_billing?ref=RC-X"
+    — page asal customer datang). Disahkan dengan
+    sanitize_portal_return_path(); kosong/tidak sah → fallback lalai
+    (/traveller_portal/transactions).
+
+    NOTA PENTING: fungsi ni SEBELUM ini guna pr.get_payment_url() (payment_
+    gateway_account diisi terus pada Payment Request) — itu punca checkout
+    customer terpapar sebagai halaman hosted-checkout generik "payments" app
+    (branding/company salah, contoh "WargaPrihatin"/"None" sebagai title),
+    BUKAN checkout.html custom kita dengan Stripe Elements + branding
+    Rarecruise. Kini disatukan guna create_payment_intent() (sama fungsi
+    yang dipakai wizard booking baru dalam booking.py/_create_payment_url),
+    supaya SEMUA online payment (wizard DAN portal per-SO) laluan sama:
+    checkout.html + webhook kita sendiri.
+    """
+    from travel_booking.api.stripe_checkout import create_payment_intent
+
+    frappe.flags.ignore_permissions = True
+    customer_name = _get_customer()
+
+    so_name = sales_order
+    if not so_name and booking_number:
+        from travel_booking.api.booking import _get_primary_so
+        booking_name_lookup = frappe.db.get_value("Booking", {"booking_number": booking_number}, "name")
+        so_name = _get_primary_so(booking_name_lookup) if booking_name_lookup else None
+    if not so_name:
+        frappe.throw("Sales Order not found for this booking.")
+
+    # Derive booking_number dari SO (arah SEBALIKNYA) kalau caller cuma
+    # hantar sales_order sahaja (macam portal_payment.js — klik "Pay Now"
+    # pada kad SO individu cuma hantar {sales_order, amount}, tiada
+    # booking_number terus). Tanpa ni, metadata PaymentIntent Stripe
+    # ("booking_number") kekal KOSONG, dan get_payment_result() (dipanggil
+    # selepas redirect balik dari Stripe) gagal padankan balik ke Booking —
+    # customer nampak "Couldn't confirm payment status" walaupun bayaran
+    # itu sendiri (Stripe) berjaya/gagal seperti biasa.
+    if not booking_number:
+        booking_name_from_so = frappe.db.get_value("Sales Order", so_name, "custom_booking")
+        if booking_name_from_so:
+            booking_number = frappe.db.get_value("Booking", booking_name_from_so, "booking_number")
+
+    so = frappe.db.get_value("Sales Order", so_name,
+                             ["customer", "grand_total", "advance_paid", "currency"], as_dict=True)
+    if so.customer != customer_name:
+        frappe.throw("Access denied.", frappe.PermissionError)
+
+    # NOTA: "Disable Rounded Total" kini global (Selling Settings) — semua
+    # SO tak lagi ada rounded_total berlainan dari grand_total (dan ERPNext
+    # punya validate_payment_request_amount() turut fallback ke grand_total
+    # secara automatik di sisi dia untuk SO sebegini). Standardize terus ke
+    # grand_total sahaja (rujuk juga nota lengkap di
+    # stripe_checkout.create_payment_intent()).
+    grand_total = float(so.grand_total or 0)
+    paid        = float(so.advance_paid or 0)
+    outstanding = grand_total - paid
+    if outstanding <= 0:
+        frappe.throw("No balance to pay.")
+
+    req_amount = float(amount) if amount else outstanding
+
+    # Deposit minimum ikut Travel Settings (single-sourced dengan
+    # confirm_booking()) — bukan hardcode 20%, supaya konsisten kalau admin
+    # tukar peratus deposit lalai.
+    settings = frappe.get_cached_doc("Travel Settings")
+    default_deposit_percent = float(settings.default_deposit_percent or 20)
+
+    min_amount = round(grand_total * (default_deposit_percent / 100), 2) if paid <= 0 else 1.0
+    if req_amount < min_amount - 0.01:
+        if paid <= 0:
+            from travel_booking.api.booking import fmt_currency
+            frappe.throw(
+                "First payment must be at least the deposit of {:.0f}% ({}).".format(
+                    default_deposit_percent, fmt_currency(min_amount, so.currency)
+                )
+            )
+        frappe.throw("Invalid amount.")
+    if req_amount > outstanding + 0.01:
+        from travel_booking.api.booking import fmt_currency
+        frappe.throw("Amount exceeds the outstanding balance ({}).".format(fmt_currency(outstanding, so.currency)))
+
+    result = create_payment_intent(
+        sales_order=so_name,
+        amount=req_amount,
+        source="portal",
+        booking_number=booking_number,
+        return_to=sanitize_portal_return_path(return_to),
+    )
+
+    return {
+        "status":          result.get("status", "ok"),
+        "payment_request":  result.get("payment_request"),
+        "amount":          req_amount,
+        "min_amount":      min_amount,
+        "outstanding":     outstanding,
+        "payment_url":     result.get("checkout_url", ""),
+        "message":         "Please proceed to payment.",
+    }
+
+# ══════════════════════════════════════════════
+# SUBMIT MANUAL PAYMENT (customer upload bukti)
+# ══════════════════════════════════════════════
+
+@frappe.whitelist()
+def submit_manual_payment(amount: float, payment_date: str,
+                          reference_no: str, notes: str, filedata: str, filename: str,
+                          sales_order: str = None, booking_number: str = None):
+    """Manual transfer — cipta Payment Entry DRAFT + attach bukti.
+
+    PENTING: TIDAK set mode_of_payment — field ni Link ke doctype master
+    "Mode of Payment" (bukan teks bebas), jadi nilai yang dihantar mesti
+    sepadan TEPAT dengan rekod sebenar di Desk (Cash/Bank Draft/dsb),
+    kalau tidak pe.insert() throw LinkValidationError. Untuk booking
+    system ni, Manual Transfer SENTIASA bermaksud bank transfer sahaja
+    (tiada pilihan lain ditawarkan pun di wizard booking pertama —
+    rujuk _create_manual_payment_entry() dalam booking.py, yang turut
+    TIDAK set field ni langsung dan berfungsi baik) — jadi field pilihan
+    "Payment method" tidak perlu, cuma tambah risiko error tanpa faedah.
+    """
+    import base64
+    from erpnext.accounts.party import get_party_account
+
+    # --- Verify customer DULU (keselamatan) ---
+    customer_name = _get_customer()
+
+    target_so = sales_order
+    if not target_so and booking_number:
+        from travel_booking.api.booking import _get_primary_so
+        booking_name_lookup = frappe.db.get_value("Booking", {"booking_number": booking_number}, "name")
+        target_so = _get_primary_so(booking_name_lookup) if booking_name_lookup else None
+    if not target_so:
+        frappe.throw("Sales Order not found.")
+
+    so = frappe.db.get_value("Sales Order", target_so,
+                             ["customer", "company", "currency"], as_dict=True)
+    if so.customer != customer_name:
+        frappe.throw("Access denied.", frappe.PermissionError)
+
+    # --- Cipta Payment Entry dengan hak sistem (customer dah verified atas) ---
+    #
+    # PENTING: guna frappe.flags.ignore_permissions, BUKAN frappe.set_user()
+    # — set_user() MEMADAM frappe.local.session.data dan menulis-ganti
+    # session.sid (rujuk frappe/__init__.py). Session.update() yang Frappe
+    # panggil di hujung SETIAP request (frappe/app.py) kemudian menulis
+    # data sesi yang telah dikosongkan itu ke cache di bawah sid sebenar
+    # customer — request berikutnya membaca sesi rosak → dianggap tamat
+    # → "User None not found" / terlogout selepas hantar resit.
+    # flags.ignore_permissions memberi laluan kepada pe.insert() tanpa
+    # menyentuh session — corak yang sama dengan create_payment_request().
+    frappe.flags.ignore_permissions = True
+
+    company = so.company or frappe.db.get_single_value("Global Defaults", "default_company")
+
+    # MULTI-CURRENCY: sama fix dengan _create_manual_payment_entry()
+    # (api/booking.py) — cari paid_to account KHUSUS untuk currency SO
+    # ni dari Travel Settings.currency_accounts, bukan single field lama.
+    paid_to = None
+    travel_settings = frappe.get_cached_doc("Travel Settings")
+    for row in (travel_settings.get("currency_accounts") or []):
+        if row.currency == so.currency and row.manual_transfer_paid_to_account:
+            paid_to = row.manual_transfer_paid_to_account
+            break
+    if not paid_to:
+        frappe.log_error(
+            "Manual Transfer paid_to account is not configured for currency '" +
+            str(so.currency) + "' (SO " + target_so + "). Using fallback to the " +
+            "first Bank-type Account for the company — please configure it in " +
+            "Travel Settings > Multi Currency Account.",
+            "Manual Transfer - Currency Account Missing"
+        )
+        paid_to = frappe.db.get_value(
+            "Account",
+            {"account_type": "Bank", "company": company, "is_group": 0},
+            "name"
+        )
+    party_account = get_party_account("Customer", customer_name, company)
+    # MULTI-CURRENCY — DIRINGKASKAN, sama dengan _create_manual_payment_entry()
+    # (api/booking.py): akaun Debtors DEFAULT company selamat diguna
+    # terus untuk apa-apa currency SO, sejak Accounts Settings "Allow
+    # multi-currency invoices against single party account" dihidupkan.
+
+    pe = frappe.new_doc("Payment Entry")
+    pe.payment_type    = "Receive"
+    pe.company         = company
+    pe.posting_date    = payment_date or frappe.utils.today()
+    pe.party_type      = "Customer"
+    pe.party           = customer_name
+    pe.party_account   = party_account
+    pe.paid_from       = party_account
+    pe.paid_to         = paid_to
+    pe.paid_amount     = float(amount)
+    pe.received_amount = float(amount)
+    pe.reference_no    = reference_no or target_so
+    pe.reference_date  = payment_date or frappe.utils.today()
+
+    pe.append("references", {
+        "reference_doctype": "Sales Order",
+        "reference_name":    target_so,
+        "allocated_amount":  float(amount),
+    })
+
+    pe.remarks = notes or ("Manual transfer for " + target_so + ". Pending verification.")
+    pe.insert(ignore_permissions=True)   # draft
+
+    if filedata and filename:
+        if "," in filedata:
+            filedata = filedata.split(",")[1]
+        file_content = base64.b64decode(filedata)
+        frappe.get_doc({
+            "doctype":             "File",
+            "file_name":           filename,
+            "attached_to_doctype": "Payment Entry",
+            "attached_to_name":    pe.name,
+            "is_private":          1,
+            "content":             file_content
+        }).insert(ignore_permissions=True)
+
+    frappe.db.commit()
+    pe_name = pe.name
+
+    return {
+        "status":     "ok",
+        "submission": pe_name,
+        "message":    "Payment proof received. Admin will verify shortly."
+    }
+
+
+# ══════════════════════════════════════════════
+# DOWNLOAD DOCUMENT PDF
+# ══════════════════════════════════════════════
+
+# PRINT_FORMAT_RECEIPT diimport dari constants.py (sumber tunggal).
+# PRINT_FORMAT_INVOICE kekal di sini sebab ia cuma dipakai di portal_payment
+# sahaja buat masa ni (belum dikongsi dengan modul lain).
+PRINT_FORMAT_INVOICE = "Rarecation Invoice"
+
+
+@frappe.whitelist()
+def get_document_pdf(doctype: str, docname: str):
+    frappe.flags.ignore_permissions = True
+    customer_name = _get_customer()
+
+    if doctype == "Payment Entry":
+        pe = frappe.db.sql("""
+            SELECT pe.name
+            FROM `tabPayment Entry` pe
+            WHERE pe.name = %s AND pe.party = %s AND pe.docstatus = 1
+        """, (docname, customer_name), as_dict=True)
+        if not pe:
+            frappe.response["http_status_code"] = 403
+            return {"status": "error", "message": "Document not found."}
+        print_format = PRINT_FORMAT_RECEIPT
+
+    elif doctype == "Sales Invoice":
+        inv = frappe.db.sql("""
+            SELECT DISTINCT si.name
+            FROM `tabSales Invoice` si
+            JOIN `tabSales Invoice Item` sii ON sii.parent = si.name
+            JOIN `tabSales Order` so ON so.name = sii.sales_order
+            WHERE si.name = %s AND so.customer = %s AND si.docstatus = 1
+        """, (docname, customer_name), as_dict=True)
+        if not inv:
+            frappe.response["http_status_code"] = 403
+            return {"status": "error", "message": "Document not found."}
+        print_format = PRINT_FORMAT_INVOICE
+
+    elif doctype == "Proforma Invoice":
+        # Proforma Invoice sebenar (ERPNext doctype) — PDF dijana on_submit
+        # dan disimpan pada field `proforma_pdf` (private file). Pemilikan
+        # disahkan melalui SO yang dipautkan (proforma.sales_order) milik
+        # customer portal, bukan semak terus ke field customer proforma
+        # (selari dengan corak ownership Sales Invoice di atas). PDF diserv
+        # di sini supaya file private tak terdedah terus ke laluan awam.
+        proforma = frappe.db.get_value(
+            "Proforma Invoice", docname,
+            ["sales_order", "proforma_pdf"], as_dict=True
+        )
+        if not proforma or not proforma.sales_order or not proforma.proforma_pdf:
+            frappe.response["http_status_code"] = 404
+            return {"status": "error", "message": "Proforma PDF not available."}
+
+        so_owner = frappe.db.get_value("Sales Order", proforma.sales_order, "customer")
+        if so_owner != customer_name:
+            frappe.response["http_status_code"] = 403
+            return {"status": "error", "message": "Document not found."}
+
+        file_name = frappe.db.get_value(
+            "File",
+            {"file_url":          proforma.proforma_pdf,
+             "attached_to_doctype": "Proforma Invoice",
+             "attached_to_name":    docname},
+            "name"
+        )
+        if not file_name:
+            frappe.response["http_status_code"] = 404
+            return {"status": "error", "message": "Proforma PDF not available."}
+
+        try:
+            pdf_data = frappe.get_doc("File", file_name).get_content()
+        except Exception:
+            frappe.log_error(frappe.get_traceback(), "get_document_pdf proforma error")
+            frappe.response["http_status_code"] = 500
+            return {"status": "error", "message": "PDF could not be read."}
+
+        frappe.response.update({
+            "filename":     docname.replace("/", "-") + ".pdf",
+            "filecontent":   pdf_data,
+            "type":         "download",
+            "content_type": "application/pdf"
+        })
+        return
+
+    elif doctype == "Sales Order":
+        # PROFORMA — download SO sebagai "proforma invoice" dari page
+        # Billing portal (sebelum Sales Invoice rasli wujud). Ownership
+        # check terus ikut SO.customer; docstatus 0/1 dibenarkan (draft
+        # pun boleh dipapar sebagai proforma — ia belum dokumen accounting).
+        from travel_booking.api.constants import PRINT_FORMAT_PROFORMA
+        so_owner = frappe.db.get_value("Sales Order", docname, "customer")
+        so_status = frappe.db.get_value("Sales Order", docname, "docstatus")
+        if not so_owner or so_owner != customer_name or so_status == 2:
+            frappe.response["http_status_code"] = 403
+            return {"status": "error", "message": "Document not found."}
+        print_format = PRINT_FORMAT_PROFORMA
+
+    else:
+        frappe.response["http_status_code"] = 400
+        return {"status": "error", "message": "Invalid document type."}
+
+    # Try primary print format, fallback to Standard if fails
+    print_formats_to_try = [print_format]
+    if print_format == PRINT_FORMAT_INVOICE:
+        print_formats_to_try.append("Standard")
+
+    last_error = None
+    for pf_name in print_formats_to_try:
+        try:
+            pf = frappe.db.get_value(
+                "Print Format", pf_name,
+                ["html", "custom_format"], as_dict=True
+            )
+            if not pf or not pf.get("html"):
+                continue
+
+            doc       = frappe.get_doc(doctype, docname)
+            html      = frappe.render_template(pf["html"], {"doc": doc, "frappe": frappe})
+            full_html = ("""<!DOCTYPE html><html><head>
+<meta charset="utf-8">
+<style>@page{margin:0}body{margin:0;padding:0}</style>
+</head><body>""" + html + """</body></html>""")
+
+            pdf_data = frappe.utils.pdf.get_pdf(full_html)
+
+            # Success - return PDF
+            frappe.response.update({
+                "filename":     docname.replace("/", "-") + ".pdf",
+                "filecontent":  pdf_data,
+                "type":         "download",
+                "content_type": "application/pdf"
+            })
+            return
+        except Exception as e:
+            last_error = str(e)
+            frappe.log_error(frappe.get_traceback(), f"get_document_pdf error for format {pf_name}")
+            continue  # Try next format
+
+    # All formats failed - return file_url fallback for invoices if available
+    if doctype == "Sales Invoice":
+        try:
+            # Try to get file URL from Print Format HTML or default location
+            file_url = None
+            si = frappe.get_doc("Sales Invoice", docname)
+            # Check if there's an attached PDF file
+            files = frappe.get_all("File", filters={
+                "attached_to_doctype": "Sales Invoice",
+                "attached_to_name": docname,
+                "file_name": ["like", "%.pdf%"]
+            }, fields=["file_url", "name"])
+            if files:
+                file_url = files[0].get("file_url")
+                if file_url:
+                    return {
+                        "status": "ok",
+                        "file_url": file_url,
+                        "message": "Invoice downloaded from attached file."
+                    }
+        except Exception:
+            pass
+
+    frappe.response["http_status_code"] = 500
+    return {
+        "status": "error",
+        "message": f"PDF generation failed. Please contact support. ({last_error or 'Unknown error'})"
+    }

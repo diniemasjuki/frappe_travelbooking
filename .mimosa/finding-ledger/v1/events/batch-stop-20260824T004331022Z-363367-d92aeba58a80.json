@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "mimosa-finding-ledger-batch/v1",
+  "batchId": "stop-20260824T004331022Z-363367-d92aeba58a80",
+  "runId": "20260824T004331022Z-363367-d92aeba58a80",
+  "runStatus": "completed",
+  "coverage": {
+    "status": "complete",
+    "reasons": []
+  },
+  "source": {
+    "component": "zcode-hook",
+    "operationId": "Stop"
+  },
+  "revision": "b528e634f2196406da264a05d289748d7a43bc08",
+  "diffHash": "90ebc23e1e12f5e22e3cc4aec3ac319cb3a539c4a7b88ab2c4a8f7accd96f385",
+  "rulesVersion": "unavailable",
+  "sessionHash": "9091036ee53fbf3fabe31bf113c2ca3ab6a50e51c8cc578fa2647de27cf36a8c",
+  "reportRef": ".mimosa/reports/task-review-sess_a142650f-205e-44e8-848b-c9b0655fe38e-20260824T004331022Z-363367-d92aeba58a80.json",
+  "events": [],
+  "observedFindingIds": [],
+  "verifiedFiles": [
+    {
+      "file": "travel_booking/travel_booking_management/page/trip_command_center/trip_command_center.js",
+      "direct": "complete",
+      "projectContext": "partial"
+    }
+  ],
+  "recordedAt": "2026-08-24T00:43:31.538Z"
+}

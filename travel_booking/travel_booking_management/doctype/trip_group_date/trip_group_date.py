@@ -4,8 +4,10 @@
 import frappe
 
 import re
+from datetime import datetime, timedelta
 from frappe.utils import getdate
 from frappe.utils import date_diff
+from frappe.utils import nowdate
 from frappe.model.document import Document
 
 
@@ -109,20 +111,25 @@ class TripGroupDate(Document):
 
 		# -- trip group name
 
-		# this is for FLY CRUISE trip = group title use sailing date
-		if (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (not self.is_cruise_only or self.is_cruise_only == 0):
-			self.trip_group_name = str(self.departure_date) + (" : " + self.trip or "") + " : Fly Cruise"
-			self.trip_group_code = (str(self.departure_date) + ":" + self.trip + ":" + "FC").replace("-","")
+			# this is for FLY CRUISE trip = group title use sailing date
+			if (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (not self.is_cruise_only or self.is_cruise_only == 0):
+				self.trip_group_name = str(self.departure_date) + (" : " + self.trip or "") + " : Fly Cruise"
+				self.trip_group_code = (str(self.departure_date) + ":" + self.trip + ":" + "FC").replace("-", "")
 
-		# this is for CRUISE ONLY trip
-		elif (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (self.is_cruise_only is True or self.is_cruise_only == 1) :
-			self.trip_group_name = str(self.sailing_start) + (" : " + self.trip or "") + " : Cruise Only"
-			self.trip_group_code = (str(self.sailing_start) + ":" + self.trip + ":" + "CO").replace("-","")
+			# this is for CRUISE ONLY trip
+			elif (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (self.is_cruise_only is True or self.is_cruise_only == 1):
+				self.trip_group_name = str(self.sailing_start) + (" : " + self.trip or "") + " : Cruise Only"
+				self.trip_group_code = (str(self.sailing_start) + ":" + self.trip + ":" + "CO").replace("-", "")
 
-		# this is for RARECATION / NON-CRUISE trip
-		else:
-			self.trip_group_name = str(self.departure_date) + (" : " + self.trip or "") + (" : " + self.name or "") 
-			self.trip_group_code = (str(self.departure_date) + ":" + self.trip + ":" + self.name).replace("-","")
+			# this is for RARECATION / NON-CRUISE trip
+			else:
+				self.trip_group_name = str(self.departure_date) + (" : " + self.trip or "") + (" : " + self.name or "")
+				self.trip_group_code = (str(self.departure_date) + ":" + self.trip + ":" + self.name).replace("-", "")
+
+			# ============================================================
+			# AUTO-STATUS HOOK: Update status berdasarkan business rules
+			# ============================================================
+			self._auto_update_status()
 
 
 
@@ -135,7 +142,7 @@ class TripGroupDate(Document):
 			WHERE b.trip_date = %s
 				AND b.status != 'Cancelled'
 		""", self.name)[0][0] or 0
-		frappe.db.set_value("Trip Group Date", self.name, "current_participants", total,update_modified=False)
+		frappe.db.set_value("Trip Group Date", self.name, "current_participants", total, update_modified=False)
 
 	@property
 	def available_slots(self):
@@ -146,3 +153,106 @@ class TripGroupDate(Document):
 		if not (self.max_participants or 0):
 			return None
 		return (self.max_participants or 0) - (self.current_participants or 0)
+
+	def _auto_update_status(self):
+		"""
+		AUTO-STATUS HOOK: Update status berdasarkan business rules.
+
+		Rules (priority order):
+		1. COMPLETED: Return date sudah lepas
+		2. FULLED:   Capacity == Occupancy (dan capacity > 0)
+		3. CLOSED:   Departure date < XX hari dari hari ini (dari Travel Website setting)
+
+		Status yang set akan override manual status kecuali 'Cancelled'.
+		"""
+		try:
+			today = getdate(nowdate())
+
+			# Skip jika status adalah Cancelled (manual override)
+			if self.status == 'Cancelled':
+				return
+
+			# ============================================================
+			# RULE 1: COMPLETED - Return date sudah lepas
+			# ============================================================
+			if self.return_date:
+				return_date = getdate(self.return_date)
+				if return_date < today:
+					self.status = 'Completed'
+					return  # Stop processing, completed is final
+
+			# ============================================================
+			# RULE 2: FULLED - Capacity penuh (occupancy == capacity)
+			# ============================================================
+			if self.max_participants and self.max_participants > 0:
+				# Jika occupancy sama atau melebihi capacity
+				if self.current_participants and self.current_participants >= self.max_participants:
+					self.status = 'Full'
+					return  # Full takes priority over Closed
+
+			# ============================================================
+			# RULE 3: CLOSED - Departure date < XX hari dari today
+			# ============================================================
+			if self.departure_date:
+				departure = getdate(self.departure_date)
+
+				# Dapatkan setting 'days_before_closure' dari Travel Website
+				days_before_closure = self._get_days_before_closure_setting()
+
+				# Kira tarikh closure
+				closure_date = departure - timedelta(days=days_before_closure)
+
+				# Jika hari ini sudah lepas closure date, status = Closed
+				if today >= closure_date:
+					# Jika belum Full, set sebagai Closed
+					if self.status != 'Full':
+						self.status = 'Closed'
+
+		except Exception as e:
+			# Log error tapi jangan block save
+			frappe.log_error(
+				frappe.get_traceback(),
+				f'TripGroupDate: Auto-status error for {self.name}'
+			)
+			# Jangan change status jika ada error
+
+	def _get_days_before_closure_setting(self) -> int:
+		"""
+		Dapatkan bilangan hari sebelum departure untuk auto-close.
+
+		Priority (dari tinggi ke rendah):
+		1. ✅ Field 'days_before_closure' dalam Trip Group Date ini (per-trip-date override)
+		2. Global setting dalam Travel Website doctype (fallback, jika field masih wujud)
+		3. Default: 7 hari
+		"""
+		try:
+			# ============================================================
+			# PRIORITY 1: Per-Trip-Date Setting (Override)
+			# Setiap trip group date boleh ada tarikh tutup berbeza!
+			# ============================================================
+			if hasattr(self, 'days_before_closure') and self.days_before_closure:
+				days = int(self.days_before_closure)
+				if days > 0:  # 0 bermakna disable auto-close
+					return days
+
+			# ============================================================
+			# PRIORITY 2: Global Setting (Fallback dari Travel Website)
+			# Note: Field ini mungkin telah dibuang dari Travel Website,
+			#       jadi gunakan try/except untuk backward compatibility
+			# ============================================================
+			try:
+				settings = frappe.get_doc('Travel Website')
+				if hasattr(settings, 'days_before_closure') and settings.days_before_closure:
+					global_days = int(settings.days_before_closure)
+					if global_days > 0:
+						return global_days
+			except Exception:
+				pass  # Travel Website mungkin belum wujud atau field dah dibuang
+
+			# ============================================================
+			# PRIORITY 3: Hardcoded Default
+			# ============================================================
+			return 7  # Default: 7 hari sebelum departure (changed from 3)
+
+		except (ValueError, TypeError):
+			return 7  # Default jika parsing gagal

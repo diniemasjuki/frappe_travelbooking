@@ -1,0 +1,12 @@
+{# travel_booking/www/__domain_redirect.html #}
+{# Template untuk domain redirect - sepatutnya tak perlu render kerana redirect berlaku dalam .py #}
+{% extends "templates/base_travel.html" %}
+
+{% block title %}Redirecting...{% endblock %}
+
+{% block page_content %}
+<div style="text-align:center;padding:50px;">
+  <h2>Redirecting...</h2>
+  <p>Jika tidak redirect secara automatik, <a href="/cruise">klik sini untuk Cruise homepage</a>.</p>
+</div>
+{% endblock %}

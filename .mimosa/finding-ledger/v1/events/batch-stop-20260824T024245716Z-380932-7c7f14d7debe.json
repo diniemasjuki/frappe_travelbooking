@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "mimosa-finding-ledger-batch/v1",
+  "batchId": "stop-20260824T024245716Z-380932-7c7f14d7debe",
+  "runId": "20260824T024245716Z-380932-7c7f14d7debe",
+  "runStatus": "inconclusive",
+  "coverage": {
+    "status": "partial",
+    "reasons": [
+      {
+        "code": "baseline_snapshot_unreadable",
+        "stage": "baseline-read",
+        "target": "travel_booking/travel_booking_management/doctype/website_domain_mapping/__init__.py",
+        "detail": "file is missing from task baseline",
+        "affectsCompletion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline-read",
+        "target": "travel_booking/travel_booking_management/doctype/website_domain_mapping/__init__.py",
+        "detail": "baseline_snapshot_unreadable: file is missing from task baseline",
+        "affectsCompletion": true
+      }
+    ]
+  },
+  "source": {
+    "component": "zcode-hook",
+    "operationId": "Stop"
+  },
+  "revision": "b528e634f2196406da264a05d289748d7a43bc08",
+  "diffHash": "cc66a383a346ee12f0fdb1d4f810f4f9af46e5f3ab2afacbbe4228ffb811c93c",
+  "rulesVersion": "unavailable",
+  "sessionHash": "cf001a84d7236852a5d66f3c096e41ea95971899c0a0a3d5068ef00a0a109550",
+  "reportRef": ".mimosa/reports/task-review-sess_53b6fdfd-1677-4a02-bf40-2c98c11c5fae-20260824T024245716Z-380932-7c7f14d7debe.json",
+  "events": [],
+  "observedFindingIds": [],
+  "verifiedFiles": [
+    {
+      "file": "travel_booking/travel_booking_management/doctype/website_domain_mapping/website_domain_mapping.py",
+      "direct": "complete",
+      "projectContext": "partial"
+    }
+  ],
+  "recordedAt": "2026-08-24T02:42:46.238Z"
+}

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-08-24T01:27:54.921Z",
+  "sessionId": "sess_bda94536-d2df-46a0-98a7-b22b48b9043a",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "travel_booking/travel_booking_management/page/booking_hub/booking_hub.js",
+  "outcome": "clear",
+  "coverage": "complete",
+  "findingCount": 0,
+  "durationMs": 10,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}

@@ -9,14 +9,18 @@
    Variable jinja:
      active_nav — kunci nav halaman ini (cth "cruise", "tour", "trips").
                    Menentukan menu mana dipaparkan + highlight item aktif.
+     organizer_logo — (optional) Logo Trip Organizer untuk trip detail page.
+                      Jika wujud, akan menggantikan site logo.
    ============================================================ #}
 {% set wc = get_website_config() %}
 {% set nav_items = get_nav_menu(active_nav) %}
 {% set cta = wc['tour'].nav_cta if active_nav == 'tour' else wc['cruise'].nav_cta %}
+{# Logo priority: organizer_logo (trip detail) > page-specific logo > shared website_logo > default #}
+{% set header_logo = organizer_logo or (wc['tour'].logo if active_nav == 'tour' else wc['cruise'].logo) or wc.website_logo %}
 <nav class="rc-public-nav">
   <div class="rc-nav-logo">
     <a href="/trips">
-      <img src="{{ wc.website_logo or '/assets/travel_booking/img/logo-horizontal.png' }}"
+      <img src="{{ header_logo or '/assets/travel_booking/img/logo-horizontal.png' }}"
            alt="Rarecation"
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
       <span class="rc-logo-fallback">rare<em>cation</em></span>

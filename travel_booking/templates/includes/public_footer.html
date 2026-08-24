@@ -6,10 +6,12 @@
    ============================================================ #}
 {% set wc = get_website_config() %}
 {% set f = wc.footer %}
+{# Logo: guna page-specific logo, fallback ke shared website_logo #}
+{% set page_logo = wc['tour'].logo if active_nav == 'tour' else (wc['cruise'].logo if active_nav == 'cruise' else '') %}
 <footer class="rc-public-footer" style="margin-top:auto;background:#1E1C18;color:#C9A84C;padding:34px 22px 22px;">
   <div style="max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start;">
     <div style="flex:1;min-width:220px;">
-      <img src="{{ wc.website_logo or '/assets/travel_booking/img/logo-horizontal.png' }}" alt="Rarecation"
+      <img src="{{ page_logo or wc.website_logo or '/assets/travel_booking/img/logo-horizontal.png' }}" alt="Rarecation"
            style="width:148px;height:auto;display:block;filter:brightness(0) invert(1);opacity:.9;"/>
       <p style="margin:14px 0 0;font-family:'DM Serif Display',serif;font-size:20px;color:#fff;">rare<em style="font-style:normal;color:#C9A84C">cation</em></p>
       {% if f.tagline %}<p style="margin:6px 0 0;font-size:13px;color:#9C9789;">{{ f.tagline }}</p>{% endif %}

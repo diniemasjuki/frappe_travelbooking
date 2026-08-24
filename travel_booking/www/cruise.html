@@ -18,7 +18,7 @@
 {% set hp = wc.cruise %}
 
 {# ── HERO SECTION ── #}
-<section class="rc-cruise-hero">
+<section class="rc-cruise-hero"{% if hp.hero.background %} style="background-image: url('{{ hp.hero.background }}');"{% endif %}>
   <div class="rc-hero-bg"></div>
   <div class="rc-hero-overlay"></div>
   <div class="rc-hero-content">

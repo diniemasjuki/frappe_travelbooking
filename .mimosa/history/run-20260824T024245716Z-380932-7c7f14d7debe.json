@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "mimosa-finding-history/v1",
+  "runId": "20260824T024245716Z-380932-7c7f14d7debe",
+  "runStatus": "inconclusive",
+  "errors": [
+    "baseline-read:travel_booking/travel_booking_management/doctype/website_domain_mapping/__init__.py: baseline_snapshot_unreadable: file is missing from task baseline"
+  ],
+  "target": ".",
+  "revision": "b528e634f2196406da264a05d289748d7a43bc08",
+  "diffHash": "cc66a383a346ee12f0fdb1d4f810f4f9af46e5f3ab2afacbbe4228ffb811c93c",
+  "rulesVersion": "unavailable",
+  "recordedAt": "2026-08-24T02:42:45.716Z",
+  "timing": {
+    "startedAt": "2026-08-24T02:42:44.456Z",
+    "completedAt": "2026-08-24T02:42:45.716Z",
+    "durationMs": 1260
+  },
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "total": 0,
+    "modelCalls": 0,
+    "measurement": "known-zero"
+  },
+  "findings": {
+    "total": 0,
+    "bySeverity": {},
+    "byStatus": {}
+  },
+  "coverage": {
+    "status": "partial",
+    "reasonCounts": {
+      "baseline_snapshot_unreadable": 1,
+      "project_check_failed": 1
+    }
+  },
+  "evidenceBoundary": "static_only",
+  "immutableReport": ".mimosa/reports/task-review-sess_53b6fdfd-1677-4a02-bf40-2c98c11c5fae-20260824T024245716Z-380932-7c7f14d7debe.json"
+}

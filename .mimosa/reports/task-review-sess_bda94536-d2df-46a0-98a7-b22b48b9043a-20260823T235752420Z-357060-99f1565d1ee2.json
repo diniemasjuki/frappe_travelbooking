@@ -1,0 +1,149 @@
+{
+  "schema_version": "mimosa-task-review/v2",
+  "run_id": "20260823T235752420Z-357060-99f1565d1ee2",
+  "run_status": "completed",
+  "errors": [],
+  "coverage": {
+    "schema_version": "mimosa-hook-coverage/v1",
+    "status": "complete",
+    "scope": "hook_observed_diff",
+    "baseline": {
+      "complete": true,
+      "captured_files": 247,
+      "candidate_limit": 5000,
+      "truncated": false,
+      "enumeration_error_count": 0,
+      "snapshot_error_count": 0,
+      "compensated_target_count": 1
+    },
+    "change_tracking": {
+      "touched_observed": 1,
+      "touched_retained": 1,
+      "truncated": false,
+      "bash_mutation": true,
+      "bash_discovered": 1,
+      "bash_discovery_limit": 80,
+      "bash_discovery_truncated": false
+    },
+    "candidates": {
+      "eligible_files": 1,
+      "selected_files": 1,
+      "limit": 20,
+      "truncated": false
+    },
+    "scanning": {
+      "required_files": 1,
+      "scanned_files": 1,
+      "skipped_files": 0,
+      "failed_files": 0,
+      "project_checks_required": 0,
+      "project_checks_completed": 0
+    },
+    "notification": {
+      "eligible_findings": 0,
+      "detailed_findings": 0,
+      "detail_limit": 3,
+      "truncated": false
+    },
+    "reason_counts": {},
+    "reasons": [],
+    "reasons_truncated": false
+  },
+  "generated_at": "2026-08-23T23:57:52.420Z",
+  "session_id": "sess_bda94536-d2df-46a0-98a7-b22b48b9043a",
+  "target": ".",
+  "revision": "b528e634f2196406da264a05d289748d7a43bc08",
+  "rules_version": "unavailable",
+  "diff_hash": "2db2d2a0af9b99b5551701fd1749db82bb2bdbb4a9fb95f7724620c06fb86d94",
+  "diff": {
+    "algorithm": "sha256",
+    "changed_file_count": 1,
+    "changed_files": [
+      {
+        "file": "travel_booking/api/booking_hub.py",
+        "ranges": [
+          {
+            "start": 758,
+            "end": 759
+          },
+          {
+            "start": 761,
+            "end": 761
+          },
+          {
+            "start": 765,
+            "end": 765
+          },
+          {
+            "start": 769,
+            "end": 769
+          },
+          {
+            "start": 771,
+            "end": 773
+          },
+          {
+            "start": 775,
+            "end": 791
+          },
+          {
+            "start": 793,
+            "end": 806
+          }
+        ],
+        "before_hash": "b9a4c5648d83be63892a7f8899db9b0969294ec800ad0ad8580a01de364ec5c2",
+        "after_hash": "06452df839c2d361f2847d82a99f5b5d912fb94b8af40dd0e41de0b667f59190"
+      }
+    ]
+  },
+  "timing": {
+    "started_at": "2026-08-23T23:57:50.861Z",
+    "completed_at": "2026-08-23T23:57:52.420Z",
+    "duration_ms": 1559,
+    "measurement": "hook_wall_clock"
+  },
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "total": 0,
+    "model_calls": 0,
+    "measurement": "known-zero"
+  },
+  "telemetry": {
+    "schemaVersion": "mimosa-gate-telemetry/v1",
+    "profile": "gate",
+    "operation": "Stop",
+    "outcome": "complete",
+    "latencyMs": 1559,
+    "peakMemoryBytes": 175505408,
+    "memoryMeasurement": "max-observed-process-rss",
+    "scannedFiles": 1,
+    "cache": {
+      "hits": 0,
+      "misses": 0,
+      "measurement": "not-applicable"
+    },
+    "denyCount": 0,
+    "tokens": {
+      "input": 0,
+      "output": 0,
+      "total": 0,
+      "modelCalls": 0,
+      "measurement": "known-zero"
+    }
+  },
+  "finding_count": 0,
+  "rewake_finding_count": 0,
+  "evidence_boundary": {
+    "scan": "candidate",
+    "static_fix_verification": "observed_static_only",
+    "runtime_verification": "not_performed"
+  },
+  "finding_events": [],
+  "findings": [],
+  "artifacts": {
+    "immutable_report": ".mimosa/reports/task-review-sess_bda94536-d2df-46a0-98a7-b22b48b9043a-20260823T235752420Z-357060-99f1565d1ee2.json",
+    "latest_report": ".mimosa/reports/task-review-sess_bda94536-d2df-46a0-98a7-b22b48b9043a.json",
+    "history_summary": ".mimosa/history/run-20260823T235752420Z-357060-99f1565d1ee2.json"
+  }
+}

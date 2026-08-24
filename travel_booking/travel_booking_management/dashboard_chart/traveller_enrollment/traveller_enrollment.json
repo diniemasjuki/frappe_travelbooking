@@ -1,0 +1,41 @@
+{
+ "based_on": "creation",
+ "chart_name": "Traveller Enrollment",
+ "chart_type": "Count",
+ "creation": "2026-08-04 07:14:16.721435",
+ "currency": "",
+ "docstatus": 0,
+ "doctype": "Dashboard Chart",
+ "document_type": "Booking Reservation",
+ "dynamic_filters_json": "[]",
+ "filters_json": "[[\"Booking Reservation\",\"is_a_cruise\",\"=\",1]]",
+ "group_by_type": "Count",
+ "idx": 1,
+ "is_public": 1,
+ "is_standard": 1,
+ "last_synced_on": "2026-08-24 10:06:16.047037",
+ "modified": "2026-08-24 10:08:09.036917",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Traveller Enrollment",
+ "number_of_groups": 0,
+ "owner": "Administrator",
+ "parent_document_type": "",
+ "roles": [
+  {
+   "role": "Tour Manager"
+  },
+  {
+   "role": "Tour Operator"
+  }
+ ],
+ "show_values_over_chart": 0,
+ "source": "",
+ "time_interval": "Monthly",
+ "timeseries": 1,
+ "timespan": "Last Year",
+ "type": "Line",
+ "use_report_chart": 0,
+ "value_based_on": "",
+ "y_axis": []
+}

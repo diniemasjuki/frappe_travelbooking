@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "mimosa-finding-ledger-batch/v1",
+  "batchId": "stop-20260824T030842366Z-385479-97ca8f5f0d66",
+  "runId": "20260824T030842366Z-385479-97ca8f5f0d66",
+  "runStatus": "completed",
+  "coverage": {
+    "status": "complete",
+    "reasons": []
+  },
+  "source": {
+    "component": "zcode-hook",
+    "operationId": "Stop"
+  },
+  "revision": "b528e634f2196406da264a05d289748d7a43bc08",
+  "diffHash": "d5b487bcac6c11bc1815547c80612bd637161ca29d03e11d12487f16346386ef",
+  "rulesVersion": "unavailable",
+  "sessionHash": "cf001a84d7236852a5d66f3c096e41ea95971899c0a0a3d5068ef00a0a109550",
+  "reportRef": ".mimosa/reports/task-review-sess_53b6fdfd-1677-4a02-bf40-2c98c11c5fae-20260824T030842366Z-385479-97ca8f5f0d66.json",
+  "events": [],
+  "observedFindingIds": [],
+  "verifiedFiles": [
+    {
+      "file": "travel_booking/hooks.py",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "travel_booking/www/index.py",
+      "direct": "complete",
+      "projectContext": "partial"
+    },
+    {
+      "file": "travel_booking/api/_middleware.py",
+      "direct": "complete",
+      "projectContext": "partial"
+    }
+  ],
+  "recordedAt": "2026-08-24T03:08:42.871Z"
+}

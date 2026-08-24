@@ -23,10 +23,12 @@
   "cruise_menu_cb",
   "cruise_nav_cta_label",
   "cruise_nav_cta_url",
+  "cruise_logo",
   "cruise_hero_section",
   "cruise_hero_tag",
   "cruise_hero_title",
   "cruise_hero_intro",
+  "cruise_hero_background",
   "cruise_hero_search_label",
   "cruise_hero_stats",
   "cruise_featured_section",
@@ -66,10 +68,12 @@
   "tour_menu_cb",
   "tour_nav_cta_label",
   "tour_nav_cta_url",
+  "tour_logo",
   "tour_hero_section",
   "tour_hero_tag",
   "tour_hero_title",
   "tour_hero_intro",
+  "tour_hero_background",
   "tour_hero_search_label",
   "tour_hero_stats",
   "tour_featured_section",
@@ -209,6 +213,12 @@
    "default": "/traveller_portal"
   },
   {
+   "fieldname": "cruise_logo",
+   "fieldtype": "Attach Image",
+   "label": "Cruise Homepage Logo",
+   "description": "Logo specific to Cruise homepage. Falls back to shared Website Logo if empty."
+  },
+  {
    "fieldname": "cruise_hero_section",
    "fieldtype": "Section Break",
    "label": "Hero Section"
@@ -227,6 +237,12 @@
    "fieldname": "cruise_hero_intro",
    "fieldtype": "Text",
    "label": "Hero Intro Paragraph"
+  },
+  {
+   "fieldname": "cruise_hero_background",
+   "fieldtype": "Attach Image",
+   "label": "Hero Background Image",
+   "description": "Background image for the Cruise hero section. Recommended size: 1920x1080px. Will be displayed with dark overlay for text readability."
   },
   {
    "fieldname": "cruise_hero_search_label",
@@ -431,6 +447,12 @@
    "default": "/traveller_portal"
   },
   {
+   "fieldname": "tour_logo",
+   "fieldtype": "Attach Image",
+   "label": "Tour Homepage Logo",
+   "description": "Logo specific to Tour homepage. Falls back to shared Website Logo if empty."
+  },
+  {
    "fieldname": "tour_hero_section",
    "fieldtype": "Section Break",
    "label": "Hero Section"
@@ -449,6 +471,12 @@
    "fieldname": "tour_hero_intro",
    "fieldtype": "Text",
    "label": "Hero Intro Paragraph"
+  },
+  {
+   "fieldname": "tour_hero_background",
+   "fieldtype": "Attach Image",
+   "label": "Hero Background Image",
+   "description": "Background image for the Tour hero section. Recommended size: 1920x1080px. Will be displayed with dark overlay for text readability."
   },
   {
    "fieldname": "tour_hero_search_label",

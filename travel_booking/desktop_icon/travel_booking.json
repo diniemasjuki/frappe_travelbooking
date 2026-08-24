@@ -1,0 +1,32 @@
+{
+ "app": "travel_booking",
+ "bg_color": "blue",
+ "creation": "2026-08-02 03:08:35.595872",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon": "luggage",
+ "icon_image": "",
+ "icon_type": "App",
+ "idx": 0,
+ "label": "Travel Booking",
+ "link_to": "Travel Booking",
+ "link_type": "Workspace Sidebar",
+ "logo_url": "/assets/travel_booking/img/logo-icon.png",
+ "modified": "2026-08-24 10:02:28.481624",
+ "modified_by": "Administrator",
+ "name": "Travel Booking",
+ "owner": "Administrator",
+ "parent_icon": "",
+ "restrict_removal": 1,
+ "roles": [
+  {
+   "role": "Tour Manager"
+  },
+  {
+   "role": "Tour Operator"
+  }
+ ],
+ "sidebar": "Travel Booking",
+ "standard": 1
+}

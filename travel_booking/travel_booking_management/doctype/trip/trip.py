@@ -15,11 +15,11 @@ class Trip(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 		from travel_booking.travel_booking_management.doctype.trip_destination_point_select.trip_destination_point_select import TripDestinationPointSelect
-		from travel_booking.travel_booking_management.doctype.trip_itinerary.trip_itinerary import TripItinerary
-		from travel_booking.travel_booking_management.doctype.trip_highlight.trip_highlight import TripHighlight
-		from travel_booking.travel_booking_management.doctype.trip_feature.trip_feature import TripFeature
-		from travel_booking.travel_booking_management.doctype.trip_faq.trip_faq import TripFAQ
 		from travel_booking.travel_booking_management.doctype.trip_facility.trip_facility import TripFacility
+		from travel_booking.travel_booking_management.doctype.trip_faq.trip_faq import TripFAQ
+		from travel_booking.travel_booking_management.doctype.trip_feature.trip_feature import TripFeature
+		from travel_booking.travel_booking_management.doctype.trip_highlight.trip_highlight import TripHighlight
+		from travel_booking.travel_booking_management.doctype.trip_itinerary.trip_itinerary import TripItinerary
 
 		description: DF.TextEditor | None
 		destination_list: DF.TableMultiSelect[TripDestinationPointSelect]
@@ -29,15 +29,12 @@ class Trip(Document):
 		highlights: DF.Table[TripHighlight]
 		is_a_cruise_trip: DF.Check
 		itinerary: DF.Table[TripItinerary]
-		map_lat: DF.Float
-		map_lng: DF.Float
-		map_zoom: DF.Int
+		logo_organizer: DF.AttachImage | None
 		naming_series: DF.Literal["TRIP.YY.##"]
 		published: DF.Check
 		route: DF.Data | None
 		status: DF.Literal["Pending Review", "Active", "Completed", "Cancelled"]
 		title: DF.Data | None
-		trip_categories: DF.Link | None
 		trip_image: DF.AttachImage | None
 		trip_name: DF.Data
 		trip_organizer: DF.Link

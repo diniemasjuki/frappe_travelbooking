@@ -1,0 +1,186 @@
+{# travel_booking/www/index.html #}
+{# Virtual Hosting Template - Root path "/" #}
+{# 
+#  Template ini akan dipanggil untuk root path "/".
+#  Ia akan detect domain dan render content yang sesuai.
+#
+#  Pendekatan: Gunakan "context injection" - kami panggil
+#  get_context dari page target, kemudian render template
+#  yang sesuai dengan context tersebut.
+#}
+
+{% extends "templates/base_travel.html" %}
+
+{% block title %}{{ title or "Rarecation" }}{% endblock %}
+
+{% block page_content %}
+{# 
+#  Content akan diisi oleh get_context() function dari index.py.
+#  Function tu akan panggil context builder yang betul (cruise/tour/etc)
+#  dan semua variable akan tersedia di sini.
+#}
+
+{# === CRUISE HOMEPAGE === %}
+{% if page_type == "cruise" %}
+<section class="rc-cruise-hero">
+  <div class="rc-hero-bg"></div>
+  <div class="rc-hero-overlay"></div>
+  <div class="rc-hero-content">
+    {% if hero_tag %}<span class="rc-hero-tag">{{ hero_tag }}</span>{% endif %}
+    {% if hero_title %}<h1>{{ hero_title|safe }}</h1>{% endif %}
+    {% if hero_intro %}<p>{{ hero_intro }}</p>{% endif %}
+    
+    {% if show_search_widget | default(true) %}
+    <form class="rc-hero-search" action="/trips" method="get">
+      <input type="hidden" name="cruise" value="1"/>
+      <div class="rc-search-grid">
+        <label class="rc-search-field">
+          <i class="ti ti-map-pin"></i>
+          <select name="destination">
+            <option value="">Where to?</option>
+            {% for d in destinations %}
+            <option value="{{ d.name }}">{{ d.destination_name }}{% if d.destination_country %}, {{ d.destination_country }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="rc-search-field">
+          <i class="ti ti-calendar-event"></i>
+          <input type="date" name="date_from" placeholder="Departure"/>
+        </label>
+        <button type="submit" class="rc-search-btn">
+          <i class="ti ti-search"></i> {{ search_label or "Search Cruises" }}
+        </button>
+      </div>
+    </form>
+    {% endif %}
+    
+    {% if hero_stats %}
+    <div class="rc-hero-stats">
+      {% for stat in hero_stats %}
+      <div class="rc-stat">
+        <strong>{{ stat.stat_value }}</strong>
+        <span>{{ stat.stat_label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% if featured_items %}
+<section class="rc-section rc-featured">
+  <div class="rc-container">
+    <div class="rc-section-header">
+      {% if featured_tag %}<span class="rc-tag">{{ featured_tag }}</span>{% endif %}
+      {% if featured_title %}<h2>{{ featured_title }}</h2>{% endif %}
+      {% if featured_subtitle %}<p>{{ featured_subtitle }}</p>{% endif %}
+    </div>
+    
+    <div class="rc-cruise-grid">
+      {% for item in featured_items %}
+      <article class="rc-cruise-card">
+        <a class="rc-cruise-img" href="{{ item.route }}">
+          <img src="{{ item.trip_image }}" alt="{{ item.trip_name }}" loading="lazy"
+               onerror="this.src='/assets/travel_booking/img/defaultaroyo.jpg'"/>
+          <span class="rc-cruise-badge">{{ item.days_nights }}</span>
+        </a>
+        <div class="rc-cruise-info">
+          <h3><a href="{{ item.route }}">{{ item.trip_name }}</a></h3>
+          {% if item.organizer %}<p><i class="ti ti-user"></i> {{ item.organizer }}</p>{% endif %}
+          <p class="rc-price">From <strong>{{ item.price_formatted }}</strong></p>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+
+{# === TOUR HOMEPAGE === %}
+{% elif page_type == "tour" %}
+<section class="rc-tour-hero">
+  <div class="rc-hero-bg"></div>
+  <div class="rc-hero-overlay"></div>
+  <div class="rc-hero-content">
+    {% if hero_tag %}<span class="rc-hero-tag">{{ hero_tag }}</span>{% endif %}
+    {% if hero_title %}<h1>{{ hero_title|safe }}</h1>{% endif %}
+    {% if hero_intro %}<p>{{ hero_intro }}</p>{% endif %}
+    
+    {% if show_search_widget | default(true) %}
+    <form class="rc-hero-search" action="/trips" method="get">
+      <input type="hidden" name="cruise" value="0"/>
+      <div class="rc-search-grid">
+        <label class="rc-search-field">
+          <i class="ti ti-map-pin"></i>
+          <select name="destination">
+            <option value="">Where to?</option>
+            {% for d in destinations %}
+            <option value="{{ d.name }}">{{ d.destination_name }}{% if d.destination_country %}, {{ d.destination_country }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="rc-search-field">
+          <i class="ti ti-calendar-event"></i>
+          <input type="date" name="date_from" placeholder="Departure"/>
+        </label>
+        <button type="submit" class="rc-search-btn">
+          <i class="ti ti-search"></i> {{ search_label or "Search Tours" }}
+        </button>
+      </div>
+    </form>
+    {% endif %}
+    
+    {% if hero_stats %}
+    <div class="rc-hero-stats">
+      {% for stat in hero_stats %}
+      <div class="rc-stat">
+        <strong>{{ stat.stat_value }}</strong>
+        <span>{{ stat.stat_label }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% if featured_items %}
+<section class="rc-section rc-featured">
+  <div class="rc-container">
+    <div class="rc-section-header">
+      {% if featured_tag %}<span class="rc-tag">{{ featured_tag }}</span>{% endif %}
+      {% if featured_title %}<h2>{{ featured_title }}</h2>{% endif %}
+      {% if featured_subtitle %}<p>{{ featured_subtitle }}</p>{% endif %}
+    </div>
+    
+    <div class="rc-tour-grid">
+      {% for item in featured_items %}
+      <article class="rc-tour-card">
+        <a class="rc-tour-img" href="{{ item.route }}">
+          <img src="{{ item.trip_image }}" alt="{{ item.trip_name }}" loading="lazy"
+               onerror="this.src='/assets/travel_booking/img/defaultaroyo.jpg'"/>
+          <span class="rc-tour-badge">{{ item.days_nights }}</span>
+        </a>
+        <div class="rc-tour-info">
+          <h3><a href="{{ item.route }}">{{ item.trip_name }}</a></h3>
+          {% if item.organizer %}<p><i class="ti ti-user"></i> {{ item.organizer }}</p>{% endif %}
+          <p class="rc-price">From <strong>{{ item.price_formatted }}</strong></p>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+
+{# === DEFAULT / FALLBACK === %}
+{% else %}
+<section style="text-align:center; padding: 100px 20px;">
+  <h1>Welcome</h1>
+  <p>Domain-based virtual hosting is active.</p>
+  <p><a href="/trips">View All Trips</a></p>
+</section>
+{% endif %}
+
+{% endblock %}

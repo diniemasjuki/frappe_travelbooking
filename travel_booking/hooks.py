@@ -60,8 +60,36 @@ scheduler_events = {
 }
 
 
-# Automatically update python controller files with type annotations for this app.
+# Automatically update python type annotations for this app
 export_python_type_annotations = True
 
 # Require all whitelisted methods to have type annotations
 require_type_annotated_api_methods = True
+
+# Pages
+# ------
+# Frappe pages yang boleh diakses melalui /app/<page-name>
+
+pages = [
+	{
+		'name': 'trip-command-center',
+		'label': 'Trip Command Center',
+		'icon': 'plane',
+		'roles': ['Tour Manager', 'Tour Operator'],
+		'script': 'travel_booking_management.page.trip_command_center.trip_command_center',
+	},
+	{
+		'name': 'booking-hub',
+		'label': 'Booking Operations Hub',
+		'icon': 'briefcase',
+		'roles': ['Tour Manager', 'Tour Operator'],
+		'script': 'travel_booking_management.page.booking_hub.booking_hub',
+	},
+	{
+		'name': 'dashboard-reports',
+		'label': 'Dashboard & Reports',
+		'icon': 'chart',
+		'roles': ['Tour Manager', 'Tour Operator'],
+		'script': 'travel_booking_management.page.dashboard_reports.dashboard_reports',
+	},
+]

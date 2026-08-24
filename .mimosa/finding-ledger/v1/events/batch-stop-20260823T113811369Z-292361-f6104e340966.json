@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "mimosa-finding-ledger-batch/v1",
+  "batchId": "stop-20260823T113811369Z-292361-f6104e340966",
+  "runId": "20260823T113811369Z-292361-f6104e340966",
+  "runStatus": "completed",
+  "coverage": {
+    "status": "complete",
+    "reasons": []
+  },
+  "source": {
+    "component": "zcode-hook",
+    "operationId": "Stop"
+  },
+  "revision": "55cf6af142161cda64ba54648f732ff8cb71d2e3",
+  "diffHash": "4f888e9f30597debd9ab876a0eb91e3a5d5ee08330393135d92859a62a95e525",
+  "rulesVersion": "unavailable",
+  "sessionHash": "1a1195460919a3438ff6434cc536f76ed6b61f7045f7323193b3b3065447bbc7",
+  "reportRef": ".mimosa/reports/task-review-sess_385dfabb-a6dd-428e-9d3a-1d8754166f1d-20260823T113811369Z-292361-f6104e340966.json",
+  "events": [],
+  "observedFindingIds": [],
+  "verifiedFiles": [
+    {
+      "file": "travel_booking/public/js/booknow.js",
+      "direct": "complete",
+      "projectContext": "partial"
+    }
+  ],
+  "recordedAt": "2026-08-23T11:38:11.905Z"
+}
