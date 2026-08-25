@@ -1,0 +1,27 @@
+{
+ "content": null,
+ "creation": "2026-08-25 09:00:00",
+ "docstatus": 0,
+ "doctype": "Page",
+ "icon": "planner",
+ "idx": 0,
+ "modified": "2026-08-25 11:44:03.271284",
+ "modified_by": "Administrator",
+ "module": "Resources Management",
+ "name": "travel-resources",
+ "owner": "Administrator",
+ "page_name": "travel-resources",
+ "roles": [
+  {
+   "role": "Tour Manager"
+  },
+  {
+   "role": "Tour Operator"
+  }
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 1,
+ "title": "Travel Resources"
+}

@@ -1,110 +1,135 @@
 {
  "actions": [],
- "creation": "2026-08-23 15:00:00.000000",
+ "creation": "2026-08-23 15:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "tab_common",
-  "branding_section",
-  "website_logo",
   "footer_section",
-  "footer_tagline",
-  "footer_links",
   "footer_cb",
   "support_email",
   "copyright_text",
+  "column_break_nwnu",
+  "footer_tagline",
+  "section_break_gblx",
+  "footer_links",
   "social_section",
   "social_facebook",
+  "column_break_zykf",
   "social_instagram",
+  "column_break_tkpj",
   "social_whatsapp",
   "tab_cruise",
   "cruise_menu_section",
   "cruise_menu",
-  "cruise_menu_cb",
+  "cruise_hero_section",
+  "column_break_kaot",
+  "cruise_logo",
   "cruise_nav_cta_label",
   "cruise_nav_cta_url",
-  "cruise_logo",
-  "cruise_hero_section",
-  "cruise_hero_tag",
+  "column_break_yphl",
   "cruise_hero_title",
   "cruise_hero_intro",
   "cruise_hero_background",
   "cruise_hero_search_label",
+  "cruise_hero_tag",
+  "section_break_dflq",
   "cruise_hero_stats",
   "cruise_featured_section",
-  "cruise_featured_tag",
-  "cruise_featured_title",
-  "cruise_featured_subtitle",
   "cruise_featured_cb",
+  "cruise_featured_tag",
   "cruise_featured_cta_label",
   "cruise_featured_cta_url",
+  "column_break_kefd",
+  "cruise_featured_title",
+  "cruise_featured_subtitle",
   "cruise_whyus_section",
+  "column_break_zglw",
   "cruise_whyus_tag",
+  "column_break_kxkh",
   "cruise_whyus_title",
   "cruise_whyus_subtitle",
+  "section_break_ddwa",
   "cruise_benefits",
   "cruise_dest_section",
   "cruise_dest_tag",
+  "column_break_dawk",
   "cruise_dest_title",
   "cruise_dest_subtitle",
   "cruise_testi_section",
   "cruise_testi_tag",
+  "column_break_vbwl",
   "cruise_testi_title",
   "cruise_testi_subtitle",
+  "section_break_ngxj",
   "cruise_testimonials",
   "cruise_cta_section",
-  "cruise_cta_icon",
   "cruise_cta_tag",
+  "cruise_cta_icon",
+  "column_break_rbpy",
   "cruise_cta_title",
   "cruise_cta_body",
+  "section_break_wdgx",
   "cruise_cta_cb",
   "cruise_cta_primary_label",
   "cruise_cta_primary_url",
+  "column_break_rrot",
   "cruise_cta_secondary_label",
   "cruise_cta_secondary_url",
   "tab_tour",
   "tour_menu_section",
   "tour_menu",
+  "tour_hero_section",
   "tour_menu_cb",
+  "tour_logo",
   "tour_nav_cta_label",
   "tour_nav_cta_url",
-  "tour_logo",
-  "tour_hero_section",
-  "tour_hero_tag",
+  "column_break_mkmh",
   "tour_hero_title",
   "tour_hero_intro",
   "tour_hero_background",
   "tour_hero_search_label",
+  "tour_hero_tag",
+  "section_break_fbdh",
   "tour_hero_stats",
   "tour_featured_section",
-  "tour_featured_tag",
-  "tour_featured_title",
-  "tour_featured_subtitle",
   "tour_featured_cb",
+  "tour_featured_tag",
   "tour_featured_cta_label",
   "tour_featured_cta_url",
+  "column_break_offl",
+  "tour_featured_title",
+  "tour_featured_subtitle",
   "tour_whyus_section",
   "tour_whyus_tag",
+  "column_break_kssv",
   "tour_whyus_title",
   "tour_whyus_subtitle",
+  "section_break_pzus",
   "tour_benefits",
   "tour_dest_section",
   "tour_dest_tag",
+  "column_break_hpbm",
   "tour_dest_title",
   "tour_dest_subtitle",
   "tour_testi_section",
   "tour_testi_tag",
+  "column_break_advd",
   "tour_testi_title",
   "tour_testi_subtitle",
+  "section_break_ufbn",
   "tour_testimonials",
   "tour_cta_section",
-  "tour_cta_icon",
   "tour_cta_tag",
+  "tour_cta_icon",
+  "column_break_vohq",
   "tour_cta_title",
   "tour_cta_body",
+  "section_break_wggs",
   "tour_cta_cb",
   "tour_cta_primary_label",
   "tour_cta_primary_url",
+  "column_break_tden",
   "tour_cta_secondary_label",
   "tour_cta_secondary_url"
  ],
@@ -115,54 +140,43 @@
    "label": "Common (Shared)"
   },
   {
-   "fieldname": "branding_section",
-   "fieldtype": "Section Break",
-   "label": "Branding"
-  },
-  {
-   "fieldname": "website_logo",
-   "fieldtype": "Attach Image",
-   "label": "Website Logo",
-   "description": "Logo used by both the nav and footer. Falls back to /assets/travel_booking/img/logo-horizontal.png if empty."
-  },
-  {
    "fieldname": "footer_section",
    "fieldtype": "Section Break",
    "label": "Footer"
   },
   {
    "fieldname": "footer_tagline",
-   "fieldtype": "Small Text",
+   "fieldtype": "Text Editor",
    "label": "Footer Tagline"
   },
   {
+   "description": "Group links by setting the same Column Title. Links with the same Column Title appear under one footer column.",
    "fieldname": "footer_links",
    "fieldtype": "Table",
    "label": "Footer Link Columns",
-   "options": "Website Footer Link",
-   "description": "Group links by setting the same Column Title. Links with the same Column Title appear under one footer column."
+   "options": "Website Footer Link"
   },
   {
    "fieldname": "footer_cb",
    "fieldtype": "Column Break"
   },
   {
+   "default": "contact@rpwp.my",
    "fieldname": "support_email",
    "fieldtype": "Data",
-   "label": "Support Email",
-   "default": "contact@rpwp.my"
+   "label": "Support Email"
   },
   {
+   "default": "Rarecation. All rights reserved.",
    "fieldname": "copyright_text",
    "fieldtype": "Data",
-   "label": "Copyright Text",
-   "default": "Rarecation. All rights reserved."
+   "label": "Copyright Text"
   },
   {
+   "collapsible": 1,
    "fieldname": "social_section",
    "fieldtype": "Section Break",
-   "label": "Social Media (optional)",
-   "collapsible": 1
+   "label": "Social Media (optional)"
   },
   {
    "fieldname": "social_facebook",
@@ -190,37 +204,34 @@
    "label": "Cruise Main Menu"
   },
   {
+   "description": "Nav links shown on the cruise homepage. Set active_nav_key to match the page's active_nav to highlight it.",
    "fieldname": "cruise_menu",
    "fieldtype": "Table",
    "label": "Cruise Menu Items",
-   "options": "Website Menu Item",
-   "description": "Nav links shown on the cruise homepage. Set active_nav_key to match the page's active_nav to highlight it."
+   "options": "Website Menu Item"
   },
   {
-   "fieldname": "cruise_menu_cb",
-   "fieldtype": "Column Break"
-  },
-  {
+   "default": "Manage Booking",
    "fieldname": "cruise_nav_cta_label",
    "fieldtype": "Data",
-   "label": "Nav CTA Button Label",
-   "default": "Manage Booking"
+   "label": "Nav CTA Button Label"
   },
   {
+   "default": "/traveller_portal",
    "fieldname": "cruise_nav_cta_url",
    "fieldtype": "Data",
-   "label": "Nav CTA Button URL",
-   "default": "/traveller_portal"
+   "label": "Nav CTA Button URL"
   },
   {
+   "description": "Logo specific to Cruise homepage. Falls back to shared Website Logo if empty.",
    "fieldname": "cruise_logo",
    "fieldtype": "Attach Image",
-   "label": "Cruise Homepage Logo",
-   "description": "Logo specific to Cruise homepage. Falls back to shared Website Logo if empty."
+   "label": "Cruise Homepage Logo"
   },
   {
    "fieldname": "cruise_hero_section",
    "fieldtype": "Section Break",
+   "hide_border": 1,
    "label": "Hero Section"
   },
   {
@@ -230,27 +241,25 @@
   },
   {
    "fieldname": "cruise_hero_title",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Hero Title"
   },
   {
    "fieldname": "cruise_hero_intro",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Hero Intro Paragraph"
   },
   {
+   "description": "Background image for the Cruise hero section. Recommended size: 1920x1080px. Will be displayed with dark overlay for text readability.",
    "fieldname": "cruise_hero_background",
    "fieldtype": "Attach Image",
-   "label": "Hero Background Image",
-   "description": "Background image for the Cruise hero section. Recommended size: 1920x1080px. Will be displayed with dark overlay for text readability."
+   "label": "Hero Background Image"
   },
   {
+   "default": "Search Cruises",
    "fieldname": "cruise_hero_search_label",
    "fieldtype": "Data",
-   "label": "Hero Search Button Label",
-   "default": "Search Cruises"
+   "label": "Hero Search Button Label"
   },
   {
    "fieldname": "cruise_hero_stats",
@@ -270,14 +279,12 @@
   },
   {
    "fieldname": "cruise_featured_title",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Title"
   },
   {
    "fieldname": "cruise_featured_subtitle",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Subtitle"
   },
   {
@@ -285,20 +292,21 @@
    "fieldtype": "Column Break"
   },
   {
+   "default": "View All Cruises",
    "fieldname": "cruise_featured_cta_label",
    "fieldtype": "Data",
-   "label": "Section CTA Label",
-   "default": "View All Cruises"
+   "label": "Section CTA Label"
   },
   {
+   "default": "/cruises",
    "fieldname": "cruise_featured_cta_url",
    "fieldtype": "Data",
-   "label": "Section CTA URL",
-   "default": "/cruises"
+   "label": "Section CTA URL"
   },
   {
    "fieldname": "cruise_whyus_section",
    "fieldtype": "Section Break",
+   "hide_border": 1,
    "label": "Why Us Section"
   },
   {
@@ -308,14 +316,12 @@
   },
   {
    "fieldname": "cruise_whyus_title",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Title"
   },
   {
    "fieldname": "cruise_whyus_subtitle",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Subtitle"
   },
   {
@@ -336,19 +342,18 @@
   },
   {
    "fieldname": "cruise_dest_title",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Title"
   },
   {
    "fieldname": "cruise_dest_subtitle",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Subtitle"
   },
   {
    "fieldname": "cruise_testi_section",
    "fieldtype": "Section Break",
+   "hide_border": 1,
    "label": "Testimonials Section"
   },
   {
@@ -358,14 +363,12 @@
   },
   {
    "fieldname": "cruise_testi_title",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Title"
   },
   {
    "fieldname": "cruise_testi_subtitle",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Subtitle"
   },
   {
@@ -392,13 +395,11 @@
   {
    "fieldname": "cruise_cta_title",
    "fieldtype": "Data",
-   "max_height": 110,
    "label": "CTA Title"
   },
   {
    "fieldname": "cruise_cta_body",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "CTA Body Text"
   },
   {
@@ -436,33 +437,33 @@
    "label": "Tour Main Menu"
   },
   {
+   "description": "Nav links shown on the tour homepage. Set active_nav_key to match the page's active_nav to highlight it.",
    "fieldname": "tour_menu",
    "fieldtype": "Table",
    "label": "Tour Menu Items",
-   "options": "Website Menu Item",
-   "description": "Nav links shown on the tour homepage. Set active_nav_key to match the page's active_nav to highlight it."
+   "options": "Website Menu Item"
   },
   {
    "fieldname": "tour_menu_cb",
    "fieldtype": "Column Break"
   },
   {
+   "default": "Manage Booking",
    "fieldname": "tour_nav_cta_label",
    "fieldtype": "Data",
-   "label": "Nav CTA Button Label",
-   "default": "Manage Booking"
+   "label": "Nav CTA Button Label"
   },
   {
+   "default": "/traveller_portal",
    "fieldname": "tour_nav_cta_url",
    "fieldtype": "Data",
-   "label": "Nav CTA Button URL",
-   "default": "/traveller_portal"
+   "label": "Nav CTA Button URL"
   },
   {
+   "description": "Logo specific to Tour homepage. Falls back to shared Website Logo if empty.",
    "fieldname": "tour_logo",
    "fieldtype": "Attach Image",
-   "label": "Tour Homepage Logo",
-   "description": "Logo specific to Tour homepage. Falls back to shared Website Logo if empty."
+   "label": "Tour Homepage Logo"
   },
   {
    "fieldname": "tour_hero_section",
@@ -476,27 +477,25 @@
   },
   {
    "fieldname": "tour_hero_title",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Hero Title"
   },
   {
    "fieldname": "tour_hero_intro",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Hero Intro Paragraph"
   },
   {
+   "description": "Background image for the Tour hero section. Recommended size: 1920x1080px. Will be displayed with dark overlay for text readability.",
    "fieldname": "tour_hero_background",
    "fieldtype": "Attach Image",
-   "label": "Hero Background Image",
-   "description": "Background image for the Tour hero section. Recommended size: 1920x1080px. Will be displayed with dark overlay for text readability."
+   "label": "Hero Background Image"
   },
   {
+   "default": "Search Tours",
    "fieldname": "tour_hero_search_label",
    "fieldtype": "Data",
-   "label": "Hero Search Button Label",
-   "default": "Search Tours"
+   "label": "Hero Search Button Label"
   },
   {
    "fieldname": "tour_hero_stats",
@@ -516,14 +515,12 @@
   },
   {
    "fieldname": "tour_featured_title",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Title"
   },
   {
    "fieldname": "tour_featured_subtitle",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Subtitle"
   },
   {
@@ -531,20 +528,21 @@
    "fieldtype": "Column Break"
   },
   {
+   "default": "View All Tours",
    "fieldname": "tour_featured_cta_label",
    "fieldtype": "Data",
-   "label": "Section CTA Label",
-   "default": "View All Tours"
+   "label": "Section CTA Label"
   },
   {
+   "default": "/tours",
    "fieldname": "tour_featured_cta_url",
    "fieldtype": "Data",
-   "label": "Section CTA URL",
-   "default": "/tours"
+   "label": "Section CTA URL"
   },
   {
    "fieldname": "tour_whyus_section",
    "fieldtype": "Section Break",
+   "hide_border": 1,
    "label": "Why Us Section"
   },
   {
@@ -554,14 +552,12 @@
   },
   {
    "fieldname": "tour_whyus_title",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Title"
   },
   {
    "fieldname": "tour_whyus_subtitle",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Subtitle"
   },
   {
@@ -582,19 +578,18 @@
   },
   {
    "fieldname": "tour_dest_title",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Title"
   },
   {
    "fieldname": "tour_dest_subtitle",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Subtitle"
   },
   {
    "fieldname": "tour_testi_section",
    "fieldtype": "Section Break",
+   "hide_border": 1,
    "label": "Testimonials Section"
   },
   {
@@ -604,14 +599,12 @@
   },
   {
    "fieldname": "tour_testi_title",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Title"
   },
   {
    "fieldname": "tour_testi_subtitle",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Small Text",
    "label": "Section Subtitle"
   },
   {
@@ -638,13 +631,11 @@
   {
    "fieldname": "tour_cta_title",
    "fieldtype": "Data",
-   "max_height": 110,
    "label": "CTA Title"
   },
   {
    "fieldname": "tour_cta_body",
-   "fieldtype": "Text",
-   "max_height": 110,
+   "fieldtype": "Text Editor",
    "label": "CTA Body Text"
   },
   {
@@ -670,11 +661,123 @@
    "fieldname": "tour_cta_secondary_url",
    "fieldtype": "Data",
    "label": "Secondary Button URL"
+  },
+  {
+   "fieldname": "column_break_kaot",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_dflq",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_zglw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_ddwa",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_dawk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_vbwl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_ngxj",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_mkmh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_fbdh",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_offl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_kssv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_pzus",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_hpbm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_advd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_ufbn",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_nwnu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_gblx",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_zykf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_tkpj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_yphl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_kefd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_kxkh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_vohq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_wggs",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_tden",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_rbpy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_wdgx",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_rrot",
+   "fieldtype": "Column Break"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-24 00:00:00.000000",
+ "modified": "2026-08-24 22:22:38.038025",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Website",
@@ -684,10 +787,8 @@
    "create": 1,
    "delete": 1,
    "email": 1,
-   "export": 1,
    "print": 1,
    "read": 1,
-   "report": 1,
    "role": "System Manager",
    "share": 1,
    "write": 1

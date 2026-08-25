@@ -1,0 +1,76 @@
+[  119767ms] [ERROR] Failed to load resource: the server responded with a status of 417 (EXPECTATION FAILED) @ https://dev.rpwp.my/api/method/travel_booking.resources_management.api.resources_api.create_slot:0
+[  119773ms] [ERROR] Traceback (most recent call last):
+  File "apps/frappe/frappe/model/base_document.py", line 810, in db_insert
+    name = frappe.db.sql(
+    	"""INSERT INTO `tab{doctype}` ({columns})
+    ...<7 lines>...
+    	list(d.values()),
+    )
+  File "apps/frappe/frappe/database/database.py", line 287, in sql
+    self.execute_query(query, values)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "apps/frappe/frappe/database/database.py", line 389, in execute_query
+    return self._cursor.execute(query, values)
+           ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "env/lib/python3.14/site-packages/MySQLdb/cursors.py", line 179, in execute
+    res = self._query(mogrified_query)
+  File "env/lib/python3.14/site-packages/MySQLdb/cursors.py", line 330, in _query
+    db.query(q)
+    ~~~~~~~~^^^
+  File "env/lib/python3.14/site-packages/MySQLdb/connections.py", line 286, in query
+    _mysql.connection.query(self, query)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+MySQLdb.IntegrityError: (1062, "Duplicate entry '1' for key 'PRIMARY'")
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "apps/travel_booking/travel_booking/resources_management/api/resources_api.py", line 605, in create_slot
+    slot.insert()
+    ~~~~~~~~~~~^^
+  File "apps/frappe/frappe/model/document.py", line 755, in insert
+    d.db_insert()
+    ~~~~~~~~~~~^^
+  File "apps/frappe/frappe/model/base_document.py", line 837, in db_insert
+    raise frappe.DuplicateEntryError(self.doctype, self.name, e)
+frappe.exceptions.DuplicateEntryError: ('Crew Allocation', 1, IntegrityError(1062, "Duplicate entry '1' for key 'PRIMARY'"))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "apps/frappe/frappe/app.py", line 126, in application
+    response = frappe.api.handle(request)
+  File "apps/frappe/frappe/api/__init__.py", line 64, in handle
+    data = endpoint(**arguments)
+  File "apps/frappe/frappe/api/v1.py", line 44, in handle_rpc_call
+    return frappe.handler.handle()
+           ~~~~~~~~~~~~~~~~~~~~~^^
+  File "apps/frappe/frappe/handler.py", line 54, in handle
+    data = execute_cmd(cmd)
+  File "apps/frappe/frappe/handler.py", line 89, in execute_cmd
+    return frappe.call(method, **frappe.form_dict)
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "apps/frappe/frappe/__init__.py", line 1153, in call
+    return fn(*args, **newargs)
+  File "apps/frappe/frappe/utils/typing_validations.py", line 49, in wrapper
+    return func(*args, **kwargs)
+  File "apps/travel_booking/travel_booking/resources_management/api/resources_api.py", line 624, in create_slot
+    frappe.throw(str(e))
+    ~~~~~~~~~~~~^^^^^^^^
+  File "apps/frappe/frappe/utils/messages.py", line 159, in throw
+    msgprint(
+    ~~~~~~~~^
+    	msg,
+     ^^^^
+    ...<7 lines>...
+    	allow_dangerous_html=allow_dangerous_html,
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "apps/frappe/frappe/utils/messages.py", line 118, in msgprint
+    _raise_exception()
+    ~~~~~~~~~~~~~~~~^^
+  File "apps/frappe/frappe/utils/messages.py", line 59, in _raise_exception
+    raise exc
+frappe.exceptions.ValidationError: ('Crew Allocation', 1, IntegrityError(1062, "Duplicate entry '1' for key 'PRIMARY'"))
+ @ https://dev.rpwp.my/assets/frappe/dist/js/desk.bundle.COPXI3K7.js:646

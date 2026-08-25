@@ -271,6 +271,9 @@ select option { background: var(--bg-primary); }
   .rc-nav-link { padding: 7px 12px; font-size: 13px; }
   .rc-nav-btn { padding: 7px 14px; font-size: 12px; }
   .rc-nav-logo img { width: 120px; }
+
+  /* Disable sticky cart card on mobile (inline style needs !important) */
+  #cart-card { position: static !important; bottom: auto !important; }
 }
 
 @media (max-width: 500px) {

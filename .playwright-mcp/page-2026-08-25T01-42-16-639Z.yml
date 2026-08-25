@@ -1,0 +1,172 @@
+- generic [ref=f4e1]:
+  - navigation "Workspaces" [ref=f4e5]:
+    - link "Apps" [ref=f4e7] [cursor=pointer]:
+      - /url: /desk
+      - img "Travel Booking Management" [ref=f4e8]
+    - separator [ref=f4e9]
+    - generic [ref=f4e10]:
+      - button "Search" [ref=f4e11] [cursor=pointer]
+      - button "Notifications" [ref=f4e14] [cursor=pointer]
+    - separator [ref=f4e17]
+    - button "Travel Booking" [ref=f4e19] [cursor=pointer]
+    - separator [ref=f4e21]
+    - button "User Menu" [ref=f4e22] [cursor=pointer]:
+      - generic "Warga Prihatin" [ref=f4e23]:
+        - generic "Warga Prihatin" [ref=f4e24]: WP
+  - generic [ref=f4e27]:
+    - generic [ref=f4e28] [cursor=pointer]: Travel Booking Management
+    - generic [ref=f4e32]:
+      - generic "Crew" [ref=f4e33]:
+        - link "Crew" [ref=f4e35] [cursor=pointer]:
+          - /url: /desk/crew
+      - generic "Crew Slot" [ref=f4e37]:
+        - link "Crew Slot" [ref=f4e39] [cursor=pointer]:
+          - /url: /desk/crew-slot
+      - generic "Travel Resources" [ref=f4e41]:
+        - link "Travel Resources" [ref=f4e43] [cursor=pointer]:
+          - /url: /desk/travel-resources
+    - generic [ref=f4e45]:
+      - paragraph
+  - generic [ref=f4e2]:
+    - banner
+    - generic [ref=f4e48]:
+      - generic [ref=f4e52]:
+        - button [ref=f4e53] [cursor=pointer]
+        - list [ref=f4e57]:
+          - listitem [ref=f4e58]:
+            - link "Travel Resources" [ref=f4e59] [cursor=pointer]:
+              - /url: travel-resources
+      - generic [ref=f4e63]:
+        - link "Navigate to main content" [ref=f4e65] [cursor=pointer]
+        - generic [ref=f4e68]:
+          - generic [ref=f4e69]:
+            - heading "🧭 Travel Resources" [level=1] [ref=f4e70]
+            - generic [ref=f4e71]:
+              - button "📊 Gantt Chart" [ref=f4e72] [cursor=pointer]
+              - button "📅 Calendar" [ref=f4e73] [cursor=pointer]
+              - button "📋 List" [ref=f4e74] [cursor=pointer]
+          - generic [ref=f4e75]:
+            - generic [ref=f4e76]:
+              - generic [ref=f4e77]: Active Crew
+              - generic [ref=f4e78]: "4"
+              - generic [ref=f4e79]: Total available crew members
+            - generic [ref=f4e80]:
+              - generic [ref=f4e81]: Total Slots
+              - generic [ref=f4e82]: "3"
+              - generic [ref=f4e83]: All time slots
+            - generic [ref=f4e84]:
+              - generic [ref=f4e85]: Active Now
+              - generic [ref=f4e86]: "1"
+              - generic [ref=f4e87]: Slots currently in progress
+            - generic [ref=f4e88]:
+              - generic [ref=f4e89]: Utilization
+              - generic [ref=f4e90]: 75%
+              - generic [ref=f4e91]: 3 crew assigned today
+          - generic [ref=f4e255]:
+            - generic [ref=f4e256]:
+              - heading "📅 Calendar — Monthly View" [level=3] [ref=f4e257]
+              - generic [ref=f4e258]:
+                - button "‹ Prev" [ref=f4e259] [cursor=pointer]
+                - generic [ref=f4e260]: September 2026
+                - button "Next ›" [ref=f4e261] [cursor=pointer]
+            - generic [ref=f4e553]:
+              - generic [ref=f4e554]: Sun
+              - generic [ref=f4e555]: Mon
+              - generic [ref=f4e556]: Tue
+              - generic [ref=f4e557]: Wed
+              - generic [ref=f4e558]: Thu
+              - generic [ref=f4e559]: Fri
+              - generic [ref=f4e560]: Sat
+              - generic [ref=f4e561]:
+                - generic [ref=f4e562]: "30"
+                - 'generic "2026-08-28: Slot (2/2 crew)" [ref=f4e563] [cursor=pointer]': "2026-08-28: Slot (2/…"
+              - generic [ref=f4e564]:
+                - generic [ref=f4e565]: "31"
+                - 'generic "2026-08-28: Slot (2/2 crew)" [ref=f4e566] [cursor=pointer]': "2026-08-28: Slot (2/…"
+              - generic [ref=f4e567]:
+                - generic [ref=f4e568]: "1"
+                - 'generic "2026-08-28: Slot (2/2 crew)" [ref=f4e569] [cursor=pointer]': "2026-08-28: Slot (2/…"
+              - generic [ref=f4e570]:
+                - generic [ref=f4e571]: "2"
+                - 'generic "2026-08-28: Slot (2/2 crew)" [ref=f4e572] [cursor=pointer]': "2026-08-28: Slot (2/…"
+              - generic [ref=f4e573]:
+                - generic [ref=f4e574]: "3"
+                - 'generic "2026-08-28: Slot (2/2 crew)" [ref=f4e575] [cursor=pointer]': "2026-08-28: Slot (2/…"
+              - generic [ref=f4e576]:
+                - generic [ref=f4e577]: "4"
+                - 'generic "2026-08-28: Slot (2/2 crew)" [ref=f4e578] [cursor=pointer]': "2026-08-28: Slot (2/…"
+                - 'generic "2026-09-04: Slot (3/4 crew)" [ref=f4e579] [cursor=pointer]': "2026-09-04: Slot (3/…"
+              - generic [ref=f4e580]:
+                - generic [ref=f4e581]: "5"
+                - 'generic "2026-09-04: Slot (3/4 crew)" [ref=f4e582] [cursor=pointer]': "2026-09-04: Slot (3/…"
+              - generic [ref=f4e583]:
+                - generic [ref=f4e584]: "6"
+                - 'generic "2026-09-04: Slot (3/4 crew)" [ref=f4e585] [cursor=pointer]': "2026-09-04: Slot (3/…"
+              - generic [ref=f4e586]:
+                - generic [ref=f4e587]: "7"
+                - 'generic "2026-09-04: Slot (3/4 crew)" [ref=f4e588] [cursor=pointer]': "2026-09-04: Slot (3/…"
+              - generic [ref=f4e589]:
+                - generic [ref=f4e590]: "8"
+                - 'generic "2026-09-04: Slot (3/4 crew)" [ref=f4e591] [cursor=pointer]': "2026-09-04: Slot (3/…"
+              - generic [ref=f4e592]:
+                - generic [ref=f4e593]: "9"
+                - 'generic "2026-09-04: Slot (3/4 crew)" [ref=f4e594] [cursor=pointer]': "2026-09-04: Slot (3/…"
+              - generic [ref=f4e595]: "10"
+              - generic [ref=f4e597]: "11"
+              - generic [ref=f4e599]: "12"
+              - generic [ref=f4e601]: "13"
+              - generic [ref=f4e603]: "14"
+              - generic [ref=f4e605]: "15"
+              - generic [ref=f4e607]: "16"
+              - generic [ref=f4e609]: "17"
+              - generic [ref=f4e611]: "18"
+              - generic [ref=f4e613]: "19"
+              - generic [ref=f4e615]: "20"
+              - generic [ref=f4e617]: "21"
+              - generic [ref=f4e619]: "22"
+              - generic [ref=f4e621]: "23"
+              - generic [ref=f4e623]: "24"
+              - generic [ref=f4e625]: "25"
+              - generic [ref=f4e627]: "26"
+              - generic [ref=f4e629]: "27"
+              - generic [ref=f4e631]: "28"
+              - generic [ref=f4e633]: "29"
+              - generic [ref=f4e635]: "30"
+              - generic [ref=f4e637]: "1"
+              - generic [ref=f4e639]: "2"
+              - generic [ref=f4e641]: "3"
+    - contentinfo
+  - generic:
+    - generic "Show Chats"
+  - dialog [active] [ref=f4e644]:
+    - generic [ref=f4e645]:
+      - generic [ref=f4e646]:
+        - 'heading "Slot Detail: 2026-09-04" [level=4] [ref=f4e648]'
+        - button "Close" [ref=f4e650] [cursor=pointer]
+      - generic [ref=f4e652]:
+        - generic [ref=f4e653]:
+          - generic [ref=f4e654]:
+            - generic [ref=f4e655]: Planned
+            - generic [ref=f4e656]: 📅 2026-09-04 → 2026-09-09
+            - generic [ref=f4e657]: 👥 3/4 crew
+          - generic [ref=f4e658]: "Notes: Sabah Adventure Package"
+        - table [ref=f4e659]:
+          - rowgroup [ref=f4e660]:
+            - row [ref=f4e661]:
+              - columnheader "Crew" [ref=f4e662]
+              - columnheader "Role" [ref=f4e663]
+              - columnheader "Status" [ref=f4e664]
+          - rowgroup [ref=f4e665]:
+            - row [ref=f4e666]:
+              - cell "Priya Sharma" [ref=f4e667]
+              - cell "Guide" [ref=f4e668]
+              - cell "Assigned" [ref=f4e669]
+            - row [ref=f4e670]:
+              - cell "Ahmad Razak" [ref=f4e671]
+              - cell "Tour Leader" [ref=f4e672]
+              - cell "Planned" [ref=f4e673]
+            - row [ref=f4e674]:
+              - cell "John Smith" [ref=f4e675]
+              - cell "Staff" [ref=f4e676]
+              - cell "Planned" [ref=f4e677]
+      - button "Close" [ref=f4e680] [cursor=pointer]

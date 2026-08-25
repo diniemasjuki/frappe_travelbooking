@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_bulk_edit": 1,
+ "allow_import": 1,
  "allow_rename": 1,
  "autoname": "hash",
  "creation": "2026-08-23 17:12:55.028942",
@@ -47,7 +48,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-23 17:24:35.190515",
+ "modified": "2026-08-24 21:29:27.311886",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip FAQ Template",

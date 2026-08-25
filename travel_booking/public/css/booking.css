@@ -2150,6 +2150,10 @@ body {
   .rc-wstep__label { display: none; }
   .rc-wstep.active .rc-wstep__label { display: inline; }
   .rc-step span { display: inline; }
+
+  /* Disable sticky card panels on mobile */
+  .rc-summary-bar { position: static; bottom: auto; }
+  #cart-card { position: static !important; bottom: auto !important; }
 }
 
 @media (max-width: 500px) {

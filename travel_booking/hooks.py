@@ -92,4 +92,11 @@ pages = [
 		'roles': ['Tour Manager', 'Tour Operator'],
 		'script': 'travel_booking_management.page.dashboard_reports.dashboard_reports',
 	},
+	{
+			'name': 'travel-resources',
+			'label': 'Travel Resources',
+			'icon': 'users',
+			'roles': ['Tour Manager', 'Tour Operator'],
+			'script': 'resources_management.page.travel_resources.travel_resources',
+		},
 ]

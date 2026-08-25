@@ -1,0 +1,194 @@
+- generic [active] [ref=f1e1]:
+  - navigation "Workspaces" [ref=f1e2]:
+    - link "Apps" [ref=f1e4] [cursor=pointer]:
+      - /url: /desk
+      - img "Start Up Application" [ref=f1e5]
+    - separator [ref=f1e6]
+    - generic [ref=f1e7]:
+      - button "Search" [ref=f1e8] [cursor=pointer]
+      - button "Notifications" [ref=f1e11] [cursor=pointer]
+    - separator [ref=f1e14]
+    - button "Media Jobsheet" [ref=f1e16] [cursor=pointer]
+    - separator [ref=f1e20]
+    - button "User Menu" [ref=f1e21] [cursor=pointer]:
+      - generic "Warga Prihatin" [ref=f1e22]:
+        - generic "Warga Prihatin" [ref=f1e23]: WP
+  - generic [ref=f1e26]:
+    - generic [ref=f1e27] [cursor=pointer]: Start Up Application
+    - generic [ref=f1e31]:
+      - generic "Media Team Member" [ref=f1e32]:
+        - link "Media Team Member" [ref=f1e34] [cursor=pointer]:
+          - /url: /desk/media-team-member
+      - generic "Episode Jobsheet" [ref=f1e36]:
+        - link "Episode Jobsheet" [ref=f1e38] [cursor=pointer]:
+          - /url: /desk/episode-jobsheet
+    - generic [ref=f1e40]:
+      - paragraph
+  - generic [ref=f1e42]:
+    - banner
+    - generic [ref=f1e44]:
+      - generic [ref=f1e47]:
+        - generic [ref=f1e48]:
+          - button [ref=f1e49] [cursor=pointer]
+          - list [ref=f1e53]:
+            - listitem [ref=f1e54]:
+              - link "Episode Jobsheet" [ref=f1e55] [cursor=pointer]:
+                - /url: /desk/episode-jobsheet
+        - generic [ref=f1e58]:
+          - button [ref=f1e60] [cursor=pointer]
+          - button "Menu" [ref=f1e63] [cursor=pointer]
+          - button "Add Episode Jobsheet" [ref=f1e64] [cursor=pointer]
+      - generic [ref=f1e72]:
+        - generic [ref=f1e73]:
+          - generic [ref=f1e74]:
+            - generic [ref=f1e75]:
+              - generic [ref=f1e76]:
+                - textbox "ID" [ref=f1e77]
+                - button [ref=f1e79] [cursor=pointer]
+              - generic: name
+            - generic [ref=f1e81]:
+              - generic [ref=f1e82]:
+                - textbox "Episode Title" [ref=f1e83]
+                - button [ref=f1e85] [cursor=pointer]
+              - generic: episode_title
+            - generic [ref=f1e87]:
+              - generic [ref=f1e88]:
+                - textbox "Series" [ref=f1e89]
+                - button [ref=f1e91] [cursor=pointer]
+              - generic: series_name
+            - generic [ref=f1e93]:
+              - generic [ref=f1e95]:
+                - combobox "Assigned Editor" [ref=f1e96]
+                - status [ref=f1e97]: Begin typing for results.
+              - generic: assigned_editor
+            - generic [ref=f1e98]:
+              - combobox [ref=f1e99]:
+                - option [selected]
+                - option "Stage 1 - Backbone Draft"
+                - option "Stage 2 - VO Synchronize"
+                - option "Stage 3 - Youtube"
+                - option "Completed"
+              - generic: current_stage
+              - generic: Current Stage
+            - generic [ref=f1e100]:
+              - combobox [ref=f1e101]:
+                - option [selected]
+                - option "On Track"
+                - option "Day 5 Warning"
+                - option "Overdue"
+                - option "Scheduled"
+                - option "Completed on Time"
+                - option "Completed Late"
+              - generic: sla_status
+              - generic: Status
+          - generic [ref=f1e102]:
+            - generic [ref=f1e104]:
+              - button "Filter" [ref=f1e105] [cursor=pointer]
+              - button "Clear all filters" [ref=f1e109] [cursor=pointer]
+            - generic [ref=f1e113]:
+              - button "descending" [ref=f1e114] [cursor=pointer]
+              - button [ref=f1e118] [cursor=pointer]
+        - generic [ref=f1e121]:
+          - generic [ref=f1e123]:
+            - banner [ref=f1e125]:
+              - generic [ref=f1e126]:
+                - generic [ref=f1e127]:
+                  - checkbox "Select All" [ref=f1e129]
+                  - generic "Click to sort by Episode Title" [ref=f1e130]: Episode Title
+                - generic [ref=f1e132]: Assigned Editor
+                - generic [ref=f1e134]: Current Stage
+                - generic [ref=f1e136]: Progress Percentage
+                - generic [ref=f1e138]: Series
+                - generic [ref=f1e140]: Start Date (Day 1)
+                - generic [ref=f1e142]: Final Deadline
+                - generic [ref=f1e144]: Status
+                - generic [ref=f1e146]: ID
+              - generic [ref=f1e148]:
+                - generic [ref=f1e149]: Refreshing...
+                - generic "Liked by me" [ref=f1e151]
+            - generic [ref=f1e155] [cursor=pointer]:
+              - generic [ref=f1e156]:
+                - generic [ref=f1e157]:
+                  - checkbox [ref=f1e159]
+                  - link "ep" [ref=f1e161]:
+                    - /url: /desk/episode-jobsheet/EP-JS-2026-0004
+                - 'generic "Assigned Editor: Ahmad" [ref=f1e163]': Ahmad
+                - 'generic "Current Stage: Stage 1 - Backbone Draft" [ref=f1e165]': Stage 1 - Backbone Draft
+                - 'generic "Progress Percentage: 15.4" [ref=f1e168]':
+                  - progressbar [ref=f1e170]
+                - generic:
+                  - generic "Series:"
+                - 'generic "Start Date (Day 1): 2026-08-20" [ref=f1e172]': 20-08-2026
+                - 'generic "Final Deadline: 2026-08-26" [ref=f1e174]': 26-08-2026
+                - 'generic "Status: Day 5 Warning" [ref=f1e176]': Day 5 Warning
+                - 'generic "ID: EP-JS-2026-0004" [ref=f1e179]': EP-JS-2026-0004
+              - generic [ref=f1e181]:
+                - generic [ref=f1e182]: 9 h
+                - generic [ref=f1e183]: "0"
+                - generic [ref=f1e185]: ·
+            - generic [ref=f1e191] [cursor=pointer]:
+              - generic [ref=f1e192]:
+                - generic [ref=f1e193]:
+                  - checkbox [ref=f1e195]
+                  - link "Testing EP003" [ref=f1e197]:
+                    - /url: /desk/episode-jobsheet/EP-JS-2026-0003
+                - 'generic "Assigned Editor: Ahmad" [ref=f1e199]': Ahmad
+                - 'generic "Current Stage: Stage 1 - Backbone Draft" [ref=f1e201]': Stage 1 - Backbone Draft
+                - generic "Progress Percentage:" [ref=f1e204]:
+                  - generic [ref=f1e205]:
+                    - progressbar
+                - 'generic "Series: Test" [ref=f1e207]': Test
+                - 'generic "Start Date (Day 1): 2026-08-19" [ref=f1e209]': 19-08-2026
+                - 'generic "Final Deadline: 2026-08-25" [ref=f1e211]': 25-08-2026
+                - 'generic "Status: Due Today" [ref=f1e213]': Due Today
+                - 'generic "ID: EP-JS-2026-0003" [ref=f1e216]': EP-JS-2026-0003
+              - generic [ref=f1e218]:
+                - generic [ref=f1e219]: 9 h
+                - generic [ref=f1e220]: "0"
+                - generic [ref=f1e222]: ·
+            - generic [ref=f1e228] [cursor=pointer]:
+              - generic [ref=f1e229]:
+                - generic [ref=f1e230]:
+                  - checkbox [ref=f1e232]
+                  - link "Test EP002" [ref=f1e234]:
+                    - /url: /desk/episode-jobsheet/EP-JS-2026-0002
+                - 'generic "Assigned Editor: Ahmad" [ref=f1e236]': Ahmad
+                - 'generic "Current Stage: Stage 2 - VO Synchronize" [ref=f1e238]': Stage 2 - VO Synchronize
+                - 'generic "Progress Percentage: 69.2" [ref=f1e241]':
+                  - progressbar [ref=f1e243]
+                - 'generic "Series: Test" [ref=f1e245]': Test
+                - 'generic "Start Date (Day 1): 2026-08-18" [ref=f1e247]': 18-08-2026
+                - 'generic "Final Deadline: 2026-08-25" [ref=f1e249]': 25-08-2026
+                - 'generic "Status: Due Today" [ref=f1e251]': Due Today
+                - 'generic "ID: EP-JS-2026-0002" [ref=f1e254]': EP-JS-2026-0002
+              - generic [ref=f1e256]:
+                - generic [ref=f1e257]: 9 h
+                - generic [ref=f1e258]: "0"
+                - generic [ref=f1e260]: ·
+            - generic [ref=f1e266] [cursor=pointer]:
+              - generic [ref=f1e267]:
+                - generic [ref=f1e268]:
+                  - checkbox [ref=f1e270]
+                  - link "Behind the Scene" [ref=f1e272]:
+                    - /url: /desk/episode-jobsheet/EP-JS-2026-0001
+                - 'generic "Assigned Editor: Ahmad" [ref=f1e274]': Ahmad
+                - 'generic "Current Stage: Completed" [ref=f1e276]': Completed
+                - 'generic "Progress Percentage: 100" [ref=f1e279]':
+                  - progressbar [ref=f1e281]
+                - 'generic "Series: Test" [ref=f1e283]': Test
+                - 'generic "Start Date (Day 1): 2026-08-14" [ref=f1e285]': 14-08-2026
+                - 'generic "Final Deadline: 2026-08-15" [ref=f1e287]': 15-08-2026
+                - 'generic "Status: Completed on Time" [ref=f1e289]': Completed on Time
+                - 'generic "ID: EP-JS-2026-0001" [ref=f1e292]': EP-JS-2026-0001
+              - generic [ref=f1e294]:
+                - generic [ref=f1e295]: 1 w
+                - generic [ref=f1e296]: "0"
+                - generic [ref=f1e298]: ·
+          - radiogroup "Page Size" [ref=f1e305]:
+            - radio "20" [checked] [ref=f1e306] [cursor=pointer]
+            - radio "100" [ref=f1e307] [cursor=pointer]
+            - radio "500" [ref=f1e308] [cursor=pointer]
+            - radio "2500" [ref=f1e309] [cursor=pointer]
+    - contentinfo
+  - generic:
+    - generic "Show Chats"

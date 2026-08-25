@@ -1,0 +1,595 @@
+- generic [ref=f18e1]:
+  - navigation "Workspaces" [ref=f18e2]:
+    - link "Apps" [ref=f18e4] [cursor=pointer]:
+      - /url: /desk
+      - img "Travel Booking Management" [ref=f18e5]
+    - separator [ref=f18e6]
+    - generic [ref=f18e7]:
+      - button "Search" [ref=f18e8] [cursor=pointer]
+      - button "Notifications" [ref=f18e11] [cursor=pointer]
+    - separator [ref=f18e14]
+    - button "Travel Booking" [ref=f18e16] [cursor=pointer]
+    - separator [ref=f18e18]
+    - button "User Menu" [ref=f18e19] [cursor=pointer]:
+      - generic "Warga Prihatin" [ref=f18e20]:
+        - generic "Warga Prihatin" [ref=f18e21]: WP
+  - generic [ref=f18e24]:
+    - generic [ref=f18e25] [cursor=pointer]: Travel Booking Management
+    - generic [ref=f18e29]:
+      - generic "Crew" [ref=f18e30]:
+        - link "Crew" [ref=f18e32] [cursor=pointer]:
+          - /url: /desk/crew
+      - generic "Crew Slot" [ref=f18e34]:
+        - link "Crew Slot" [ref=f18e36] [cursor=pointer]:
+          - /url: /desk/crew-slot
+      - generic "Travel Resources" [ref=f18e38]:
+        - link "Travel Resources" [ref=f18e40] [cursor=pointer]:
+          - /url: /desk/travel-resources
+    - generic [ref=f18e42]:
+      - paragraph
+  - generic [ref=f18e44]:
+    - banner
+    - generic [ref=f18e46]:
+      - generic [ref=f18e50]:
+        - button [ref=f18e51] [cursor=pointer]
+        - list [ref=f18e55]:
+          - listitem [ref=f18e56]:
+            - link "Travel Resources" [ref=f18e57] [cursor=pointer]:
+              - /url: travel-resources
+      - generic [ref=f18e64]:
+        - generic [ref=f18e65]:
+          - heading "🧭 Travel Resources" [level=1] [ref=f18e66]
+          - generic [ref=f18e67]:
+            - button "📊 Gantt" [ref=f18e68] [cursor=pointer]
+            - button "📅 Calendar" [ref=f18e69] [cursor=pointer]
+            - button "📋 List" [ref=f18e70] [cursor=pointer]
+        - generic [ref=f18e71]:
+          - generic [ref=f18e72]:
+            - generic [ref=f18e73]: Active Crew
+            - generic [ref=f18e74]: "4"
+            - generic [ref=f18e75]: Total available crew members
+          - generic [ref=f18e76]:
+            - generic [ref=f18e77]: Total Slots
+            - generic [ref=f18e78]: "4"
+            - generic [ref=f18e79]: All time slots
+          - generic [ref=f18e80]:
+            - generic [ref=f18e81]: Active Now
+            - generic [ref=f18e82]: "1"
+            - generic [ref=f18e83]: Slots currently in progress
+          - generic [ref=f18e84]:
+            - generic [ref=f18e85]: Utilization
+            - generic [ref=f18e86]: 75%
+            - generic [ref=f18e87]: 3 crew assigned today
+        - generic [ref=f18e88]:
+          - generic [ref=f18e89]:
+            - heading "📊 Gantt — Crew Schedule" [level=3] [ref=f18e90]
+            - generic [ref=f18e91]: Drag bar edges to resize · Click bar for details · Click empty area to add slot
+          - generic [ref=f18e94]:
+            - generic [ref=f18e95]:
+              - generic [ref=f18e96]: Crew Member
+              - generic [ref=f18e97]:
+                - generic [ref=f18e98]: Sat22/8
+                - generic [ref=f18e99]: Sun23/8
+                - generic [ref=f18e100]: Mon24/8
+                - generic [ref=f18e101]: Tue25/8
+                - generic [ref=f18e102]: Wed26/8
+                - generic [ref=f18e103]: Thu27/8
+                - generic [ref=f18e104]: Fri28/8
+                - generic [ref=f18e105]: Sat29/8
+                - generic [ref=f18e106]: Sun30/8
+                - generic [ref=f18e107]: Mon31/8
+                - generic [ref=f18e108]: Tue1/9
+                - generic [ref=f18e109]: Wed2/9
+                - generic [ref=f18e110]: Thu3/9
+                - generic [ref=f18e111]: Fri4/9
+                - generic [ref=f18e112]: Sat5/9
+                - generic [ref=f18e113]: Sun6/9
+                - generic [ref=f18e114]: Mon7/9
+                - generic [ref=f18e115]: Tue8/9
+                - generic [ref=f18e116]: Wed9/9
+                - generic [ref=f18e117]: Thu10/9
+                - generic [ref=f18e118]: Fri11/9
+                - generic [ref=f18e119]: Sat12/9
+                - generic [ref=f18e120]: Sun13/9
+                - generic [ref=f18e121]: Mon14/9
+                - generic [ref=f18e122]: Tue15/9
+                - generic [ref=f18e123]: Wed16/9
+                - generic [ref=f18e124]: Thu17/9
+                - generic [ref=f18e125]: Fri18/9
+                - generic [ref=f18e126]: Sat19/9
+                - generic [ref=f18e127]: Sun20/9
+                - generic [ref=f18e128]: Mon21/9
+                - generic [ref=f18e129]: Tue22/9
+                - generic [ref=f18e130]: Wed23/9
+                - generic [ref=f18e131]: Thu24/9
+                - generic [ref=f18e132]: Fri25/9
+                - generic [ref=f18e133]: Sat26/9
+                - generic [ref=f18e134]: Sun27/9
+                - generic [ref=f18e135]: Mon28/9
+                - generic [ref=f18e136]: Tue29/9
+                - generic [ref=f18e137]: Wed30/9
+                - generic [ref=f18e138]: Thu1/10
+                - generic [ref=f18e139]: Fri2/10
+                - generic [ref=f18e140]: Sat3/10
+                - generic [ref=f18e141]: Sun4/10
+                - generic [ref=f18e142]: Mon5/10
+                - generic [ref=f18e143]: Tue6/10
+                - generic [ref=f18e144]: Wed7/10
+                - generic [ref=f18e145]: Thu8/10
+                - generic [ref=f18e146]: Fri9/10
+                - generic [ref=f18e147]: Sat10/10
+                - generic [ref=f18e148]: Sun11/10
+                - generic [ref=f18e149]: Mon12/10
+                - generic [ref=f18e150]: Tue13/10
+                - generic [ref=f18e151]: Wed14/10
+                - generic [ref=f18e152]: Thu15/10
+                - generic [ref=f18e153]: Fri16/10
+                - generic [ref=f18e154]: Sat17/10
+                - generic [ref=f18e155]: Sun18/10
+                - generic [ref=f18e156]: Mon19/10
+                - generic [ref=f18e157]: Tue20/10
+                - generic [ref=f18e158]: Wed21/10
+                - generic [ref=f18e159]: Thu22/10
+                - generic [ref=f18e160]: Fri23/10
+                - generic [ref=f18e161]: Sat24/10
+                - generic [ref=f18e162]: Sun25/10
+                - generic [ref=f18e163]: Mon26/10
+                - generic [ref=f18e164]: Tue27/10
+                - generic [ref=f18e165]: Wed28/10
+                - generic [ref=f18e166]: Thu29/10
+                - generic [ref=f18e167]: Fri30/10
+                - generic [ref=f18e168]: Sat31/10
+                - generic [ref=f18e169]: Sun1/11
+                - generic [ref=f18e170]: Mon2/11
+                - generic [ref=f18e171]: Tue3/11
+                - generic [ref=f18e172]: Wed4/11
+                - generic [ref=f18e173]: Thu5/11
+                - generic [ref=f18e174]: Fri6/11
+                - generic [ref=f18e175]: Sat7/11
+                - generic [ref=f18e176]: Sun8/11
+                - generic [ref=f18e177]: Mon9/11
+                - generic [ref=f18e178]: Tue10/11
+                - generic [ref=f18e179]: Wed11/11
+                - generic [ref=f18e180]: Thu12/11
+                - generic [ref=f18e181]: Fri13/11
+                - generic [ref=f18e182]: Sat14/11
+                - generic [ref=f18e183]: Sun15/11
+                - generic [ref=f18e184]: Mon16/11
+                - generic [ref=f18e185]: Tue17/11
+                - generic [ref=f18e186]: Wed18/11
+                - generic [ref=f18e187]: Thu19/11
+                - generic [ref=f18e188]: Fri20/11
+                - generic [ref=f18e189]: Sat21/11
+                - generic [ref=f18e190]: Sun22/11
+                - generic [ref=f18e191]: Mon23/11
+                - generic [ref=f18e192]: Tue24/11
+                - generic [ref=f18e193]: Wed25/11
+                - generic [ref=f18e194]: Thu26/11
+                - generic [ref=f18e195]: Fri27/11
+                - generic [ref=f18e196]: Sat28/11
+                - generic [ref=f18e197]: Sun29/11
+                - generic [ref=f18e198]: Mon30/11
+                - generic [ref=f18e199]: Tue1/12
+                - generic [ref=f18e200]: Wed2/12
+                - generic [ref=f18e201]: Thu3/12
+                - generic [ref=f18e202]: Fri4/12
+                - generic [ref=f18e203]: Sat5/12
+                - generic [ref=f18e204]: Sun6/12
+                - generic [ref=f18e205]: Mon7/12
+                - generic [ref=f18e206]: Tue8/12
+                - generic [ref=f18e207]: Wed9/12
+                - generic [ref=f18e208]: Thu10/12
+                - generic [ref=f18e209]: Fri11/12
+                - generic [ref=f18e210]: Sat12/12
+                - generic [ref=f18e211]: Sun13/12
+                - generic [ref=f18e212]: Mon14/12
+                - generic [ref=f18e213]: Tue15/12
+                - generic [ref=f18e214]: Wed16/12
+                - generic [ref=f18e215]: Thu17/12
+                - generic [ref=f18e216]: Fri18/12
+                - generic [ref=f18e217]: Sat19/12
+                - generic [ref=f18e218]: Sun20/12
+                - generic [ref=f18e219]: Mon21/12
+                - generic [ref=f18e220]: Tue22/12
+                - generic [ref=f18e221]: Wed23/12
+                - generic [ref=f18e222]: Thu24/12
+                - generic [ref=f18e223]: Fri25/12
+                - generic [ref=f18e224]: Sat26/12
+                - generic [ref=f18e225]: Sun27/12
+                - generic [ref=f18e226]: Mon28/12
+                - generic [ref=f18e227]: Tue29/12
+                - generic [ref=f18e228]: Wed30/12
+                - generic [ref=f18e229]: Thu31/12
+                - generic [ref=f18e230]: Fri1/1
+                - generic [ref=f18e231]: Sat2/1
+                - generic [ref=f18e232]: Sun3/1
+                - generic [ref=f18e233]: Mon4/1
+                - generic [ref=f18e234]: Tue5/1
+                - generic [ref=f18e235]: Wed6/1
+                - generic [ref=f18e236]: Thu7/1
+                - generic [ref=f18e237]: Fri8/1
+                - generic [ref=f18e238]: Sat9/1
+                - generic [ref=f18e239]: Sun10/1
+                - generic [ref=f18e240]: Mon11/1
+                - generic [ref=f18e241]: Tue12/1
+                - generic [ref=f18e242]: Wed13/1
+                - generic [ref=f18e243]: Thu14/1
+                - generic [ref=f18e244]: Fri15/1
+                - generic [ref=f18e245]: Sat16/1
+                - generic [ref=f18e246]: Sun17/1
+                - generic [ref=f18e247]: Mon18/1
+                - generic [ref=f18e248]: Tue19/1
+                - generic [ref=f18e249]: Wed20/1
+                - generic [ref=f18e250]: Thu21/1
+                - generic [ref=f18e251]: Fri22/1
+                - generic [ref=f18e252]: Sat23/1
+                - generic [ref=f18e253]: Sun24/1
+                - generic [ref=f18e254]: Mon25/1
+                - generic [ref=f18e255]: Tue26/1
+                - generic [ref=f18e256]: Wed27/1
+                - generic [ref=f18e257]: Thu28/1
+                - generic [ref=f18e258]: Fri29/1
+                - generic [ref=f18e259]: Sat30/1
+                - generic [ref=f18e260]: Sun31/1
+                - generic [ref=f18e261]: Mon1/2
+                - generic [ref=f18e262]: Tue2/2
+                - generic [ref=f18e263]: Wed3/2
+                - generic [ref=f18e264]: Thu4/2
+                - generic [ref=f18e265]: Fri5/2
+                - generic [ref=f18e266]: Sat6/2
+                - generic [ref=f18e267]: Sun7/2
+                - generic [ref=f18e268]: Mon8/2
+                - generic [ref=f18e269]: Tue9/2
+                - generic [ref=f18e270]: Wed10/2
+                - generic [ref=f18e271]: Thu11/2
+                - generic [ref=f18e272]: Fri12/2
+                - generic [ref=f18e273]: Sat13/2
+                - generic [ref=f18e274]: Sun14/2
+                - generic [ref=f18e275]: Mon15/2
+                - generic [ref=f18e276]: Tue16/2
+                - generic [ref=f18e277]: Wed17/2
+                - generic [ref=f18e278]: Thu18/2
+                - generic [ref=f18e279]: Fri19/2
+                - generic [ref=f18e280]: Sat20/2
+                - generic [ref=f18e281]: Sun21/2
+                - generic [ref=f18e282]: Mon22/2
+                - generic [ref=f18e283]: Tue23/2
+                - generic [ref=f18e284]: Wed24/2
+                - generic [ref=f18e285]: Thu25/2
+                - generic [ref=f18e286]: Fri26/2
+                - generic [ref=f18e287]: Sat27/2
+                - generic [ref=f18e288]: Sun28/2
+                - generic [ref=f18e289]: Mon1/3
+                - generic [ref=f18e290]: Tue2/3
+                - generic [ref=f18e291]: Wed3/3
+                - generic [ref=f18e292]: Thu4/3
+                - generic [ref=f18e293]: Fri5/3
+                - generic [ref=f18e294]: Sat6/3
+                - generic [ref=f18e295]: Sun7/3
+                - generic [ref=f18e296]: Mon8/3
+                - generic [ref=f18e297]: Tue9/3
+                - generic [ref=f18e298]: Wed10/3
+                - generic [ref=f18e299]: Thu11/3
+                - generic [ref=f18e300]: Fri12/3
+                - generic [ref=f18e301]: Sat13/3
+                - generic [ref=f18e302]: Sun14/3
+                - generic [ref=f18e303]: Mon15/3
+                - generic [ref=f18e304]: Tue16/3
+                - generic [ref=f18e305]: Wed17/3
+                - generic [ref=f18e306]: Thu18/3
+                - generic [ref=f18e307]: Fri19/3
+                - generic [ref=f18e308]: Sat20/3
+                - generic [ref=f18e309]: Sun21/3
+                - generic [ref=f18e310]: Mon22/3
+                - generic [ref=f18e311]: Tue23/3
+                - generic [ref=f18e312]: Wed24/3
+                - generic [ref=f18e313]: Thu25/3
+                - generic [ref=f18e314]: Fri26/3
+                - generic [ref=f18e315]: Sat27/3
+                - generic [ref=f18e316]: Sun28/3
+                - generic [ref=f18e317]: Mon29/3
+                - generic [ref=f18e318]: Tue30/3
+                - generic [ref=f18e319]: Wed31/3
+                - generic [ref=f18e320]: Thu1/4
+                - generic [ref=f18e321]: Fri2/4
+                - generic [ref=f18e322]: Sat3/4
+                - generic [ref=f18e323]: Sun4/4
+                - generic [ref=f18e324]: Mon5/4
+                - generic [ref=f18e325]: Tue6/4
+                - generic [ref=f18e326]: Wed7/4
+                - generic [ref=f18e327]: Thu8/4
+                - generic [ref=f18e328]: Fri9/4
+                - generic [ref=f18e329]: Sat10/4
+                - generic [ref=f18e330]: Sun11/4
+                - generic [ref=f18e331]: Mon12/4
+                - generic [ref=f18e332]: Tue13/4
+                - generic [ref=f18e333]: Wed14/4
+                - generic [ref=f18e334]: Thu15/4
+                - generic [ref=f18e335]: Fri16/4
+                - generic [ref=f18e336]: Sat17/4
+                - generic [ref=f18e337]: Sun18/4
+                - generic [ref=f18e338]: Mon19/4
+                - generic [ref=f18e339]: Tue20/4
+                - generic [ref=f18e340]: Wed21/4
+                - generic [ref=f18e341]: Thu22/4
+                - generic [ref=f18e342]: Fri23/4
+                - generic [ref=f18e343]: Sat24/4
+                - generic [ref=f18e344]: Sun25/4
+                - generic [ref=f18e345]: Mon26/4
+                - generic [ref=f18e346]: Tue27/4
+                - generic [ref=f18e347]: Wed28/4
+                - generic [ref=f18e348]: Thu29/4
+                - generic [ref=f18e349]: Fri30/4
+                - generic [ref=f18e350]: Sat1/5
+                - generic [ref=f18e351]: Sun2/5
+                - generic [ref=f18e352]: Mon3/5
+                - generic [ref=f18e353]: Tue4/5
+                - generic [ref=f18e354]: Wed5/5
+                - generic [ref=f18e355]: Thu6/5
+                - generic [ref=f18e356]: Fri7/5
+                - generic [ref=f18e357]: Sat8/5
+                - generic [ref=f18e358]: Sun9/5
+                - generic [ref=f18e359]: Mon10/5
+                - generic [ref=f18e360]: Tue11/5
+                - generic [ref=f18e361]: Wed12/5
+                - generic [ref=f18e362]: Thu13/5
+                - generic [ref=f18e363]: Fri14/5
+                - generic [ref=f18e364]: Sat15/5
+                - generic [ref=f18e365]: Sun16/5
+                - generic [ref=f18e366]: Mon17/5
+                - generic [ref=f18e367]: Tue18/5
+                - generic [ref=f18e368]: Wed19/5
+                - generic [ref=f18e369]: Thu20/5
+                - generic [ref=f18e370]: Fri21/5
+                - generic [ref=f18e371]: Sat22/5
+                - generic [ref=f18e372]: Sun23/5
+                - generic [ref=f18e373]: Mon24/5
+                - generic [ref=f18e374]: Tue25/5
+                - generic [ref=f18e375]: Wed26/5
+                - generic [ref=f18e376]: Thu27/5
+                - generic [ref=f18e377]: Fri28/5
+                - generic [ref=f18e378]: Sat29/5
+                - generic [ref=f18e379]: Sun30/5
+                - generic [ref=f18e380]: Mon31/5
+                - generic [ref=f18e381]: Tue1/6
+                - generic [ref=f18e382]: Wed2/6
+                - generic [ref=f18e383]: Thu3/6
+                - generic [ref=f18e384]: Fri4/6
+                - generic [ref=f18e385]: Sat5/6
+                - generic [ref=f18e386]: Sun6/6
+                - generic [ref=f18e387]: Mon7/6
+                - generic [ref=f18e388]: Tue8/6
+                - generic [ref=f18e389]: Wed9/6
+                - generic [ref=f18e390]: Thu10/6
+                - generic [ref=f18e391]: Fri11/6
+                - generic [ref=f18e392]: Sat12/6
+                - generic [ref=f18e393]: Sun13/6
+                - generic [ref=f18e394]: Mon14/6
+                - generic [ref=f18e395]: Tue15/6
+                - generic [ref=f18e396]: Wed16/6
+                - generic [ref=f18e397]: Thu17/6
+                - generic [ref=f18e398]: Fri18/6
+                - generic [ref=f18e399]: Sat19/6
+                - generic [ref=f18e400]: Sun20/6
+                - generic [ref=f18e401]: Mon21/6
+                - generic [ref=f18e402]: Tue22/6
+                - generic [ref=f18e403]: Wed23/6
+                - generic [ref=f18e404]: Thu24/6
+                - generic [ref=f18e405]: Fri25/6
+                - generic [ref=f18e406]: Sat26/6
+                - generic [ref=f18e407]: Sun27/6
+                - generic [ref=f18e408]: Mon28/6
+                - generic [ref=f18e409]: Tue29/6
+                - generic [ref=f18e410]: Wed30/6
+                - generic [ref=f18e411]: Thu1/7
+                - generic [ref=f18e412]: Fri2/7
+                - generic [ref=f18e413]: Sat3/7
+                - generic [ref=f18e414]: Sun4/7
+                - generic [ref=f18e415]: Mon5/7
+                - generic [ref=f18e416]: Tue6/7
+                - generic [ref=f18e417]: Wed7/7
+                - generic [ref=f18e418]: Thu8/7
+                - generic [ref=f18e419]: Fri9/7
+                - generic [ref=f18e420]: Sat10/7
+                - generic [ref=f18e421]: Sun11/7
+                - generic [ref=f18e422]: Mon12/7
+                - generic [ref=f18e423]: Tue13/7
+                - generic [ref=f18e424]: Wed14/7
+                - generic [ref=f18e425]: Thu15/7
+                - generic [ref=f18e426]: Fri16/7
+                - generic [ref=f18e427]: Sat17/7
+                - generic [ref=f18e428]: Sun18/7
+                - generic [ref=f18e429]: Mon19/7
+                - generic [ref=f18e430]: Tue20/7
+                - generic [ref=f18e431]: Wed21/7
+                - generic [ref=f18e432]: Thu22/7
+                - generic [ref=f18e433]: Fri23/7
+                - generic [ref=f18e434]: Sat24/7
+                - generic [ref=f18e435]: Sun25/7
+                - generic [ref=f18e436]: Mon26/7
+                - generic [ref=f18e437]: Tue27/7
+                - generic [ref=f18e438]: Wed28/7
+                - generic [ref=f18e439]: Thu29/7
+                - generic [ref=f18e440]: Fri30/7
+                - generic [ref=f18e441]: Sat31/7
+                - generic [ref=f18e442]: Sun1/8
+                - generic [ref=f18e443]: Mon2/8
+                - generic [ref=f18e444]: Tue3/8
+                - generic [ref=f18e445]: Wed4/8
+                - generic [ref=f18e446]: Thu5/8
+                - generic [ref=f18e447]: Fri6/8
+                - generic [ref=f18e448]: Sat7/8
+                - generic [ref=f18e449]: Sun8/8
+                - generic [ref=f18e450]: Mon9/8
+                - generic [ref=f18e451]: Tue10/8
+                - generic [ref=f18e452]: Wed11/8
+                - generic [ref=f18e453]: Thu12/8
+                - generic [ref=f18e454]: Fri13/8
+                - generic [ref=f18e455]: Sat14/8
+                - generic [ref=f18e456]: Sun15/8
+                - generic [ref=f18e457]: Mon16/8
+                - generic [ref=f18e458]: Tue17/8
+                - generic [ref=f18e459]: Wed18/8
+                - generic [ref=f18e460]: Thu19/8
+                - generic [ref=f18e461]: Fri20/8
+                - generic [ref=f18e462]: Sat21/8
+                - generic [ref=f18e463]: Sun22/8
+                - generic [ref=f18e464]: Mon23/8
+                - generic [ref=f18e465]: Tue24/8
+                - generic [ref=f18e466]: Wed25/8
+                - generic [ref=f18e467]: Thu26/8
+                - generic [ref=f18e468]: Fri27/8
+                - generic [ref=f18e469]: Sat28/8
+                - generic [ref=f18e470]: Sun29/8
+                - generic [ref=f18e471]: Mon30/8
+                - generic [ref=f18e472]: Tue31/8
+                - generic [ref=f18e473]: Wed1/9
+                - generic [ref=f18e474]: Thu2/9
+                - generic [ref=f18e475]: Fri3/9
+                - generic [ref=f18e476]: Sat4/9
+                - generic [ref=f18e477]: Sun5/9
+                - generic [ref=f18e478]: Mon6/9
+                - generic [ref=f18e479]: Tue7/9
+                - generic [ref=f18e480]: Wed8/9
+                - generic [ref=f18e481]: Thu9/9
+                - generic [ref=f18e482]: Fri10/9
+                - generic [ref=f18e483]: Sat11/9
+                - generic [ref=f18e484]: Sun12/9
+                - generic [ref=f18e485]: Mon13/9
+                - generic [ref=f18e486]: Tue14/9
+                - generic [ref=f18e487]: Wed15/9
+                - generic [ref=f18e488]: Thu16/9
+                - generic [ref=f18e489]: Fri17/9
+                - generic [ref=f18e490]: Sat18/9
+                - generic [ref=f18e491]: Sun19/9
+                - generic [ref=f18e492]: Mon20/9
+                - generic [ref=f18e493]: Tue21/9
+                - generic [ref=f18e494]: Wed22/9
+                - generic [ref=f18e495]: Thu23/9
+                - generic [ref=f18e496]: Fri24/9
+                - generic [ref=f18e497]: Sat25/9
+                - generic [ref=f18e498]: Sun26/9
+                - generic [ref=f18e499]: Mon27/9
+                - generic [ref=f18e500]: Tue28/9
+                - generic [ref=f18e501]: Wed29/9
+            - generic [ref=f18e502]:
+              - generic [ref=f18e503]: Co-Captain (3)
+              - generic [ref=f18e504]:
+                - generic [ref=f18e505]:
+                  - generic [ref=f18e506]: John Smith
+                  - generic [ref=f18e507]: Staff · 1 slot(s)
+                - generic "Click empty area to add slot" [ref=f18e508]:
+                  - generic "2026-09-04 (2026-09-04 to 2026-09-08) — Staff — Planned" [ref=f18e913] [cursor=pointer]: 2026-09-04 · Staff
+              - generic [ref=f18e917]:
+                - generic [ref=f18e918]:
+                  - generic [ref=f18e919]: Lim Wei Ming
+                  - generic [ref=f18e920]: Driver · 1 slot(s)
+                - generic "Click empty area to add slot" [ref=f18e921]:
+                  - generic "2026-08-25 (2026-08-25 to 2026-08-27) — Driver — Planned" [ref=f18e1326] [cursor=pointer]: 2026-08-25 · Driver
+              - generic [ref=f18e1330]:
+                - generic [ref=f18e1331]:
+                  - generic [ref=f18e1332]: Priya Sharma
+                  - generic [ref=f18e1333]: Guide · 1 slot(s)
+                - generic "Click empty area to add slot" [ref=f18e1334]:
+                  - generic "2026-09-04 (2026-09-04 to 2026-09-08) — Guide — Planned" [ref=f18e1739] [cursor=pointer]: 2026-09-04 · Guide
+            - generic [ref=f18e1743]:
+              - generic [ref=f18e1744]: Captain (2)
+              - generic [ref=f18e1745]:
+                - generic [ref=f18e1746]:
+                  - generic [ref=f18e1747]: Ahmad Razak
+                  - generic [ref=f18e1748]: Tour Leader · 2 slot(s)
+                - generic "Click empty area to add slot" [ref=f18e1749]:
+                  - generic "2026-09-04 (2026-09-04 to 2026-09-08) — Tour Leader — Planned" [ref=f18e2154] [cursor=pointer]: 2026-09-04 · Tour Leader
+                  - generic "2026-08-25 (2026-08-25 to 2026-08-27) — Tour Leader — Planned" [ref=f18e2158] [cursor=pointer]: 2026-08-25 · Tour Leader
+              - generic [ref=f18e2162]:
+                - generic [ref=f18e2163]:
+                  - generic [ref=f18e2164]: Siti Aminah
+                  - generic [ref=f18e2165]: Guide · 3 slot(s)
+                - generic "Click empty area to add slot" [ref=f18e2166]:
+                  - generic "2026-09-19 (2026-09-19 to 2026-09-25) — Guide — Planned" [ref=f18e2571] [cursor=pointer]: 2026-09-19 · Guide
+                  - generic "2026-08-25 (2026-08-25 to 2026-08-27) — Guide — Planned" [ref=f18e2575] [cursor=pointer]: 2026-08-25 · Guide
+                  - generic "2026-08-28 (2026-08-28 to 2026-09-04) — Guide — Confirmed" [ref=f18e2579] [cursor=pointer]: 2026-08-28 · Guide
+    - contentinfo
+  - generic:
+    - generic "Show Chats"
+  - dialog [ref=f18e2584]:
+    - generic [ref=f18e2585]:
+      - generic [ref=f18e2586]:
+        - 'heading "Slot Detail: 2026-09-04" [level=4] [ref=f18e2588]'
+        - button "Close" [ref=f18e2590] [cursor=pointer]
+      - generic [ref=f18e2592]:
+        - generic [ref=f18e2593]:
+          - generic [ref=f18e2594]:
+            - generic [ref=f18e2595]: Planned
+            - generic [ref=f18e2596]: 📅 2026-09-04 → 2026-09-08
+            - generic [ref=f18e2597]: 👥 3/4 crew
+          - generic [ref=f18e2598]: "Notes: Sabah Adventure Package"
+        - table [ref=f18e2599]:
+          - rowgroup [ref=f18e2600]:
+            - row [ref=f18e2601]:
+              - columnheader "Crew" [ref=f18e2602]
+              - columnheader "Role" [ref=f18e2603]
+              - columnheader "Status" [ref=f18e2604]
+              - columnheader "Action" [ref=f18e2605]
+          - rowgroup [ref=f18e2606]:
+            - row [ref=f18e2607]:
+              - cell "Priya Sharma Co-Captain" [ref=f18e2608]:
+                - text: Priya Sharma
+                - generic [ref=f18e2609]: Co-Captain
+              - cell "Guide" [ref=f18e2610]
+              - cell "Assigned" [ref=f18e2611]
+              - cell [ref=f18e2612]:
+                - button "✕" [ref=f18e2613] [cursor=pointer]
+            - row [ref=f18e2614]:
+              - cell "Ahmad Razak Captain" [ref=f18e2615]:
+                - text: Ahmad Razak
+                - generic [ref=f18e2616]: Captain
+              - cell "Tour Leader" [ref=f18e2617]
+              - cell "Assigned" [ref=f18e2618]
+              - cell [ref=f18e2619]:
+                - button "✕" [ref=f18e2620] [cursor=pointer]
+            - row [ref=f18e2621]:
+              - cell "John Smith Co-Captain" [ref=f18e2622]:
+                - text: John Smith
+                - generic [ref=f18e2623]: Co-Captain
+              - cell "Staff" [ref=f18e2624]
+              - cell "Assigned" [ref=f18e2625]
+              - cell [ref=f18e2626]:
+                - button "✕" [ref=f18e2627] [cursor=pointer]
+      - generic [ref=f18e2628]:
+        - button "Close" [ref=f18e2629] [cursor=pointer]
+        - button "Add Crew" [ref=f18e2631] [cursor=pointer]
+  - dialog [ref=f18e2634]:
+    - generic [ref=f18e2635]:
+      - generic [ref=f18e2636]:
+        - heading "Add Crew to Slot" [level=4] [ref=f18e2638]
+        - button "Close" [ref=f18e2640] [cursor=pointer]
+      - generic [ref=f18e2648]:
+        - generic [ref=f18e2649]:
+          - generic [ref=f18e2650]:
+            - generic [ref=f18e2651]: Crew Member *
+            - generic [ref=f18e2655]:
+              - combobox [active] [ref=f18e2657]: Lim Wei Ming
+              - generic [ref=f18e2696]:
+                - generic "Clear Link" [ref=f18e2697] [cursor=pointer]
+                - link "Open Link" [ref=f18e2699] [cursor=pointer]:
+                  - /url: /desk/crew/Lim%20Wei%20Ming
+          - generic: crew
+        - generic [ref=f18e2677]:
+          - generic [ref=f18e2678]:
+            - generic [ref=f18e2679]: Role in Slot
+            - combobox [ref=f18e2683]:
+              - option "Tour Leader"
+              - option "Driver"
+              - option "Guide"
+              - option "Staff"
+              - option "Other"
+          - generic: role_in_slot
+        - generic [ref=f18e2684]:
+          - generic [ref=f18e2685]:
+            - generic [ref=f18e2686]: Max Crew
+            - generic [ref=f18e2688]:
+              - textbox [ref=f18e2690]: "4"
+              - generic [ref=f18e2691]: Currently 3 crew assigned
+          - generic: max_crew
+      - button "Add" [ref=f18e2694] [cursor=pointer]

@@ -1,0 +1,92 @@
+[   96646ms] [ERROR] Failed to load resource: the server responded with a status of 417 (EXPECTATION FAILED) @ https://dev.rpwp.my/api/method/travel_booking.resources_management.api.resources_api.update_slot_dates:0
+[   96657ms] [ERROR] Traceback (most recent call last):
+  File "apps/travel_booking/travel_booking/resources_management/api/resources_api.py", line 522, in update_slot_dates
+    slot.save()
+    ~~~~~~~~~^^
+  File "apps/frappe/frappe/model/document.py", line 810, in save
+    return self._save(*args, **kwargs)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "apps/frappe/frappe/model/document.py", line 847, in _save
+    self.run_before_save_methods()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "apps/frappe/frappe/model/document.py", line 1857, in run_before_save_methods
+    self.run_method("validate")
+    ~~~~~~~~~~~~~~~^^^^^^^^^^^^
+  File "apps/frappe/frappe/model/document.py", line 1701, in run_method
+    out = Document.hook(fn)(self, *args, **kwargs)
+  File "apps/frappe/frappe/model/document.py", line 2107, in composer
+    return composed(self, method, *args, **kwargs)
+  File "apps/frappe/frappe/model/document.py", line 2081, in runner
+    add_to_return_value(self, fn(self, *args, **kwargs))
+                              ~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "apps/frappe/frappe/model/document.py", line 1698, in fn
+    return method_object(*args, **kwargs)
+  File "apps/travel_booking/travel_booking/resources_management/doctype/crew_slot/crew_slot.py", line 13, in validate
+    self.validate_crew_conflicts()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "apps/travel_booking/travel_booking/resources_management/doctype/crew_slot/crew_slot.py", line 80, in validate_crew_conflicts
+    frappe.throw(
+    ~~~~~~~~~~~~^
+        f"<b>Conflict Detected!</b><br><br>"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        f"Please adjust the dates or select a different crew member."
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "apps/frappe/frappe/utils/messages.py", line 159, in throw
+    msgprint(
+    ~~~~~~~~^
+    	msg,
+     ^^^^
+    ...<7 lines>...
+    	allow_dangerous_html=allow_dangerous_html,
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "apps/frappe/frappe/utils/messages.py", line 118, in msgprint
+    _raise_exception()
+    ~~~~~~~~~~~~~~~~^^
+  File "apps/frappe/frappe/utils/messages.py", line 59, in _raise_exception
+    raise exc
+frappe.exceptions.ValidationError: <b>Conflict Detected!</b><br><br>Crew <b>Priya Sharma</b> is already assigned to Slot <b>2026-08-28</b> (2026-08-28 to 2026-09-04).<br><br>A crew member cannot be in two slots at the same time. Please adjust the dates or select a different crew member.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "apps/frappe/frappe/app.py", line 126, in application
+    response = frappe.api.handle(request)
+  File "apps/frappe/frappe/api/__init__.py", line 64, in handle
+    data = endpoint(**arguments)
+  File "apps/frappe/frappe/api/v1.py", line 44, in handle_rpc_call
+    return frappe.handler.handle()
+           ~~~~~~~~~~~~~~~~~~~~~^^
+  File "apps/frappe/frappe/handler.py", line 54, in handle
+    data = execute_cmd(cmd)
+  File "apps/frappe/frappe/handler.py", line 89, in execute_cmd
+    return frappe.call(method, **frappe.form_dict)
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "apps/frappe/frappe/__init__.py", line 1153, in call
+    return fn(*args, **newargs)
+  File "apps/frappe/frappe/utils/typing_validations.py", line 49, in wrapper
+    return func(*args, **kwargs)
+  File "apps/travel_booking/travel_booking/resources_management/api/resources_api.py", line 539, in update_slot_dates
+    frappe.throw(f"Error updating slot dates: {str(e)}")
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "apps/frappe/frappe/utils/messages.py", line 159, in throw
+    msgprint(
+    ~~~~~~~~^
+    	msg,
+     ^^^^
+    ...<7 lines>...
+    	allow_dangerous_html=allow_dangerous_html,
+     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "apps/frappe/frappe/utils/messages.py", line 118, in msgprint
+    _raise_exception()
+    ~~~~~~~~~~~~~~~~^^
+  File "apps/frappe/frappe/utils/messages.py", line 59, in _raise_exception
+    raise exc
+frappe.exceptions.ValidationError: Error updating slot dates: <b>Conflict Detected!</b><br><br>Crew <b>Priya Sharma</b> is already assigned to Slot <b>2026-08-28</b> (2026-08-28 to 2026-09-04).<br><br>A crew member cannot be in two slots at the same time. Please adjust the dates or select a different crew member.
+ @ https://dev.rpwp.my/assets/frappe/dist/js/desk.bundle.COPXI3K7.js:646

@@ -1,0 +1,117 @@
+- generic [ref=f4e1]:
+  - navigation "Workspaces" [ref=f4e5]:
+    - link "Apps" [ref=f4e7] [cursor=pointer]:
+      - /url: /desk
+      - img "Travel Booking Management" [ref=f4e8]
+    - separator [ref=f4e9]
+    - generic [ref=f4e10]:
+      - button "Search" [ref=f4e11] [cursor=pointer]
+      - button "Notifications" [ref=f4e14] [cursor=pointer]
+    - separator [ref=f4e17]
+    - button "Travel Booking" [ref=f4e19] [cursor=pointer]
+    - separator [ref=f4e21]
+    - button "User Menu" [ref=f4e22] [cursor=pointer]:
+      - generic "Warga Prihatin" [ref=f4e23]:
+        - generic "Warga Prihatin" [ref=f4e24]: WP
+  - generic [ref=f4e27]:
+    - generic [ref=f4e28] [cursor=pointer]: Travel Booking Management
+    - generic [ref=f4e32]:
+      - generic "Crew" [ref=f4e33]:
+        - link "Crew" [ref=f4e35] [cursor=pointer]:
+          - /url: /desk/crew
+      - generic "Crew Slot" [ref=f4e37]:
+        - link "Crew Slot" [ref=f4e39] [cursor=pointer]:
+          - /url: /desk/crew-slot
+      - generic "Travel Resources" [ref=f4e41]:
+        - link "Travel Resources" [ref=f4e43] [cursor=pointer]:
+          - /url: /desk/travel-resources
+    - generic [ref=f4e45]:
+      - paragraph
+  - generic [ref=f4e2]:
+    - banner
+    - generic [ref=f4e48]:
+      - generic [ref=f4e52]:
+        - button [ref=f4e53] [cursor=pointer]
+        - list [ref=f4e57]:
+          - listitem [ref=f4e58]:
+            - link "Travel Resources" [ref=f4e59] [cursor=pointer]:
+              - /url: travel-resources
+      - generic [ref=f4e63]:
+        - link "Navigate to main content" [ref=f4e65] [cursor=pointer]
+        - generic [ref=f4e68]:
+          - generic [ref=f4e69]:
+            - heading "🧭 Travel Resources" [level=1] [ref=f4e70]
+            - generic [ref=f4e71]:
+              - button "📊 Gantt Chart" [ref=f4e72] [cursor=pointer]
+              - button "📅 Calendar" [ref=f4e73] [cursor=pointer]
+              - button "📋 List" [ref=f4e74] [cursor=pointer]
+          - generic [ref=f4e75]:
+            - generic [ref=f4e76]:
+              - generic [ref=f4e77]: Active Crew
+              - generic [ref=f4e78]: "4"
+              - generic [ref=f4e79]: Total available crew members
+            - generic [ref=f4e80]:
+              - generic [ref=f4e81]: Total Slots
+              - generic [ref=f4e82]: "3"
+              - generic [ref=f4e83]: All time slots
+            - generic [ref=f4e84]:
+              - generic [ref=f4e85]: Active Now
+              - generic [ref=f4e86]: "1"
+              - generic [ref=f4e87]: Slots currently in progress
+            - generic [ref=f4e88]:
+              - generic [ref=f4e89]: Utilization
+              - generic [ref=f4e90]: 75%
+              - generic [ref=f4e91]: 3 crew assigned today
+          - generic [ref=f4e255]:
+            - generic [ref=f4e256]:
+              - heading "📅 Calendar — Monthly View" [level=3] [ref=f4e257]
+              - generic [ref=f4e258]:
+                - button "‹ Prev" [active] [ref=f4e259] [cursor=pointer]
+                - generic [ref=f4e260]: July 2026
+                - button "Next ›" [ref=f4e261] [cursor=pointer]
+            - generic [ref=f4e369]:
+              - generic [ref=f4e370]: Sun
+              - generic [ref=f4e371]: Mon
+              - generic [ref=f4e372]: Tue
+              - generic [ref=f4e373]: Wed
+              - generic [ref=f4e374]: Thu
+              - generic [ref=f4e375]: Fri
+              - generic [ref=f4e376]: Sat
+              - generic [ref=f4e377]: "28"
+              - generic [ref=f4e379]: "29"
+              - generic [ref=f4e381]: "30"
+              - generic [ref=f4e383]: "1"
+              - generic [ref=f4e385]: "2"
+              - generic [ref=f4e387]: "3"
+              - generic [ref=f4e389]: "4"
+              - generic [ref=f4e391]: "5"
+              - generic [ref=f4e393]: "6"
+              - generic [ref=f4e395]: "7"
+              - generic [ref=f4e397]: "8"
+              - generic [ref=f4e399]: "9"
+              - generic [ref=f4e401]: "10"
+              - generic [ref=f4e403]: "11"
+              - generic [ref=f4e405]: "12"
+              - generic [ref=f4e407]: "13"
+              - generic [ref=f4e409]: "14"
+              - generic [ref=f4e411]: "15"
+              - generic [ref=f4e413]: "16"
+              - generic [ref=f4e415]: "17"
+              - generic [ref=f4e417]: "18"
+              - generic [ref=f4e419]: "19"
+              - generic [ref=f4e421]: "20"
+              - generic [ref=f4e423]: "21"
+              - generic [ref=f4e425]: "22"
+              - generic [ref=f4e427]: "23"
+              - generic [ref=f4e429]: "24"
+              - generic [ref=f4e431]: "25"
+              - generic [ref=f4e433]: "26"
+              - generic [ref=f4e435]: "27"
+              - generic [ref=f4e437]: "28"
+              - generic [ref=f4e439]: "29"
+              - generic [ref=f4e441]: "30"
+              - generic [ref=f4e443]: "31"
+              - generic [ref=f4e445]: "1"
+    - contentinfo
+  - generic:
+    - generic "Show Chats"

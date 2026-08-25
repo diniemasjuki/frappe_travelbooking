@@ -1,0 +1,421 @@
+- generic [active] [ref=f15e1]:
+  - navigation "Workspaces" [ref=f15e2]:
+    - link "Apps" [ref=f15e4] [cursor=pointer]:
+      - /url: /desk
+      - img "Travel Booking Management" [ref=f15e5]
+    - separator [ref=f15e6]
+    - generic [ref=f15e7]:
+      - button "Search" [ref=f15e8] [cursor=pointer]
+      - button "Notifications" [ref=f15e11] [cursor=pointer]
+    - separator [ref=f15e14]
+    - button "Travel Booking" [ref=f15e16] [cursor=pointer]
+    - separator [ref=f15e18]
+    - button "User Menu" [ref=f15e19] [cursor=pointer]:
+      - generic "Warga Prihatin" [ref=f15e20]:
+        - generic "Warga Prihatin" [ref=f15e21]: WP
+  - generic [ref=f15e24]:
+    - generic [ref=f15e25] [cursor=pointer]: Travel Booking Management
+    - generic [ref=f15e29]:
+      - generic "Crew" [ref=f15e30]:
+        - link "Crew" [ref=f15e32] [cursor=pointer]:
+          - /url: /desk/crew
+      - generic "Crew Slot" [ref=f15e34]:
+        - link "Crew Slot" [ref=f15e36] [cursor=pointer]:
+          - /url: /desk/crew-slot
+      - generic "Travel Resources" [ref=f15e38]:
+        - link "Travel Resources" [ref=f15e40] [cursor=pointer]:
+          - /url: /desk/travel-resources
+    - generic [ref=f15e42]:
+      - paragraph
+  - generic [ref=f15e44]:
+    - banner
+    - generic [ref=f15e46]:
+      - generic [ref=f15e50]:
+        - button [ref=f15e51] [cursor=pointer]
+        - list [ref=f15e55]:
+          - listitem [ref=f15e56]:
+            - link "Travel Resources" [ref=f15e57] [cursor=pointer]:
+              - /url: travel-resources
+      - generic [ref=f15e64]:
+        - generic [ref=f15e65]:
+          - heading "🧭 Travel Resources" [level=1] [ref=f15e66]
+          - generic [ref=f15e67]:
+            - button "📊 Gantt" [ref=f15e68] [cursor=pointer]
+            - button "📅 Calendar" [ref=f15e69] [cursor=pointer]
+            - button "📋 List" [ref=f15e70] [cursor=pointer]
+        - generic [ref=f15e71]:
+          - generic [ref=f15e72]:
+            - generic [ref=f15e73]: Active Crew
+            - generic [ref=f15e74]: "4"
+            - generic [ref=f15e75]: Total available crew members
+          - generic [ref=f15e76]:
+            - generic [ref=f15e77]: Total Slots
+            - generic [ref=f15e78]: "4"
+            - generic [ref=f15e79]: All time slots
+          - generic [ref=f15e80]:
+            - generic [ref=f15e81]: Active Now
+            - generic [ref=f15e82]: "1"
+            - generic [ref=f15e83]: Slots currently in progress
+          - generic [ref=f15e84]:
+            - generic [ref=f15e85]: Utilization
+            - generic [ref=f15e86]: 75%
+            - generic [ref=f15e87]: 3 crew assigned today
+        - generic [ref=f15e88]:
+          - generic [ref=f15e89]:
+            - heading "📊 Gantt — Crew Schedule" [level=3] [ref=f15e90]
+            - generic [ref=f15e91]: Drag bar edges to resize · Click bar for details · Click empty area to add slot
+          - generic [ref=f15e559]:
+            - generic [ref=f15e560]:
+              - generic [ref=f15e561]: Crew Member
+              - generic [ref=f15e562]:
+                - generic [ref=f15e563]: Sat22/8
+                - generic [ref=f15e564]: Sun23/8
+                - generic [ref=f15e565]: Mon24/8
+                - generic [ref=f15e566]: Tue25/8
+                - generic [ref=f15e567]: Wed26/8
+                - generic [ref=f15e568]: Thu27/8
+                - generic [ref=f15e569]: Fri28/8
+                - generic [ref=f15e570]: Sat29/8
+                - generic [ref=f15e571]: Sun30/8
+                - generic [ref=f15e572]: Mon31/8
+                - generic [ref=f15e573]: Tue1/9
+                - generic [ref=f15e574]: Wed2/9
+                - generic [ref=f15e575]: Thu3/9
+                - generic [ref=f15e576]: Fri4/9
+                - generic [ref=f15e577]: Sat5/9
+                - generic [ref=f15e578]: Sun6/9
+                - generic [ref=f15e579]: Mon7/9
+                - generic [ref=f15e580]: Tue8/9
+                - generic [ref=f15e581]: Wed9/9
+                - generic [ref=f15e582]: Thu10/9
+                - generic [ref=f15e583]: Fri11/9
+                - generic [ref=f15e584]: Sat12/9
+                - generic [ref=f15e585]: Sun13/9
+                - generic [ref=f15e586]: Mon14/9
+                - generic [ref=f15e587]: Tue15/9
+                - generic [ref=f15e588]: Wed16/9
+                - generic [ref=f15e589]: Thu17/9
+                - generic [ref=f15e590]: Fri18/9
+                - generic [ref=f15e591]: Sat19/9
+                - generic [ref=f15e592]: Sun20/9
+                - generic [ref=f15e593]: Mon21/9
+                - generic [ref=f15e594]: Tue22/9
+                - generic [ref=f15e595]: Wed23/9
+                - generic [ref=f15e596]: Thu24/9
+            - generic [ref=f15e597]:
+              - generic [ref=f15e598]: Co-Captain (3)
+              - generic [ref=f15e599]:
+                - generic [ref=f15e600]:
+                  - generic [ref=f15e601]: John Smith
+                  - generic [ref=f15e602]: Staff · 2 slot(s)
+                - generic "Click empty area to add slot" [ref=f15e603]:
+                  - generic "2026-08-30 (2026-08-30 to 2026-08-30) — Staff — Planned" [ref=f15e638] [cursor=pointer]: 2026-08-30 · Staff
+                  - generic "2026-09-04 (2026-09-04 to 2026-09-08) — Staff — Planned" [ref=f15e642] [cursor=pointer]: 2026-09-04 · Staff
+              - generic [ref=f15e646]:
+                - generic [ref=f15e647]:
+                  - generic [ref=f15e648]: Lim Wei Ming
+                  - generic [ref=f15e649]: Driver · 1 slot(s)
+                - generic "Click empty area to add slot" [ref=f15e650]:
+                  - generic "2026-08-25 (2026-08-25 to 2026-08-27) — Driver — Planned" [ref=f15e685] [cursor=pointer]: 2026-08-25 · Driver
+              - generic [ref=f15e689]:
+                - generic [ref=f15e690]:
+                  - generic [ref=f15e691]: Priya Sharma
+                  - generic [ref=f15e692]: Guide · 1 slot(s)
+                - generic "Click empty area to add slot" [ref=f15e693]:
+                  - generic "2026-09-04 (2026-09-04 to 2026-09-08) — Guide — Planned" [ref=f15e728] [cursor=pointer]: 2026-09-04 · Guide
+            - generic [ref=f15e732]:
+              - generic [ref=f15e733]: Captain (2)
+              - generic [ref=f15e734]:
+                - generic [ref=f15e735]:
+                  - generic [ref=f15e736]: Ahmad Razak
+                  - generic [ref=f15e737]: Tour Leader · 2 slot(s)
+                - generic "Click empty area to add slot" [ref=f15e738]:
+                  - generic "2026-09-04 (2026-09-04 to 2026-09-08) — Tour Leader — Planned" [ref=f15e773] [cursor=pointer]: 2026-09-04 · Tour Leader
+                  - generic "2026-08-25 (2026-08-25 to 2026-08-27) — Tour Leader — Planned" [ref=f15e777] [cursor=pointer]: 2026-08-25 · Tour Leader
+              - generic [ref=f15e781]:
+                - generic [ref=f15e782]:
+                  - generic [ref=f15e783]: Siti Aminah
+                  - generic [ref=f15e784]: Guide · 2 slot(s)
+                - generic "Click empty area to add slot" [ref=f15e785]:
+                  - generic "2026-08-25 (2026-08-25 to 2026-08-27) — Guide — Planned" [ref=f15e820] [cursor=pointer]: 2026-08-25 · Guide
+                  - generic "2026-08-28 (2026-08-28 to 2026-09-04) — Guide — Confirmed" [ref=f15e824] [cursor=pointer]: 2026-08-28 · Guide
+    - contentinfo
+  - generic:
+    - generic "Show Chats"
+  - generic:
+    - generic [ref=f15e358]:
+      - navigation [ref=f15e360]:
+        - generic [ref=f15e361] [cursor=pointer]
+        - generic [ref=f15e364] [cursor=pointer]:
+          - text: August,
+          - generic [ref=f15e365]: "2026"
+        - generic [ref=f15e366] [cursor=pointer]
+      - generic [ref=f15e370]:
+        - generic [ref=f15e371]:
+          - generic [ref=f15e372]: Mo
+          - generic [ref=f15e373]: Tu
+          - generic [ref=f15e374]: We
+          - generic [ref=f15e375]: Th
+          - generic [ref=f15e376]: Fr
+          - generic [ref=f15e377]: Sa
+          - generic [ref=f15e378]: Su
+        - generic [ref=f15e379]:
+          - generic [ref=f15e380] [cursor=pointer]: "27"
+          - generic [ref=f15e381] [cursor=pointer]: "28"
+          - generic [ref=f15e382] [cursor=pointer]: "29"
+          - generic [ref=f15e383] [cursor=pointer]: "30"
+          - generic [ref=f15e384] [cursor=pointer]: "31"
+          - generic [ref=f15e385] [cursor=pointer]: "1"
+          - generic [ref=f15e386] [cursor=pointer]: "2"
+          - generic [ref=f15e387] [cursor=pointer]: "3"
+          - generic [ref=f15e388] [cursor=pointer]: "4"
+          - generic [ref=f15e389] [cursor=pointer]: "5"
+          - generic [ref=f15e390] [cursor=pointer]: "6"
+          - generic [ref=f15e391] [cursor=pointer]: "7"
+          - generic [ref=f15e392] [cursor=pointer]: "8"
+          - generic [ref=f15e393] [cursor=pointer]: "9"
+          - generic [ref=f15e394] [cursor=pointer]: "10"
+          - generic [ref=f15e395] [cursor=pointer]: "11"
+          - generic [ref=f15e396] [cursor=pointer]: "12"
+          - generic [ref=f15e397] [cursor=pointer]: "13"
+          - generic [ref=f15e398] [cursor=pointer]: "14"
+          - generic [ref=f15e399] [cursor=pointer]: "15"
+          - generic [ref=f15e400] [cursor=pointer]: "16"
+          - generic [ref=f15e401] [cursor=pointer]: "17"
+          - generic [ref=f15e402] [cursor=pointer]: "18"
+          - generic [ref=f15e403] [cursor=pointer]: "19"
+          - generic [ref=f15e404] [cursor=pointer]: "20"
+          - generic [ref=f15e405] [cursor=pointer]: "21"
+          - generic [ref=f15e406] [cursor=pointer]: "22"
+          - generic [ref=f15e407] [cursor=pointer]: "23"
+          - generic [ref=f15e408] [cursor=pointer]: "24"
+          - generic [ref=f15e409] [cursor=pointer]: "25"
+          - generic [ref=f15e410] [cursor=pointer]: "26"
+          - generic [ref=f15e411] [cursor=pointer]: "27"
+          - generic [ref=f15e412] [cursor=pointer]: "28"
+          - generic [ref=f15e413] [cursor=pointer]: "29"
+          - generic [ref=f15e414] [cursor=pointer]: "30"
+          - generic [ref=f15e415] [cursor=pointer]: "31"
+          - generic [ref=f15e416] [cursor=pointer]: "1"
+          - generic [ref=f15e417] [cursor=pointer]: "2"
+          - generic [ref=f15e418] [cursor=pointer]: "3"
+          - generic [ref=f15e419] [cursor=pointer]: "4"
+          - generic [ref=f15e420] [cursor=pointer]: "5"
+          - generic [ref=f15e421] [cursor=pointer]: "6"
+      - generic [ref=f15e422]: Today
+    - generic [ref=f15e424]:
+      - navigation [ref=f15e426]:
+        - generic [ref=f15e427] [cursor=pointer]
+        - generic [ref=f15e430] [cursor=pointer]:
+          - text: August,
+          - generic [ref=f15e431]: "2026"
+        - generic [ref=f15e432] [cursor=pointer]
+      - generic [ref=f15e436]:
+        - generic [ref=f15e437]:
+          - generic [ref=f15e438]: Mo
+          - generic [ref=f15e439]: Tu
+          - generic [ref=f15e440]: We
+          - generic [ref=f15e441]: Th
+          - generic [ref=f15e442]: Fr
+          - generic [ref=f15e443]: Sa
+          - generic [ref=f15e444]: Su
+        - generic [ref=f15e445]:
+          - generic [ref=f15e446] [cursor=pointer]: "27"
+          - generic [ref=f15e447] [cursor=pointer]: "28"
+          - generic [ref=f15e448] [cursor=pointer]: "29"
+          - generic [ref=f15e449] [cursor=pointer]: "30"
+          - generic [ref=f15e450] [cursor=pointer]: "31"
+          - generic [ref=f15e451] [cursor=pointer]: "1"
+          - generic [ref=f15e452] [cursor=pointer]: "2"
+          - generic [ref=f15e453] [cursor=pointer]: "3"
+          - generic [ref=f15e454] [cursor=pointer]: "4"
+          - generic [ref=f15e455] [cursor=pointer]: "5"
+          - generic [ref=f15e456] [cursor=pointer]: "6"
+          - generic [ref=f15e457] [cursor=pointer]: "7"
+          - generic [ref=f15e458] [cursor=pointer]: "8"
+          - generic [ref=f15e459] [cursor=pointer]: "9"
+          - generic [ref=f15e460] [cursor=pointer]: "10"
+          - generic [ref=f15e461] [cursor=pointer]: "11"
+          - generic [ref=f15e462] [cursor=pointer]: "12"
+          - generic [ref=f15e463] [cursor=pointer]: "13"
+          - generic [ref=f15e464] [cursor=pointer]: "14"
+          - generic [ref=f15e465] [cursor=pointer]: "15"
+          - generic [ref=f15e466] [cursor=pointer]: "16"
+          - generic [ref=f15e467] [cursor=pointer]: "17"
+          - generic [ref=f15e468] [cursor=pointer]: "18"
+          - generic [ref=f15e469] [cursor=pointer]: "19"
+          - generic [ref=f15e470] [cursor=pointer]: "20"
+          - generic [ref=f15e471] [cursor=pointer]: "21"
+          - generic [ref=f15e472] [cursor=pointer]: "22"
+          - generic [ref=f15e473] [cursor=pointer]: "23"
+          - generic [ref=f15e474] [cursor=pointer]: "24"
+          - generic [ref=f15e475] [cursor=pointer]: "25"
+          - generic [ref=f15e476] [cursor=pointer]: "26"
+          - generic [ref=f15e477] [cursor=pointer]: "27"
+          - generic [ref=f15e478] [cursor=pointer]: "28"
+          - generic [ref=f15e479] [cursor=pointer]: "29"
+          - generic [ref=f15e480] [cursor=pointer]: "30"
+          - generic [ref=f15e481] [cursor=pointer]: "31"
+          - generic [ref=f15e482] [cursor=pointer]: "1"
+          - generic [ref=f15e483] [cursor=pointer]: "2"
+          - generic [ref=f15e484] [cursor=pointer]: "3"
+          - generic [ref=f15e485] [cursor=pointer]: "4"
+          - generic [ref=f15e486] [cursor=pointer]: "5"
+          - generic [ref=f15e487] [cursor=pointer]: "6"
+      - generic [ref=f15e488]: Today
+    - generic [ref=f15e834]:
+      - navigation [ref=f15e836]:
+        - generic [ref=f15e837] [cursor=pointer]
+        - generic [ref=f15e840] [cursor=pointer]:
+          - text: September,
+          - generic [ref=f15e841]: "2026"
+        - generic [ref=f15e842] [cursor=pointer]
+      - generic [ref=f15e846]:
+        - generic [ref=f15e847]:
+          - generic [ref=f15e848]: Mo
+          - generic [ref=f15e849]: Tu
+          - generic [ref=f15e850]: We
+          - generic [ref=f15e851]: Th
+          - generic [ref=f15e852]: Fr
+          - generic [ref=f15e853]: Sa
+          - generic [ref=f15e854]: Su
+        - generic [ref=f15e855]:
+          - generic [ref=f15e856] [cursor=pointer]: "31"
+          - generic [ref=f15e857] [cursor=pointer]: "1"
+          - generic [ref=f15e858] [cursor=pointer]: "2"
+          - generic [ref=f15e859] [cursor=pointer]: "3"
+          - generic [ref=f15e860] [cursor=pointer]: "4"
+          - generic [ref=f15e861] [cursor=pointer]: "5"
+          - generic [ref=f15e862] [cursor=pointer]: "6"
+          - generic [ref=f15e863] [cursor=pointer]: "7"
+          - generic [ref=f15e864] [cursor=pointer]: "8"
+          - generic [ref=f15e865] [cursor=pointer]: "9"
+          - generic [ref=f15e866] [cursor=pointer]: "10"
+          - generic [ref=f15e867] [cursor=pointer]: "11"
+          - generic [ref=f15e868] [cursor=pointer]: "12"
+          - generic [ref=f15e869] [cursor=pointer]: "13"
+          - generic [ref=f15e870] [cursor=pointer]: "14"
+          - generic [ref=f15e871] [cursor=pointer]: "15"
+          - generic [ref=f15e872] [cursor=pointer]: "16"
+          - generic [ref=f15e873] [cursor=pointer]: "17"
+          - generic [ref=f15e874] [cursor=pointer]: "18"
+          - generic [ref=f15e875] [cursor=pointer]: "19"
+          - generic [ref=f15e876] [cursor=pointer]: "20"
+          - generic [ref=f15e877] [cursor=pointer]: "21"
+          - generic [ref=f15e878] [cursor=pointer]: "22"
+          - generic [ref=f15e879] [cursor=pointer]: "23"
+          - generic [ref=f15e880] [cursor=pointer]: "24"
+          - generic [ref=f15e881] [cursor=pointer]: "25"
+          - generic [ref=f15e882] [cursor=pointer]: "26"
+          - generic [ref=f15e883] [cursor=pointer]: "27"
+          - generic [ref=f15e884] [cursor=pointer]: "28"
+          - generic [ref=f15e885] [cursor=pointer]: "29"
+          - generic [ref=f15e886] [cursor=pointer]: "30"
+          - generic [ref=f15e887] [cursor=pointer]: "1"
+          - generic [ref=f15e888] [cursor=pointer]: "2"
+          - generic [ref=f15e889] [cursor=pointer]: "3"
+          - generic [ref=f15e890] [cursor=pointer]: "4"
+      - generic [ref=f15e891]: Today
+    - generic [ref=f15e893]:
+      - navigation [ref=f15e895]:
+        - generic [ref=f15e896] [cursor=pointer]
+        - generic [ref=f15e899] [cursor=pointer]:
+          - text: September,
+          - generic [ref=f15e900]: "2026"
+        - generic [ref=f15e901] [cursor=pointer]
+      - generic [ref=f15e905]:
+        - generic [ref=f15e906]:
+          - generic [ref=f15e907]: Mo
+          - generic [ref=f15e908]: Tu
+          - generic [ref=f15e909]: We
+          - generic [ref=f15e910]: Th
+          - generic [ref=f15e911]: Fr
+          - generic [ref=f15e912]: Sa
+          - generic [ref=f15e913]: Su
+        - generic [ref=f15e914]:
+          - generic [ref=f15e915] [cursor=pointer]: "31"
+          - generic [ref=f15e916] [cursor=pointer]: "1"
+          - generic [ref=f15e917] [cursor=pointer]: "2"
+          - generic [ref=f15e918] [cursor=pointer]: "3"
+          - generic [ref=f15e919] [cursor=pointer]: "4"
+          - generic [ref=f15e920] [cursor=pointer]: "5"
+          - generic [ref=f15e921] [cursor=pointer]: "6"
+          - generic [ref=f15e922] [cursor=pointer]: "7"
+          - generic [ref=f15e923] [cursor=pointer]: "8"
+          - generic [ref=f15e924] [cursor=pointer]: "9"
+          - generic [ref=f15e925] [cursor=pointer]: "10"
+          - generic [ref=f15e926] [cursor=pointer]: "11"
+          - generic [ref=f15e927] [cursor=pointer]: "12"
+          - generic [ref=f15e928] [cursor=pointer]: "13"
+          - generic [ref=f15e929] [cursor=pointer]: "14"
+          - generic [ref=f15e930] [cursor=pointer]: "15"
+          - generic [ref=f15e931] [cursor=pointer]: "16"
+          - generic [ref=f15e932] [cursor=pointer]: "17"
+          - generic [ref=f15e933] [cursor=pointer]: "18"
+          - generic [ref=f15e934] [cursor=pointer]: "19"
+          - generic [ref=f15e935] [cursor=pointer]: "20"
+          - generic [ref=f15e936] [cursor=pointer]: "21"
+          - generic [ref=f15e937] [cursor=pointer]: "22"
+          - generic [ref=f15e938] [cursor=pointer]: "23"
+          - generic [ref=f15e939] [cursor=pointer]: "24"
+          - generic [ref=f15e940] [cursor=pointer]: "25"
+          - generic [ref=f15e941] [cursor=pointer]: "26"
+          - generic [ref=f15e942] [cursor=pointer]: "27"
+          - generic [ref=f15e943] [cursor=pointer]: "28"
+          - generic [ref=f15e944] [cursor=pointer]: "29"
+          - generic [ref=f15e945] [cursor=pointer]: "30"
+          - generic [ref=f15e946] [cursor=pointer]: "1"
+          - generic [ref=f15e947] [cursor=pointer]: "2"
+          - generic [ref=f15e948] [cursor=pointer]: "3"
+          - generic [ref=f15e949] [cursor=pointer]: "4"
+      - generic [ref=f15e950]: Today
+  - text: "* * *"
+  - dialog [ref=f15e953]:
+    - generic [ref=f15e954]:
+      - generic [ref=f15e955]:
+        - heading "New Crew Slot" [level=4] [ref=f15e957]
+        - button "Close" [ref=f15e959] [cursor=pointer]
+      - generic [ref=f15e967]:
+        - generic [ref=f15e968]:
+          - generic [ref=f15e969]:
+            - generic [ref=f15e970]: Slot Name *
+            - generic [ref=f15e972]:
+              - textbox [ref=f15e974]: 2026-09-01
+              - generic [ref=f15e975]: Unique name for this slot
+          - generic: slot_name
+        - generic [ref=f15e976]:
+          - generic [ref=f15e977]:
+            - generic [ref=f15e978]: Start Date *
+            - textbox [ref=f15e982]: 01-09-2026
+          - generic: start_date
+        - generic [ref=f15e983]:
+          - generic [ref=f15e984]:
+            - generic [ref=f15e985]: End Date *
+            - textbox [ref=f15e989]: 01-09-2026
+          - generic: end_date
+        - generic [ref=f15e990]:
+          - generic [ref=f15e991]:
+            - generic [ref=f15e992]: Crew
+            - generic [ref=f15e994]: John Smith
+          - generic: crew_display
+        - generic [ref=f15e996]:
+          - generic [ref=f15e997]:
+            - generic [ref=f15e998]: Role in Slot
+            - combobox [ref=f15e1002]:
+              - option "Tour Leader"
+              - option "Driver"
+              - option "Guide"
+              - option "Staff"
+              - option "Other"
+          - generic: role_in_slot
+        - generic [ref=f15e1003]:
+          - generic [ref=f15e1004]:
+            - generic [ref=f15e1005]: Max Crew
+            - textbox [ref=f15e1009]: "1"
+          - generic: max_crew
+        - generic [ref=f15e1010]:
+          - generic [ref=f15e1011]:
+            - generic [ref=f15e1012]: Notes
+            - textbox [ref=f15e1016]
+          - generic: notes
+      - button "Create Slot" [ref=f15e1019] [cursor=pointer]
