@@ -1,1 +1,189 @@
-{"actions": [], "allow_copy": 1, "allow_import": 1, "allow_rename": 1, "autoname": "prompt", "creation": "2026-08-25 10:00:00", "default_view": "List", "description": "Time slot for crew allocation, can be linked to Trip Group Date", "doctype": "DocType", "editable_grid": 1, "engine": "InnoDB", "field_order": ["slot_details_section", "start_date", "end_date", "column_break_slot1", "max_crew", "current_crew", "status_section", "status", "column_break_slot2", "trip_link_section", "trip_group_date", "trip_name", "allocations_section", "crew_allocations", "notes_section", "notes"], "fields": [{"fieldname": "slot_details_section", "fieldtype": "Section Break", "label": "Slot Details"}, {"fieldname": "start_date", "fieldtype": "Date", "in_list_view": 1, "in_standard_filter": 1, "label": "Start Date", "reqd": 1}, {"fieldname": "end_date", "fieldtype": "Date", "in_list_view": 1, "in_standard_filter": 1, "label": "End Date", "reqd": 1}, {"fieldname": "column_break_slot1", "fieldtype": "Column Break"}, {"fieldname": "max_crew", "fieldtype": "Int", "default": "1", "label": "Maximum Crew", "non_negative": 1}, {"fieldname": "current_crew", "fieldtype": "Int", "label": "Current Crew Count", "read_only": 1}, {"fieldname": "status_section", "fieldtype": "Section Break", "label": "Status"}, {"fieldname": "status", "fieldtype": "Select", "default": "Planned", "in_list_view": 1, "in_standard_filter": 1, "label": "Status", "options": "Planned\nConfirmed\nCancelled\nCompleted"}, {"fieldname": "column_break_slot2", "fieldtype": "Column Break"}, {"fieldname": "trip_link_section", "fieldtype": "Section Break", "label": "Trip Link (Optional)"}, {"fieldname": "trip_group_date", "fieldtype": "Link", "label": "Trip Group Date", "options": "Trip Group Date", "search_index": 1}, {"fieldname": "trip_name", "fieldtype": "Data", "fetch_from": "trip_group_date.trip_name", "label": "Trip Name", "read_only": 1}, {"fieldname": "allocations_section", "fieldtype": "Section Break", "label": "Crew Allocations"}, {"fieldname": "crew_allocations", "fieldtype": "Table", "label": "Crew Allocations", "options": "Crew Allocation"}, {"fieldname": "notes_section", "fieldtype": "Section Break", "label": "Additional Notes"}, {"fieldname": "notes", "fieldtype": "Text", "label": "Notes", "reqd": 1}], "index_web_pages_for_search": 1, "links": [], "modified": "2026-08-25 10:00:00", "modified_by": "Administrator", "module": "Resources Management", "name": "Crew Slot", "owner": "Administrator", "permissions": [{"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "Tour Manager", "share": 1, "write": 1}, {"create": 1, "delete": 0, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "Tour Operator", "share": 1, "write": 1}], "sort_field": "start_date", "sort_order": "ASC", "states": []}
+{
+ "actions": [],
+ "allow_copy": 1,
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "prompt",
+ "creation": "2026-08-25 10:00:00",
+ "default_view": "List",
+ "description": "Time slot for crew allocation, can be linked to Trip Group Date",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "slot_details_section",
+  "start_date",
+  "end_date",
+  "column_break_slot1",
+  "max_crew",
+  "current_crew",
+  "column_break_ykpy",
+  "status",
+  "notes_section",
+  "notes",
+  "trip_link_section",
+  "trip_group_date",
+  "column_break_slot2",
+  "trip_name",
+  "trip_departure",
+  "trip_return",
+  "occupancy",
+  "allocations_section",
+  "crew_allocations"
+ ],
+ "fields": [
+  {
+   "fieldname": "slot_details_section",
+   "fieldtype": "Section Break",
+   "label": "Slot Details"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "End Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_slot1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "max_crew",
+   "fieldtype": "Int",
+   "label": "Maximum Crew",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "current_crew",
+   "fieldtype": "Int",
+   "label": "Current Crew Count",
+   "read_only": 1
+  },
+  {
+   "default": "Planned",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Planned\nConfirmed\nCancelled\nCompleted"
+  },
+  {
+   "fieldname": "column_break_slot2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "trip_link_section",
+   "fieldtype": "Section Break",
+   "label": "Trip Link (Optional)"
+  },
+  {
+   "fieldname": "trip_group_date",
+   "fieldtype": "Link",
+   "label": "Trip Group Date",
+   "options": "Trip Group Date",
+   "search_index": 1
+  },
+  {
+   "fetch_from": "trip_group_date.trip_name",
+   "fieldname": "trip_name",
+   "fieldtype": "Data",
+   "label": "Trip Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "allocations_section",
+   "fieldtype": "Section Break",
+   "label": "Crew Allocations"
+  },
+  {
+   "fieldname": "crew_allocations",
+   "fieldtype": "Table",
+   "label": "Crew Allocations",
+   "options": "Crew Allocation"
+  },
+  {
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break",
+   "label": "Additional Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_ykpy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip_group_date.departure_date",
+   "fieldname": "trip_departure",
+   "fieldtype": "Data",
+   "label": "Trip Departure",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "trip_group_date.return_date",
+   "fieldname": "trip_return",
+   "fieldtype": "Data",
+   "label": "Trip Return",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "trip_group_date.current_participants",
+   "fieldname": "occupancy",
+   "fieldtype": "Int",
+   "label": "Occupancy"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-25 12:54:43.531961",
+ "modified_by": "Administrator",
+ "module": "Resources Management",
+ "name": "Crew Slot",
+ "naming_rule": "Set by user",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "start_date",
+ "sort_order": "ASC",
+ "states": []
+}

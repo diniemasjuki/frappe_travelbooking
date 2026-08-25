@@ -6,6 +6,29 @@ from datetime import datetime, timedelta
 
 
 class CrewSlot(Document):
+    # begin: auto-generated types
+    # This code is auto-generated. Do not modify anything in this block.
+
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from frappe.types import DF
+        from travel_booking.resources_management.doctype.crew_allocation.crew_allocation import CrewAllocation
+
+        crew_allocations: DF.Table[CrewAllocation]
+        current_crew: DF.Int
+        end_date: DF.Date
+        max_crew: DF.Int
+        notes: DF.SmallText
+        occupancy: DF.Int
+        start_date: DF.Date
+        status: DF.Literal["Planned", "Confirmed", "Cancelled", "Completed"]
+        trip_departure: DF.Data | None
+        trip_group_date: DF.Link | None
+        trip_name: DF.Data | None
+        trip_return: DF.Data | None
+    # end: auto-generated types
+
     def validate(self):
         """Main validation entry point"""
         self.validate_dates()

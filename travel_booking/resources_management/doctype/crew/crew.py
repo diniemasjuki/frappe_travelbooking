@@ -3,6 +3,26 @@ from frappe.model.document import Document
 
 
 class Crew(Document):
+    # begin: auto-generated types
+    # This code is auto-generated. Do not modify anything in this block.
+
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        from frappe.types import DF
+
+        crew_name: DF.Data
+        department: DF.Literal["Operations", "Transport", "Hospitality"]
+        email: DF.Data | None
+        grade: DF.Literal["Captain", "Co-Captain"]
+        notes: DF.SmallText | None
+        phone: DF.Phone | None
+        photo: DF.AttachImage | None
+        role_position: DF.Literal["Tour Leader", "Chief Journey", "Driver", "Guide", "Staff", "Other"]
+        status: DF.Literal["Active", "Inactive", "On Leave"]
+        user: DF.Link | None
+    # end: auto-generated types
+
     def validate(self):
         """Validate crew record before save"""
         self.validate_email()
