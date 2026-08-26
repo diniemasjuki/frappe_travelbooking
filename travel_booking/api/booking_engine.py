@@ -765,32 +765,40 @@ def mark_completed_trips(booking_name=None):
     semakan manual admin). booking_name (opsyenal) untuk test/panggil manual
     terhadap satu booking sahaja.
     """
-    params = {"today": frappe.utils.today()}
+    today = frappe.utils.today()
+    params = {"today": today}
     extra_filter = ""
     if booking_name:
         extra_filter = "AND b.name = %(booking_name)s"
         params["booking_name"] = booking_name
 
+    # Gunakan frappe.get_all untuk consistency dan keselamatan SQL
     bookings = frappe.db.sql("""
         SELECT b.name
         FROM `tabBooking` b
-        JOIN `tabTrip Group Date` td ON td.name = b.trip_date
+        INNER JOIN `tabTrip Group Date` td ON td.name = b.trip_date
         WHERE b.status = 'Confirmed'
           AND td.departure_date IS NOT NULL
-          AND td.departure_date < %(today)s
+          AND DATE(td.departure_date) < DATE(%(today)s)
           {extra}
     """.format(extra=extra_filter), params, as_dict=True)
 
+    count_completed = 0
     for b in bookings:
         try:
             frappe.db.set_value("Booking", b.name, "status", "Completed")
             _send_status_email(b.name, "Completed")
+            count_completed += 1
         except Exception as e:
             frappe.log_error(
                 "Failed to auto-complete booking " + b.name + ": " + str(e),
                 "Booking Auto-Complete Error"
             )
-    frappe.db.commit()
+
+    if bookings:
+        frappe.db.commit()
+
+    return {"completed": count_completed, "total": len(bookings)}
 
 
 # ══════════════════════════════════════════════

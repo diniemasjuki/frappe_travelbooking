@@ -419,10 +419,13 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
         company = so.company or frappe.db.get_single_value("Global Defaults", "default_company")
         paid_to = None
         travel_settings = frappe.get_cached_doc("Travel Settings")
+
         for row in (travel_settings.get("currency_accounts") or []):
+
             if row.currency == so.currency and row.manual_transfer_paid_to_account:
                 paid_to = row.manual_transfer_paid_to_account
                 break
+
         if not paid_to:
             frappe.log_error(
                 "Manual Transfer paid_to account not configured for currency '" +
@@ -431,10 +434,9 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
                 "Travel Settings > Multi Currency Account.",
                 "Manual Transfer - Currency Account Missing"
             )
-            paid_to = frappe.db.get_value("Account",
-                {"account_type": "Bank", "company": company, "is_group": 0}, "name")
-        party_account = get_party_account("Customer", customer_name, company)
 
+        paid_to = frappe.db.get_value("Account",{"account_type": "Bank", "company": company, "is_group": 0}, "name")
+        party_account = get_party_account("Customer", customer_name, company)
         pe = frappe.new_doc("Payment Entry")
         pe.payment_type    = "Receive"
         pe.company         = company
@@ -454,8 +456,8 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
             "allocated_amount":  float(amount),
         })
         pe.remarks = "Manual transfer (booking) for " + so_name + \
-                     (". Ref: " + bank_transfer_ref if bank_transfer_ref else "") + \
-                     ". Pending verification."
+        (". Ref: " + bank_transfer_ref if bank_transfer_ref else "") + \
+        ". Pending verification."
         pe.insert(ignore_permissions=True)
 
         if receipt_data:
@@ -470,15 +472,9 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
                     ext = ".png"
                 receipt_data = receipt_data.split(",")[1]
             file_content = base64.b64decode(receipt_data)
-            frappe.get_doc({
-                "doctype":             "File",
-                "file_name":           label + ext,
-                "attached_to_doctype": "Payment Entry",
-                "attached_to_name":    pe.name,
-                "is_private":          1,
-                "content":             file_content
-            }).insert(ignore_permissions=True)
-	        return pe.name
+            frappe.get_doc({ "doctype": "File", "file_name": label + ext, "attached_to_doctype": "Payment Entry", "attached_to_name":    pe.name, "is_private": 1, "content": file_content }).insert(ignore_permissions=True)
+            return pe.name
+
 	except Exception as e:
 	    # FIXED: Propagate error — resit pembayaran manual pelanggan HILANG jika di-silent
 	    # Caller (confirm_booking) patut throw supaya customer tahu perlu retry
@@ -487,6 +483,7 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
 	        _("Failed to save your payment receipt. Please try again or contact support. ({0})").format(str(e)),
 	        title="Payment Recording Failed"
 	    )
+
 	finally:
         frappe.set_user(original_user)
 
