@@ -257,9 +257,13 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # FIXED: Pastikan delivery_date tidak kurang dari hari ini (same-day booking)
     if td.departure_date:
         calculated_delivery = frappe.utils.add_days(td.departure_date, -1)
-        today = frappe.utils.today()
+        # frappe.utils.today() returns string 'YYYY-MM-DD', convert to date for comparison
+        today_str = frappe.utils.today()
+        today_date = datetime.date(
+            int(today_str[:4]), int(today_str[5:7]), int(today_str[8:10])
+        )
         # Delivery date mesti >= hari ini (elak "before SO date" error ERPNext)
-        delivery_date = max(calculated_delivery, today)
+        delivery_date = max(calculated_delivery, today_date)
     else:
         delivery_date = frappe.utils.today()
 
