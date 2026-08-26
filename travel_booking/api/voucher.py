@@ -258,22 +258,45 @@ def _release_voucher_for_booking(booking_name):
 
 def _use_voucher(code, customer_name, booking_name, discount_amount=0):
     """Rekod penggunaan voucher — cipta rekod BAHARU di doctype standalone
-    'Voucher Usage' (bukan append ke child table lagi). Row-lock pada
-    Voucher (FOR UPDATE) DIKEKALKAN sebagai mekanisme SERIALIZATION —
-    walaupun kita tak load/ubah/save dokumen Voucher itu sendiri lagi,
-    lock ni tetap perlu untuk elak race condition: dua booking guna kod
-    yang sama hampir serentak, kedua-dua check max_usage LULUS sebelum
-    mana-mana sempat rekod usage, jadi both proceed dan usage_count
-    akhirnya melebihi max_usage. Lock paksa request kedua tunggu sehingga
-    request pertama selesai (commit), baru boleh teruskan — insert
-    berlaku SELEPAS lock diperoleh, dalam transaksi yang sama.
+    'Voucher Usage' (bukan append ke child table lagi).
+
+    SECURITY FIX (v2): Re-check max_usage INSIDE the FOR UPDATE lock.
+    Sebelum ni, check max_usage berlaku di validate_voucher() SEBELUM lock —
+    dua concurrent booking boleh lulus check serentak, kemudian both insert
+    → over-redemption. Sekarang recount INSIDE lock sebelum insert.
     """
     try:
         code = (code or "").strip().upper()
         voucher_name = frappe.db.get_value("Voucher", {"voucher_code": code}, "name")
         if not voucher_name:
             return None, None
+
+        # Lock Voucher row untuk serialize concurrent usage
         frappe.db.sql("SELECT name FROM `tabVoucher` WHERE name = %s FOR UPDATE", voucher_name)
+
+        # ══════════════════════════════════════════════
+        # SECURITY: Re-check limits INSIDE the lock (TOCTOU fix)
+        # ══════════════════════════════════════════════
+        voucher = frappe.db.get_value(
+            "Voucher", voucher_name,
+            ["max_usage", "max_usage_per_customer"], as_dict=True
+        )
+
+        # Check global max_usage
+        if voucher and voucher.max_usage:
+            current_usage = frappe.db.count("Voucher Usage", {"voucher": voucher_name})
+            if current_usage >= int(voucher.max_usage):
+                frappe.throw(_("This voucher has reached its maximum usage. Please try another."))
+
+        # Check per-customer limit
+        if voucher and voucher.max_usage_per_customer and customer_name:
+            customer_usage = frappe.db.count(
+                "Voucher Usage", {"voucher": voucher_name, "customer": customer_name}
+            )
+            if customer_usage >= int(voucher.max_usage_per_customer):
+                frappe.throw(_("You have already used this voucher. Please try another."))
+
+        # All checks passed — insert usage record
         usage_doc = frappe.get_doc({
             "doctype":         "Voucher Usage",
             "voucher":         voucher_name,
@@ -283,6 +306,9 @@ def _use_voucher(code, customer_name, booking_name, discount_amount=0):
         })
         usage_doc.insert(ignore_permissions=True)
         return voucher_name, usage_doc.name
+    except frappe.exceptions.ValidationError:
+        # Re-throw validation errors (max_usage exceeded)
+        raise
     except Exception as e:
         frappe.log_error("Voucher usage tracking failed: " + str(e), "Voucher Error")
         return None, None

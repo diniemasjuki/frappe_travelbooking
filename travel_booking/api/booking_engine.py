@@ -158,12 +158,19 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # Peraturan: max_participants == 0 -> UNLIMITED (overbooking dibenarkan,
     # sesuai cruise tanpa had tempat duduk tetap). max_participants > 0 ->
     # jumlah pax SEMUA booking tak-cancelled untuk tarikh ni + booking semasa
-    # TIDAK boleh melebihi max. Kiraan guna 'booked_pax' (stored, di-set masa
-    # confirm_booking) BUKAN current_participants (yang kira Booking Reservation
-    # Confirmed = bayaran dah masuk sahaja — lewat lag realiti, booking Pending
-    # tak kelihatan, bolehi overbooking senyap).
+    # TIDAK boleh melebihi max.
+    #
+    # SECURITY FIX (v2): Gunakan SELECT ... FOR UPDATE untuk lock row Trip Group Date
+    # sebelum check — elak race condition (TOCTOU) di mana dua request serentak
+    # membaca existing_pax yang sama, kedua-dua lulus check, dan overbooking berlaku.
     max_pax = int(td.max_participants or 0)
     if max_pax > 0:
+        # Lock Trip Group Date row untuk serialise concurrent bookings
+        frappe.db.sql("""
+            SELECT name FROM `tabTrip Group Date`
+            WHERE name = %s FOR UPDATE
+        """, trip_group_date)
+
         existing_pax = frappe.db.sql("""
             SELECT COALESCE(SUM(b.booked_pax), 0)
             FROM `tabBooking` b
@@ -246,8 +253,13 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # Delivery Date = sehari SEBELUM tarikh berlepas — SO "kena complete"
     # (dari segi expected fulfilment ERPNext) sebelum trip bermula. Fallback
     # ke hari ini kalau departure_date somehow kosong (elak SO gagal insert).
+    #
+    # FIXED: Pastikan delivery_date tidak kurang dari hari ini (same-day booking)
     if td.departure_date:
-        delivery_date = frappe.utils.add_days(td.departure_date, -1)
+        calculated_delivery = frappe.utils.add_days(td.departure_date, -1)
+        today = frappe.utils.today()
+        # Delivery date mesti >= hari ini (elak "before SO date" error ERPNext)
+        delivery_date = max(calculated_delivery, today)
     else:
         delivery_date = frappe.utils.today()
 
@@ -372,17 +384,29 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # dari grand_total, jadi guna grand_total terus tanpa fallback.
     grand_total = float(so.grand_total or 0)
 
-    # Deposit calc
-    if amount_paid is not None:
-        amount_paid = float(amount_paid)
+    # ══════════════════════════════════════════════
+    # SECURITY FIX (v2): Deposit calc server-side sahaja
+    # amount_paid dari client DIABAIKAN — compute deposit dari settings
+    # ══════════════════════════════════════════════
     default_deposit_percent = float(settings.default_deposit_percent or 20)
     std_deposit    = round(grand_total * (default_deposit_percent / 100), 2)
-    deposit_amount = amount_paid if amount_paid is not None else (std_deposit if payment_type == "Deposit" else grand_total)
 
-    if amount_paid is not None and abs(amount_paid - grand_total) < 0.01:
-        payment_type = "Full Payment"
-    elif amount_paid is not None:
-        payment_type = "Deposit"
+    # Ignore client-supplied amount_paid — compute server-side based on payment_type
+    if payment_type == "Deposit":
+        deposit_amount = std_deposit
+    else:
+        deposit_amount = grand_total  # Full Payment
+
+    # Validate: deposit mesti antara min_deposit dan grand_total
+    if deposit_amount < std_deposit and abs(deposit_amount - grand_total) > 0.01:
+        frappe.throw(
+            _("Minimum deposit is {0}% ({1}) of total ({2}).").format(
+                default_deposit_percent,
+                frappe.utils.fmt_currency(std_deposit),
+                frappe.utils.fmt_currency(grand_total)
+            ),
+            title="Invalid Payment Amount"
+        )
 
     # Semua booking mula sebagai "Pending" (belum bayar langsung). Bila
     # bayaran PERTAMA masuk (Partially Paid atau Paid), status auto-tukar

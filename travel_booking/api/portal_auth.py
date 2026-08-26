@@ -218,9 +218,23 @@ def set_password(key: str, email: str, new_password: str):
     if not user:
         frappe.throw("This link has expired or is invalid. Please request a new link.")
 
+    # ══════════════════════════════════════════════
+    # SECURITY FIX (v2): Check token expiry (24 jam)
+    # ══════════════════════════════════════════════
+    key_issued = frappe.db.get_value("User", user, "reset_password_key_issued_at")
+    if key_issued:
+        from datetime import datetime, timedelta
+        issued_time = isinstance(key_issued, datetime) and key_issued or frappe.utils.get_datetime(key_issued)
+        if (frappe.utils.now() - issued_time) > timedelta(hours=24):
+            frappe.db.set_value("User", user, {"reset_password_key": "", "reset_password_key_issued_at": None})
+            frappe.throw(
+                "This link has expired (24-hour limit). Please request a new link.",
+                title="Link Expired"
+            )
+
     from frappe.utils.password import update_password
     update_password(user, new_password)
-    frappe.db.set_value("User", user, "reset_password_key", "")
+    frappe.db.set_value("User", user, {"reset_password_key": "", "reset_password_key_issued_at": None})
     frappe.db.commit()
     return {"status": "ok", "message": "Password set successfully. Please log in."}
 
@@ -250,7 +264,11 @@ def forgot_password(email: str):
         return {"status": "ok", "message": "If this email is registered, a link will be sent."}
 
     reset_key = frappe.generate_hash(length=32)
-    frappe.db.set_value("User", user, "reset_password_key", reset_key)
+    # Store timestamp for expiry check (24 jam)
+    frappe.db.set_value("User", user, {
+        "reset_password_key": reset_key,
+        "reset_password_key_issued_at": frappe.utils.now()
+    })
 
     from travel_booking.api.booking import get_site_url
     site_url   = get_site_url()
@@ -322,6 +340,9 @@ def send_magic_link_by_email(email: str):
 
     first_name = frappe.db.get_value("User", user, "first_name") or "Customer"
 
+    # SECURITY: Escape HTML entities — elak injection melalui nama pengguna
+    safe_first_name = frappe.utils.escape_html(first_name)
+
     frappe.sendmail(
         recipients=[email],
         # Sender TIDAK di-hardcode — rujuk nota di forgot_password().
@@ -329,7 +350,7 @@ def send_magic_link_by_email(email: str):
         message="""
             <div style="font-family:'DM Sans',sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
                 <p style="font-size:15px;font-weight:500;color:#1E1C18;margin-bottom:8px">
-                    Hi """ + first_name + """,
+                    Hi """ + safe_first_name + """,
                 </p>
                 <p style="font-size:14px;color:#5C5850;margin-bottom:24px;line-height:1.6">
                     Click the button below to sign in to your Rarecation portal.
@@ -466,15 +487,15 @@ def _record_login_audit(email: str):
 def signup(full_name: str, email: str, password: str):
     """Self-serve signup untuk portal /traveller.
 
-    Model authorization: role "Customer" hanya diberi jika email ni
-    ada rekod Booking (cust_email). Kalau tiada booking, akaun dicipta
-    TANPA role — status "under review" sehingga user buat booking
-    pertama (booking flow akan assign role via _ensure_portal_user).
+    SECURITY FIX (v2): Akaun dicipta sebagai DISABLED dahulu.
+    Role Customer HANYA diberi selepas pengesahan email (verification link).
+    Ini mencegah account takeover — attacker tak boleh daftar dengan email
+    orang lain dan dapat akses portal serta-merta.
 
-    Customer + Contact TIDAK dicipta di sini — ia dicipta semasa
-    booking flow (_create_customer dalam so_helpers.py). Jika user
-    dah ada booking, Customer sudah wujud dan get_customer_by_email
-    akan jumpa ia melalui Contact/Dynamic Link.
+    Aliran baru:
+      1. Cipta User (enabled=0, tiada role)
+      2. Hantar verification link ke email
+      3. User klik link → verify_signup() mengaktifkan akaun + assign role (jika ada booking)
     """
     frappe.flags.ignore_permissions = True
 
@@ -486,23 +507,30 @@ def signup(full_name: str, email: str, password: str):
         frappe.throw("Please fill in all fields.")
     if len(password) < 8:
         frappe.throw("Password must be at least 8 characters.")
+
+    # SECURITY: Jangan bocorkan sama ada email sudah berdaftar (user enumeration)
     if frappe.db.exists("User", email):
-        frappe.throw(
-            "An account with this email already exists. "
-            "Please sign in instead."
-        )
+        # Return generic message seolah-olah berjaya — elak enumeration
+        return {
+            "status":        "verification_pending",
+            "email":         email,
+            "message":       (
+                "If this email is registered, you will receive a verification link. "
+                "Please check your inbox (and spam folder)."
+            ),
+        }
 
     name_parts = full_name.split()
     first_name = name_parts[0] if name_parts else "Customer"
     last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
 
-    # Cipta User TANPA role — role Customer hanya diberi jika booking wujud
+    # Cipta User DISABLED — belum boleh login lagi
     new_user = frappe.get_doc({
         "doctype":            "User",
         "email":              email,
         "first_name":         first_name,
         "last_name":          last_name,
-        "enabled":            1,
+        "enabled":            0,  # DISABLED sehingga email disahkan
         "user_type":          "Website User",
         "send_welcome_email": 0,
         "new_password":       password,
@@ -510,28 +538,110 @@ def signup(full_name: str, email: str, password: str):
     new_user.flags.ignore_permissions = True
     new_user.insert()
 
-    # Semak jika email ni ada booking — guna cust_email snapshot field
-    if _email_has_booking(email):
-        # Booking wujud → assign role Customer → portal access
-        new_user.append("roles", {"role": "Customer"})
-        new_user.flags.ignore_permissions = True
-        new_user.save()
-        frappe.db.commit()
-        return {
-            "status":        "ok",
-            "role_assigned": True,
-            "email":         email,
-            "message":       "Account created! Redirecting to your bookings...",
-        }
+    # Jana verification token dan hantar email
+    verification_key = frappe.generate_hash(length=40)
+    frappe.db.set_value("User", email, "reset_password_key", verification_key)
 
-    # Tiada booking → akaun under review, tiada role diberi
+    from travel_booking.api.booking import get_site_url
+    site_url = get_site_url()
+    verify_link = (
+        site_url
+        + "/api/method/travel_booking.api.portal_auth.verify_signup?"
+        + "key=" + verification_key
+        + "&email=" + email
+    )
+
+    # Hantar verification email
+    frappe.sendmail(
+        recipients=[email],
+        subject="Rarecation Portal — Verify Your Email",
+        message="""
+            <div style="font-family:'DM Sans',sans-serif;max-width:480px;margin:0 auto;padding:32px 24px">
+                <p style="font-size:15px;font-weight:500;color:#1E1C18;margin-bottom:8px">
+                    Welcome to Rarecation, """ + frappe.utils.escape_html(first_name) + """!
+                </p>
+                <p style="font-size:14px;color:#5C5850;margin-bottom:24px;line-height:1.6">
+                    Please verify your email address to activate your account.
+                </p>
+                <p style="margin-bottom:32px">
+                    <a href=\"""" + verify_link + """\"
+                       style="display:inline-block;background:#D4A312;color:#1E1C18;
+                              font-weight:600;font-size:14px;padding:12px 28px;
+                              border-radius:8px;text-decoration:none">
+                        Verify Email &rarr;
+                    </a>
+                </p>
+                <p style="font-size:12px;color:#B0AC9F;line-height:1.6">
+                    If you did not create an account, please ignore this email.<br>
+                    This link expires in 24 hours.
+                </p>
+            </div>
+        """,
+        now=True
+    )
+
     frappe.db.commit()
+
     return {
-        "status":        "ok",
-        "role_assigned": False,
+        "status":        "verification_pending",
         "email":         email,
         "message":       (
-            "Your account is under review. "
-            "Portal access is granted after your first booking."
+            "Account created! Please check your email to verify and activate your account. "
+            "(Check spam folder if not received within 5 minutes.)"
+        ),
+    }
+
+
+@frappe.whitelist(allow_guest=True)
+def verify_signup(key: str, email: str):
+    """Verify email ownership dan aktifkan akaun signup.
+
+    Dipanggil bila user klik verification link dalam email.
+    - Enable User
+    - Assign role Customer JIKA ada booking dengan cust_email ini
+    - Padam verification key (one-time use)
+    """
+    if not key or not email:
+        frappe.throw("Invalid verification link.")
+
+    email = email.strip().lower()
+
+    user = frappe.db.get_value(
+        "User",
+        {"email": email, "reset_password_key": key},
+        "name"
+    )
+    if not user:
+        frappe.throw(
+            "This verification link has expired or is invalid. "
+            "Please sign up again.",
+            title="Verification Failed"
+        )
+
+    # Aktifkan akaun
+    frappe.db.set_value("User", user, "enabled", 1)
+
+    # Padam verification key (one-time use)
+    frappe.db.set_value("User", user, "reset_password_key", "")
+
+    # Assign role Customer jika ada booking
+    role_assigned = False
+    if _email_has_booking(email):
+        user_doc = frappe.get_doc("User", user)
+        user_doc.append("roles", {"role": "Customer"})
+        user_doc.flags.ignore_permissions = True
+        user_doc.save()
+        role_assigned = True
+
+    frappe.db.commit()
+
+    return {
+        "status":        "ok",
+        "role_assigned": role_assigned,
+        "email":         email,
+        "message":       (
+            "Email verified! Your account is now active. "
+            ("You can now log in to the portal." if not role_assigned else
+             "Welcome! Redirecting to your bookings...")
         ),
     }

@@ -184,8 +184,10 @@ class Trip(Document):
 		styles = []
 		if self.is_a_cruise_trip:
 			styles.append({"name": "Cruise"})
-		if self.trip_categories:
-			styles.append({"name": self.trip_categories})
+		# FIXED: guna getattr — field trip_categories mungkin tiada dalam schema lama
+		trip_cat = getattr(self, 'trip_categories', None)
+		if trip_cat:
+			styles.append({"name": trip_cat})
 		context.travel_styles = styles
 
 		# Related tours — sama trip_categories, isi dgn trip lain jika kurang.
@@ -196,7 +198,8 @@ class Trip(Document):
 
 	def _related_tours(self, limit=3):
 		"""Return list of related trip dicts with complete card data."""
-		cat = self.trip_categories
+		# FIXED: guna getattr — field trip_categories mungkin tiada dalam schema lama
+		cat = getattr(self, 'trip_categories', None)
 		rows: list = []
 
 		# 1. Main query - same category

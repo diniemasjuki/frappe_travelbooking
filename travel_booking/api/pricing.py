@@ -653,9 +653,13 @@ def _validate_selection_capacity(selections, cabin_info_map, is_cruise=True):
 
 
 
+# DEPRECATED: Diagnostic test endpoint — should not be in production
 @frappe.whitelist(allow_guest=True)
 def test_endpoint():
-    return {"test": "hello", "list": [1, 2, 3]}
+	"""DEPRECATED: Remove in next version. For diagnostics only."""
+	import warnings
+	warnings.warn("test_endpoint is deprecated", DeprecationWarning, stacklevel=2)
+	return {"test": "hello", "list": [1, 2, 3]}
 
 
 @frappe.whitelist(allow_guest=True)

@@ -38,5 +38,6 @@ class Voucher(Document):
 	def before_insert(self):
 		self.validate()
 
-	def before_update(self):
+	# FIXED: before_update() bukan hook Frappe yang sah — guna before_save()
+	def before_save(self):
 		self.validate()

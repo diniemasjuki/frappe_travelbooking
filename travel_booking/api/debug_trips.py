@@ -1,7 +1,7 @@
 # Debug endpoint untuk check apa yang dikembalikan oleh get_trips_list
 import frappe
 
-@frappe.whitelist()
+@frappe.whitelist(roles=["System Manager", "Tour Manager"])
 def debug_trip_names():
 	"""
 	Return raw trip names dari database untuk diagnosis.

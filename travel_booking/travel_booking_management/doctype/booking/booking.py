@@ -197,3 +197,14 @@ class Booking(Document):
 	@property
 	def pending_pax(self):
 		return frappe.db.count("Booking Reservation", {"booking": self.name, "status": "Confirmed", "document_status": "Pending"})
+
+	def on_trash(self):
+		"""Padam Booking Reservations berkaitan bila Booking dipadam — elak data yatim."""
+		frappe.db.delete("Booking Reservation", {"booking": self.name})
+
+		# Padam Voucher Usage records (release voucher)
+		for vu in frappe.get_all("Voucher Usage", {"booking": self.name}, pluck="name"):
+			try:
+				frappe.delete_doc("Voucher Usage", vu, ignore_permissions=True)
+			except Exception:
+				pass

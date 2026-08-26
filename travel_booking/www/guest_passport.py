@@ -13,7 +13,8 @@
 
 import frappe
 
-from travel_booking.www.traveller_portal._guard import get_query_param
+# FIXED: Import dari path yang betul (traveller, bukan traveller_portal)
+from travel_booking.www.traveller._guard import get_query_param
 
 
 def get_context(context):

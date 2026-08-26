@@ -3,7 +3,7 @@
 
 import frappe
 
-@frappe.whitelist()
+@frappe.whitelist(roles=["System Manager", "Tour Manager"])
 def check_data():
 	"""
 	Check jika Trip, Trip Group Date, dan Trip Package ada data dan connect.

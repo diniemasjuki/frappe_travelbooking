@@ -24,21 +24,13 @@ from travel_booking.api.so_helpers import (
 # ══════════════════════════════════════════════
 
 def get_site_url():
-    """Domain untuk pautan emel — DINAMIK ikut domain sebenar customer guna
-    untuk buat request (test.rpwp.my atau dev.rpwp.my — dua-dua hala ke
-    site Frappe yang SAMA, sengaja tak override site_config.json punya
-    'host_name' supaya migration/deployment site tak terjejas).
+    """Domain untuk pautan emel.
 
-    Dipanggil dari konteks request customer sebenar (contoh: confirm_booking,
-    forgot_password) -> guna domain request tu terus (frappe.local.request.host).
-    Dipanggil dari konteks TANPA request customer (contoh: webhook Stripe —
-    request datang dari Stripe, bukan browser customer; scheduled task;
-    bench console) -> fallback ke frappe.utils.get_url() biasa (guna
-    site_config.json punya host_name).
+    SECURITY FIX (v2): Guna frappe.utils.get_url() (site_config) sebagai default.
+    Elak host-header poisoning — attacker boleh spoof Host header untuk inject
+    domain berbahaya ke dalam link reset password.
     """
-    if getattr(frappe.local, "request", None) and frappe.local.request.host:
-        protocol = "https://" if frappe.get_request_header("X-Forwarded-Proto", "") == "https" else "http://"
-        return protocol + frappe.local.request.host
+    # Selalu guna site config URL — lebih selamat dari request.host
     return frappe.utils.get_url()
 
 

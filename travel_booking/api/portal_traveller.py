@@ -406,9 +406,14 @@ def save_booking_traveller(booking_number: str, slot_name: str,
 
     frappe.db.commit()
 
-    total_slots  = frappe.db.count("Booking Reservation", {"booking": booking_number})
+    # FIXED: Gunakan booking name dari slot (docname), bukan booking_number (RC code)
+    # Booking Reservation.booking menyimpan docname (BK-...), bukan RC code
+    slot_doc = frappe.get_doc("Booking Reservation", slot_name)
+    actual_booking_name = slot_doc.booking
+
+    total_slots  = frappe.db.count("Booking Reservation", {"booking": actual_booking_name})
     filled_count = frappe.db.count("Booking Reservation", {
-        "booking":   booking_number,
+        "booking":   actual_booking_name,
         "traveller": ["!=", ""]
     })
 

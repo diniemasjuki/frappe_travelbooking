@@ -642,17 +642,17 @@ def get_trip_detail(trip_name: str) -> dict:
 	starting_from_price = float(sp[0][0]) if sp and sp[0][0] else None
 
 	# --- destinasi: join child destination_list -> master ---
-	dest_rows = frappe.db.sql(
-		"""
-		SELECT dp.name, dp.destination_name, dp.destination_country
-		FROM `tabTrip Destination Point Select` sel
-		JOIN `tabTrip Destination Point` dp ON dp.name = sel.select_destination_point
-		WHERE sel.parent = %(t)s AND sel.parenttype = 'Trip'
-		ORDER BY dp.destination_name
-		""",
-		{"t": trip_name},
-			as_dict=True,
-		)
+		dest_rows = frappe.db.sql(
+			"""
+			SELECT dp.name, dp.destination_name, dp.destination_country
+			FROM `tabTrip Destination Point Select` sel
+			JOIN `tabTrip Destination Point` dp ON dp.name = sel.select_destination_point
+			WHERE sel.parent = %(t)s AND sel.parenttype = 'Trip'
+			ORDER BY sel.idx
+			""",
+			{"t": trip_name},
+				as_dict=True,
+			)
 	destinations = [
 		{
 			"name": r.name,

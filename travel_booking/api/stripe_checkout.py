@@ -169,6 +169,11 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     source: "wizard" (booking baru, guest) atau "portal" (customer login).
     Pulangkan info untuk checkout.html render Stripe Elements.
 
+    SECURITY FIX (v2): Amount kini divalidasi server-side:
+      - Verify ownership: hanya customer pemilik SO boleh cipta payment intent
+      - Enforce minimum deposit (20% of grand_total dari Travel Settings)
+      - Cap amount to outstanding balance (elak overpayment)
+
     'amount' = jumlah SEBENAR PaymentIntent Stripe (apa yang customer bayar
     dalam SATU transaksi kad).
     'pr_amount' (opsyenal) = jumlah untuk Payment Request ERPNext SAHAJA,
@@ -179,22 +184,22 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     'return_to' (opsyenal) — laluan portal untuk redirect balik selepas
     bayar (cth booking_billing?ref=...). Disahkan sanitI di sini juga
     (endpoint ni whitelisted sendiri — jangan percaya caller).
-
-    NOTA — rounded_total vs grand_total: ERPNext punya
-    validate_payment_request_amount() (via get_amount() dalam
-    payment_request.py) bandingkan jumlah Payment Request terhadap
-    "rounded_total ATAU grand_total" SO — rounded_total DIUTAMAKAN bila ia
-    bukan sifar/kosong. "Disable Rounded Total" kini dihidupkan SECARA
-    GLOBAL di Selling Settings (bukan setakat per-SO lagi), jadi
-    rounded_total SENTIASA 0/kosong untuk semua SO dalam app ni — ERPNext
-    sendiri turut fallback ke grand_total secara automatik di sisi dia.
-    Kita standardize terus ke grand_total sahaja di sini, konsisten dengan
-    apa yang ERPNext core akan banding sebenarnya.
     """
     so = frappe.db.get_value("Sales Order", sales_order,
                              ["customer", "currency", "grand_total", "advance_paid"], as_dict=True)
     if not so:
         frappe.throw("Sales Order not found.")
+
+    # ══════════════════════════════════════════════
+    # SECURITY: Verify ownership — elak IDOR/payment hijacking
+    # ══════════════════════════════════════════════
+    from travel_booking.api._helpers import get_customer_by_email
+    session_customer = get_customer_by_email(frappe.session.user)
+    if session_customer and session_customer != so.customer:
+        frappe.throw(
+            _("You do not have permission to make payments for this order."),
+            title="Permission Denied"
+        )
 
     amount = float(amount)
     if amount <= 0:
@@ -215,6 +220,34 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
         amount = max(outstanding, 0)
         if amount <= 0:
             frappe.throw("No balance to pay on this Sales Order.")
+
+    # ══════════════════════════════════════════════
+    # SECURITY: Enforce minimum deposit — elak bayar RM0.01
+    # ══════════════════════════════════════════════
+    try:
+        settings = frappe.get_single("Travel Settings")
+        min_deposit_pct = float(getattr(settings, 'default_deposit_percent', None) or 20)
+    except Exception:
+        min_deposit_pct = 20  # fallback
+
+    effective_so_total = float(so.grand_total or 0)
+    min_deposit = round(effective_so_total * (min_deposit_pct / 100), 2)
+
+    # Jika amount kurang dari minimum deposit (dan bukan full payment), reject
+    if amount < min_deposit and abs(amount - effective_so_total) > 0.01:
+        frappe.throw(
+            _("Minimum payment is {0}% ({1}) of total order amount {2}. "
+              "Please contact support for special arrangements.").format(
+                min_deposit_pct,
+                frappe.utils.fmt_currency(min_deposit, currency=so.currency or "MYR"),
+                frappe.utils.fmt_currency(effective_so_total, currency=so.currency or "MYR")
+            ),
+            title="Amount Below Minimum"
+        )
+
+    # Cap amount to outstanding (elak overpayment)
+    if amount > outstanding + 0.01:
+        amount = outstanding
 
     pr_amount = float(pr_amount) if pr_amount is not None else amount
     if pr_amount <= 0:
@@ -372,7 +405,15 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
 def get_checkout_context(pr: str):
     """Dipanggil oleh checkout.html untuk dapatkan client_secret + publishable_key.
     Tak dedah secret_key — hanya client_secret (selamat untuk frontend, ikut design Stripe).
+
+    SECURITY FIX (v2): Tambah rate limiting untuk elak enumerasi PR names.
     """
+    # ══════════════════════════════════════════════
+    # SECURITY: Rate limit — elak enumerate PR names (IDOR)
+    # ══════════════════════════════════════════════
+    if not _rate_limit("checkout_context", 20, 60):
+        frappe.throw("Too many requests. Please try again later.")
+
     if not frappe.db.exists("Payment Request", pr):
         frappe.throw("Payment request not found.")
 

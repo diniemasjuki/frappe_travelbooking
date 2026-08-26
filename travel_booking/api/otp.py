@@ -5,8 +5,9 @@
 # jadi rate limiting adalah kritikal (rujuk komen di send_otp()).
 
 import frappe
-import random
+import secrets  # SECURITY: guna secrets, bukan random (CSPRNG)
 import string
+import hmac
 
 from travel_booking.api._helpers import get_customer_by_email, get_customer_phone
 
@@ -60,21 +61,12 @@ def send_otp(email: str):
     # wujud tapi orang tu tak pernah verify email ni sendiri, jadi tak
     # patut skip OTP.
     if frappe.db.exists("User", email):
-        # Ambil nama & phone customer SEDIA ADA supaya frontend boleh
-        # auto-fill + lock field Full Name/Phone Number sekali (bukan
-        # cuma email) — elak customer perlu taip semula maklumat yang
-        # sistem SEBENARNYA dah ada untuk mereka.
-        full_name = ""
-        phone     = ""
-        customer_name = get_customer_by_email(email)
-        if customer_name:
-            full_name = frappe.db.get_value("Customer", customer_name, "customer_name") or ""
-            phone     = get_customer_phone(customer_name) or ""
+        # SECURITY FIX (v2): Jangan bocorkan PII (nama, telefon)
+        # Return generic message — elak user enumeration
         return {
             "verified":  True,
-            "message":   "Email verified.",
-            "full_name": full_name,
-            "phone":     phone,
+            "message":   "Email already registered. Please sign in instead.",
+            # PII fields REMOVED for security
         }
 
     # ── Rate limiting — elak spam/abuse hantar OTP berulang-ulang ──
@@ -109,7 +101,8 @@ def send_otp(email: str):
     settings = frappe.get_cached_doc("Travel Settings")
     otp_expiry_minutes = int(settings.otp_expiry_minutes or 10)
 
-    otp = ''.join(random.choices(string.digits, k=6))
+    # SECURITY: guna secrets.choice (CSPRNG), bukan random.choices (Mersenne Twister)
+    otp = ''.join(secrets.choice(string.digits) for _ in range(6))
     frappe.cache().set_value("booking_otp_" + email, otp,
                              expires_in_sec=otp_expiry_minutes * 60)
 
@@ -166,13 +159,37 @@ def verify_otp(email: str, otp: str):
 
     if not stored:
         frappe.throw("OTP has expired. Please request a new one.")
-    if stored != otp.strip():
-        frappe.throw("Invalid OTP. Please try again.")
+
+    # ══════════════════════════════════════════════
+    # SECURITY FIX (v2): Rate limit verify attempts
+    # ══════════════════════════════════════════════
+    attempt_key = "otp_verify_attempts_" + email
+    attempts = int(frappe.cache().get_value(attempt_key) or 0)
+    MAX_ATTEMPTS = 5
+
+    if attempts >= MAX_ATTEMPTS:
+        # Padam OTP — lock out after max attempts
+        frappe.cache().delete_value(cache_key)
+        frappe.throw(
+            "Too many failed attempts. Please request a new OTP.",
+            title="OTP Locked"
+        )
+
+    # SECURITY: guna hmac.compare_digest (constant-time), bukan != (timing attack)
+    if not hmac.compare_digest(stored.encode(), otp.strip().encode()):
+        # Increment failed attempt counter
+        frappe.cache().set_value(attempt_key, str(attempts + 1), expires_in_sec=600)  # 10 min lock
+        frappe.throw("Invalid OTP. Please try again. ({0} of {1} attempts remaining)".format(
+            MAX_ATTEMPTS - attempts - 1, MAX_ATTEMPTS
+        ))
+
+    # Success — padam attempt counter & OTP
+    frappe.cache().delete_value(attempt_key)
+    frappe.cache().delete_value(cache_key)
 
     settings = frappe.get_cached_doc("Travel Settings")
     session_minutes = int(settings.email_verified_session_minutes or 30)
 
-    frappe.cache().delete_value(cache_key)
     frappe.cache().set_value(
         "booking_email_verified_" + email, True, expires_in_sec=session_minutes * 60
     )
