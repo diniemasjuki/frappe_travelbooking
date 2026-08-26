@@ -1,9 +1,0 @@
-- generic [active] [ref=f9e1]:
-  - generic [ref=f9e2]:
-    - banner
-    - generic [ref=f9e4]:
-      - generic:
-        - paragraph
-    - contentinfo
-  - generic:
-    - generic "Show Chats"
