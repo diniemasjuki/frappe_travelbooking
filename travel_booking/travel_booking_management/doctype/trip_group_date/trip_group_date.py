@@ -61,6 +61,7 @@ class TripGroupDate(Document):
 
 
 		"""
+		JANGAN USIK
 		Setting kalau trip ini CRUISE ONLY:
 		DEPARTURE DATE akan SAMA dengan SAILING START 
 		"""
@@ -69,7 +70,6 @@ class TripGroupDate(Document):
 				self.departure_date = self.sailing_start
 			if self.sailing_end:
 				self.return_date = self.sailing_end
-
 
 		""" 
 		Convert Date Format into string-to-time format for logical processing
@@ -82,7 +82,6 @@ class TripGroupDate(Document):
 			departure_date = getdate(self.departure_date)			
 		if self.return_date:
 			return_date = getdate(self.return_date)
-
 
 		"""
 		Date validation process 
@@ -108,28 +107,32 @@ class TripGroupDate(Document):
 			if sailing_end > return_date:
 				frappe.throw("RETURN DATE must earlier then SAILING END DATE" )
 
+		"""
+		JANGAN USIK
+		"""
+		# this is for FLY CRUISE trip = group title use sailing date
+		if (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (not self.is_cruise_only or self.is_cruise_only == 0):
+			self.trip_group_name = str(self.departure_date) + (" : " + self.trip or "") + " : Fly Cruise"
+			self.trip_group_code = (str(self.departure_date) + ":" + self.trip + ":" + "FC").replace("-", "")
 
-		# -- trip group name
+		# this is for CRUISE ONLY trip
+		elif (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (self.is_cruise_only is True or self.is_cruise_only == 1):
+			self.trip_group_name = str(self.sailing_start) + (" : " + self.trip or "") + " : Cruise Only"
+			self.trip_group_code = (str(self.sailing_start) + ":" + self.trip + ":" + "CO").replace("-", "")
 
-			# this is for FLY CRUISE trip = group title use sailing date
-			if (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (not self.is_cruise_only or self.is_cruise_only == 0):
-				self.trip_group_name = str(self.departure_date) + (" : " + self.trip or "") + " : Fly Cruise"
-				self.trip_group_code = (str(self.departure_date) + ":" + self.trip + ":" + "FC").replace("-", "")
+		# this is for RARECATION / NON-CRUISE trip
+		else:
+			self.trip_group_name = str(self.departure_date) + (" : " + self.trip or "") + (" : " + self.name or "")
+			self.trip_group_code = (str(self.departure_date) + ":" + self.trip + ":" + self.name).replace("-", "")
 
-			# this is for CRUISE ONLY trip
-			elif (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (self.is_cruise_only is True or self.is_cruise_only == 1):
-				self.trip_group_name = str(self.sailing_start) + (" : " + self.trip or "") + " : Cruise Only"
-				self.trip_group_code = (str(self.sailing_start) + ":" + self.trip + ":" + "CO").replace("-", "")
+		"""
+		JANGAN USIK - TAMAT
+		"""
 
-			# this is for RARECATION / NON-CRUISE trip
-			else:
-				self.trip_group_name = str(self.departure_date) + (" : " + self.trip or "") + (" : " + self.name or "")
-				self.trip_group_code = (str(self.departure_date) + ":" + self.trip + ":" + self.name).replace("-", "")
-
-			# ============================================================
-			# AUTO-STATUS HOOK: Update status berdasarkan business rules
-			# ============================================================
-			self._auto_update_status()
+		# ============================================================
+		# AUTO-STATUS HOOK: Update status berdasarkan business rules
+		# ============================================================
+		self._auto_update_status()
 
 
 
