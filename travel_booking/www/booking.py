@@ -46,3 +46,15 @@ def get_context(context):
     context.csrf_token = (
         frappe.sessions.get_csrf_token() if frappe.session.user != "Guest" else ""
     )
+
+    # User info untuk detect post-OAuth login (Google Sign-In auto-verify)
+    # Hanya diisi bila session authenticated — JS guna ni utk skip OTP
+    if frappe.session.user and frappe.session.user != "Guest":
+        context.user = {
+            "email":     frappe.session.user,
+            "full_name": frappe.db.get_value("User", frappe.session.user, "full_name") or "",
+            "first_name": frappe.db.get_value("User", frappe.session.user, "first_name") or "",
+            "last_name":  frappe.db.get_value("User", frappe.session.user, "last_name") or "",
+        }
+    else:
+        context.user = None

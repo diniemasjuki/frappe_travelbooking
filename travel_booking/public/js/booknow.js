@@ -1906,15 +1906,51 @@ if (step1NextEl) step1NextEl.addEventListener("click", function() {
   showStep(2);
 });
 
-	// ─── STEP 2: BILLING + OTP ────────────────────────────────
-	var step2BackEl = document.getElementById("bnwStep2Back");
+		// ─── STEP 2: BILLING + OTP ────────────────────────────────
+	var step2BackEl = document.getElementById("bnwStep2Back") || document.getElementById("step2Back");
 	if (step2BackEl) step2BackEl.addEventListener("click", function() { showStep(1); });
 
-	var emailInput   = document.getElementById("bnwBillingEmail");
-	var emailStatus  = document.getElementById("bnwEmailStatus");
-	var otpInline    = document.getElementById("bnwOtpInline");
-	var otpInput     = document.getElementById("bnwOtpInput");
-	var step2NextBtn = document.getElementById("bnwStep2Next");
+	var emailInput   = document.getElementById("bnwBillingEmail") || document.getElementById("billingEmail");
+	var emailStatus  = document.getElementById("bnwEmailStatus") || document.getElementById("emailStatus");
+	var otpInline    = document.getElementById("bnwOtpInline") || document.getElementById("otpInline");
+	var otpInput     = document.getElementById("bnwOtpInput") || document.getElementById("otpInput");
+	var step2NextBtn = document.getElementById("bnwStep2Next") || document.getElementById("step2Next");
+
+	// ─── TRIP DETAILS BUTTON (Step 2 + Step 3) ─────────────────
+	// "Back to Product Info" — navigate ke trip detail page tanpa hilang wizard state.
+	// User boleh resume booking bila balik (state disimpan dalam localStorage).
+	function initProductInfoButtons() {
+	  var tripInfoBtns = [
+		document.getElementById("step2ProductInfo"),
+		document.getElementById("step3ProductInfo")
+	  ];
+
+	  tripInfoBtns.forEach(function(btn) {
+		if (!btn) return;
+
+		// Set href ke trip detail page berdasarkan trip_master semasa
+		btn.addEventListener("click", function(e) {
+		  e.preventDefault();
+
+		  // Simpan wizard state SEBELUM pergi ke product page
+		  saveState();
+
+		  // Bina URL ke trip detail page (/trips/<trip_name>)
+		  var tripName = state.trip_master || "";
+		  if (tripName) {
+			// Tambah query param supaya tahu user datang dari wizard
+			var productUrl = "/trips/" + encodeURIComponent(tripName);
+			window.location.href = productUrl;
+		  } else {
+			// Fallback: pergi ke trips listing kalau tiada trip selected
+			window.location.href = "/trips";
+		  }
+		});
+	  });
+	}
+
+	// Panggil selepas DOM ready
+	initProductInfoButtons();
 
 	function setEmailStatus(type, msg) {
 	  if (!emailStatus) return;
@@ -2095,8 +2131,92 @@ if (resendOtpEl) resendOtpEl.addEventListener("click", async function() {
     document.getElementById("bnwOtpNoticeText").textContent =
       (e && e.message) ? e.message : "Failed to resend OTP. Please try again.";
 	  }
-  hideLoading();
-}); // end if (resendOtpEl)
+	  hideLoading();
+	}); // end if (resendOtpEl)
+
+// ══════════════════════════════════════════════
+// GOOGLE SIGN-IN (Social Login — faster & more secure than OTP)
+// ══════════════════════════════════════════════
+var googleSignInBtn = document.getElementById("googleSignInBtn");
+if (googleSignInBtn) googleSignInBtn.addEventListener("click", async function() {
+  showLoading("Connecting to Google...");
+  try {
+    // Simpan wizard state SEBELUM redirect supaya tak hilang bila user balik
+    saveState();
+
+    // Dapatkan OAuth URL dari server (include redirect back to booking page)
+    var currentUrl = window.location.pathname + window.location.search;
+    var result = await apiCall(
+      "travel_booking.api.portal_auth.get_google_login_url",
+      { redirect_to: currentUrl },
+      true  // GET
+    );
+
+    if (result && result.url) {
+      // Redirect ke Google OAuth — user akan balik sini dengan session aktif
+      window.location.href = result.url;
+    } else {
+      // Fallback: guna return value terus sebagai URL (legacy format)
+      window.location.href = result;
+    }
+  } catch(e) {
+    hideLoading();
+    setEmailStatus("error", '<i class="ti ti-alert-circle"></i> ' +
+      ((e && e.message) ? e.message : "Failed to connect to Google. Please try again."));
+  }
+});
+
+// ─── Check untuk post-OAuth session on page load ──
+// Bila user balik dari Google OAuth redirect, session dah authenticated.
+// Function ni auto-verify email + hide OTP/social login, isi nama dari Frappe User.
+function checkPostGoogleAuth() {
+  // CSRF_TOKEN terisi HANYA bila session authenticated (rujuk www/booking.py)
+  // — ini penanda paling reliable bahawa user baru login via Google/portal.
+  var wasGuest = !CSRF_TOKEN || CSRF_TOKEN === "";
+
+  // Jika pageData ada `user` field dan bukan Guest → user dah login
+  var userData = _data.user || null;
+  var isLoggedIn = userData && userData !== "Guest";
+
+  if (isLoggedIn && state.step >= 1 && !state.otp_verified) {
+    // User baru login via Google tapi belum verify di wizard ni
+    var emailInput = document.getElementById("bnwBillingEmail");
+    var userEmail  = (userData && userData.email) || "";
+
+    // Isi email dari Frappe User kalau field kosong
+    if (emailInput && !emailInput.value.trim() && userEmail) {
+      emailInput.value = userEmail;
+    }
+
+    // Auto-verify — Google OAuth sudah sahkan identiti email
+    state.otp_verified = true;
+
+    // Hide OTP + social login section
+    var otpInline     = document.getElementById("otpInline");
+    var socialSection = document.getElementById("socialLoginSection");
+    if (otpInline) otpInline.style.display = "none";
+    if (socialSection) socialSection.classList.add("verified");
+
+    lockEmailField();
+    setEmailStatus("verified", '<i class="ti ti-circle-check"></i> Verified via Google');
+
+    // Cuba ambil nama dari Frappe User profile
+    if (userData && (userData.full_name || userData.first_name)) {
+      var nameInput = document.getElementById("bnwBillingName");
+      var displayName = userData.full_name ||
+        (userData.first_name + " " + (userData.last_name || "")).trim();
+      if (nameInput && displayName) {
+        nameInput.value    = displayName.toUpperCase();
+        nameInput.readOnly = true;
+      }
+    }
+
+    checkStep2Ready();
+  }
+}
+
+// Panggil check selepas init selesai (delay sedikit pastikan DOM ready)
+setTimeout(checkPostGoogleAuth, 500);
 
 function checkStep2Ready() {
   var nameEl = document.getElementById("bnwBillingName");
@@ -3243,7 +3363,7 @@ async function analyzeReceipt(file) {
   }
 }
 
-document.getElementById("bnwStep3Back").addEventListener("click", function() { showStep(2); });
+(document.getElementById("bnwStep3Back") || document.getElementById("step3Back")).addEventListener("click", function() { showStep(2); });
 
 document.getElementById("bnwPayNowBtn").addEventListener("click", async function() {
   if (!validatePay()) {
