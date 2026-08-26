@@ -478,16 +478,16 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
                 "is_private":          1,
                 "content":             file_content
             }).insert(ignore_permissions=True)
-        return pe.name
+	        return pe.name
 	except Exception as e:
-		# FIXED: Propagate error — resit pembayaran manual pelanggan HILANG jika di-silent
-		# Caller (confirm_booking) patut throw supaya customer tahu perlu retry
-		frappe.log_error("Manual payment entry (booking) failed: " + str(e), "Manual PE Error")
-		frappe.throw(
-			_("Failed to save your payment receipt. Please try again or contact support. ({0})").format(str(e)),
-			title="Payment Recording Failed"
-		)
-    finally:
+	    # FIXED: Propagate error — resit pembayaran manual pelanggan HILANG jika di-silent
+	    # Caller (confirm_booking) patut throw supaya customer tahu perlu retry
+	    frappe.log_error("Manual payment entry (booking) failed: " + str(e), "Manual PE Error")
+	    frappe.throw(
+	        _("Failed to save your payment receipt. Please try again or contact support. ({0})").format(str(e)),
+	        title="Payment Recording Failed"
+	    )
+	finally:
         frappe.set_user(original_user)
 
 
