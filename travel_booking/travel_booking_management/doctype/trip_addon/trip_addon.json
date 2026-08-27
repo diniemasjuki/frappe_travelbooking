@@ -2,48 +2,50 @@
  "actions": [],
  "allow_bulk_edit": 1,
  "allow_rename": 1,
- "autoname": "hash",
+ "autoname": "naming_series:naming_series",
  "creation": "2026-08-09 19:56:48.232385",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "addon_title",
+  "addon_organizer",
   "addon_type",
   "scope",
-  "addon_organizer",
-  "disable",
+  "naming_series",
   "column_break_skiv",
+  "disable",
+  "cover_image",
   "currency",
   "base_price",
-  "section_break_khju",
-  "description",
   "section_break_vigu",
-  "cover_image",
-  "addon_gallery"
+  "addon_gallery",
+  "section_break_khju",
+  "description"
  ],
  "fields": [
   {
    "fieldname": "addon_title",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Addon Title"
+   "label": "Addon Title",
+   "unique": 1
   },
   {
+   "default": "Other",
    "description": "Kategori am untuk laporan/penapisan. Tak menentukan item code SO (item code ditentukan oleh Addon Package/checkout logic, bukan field ini).",
    "fieldname": "addon_type",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Addon Type",
-   "options": "Excursion\nInsurance\nTransfer\nOther",
-   "default": "Other"
+   "options": "Activity\nUpgrade\nTransfer\nOther"
   },
   {
+   "default": "Per Booking",
    "description": "Per Booking: qty di peringkat booking sahaja. Per Pax: perlu di-assign kepada Booking Reservation tertentu (belum disokong penuh di portal, reserved untuk fasa akan datang).",
    "fieldname": "scope",
    "fieldtype": "Select",
    "label": "Scope",
    "options": "Per Booking\nPer Pax",
-   "default": "Per Booking",
    "reqd": 1
   },
   {
@@ -66,10 +68,11 @@
    "description": "Normal Rate Per Person",
    "fieldname": "base_price",
    "fieldtype": "Currency",
+   "hidden": 1,
    "in_list_view": 1,
    "label": "Base Price",
    "non_negative": 1,
-   "options": "doc.currency",
+   "options": "currency.currency",
    "precision": "2"
   },
   {
@@ -82,6 +85,7 @@
    "default": "MYR",
    "fieldname": "currency",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Currency",
    "options": "Currency"
   },
@@ -91,11 +95,13 @@
   },
   {
    "fieldname": "section_break_vigu",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Gallery Photo"
   },
   {
    "fieldname": "addon_gallery",
    "fieldtype": "Attachment Gallery",
+   "label": "Image Gallery",
    "make_attachment_public": 1
   },
   {
@@ -103,6 +109,14 @@
    "fieldtype": "Attach Image",
    "label": "Cover Image",
    "make_attachment_public": 1
+  },
+  {
+   "default": "TADD.YY.MM.##",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Naming Series",
+   "options": "TADD.YY.MM.##"
   }
  ],
  "grid_page_length": 50,
@@ -114,11 +128,11 @@
    "link_fieldname": "addon"
   }
  ],
- "modified": "2026-08-17 10:00:00.000000",
+ "modified": "2026-08-27 08:20:12.744924",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
- "name": "Addon",
- "naming_rule": "Random",
+ "name": "Trip Addon",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
@@ -159,6 +173,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "show_title_field_in_link": 1,
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],

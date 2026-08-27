@@ -5,7 +5,7 @@ import frappe
 from frappe.model.document import Document
 
 
-class AddonPackage(Document):
+class TripAddonPackage(Document):
 	# begin: auto-generated types
 	# This code is auto-generated. Do not modify anything in this block.
 
@@ -16,23 +16,22 @@ class AddonPackage(Document):
 
 		addon: DF.Link
 		addon_title: DF.Data | None
-		current_qty_sold: DF.Int
 		currency: DF.Link | None
+		current_qty_sold: DF.Int
 		fixed_valid_from: DF.Date | None
 		fixed_valid_to: DF.Date | None
 		max_qty_per_booking: DF.Int
 		max_total_qty: DF.Int
 		naming_series: DF.Literal["AP.YY.MM.###"]
-		plan_type: DF.Literal[None]
 		price_override: DF.Currency
 		sales_cutoff_days_before_departure: DF.Int
 		sales_cutoff_enabled: DF.Check
 		status: DF.Literal["Active", "Inactive"]
-		trip_package: DF.Link
+		trip_package: DF.Link | None
 		unit_price: DF.Currency
 		valid_from_offset_days: DF.Int
 		valid_to_offset_days: DF.Int
-		validity_mode: DF.Literal["Same as Trip", "Relative to Departure", "Fixed Dates"]
+		validity_mode: DF.Literal["Same as Trip", "Relative to Departure", "Fixed Dates", "One-Off"]
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Addon Package"
@@ -53,7 +52,7 @@ class AddonPackage(Document):
 		if not self.addon:
 			return
 		addon_currency, addon_base_price = frappe.db.get_value(
-			"Addon", self.addon, ["currency", "base_price"]
+			"Trip Addon", self.addon, ["currency", "base_price"]
 		)
 		self.currency = addon_currency or "MYR"
 		if self.price_override is not None and self.price_override > 0:

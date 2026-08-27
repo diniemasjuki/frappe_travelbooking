@@ -13,10 +13,19 @@
   "basic_info_section",
   "trip",
   "trip_name",
-  "my_url",
-  "column_break_dium",
   "is_a_cruise_trip",
   "is_cruise_only",
+  "column_break_dium",
+  "status",
+  "section_break_kosn",
+  "column_break_hbzc",
+  "trip_group_code",
+  "trip_group_name",
+  "column_break_uyli",
+  "group_organizer",
+  "naming_series",
+  "column_break_cncs",
+  "days_before_closure",
   "section_break_aakd",
   "cuise_schedule_column",
   "cruise_schedule",
@@ -49,19 +58,7 @@
   "column_break_mhqq",
   "current_participants",
   "column_break_dbxx",
-  "available_slots",
-  "section_break_kosn",
-  "column_break_hbzc",
-  "trip_group_code",
-  "trip_group_name",
-  "column_break_uyli",
-  "group_organizer",
-  "naming_series",
-  "column_break_cncs",
-  "status",
-  "days_before_closure",
-  "description_section",
-  "trip_group_description"
+  "available_slots"
  ],
  "fields": [
   {
@@ -79,11 +76,11 @@
    "options": "Active\nFull\nClosed\nCompleted\nPending Review\nCancelled"
   },
   {
+   "default": "7",
    "description": "Bilangan hari sebelum tarikh departure untuk auto-set status sebagai 'Closed'. Default: 7 hari. Isi 0 untuk disable auto-close.",
    "fieldname": "days_before_closure",
    "fieldtype": "Int",
-   "label": "Days Before Auto-Close",
-   "default": "7"
+   "label": "Days Before Auto-Close"
   },
   {
    "fieldname": "column_break_obcw",
@@ -242,19 +239,8 @@
    "set_only_once": 1
   },
   {
-   "fieldname": "trip_group_description",
-   "fieldtype": "Text Editor",
-   "label": "Trip Group Description"
-  },
-  {
    "fieldname": "column_break_cncs",
    "fieldtype": "Column Break"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "description_section",
-   "fieldtype": "Section Break",
-   "label": "Description"
   },
   {
    "fieldname": "trip",
@@ -278,10 +264,13 @@
    "label": "Trip Config"
   },
   {
+   "default": "RC.YY.##",
    "fetch_from": "group_organizer.org_series",
    "fieldname": "naming_series",
    "fieldtype": "Select",
+   "hidden": 1,
    "label": "Naming Series",
+   "options": "RC.YY.##",
    "read_only": 1,
    "reqd": 1,
    "set_only_once": 1
@@ -384,7 +373,6 @@
    "depends_on": "eval:doc.is_a_cruise_trip",
    "fieldname": "section_break_aakd",
    "fieldtype": "Section Break",
-   "hide_border": 1,
    "label": "Select Cruise Schedule"
   },
   {
@@ -424,12 +412,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "my_url",
-   "fieldtype": "Data",
-   "is_virtual": 1,
-   "options": "\"https://trip.rarecation.com?date=\" + doc.name"
-  },
-  {
    "depends_on": "eval:doc.cruise_schedule",
    "fetch_from": "cruise_schedule.schedule_code",
    "fieldname": "cruise_schedule_title",
@@ -442,7 +424,7 @@
  "grid_page_length": 50,
  "is_calendar_and_gantt": 1,
  "links": [],
- "modified": "2026-08-07 11:26:12.979564",
+ "modified": "2026-08-27 07:33:34.432764",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Group Date",

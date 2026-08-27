@@ -5,7 +5,7 @@
 from frappe.model.document import Document
 
 
-class Addon(Document):
+class TripAddon(Document):
 	# begin: auto-generated types
 	# This code is auto-generated. Do not modify anything in this block.
 
@@ -16,13 +16,14 @@ class Addon(Document):
 
 		addon_organizer: DF.Link | None
 		addon_title: DF.Data | None
-		addon_type: DF.Literal["Excursion", "Insurance", "Transfer", "Other"]
+		addon_type: DF.Literal["Activity", "Upgrade", "Transfer", "Other"]
 		base_price: DF.Currency
 		cover_image: DF.AttachImage | None
 		currency: DF.Link | None
 		description: DF.TextEditor | None
 		disable: DF.Check
+		naming_series: DF.Literal["TADD.YY.MM.##"]
 		scope: DF.Literal["Per Booking", "Per Pax"]
 	# end: auto-generated types
 
-	_DOCTYPE_NAME = "Addon"
+	_DOCTYPE_NAME = "TripAddon"

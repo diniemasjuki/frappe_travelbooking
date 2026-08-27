@@ -3,7 +3,7 @@
  "allow_bulk_edit": 1,
  "allow_rename": 1,
  "autoname": "naming_series:naming_series",
- "creation": "2026-08-17 10:00:00.000000",
+ "creation": "2026-08-17 10:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -112,7 +112,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Addon Package",
-   "options": "Addon Package",
+   "options": "Trip Addon Package",
    "reqd": 1,
    "set_only_once": 1
   },
@@ -121,7 +121,7 @@
    "fieldname": "addon",
    "fieldtype": "Link",
    "label": "Addon",
-   "options": "Addon",
+   "options": "Trip Addon",
    "read_only": 1
   },
   {
@@ -160,7 +160,7 @@
   },
   {
    "depends_on": "eval:doc.scope=='Per Pax'",
-   "description": "Wajib diisi kalau Scope = Per Pax (belum disokong penuh di portal — reserved untuk fasa akan datang). Kosong kalau Scope = Per Booking.",
+   "description": "Wajib diisi kalau Scope = Per Pax (belum disokong penuh di portal \u2014 reserved untuk fasa akan datang). Kosong kalau Scope = Per Booking.",
    "fieldname": "booking_reservation",
    "fieldtype": "Link",
    "label": "Booking Reservation",
@@ -199,7 +199,7 @@
    "read_only": 1
   },
   {
-   "description": "Dibekukan waktu baris ini dicipta — perubahan harga Addon Package kemudian TIDAK mempengaruhi baris sedia ada.",
+   "description": "Dibekukan waktu baris ini dicipta \u2014 perubahan harga Addon Package kemudian TIDAK mempengaruhi baris sedia ada.",
    "fieldname": "unit_price",
    "fieldtype": "Currency",
    "label": "Unit Price",
@@ -272,7 +272,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-17 10:00:00.000000",
+ "modified": "2026-08-27 08:58:55.800286",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking Addon",

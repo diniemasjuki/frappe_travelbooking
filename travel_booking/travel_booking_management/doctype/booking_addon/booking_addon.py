@@ -31,6 +31,7 @@ class BookingAddon(Document):
 		sales_order: DF.Link | None
 		scope: DF.Literal["Per Booking", "Per Pax"]
 		status: DF.Literal["Pending", "Confirmed", "Cancelled"]
+		traveller_name: DF.Data | None
 		trip_date: DF.Link | None
 		trip_package: DF.Link | None
 		unit_price: DF.Currency
@@ -66,7 +67,7 @@ class BookingAddon(Document):
 		if not self.addon_package:
 			return
 		ap = frappe.db.get_value(
-			"Addon Package", self.addon_package, ["currency", "unit_price"], as_dict=True
+			"Trip Addon Package", self.addon_package, ["currency", "unit_price"], as_dict=True
 		)
 		if ap:
 			self.currency = ap.currency
@@ -80,7 +81,7 @@ class BookingAddon(Document):
 		if not self.addon_package:
 			return
 		ap = frappe.db.get_value(
-			"Addon Package",
+			"Trip Addon Package",
 			self.addon_package,
 			["validity_mode", "valid_from_offset_days", "valid_to_offset_days",
 			 "fixed_valid_from", "fixed_valid_to"],
@@ -137,7 +138,7 @@ class BookingAddon(Document):
 		if not self.addon_package:
 			return
 		ap = frappe.db.get_value(
-			"Addon Package", self.addon_package, ["max_qty_per_booking", "max_total_qty", "current_qty_sold"],
+			"Trip Addon Package", self.addon_package, ["max_qty_per_booking", "max_total_qty", "current_qty_sold"],
 			as_dict=True,
 		)
 		if not ap:
@@ -174,7 +175,7 @@ class BookingAddon(Document):
 				FROM `tabBooking Addon`
 				WHERE addon_package = %s AND status != 'Cancelled'
 			""", self.addon_package)[0][0]
-			frappe.db.set_value("Addon Package", self.addon_package, "current_qty_sold", sold, update_modified=False)
+			frappe.db.set_value("Trip Addon Package", self.addon_package, "current_qty_sold", sold, update_modified=False)
 
 		if self.addon_order:
 			frappe.get_doc("Booking Addon Order", self.addon_order).recompute_total()

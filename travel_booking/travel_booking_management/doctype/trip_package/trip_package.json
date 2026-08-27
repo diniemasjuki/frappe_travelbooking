@@ -13,13 +13,12 @@
   "section_break_esgt",
   "column_break_eemr",
   "trip_link",
-  "organizer_link",
   "status",
-  "my_url",
+  "organizer_link",
+  "trip_name",
   "column_break_lpvl",
   "image_ydqq",
   "trip_image",
-  "trip_name",
   "section_break_wwby",
   "package_title",
   "package_description",
@@ -33,8 +32,9 @@
   "select_group_by_date",
   "sec_pricing",
   "currency",
+  "import_from_cruise_rate",
   "package_pricing",
-  "import_from_cruise_rate"
+  "price_review_required"
  ],
  "fields": [
   {
@@ -182,19 +182,17 @@
   {
    "default": "MYR",
    "description": "Harga pakej sentiasa disimpan & dimasukkan dalam COMPANY CURRENCY (accounting/SO/Stripe semua company currency). Field ini HANYA hint default paparan converter untuk trip ni di frontend (cth tunjuk SGD sebagai currency paparan utama). Tidak menjejaskan jumlah dicaj.",
-   "fetch_from": "airport_form.currency",
    "fetch_if_empty": 1,
    "fieldname": "currency",
    "fieldtype": "Link",
+   "hidden": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Display Currency (Marketing Hint)",
-   "options": "Currency",
-   "reqd": 0
+   "options": "Currency"
   },
   {
    "default": "0",
-   "depends_on": "eval:doc.price_review_required",
    "description": "Dibenderakan oleh patch migrasi currency: harga pakej ini belum disemak/disemak semula dalam company currency. Booking pada pakej ini dihalang sehingga admin semak harga & uncheck box ini.",
    "fieldname": "price_review_required",
    "fieldtype": "Check",
@@ -232,18 +230,12 @@
    "fieldname": "import_from_cruise_rate",
    "fieldtype": "Button",
    "label": "Import From Cruise Rate"
-  },
-  {
-   "fieldname": "my_url",
-   "fieldtype": "Data",
-   "label": "Booking URL",
-   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "image_field": "trip_image",
  "links": [],
- "modified": "2026-08-13 08:11:14.741788",
+ "modified": "2026-08-27 07:55:53.970502",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Package",

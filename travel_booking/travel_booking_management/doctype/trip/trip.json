@@ -12,38 +12,41 @@
   "information",
   "trip_details_section",
   "trip_name",
-  "column_break_ezze",
   "is_a_cruise_trip",
-  "section_break_bhye",
-  "column_break_exud",
-  "destination_list",
-  "naming_series",
-  "column_break_iimz",
+  "column_break_ezze",
   "status",
   "trip_organizer",
+  "section_break_xajv",
+  "column_break_fkpo",
+  "trip_image",
+  "column_break_jyau",
+  "image_llpz",
+  "naming_series",
   "logo_organizer",
   "logo_organizer_view",
+  "domain",
+  "tab_break_tegv",
   "section_break_hibe",
-  "published",
   "column_break_cahp",
   "title",
   "route",
-  "section_break_xmds",
-  "column_break_fkpo",
-  "trip_image",
-  "image_llpz",
-  "column_break_hapi",
-  "attachment_gallery_okqc",
-  "video_url",
+  "column_break_dsrv",
+  "published",
   "content_section",
+  "destination_list",
   "description",
-  "itinerary_section",
-  "itinerary",
+  "section_break_xmds",
+  "column_break_hapi",
+  "video_url",
+  "attachment_gallery_okqc",
   "content_extra_section",
   "highlights",
   "features",
   "faqs",
-  "facilities"
+  "facilities",
+  "itinerary_section",
+  "itinerary",
+  "connection_tab"
  ],
  "fields": [
   {
@@ -75,8 +78,10 @@
    "options": "Pending Review\nActive\nCompleted\nCancelled"
   },
   {
+   "collapsible": 1,
    "fieldname": "content_section",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Destination & Description"
   },
   {
    "fieldname": "description",
@@ -100,10 +105,6 @@
    "label": "is a Cruise Trip"
   },
   {
-   "fieldname": "column_break_exud",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "information",
    "fieldtype": "HTML",
    "label": "Information",
@@ -116,10 +117,10 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Trip Organizer",
+   "link_filters": "[[\"Trip Organizer\",\"is_a_cruise_line\",\"=\",0]]",
    "options": "Trip Organizer",
    "remember_last_selected_value": 1,
-   "reqd": 1,
-   "set_only_once": 1
+   "reqd": 1
   },
   {
    "default": "/assets/travel_booking/img/defaultaroya.jpg",
@@ -134,6 +135,7 @@
    "options": "trip_image"
   },
   {
+   "collapsible": 1,
    "fieldname": "section_break_xmds",
    "fieldtype": "Section Break",
    "label": "Gallery Media"
@@ -147,7 +149,7 @@
   {
    "description": "YouTube URL untuk embed di page detail. Contoh: https://www.youtube.com/watch?v=VIDEO_ID atau https://youtu.be/VIDEO_ID",
    "fieldname": "video_url",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "label": "Video URL (YouTube)"
   },
   {
@@ -167,7 +169,6 @@
    "fieldname": "route",
    "fieldtype": "Data",
    "label": "Route",
-   "read_only": 1,
    "unique": 1
   },
   {
@@ -184,6 +185,7 @@
    "label": "published"
   },
   {
+   "collapsible": 1,
    "fieldname": "itinerary_section",
    "fieldtype": "Section Break",
    "label": "Itinerary"
@@ -195,6 +197,7 @@
    "options": "Trip Itinerary"
   },
   {
+   "collapsible": 1,
    "fieldname": "content_extra_section",
    "fieldtype": "Section Break",
    "label": "Extra Features"
@@ -228,14 +231,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "column_break_iimz",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "section_break_bhye",
-   "fieldtype": "Section Break"
-  },
-  {
    "fieldname": "column_break_ezze",
    "fieldtype": "Column Break"
   },
@@ -247,15 +242,46 @@
    "fetch_from": "trip_organizer.org_logo",
    "fieldname": "logo_organizer",
    "fieldtype": "Attach Image",
+   "hidden": 1,
    "label": "Logo Organizer"
   },
   {
    "fetch_from": "trip_organizer.org_logo",
    "fieldname": "logo_organizer_view",
    "fieldtype": "Image",
+   "hidden": 1,
    "is_virtual": 1,
    "label": "Logo Organizer",
    "options": "logo_organizer"
+  },
+  {
+   "fieldname": "column_break_dsrv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_xajv",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "tab_break_tegv",
+   "fieldtype": "Tab Break",
+   "label": "Website"
+  },
+  {
+   "fieldname": "column_break_jyau",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "connection_tab",
+   "fieldtype": "Tab Break",
+   "label": "Connection",
+   "show_dashboard": 1
+  },
+  {
+   "fetch_from": "trip_organizer.website",
+   "fieldname": "domain",
+   "fieldtype": "Data",
+   "label": "Domain"
   }
  ],
  "grid_page_length": 50,
@@ -286,7 +312,7 @@
   }
  ],
  "make_attachments_public": 1,
- "modified": "2026-08-24 11:39:35.162315",
+ "modified": "2026-08-27 08:36:09.878033",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip",

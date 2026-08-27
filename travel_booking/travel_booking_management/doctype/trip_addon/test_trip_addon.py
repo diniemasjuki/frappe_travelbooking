@@ -13,9 +13,9 @@ IGNORE_TEST_RECORD_DEPENDENCIES = []  # eg. ["User"]
 
 
 
-class IntegrationTestAddonPackage(IntegrationTestCase):
+class IntegrationTestTripAddon(IntegrationTestCase):
 	"""
-	Integration tests for AddonPackage.
+	Integration tests for TripAddon.
 	Use this class for testing interactions between multiple components.
 	"""
 

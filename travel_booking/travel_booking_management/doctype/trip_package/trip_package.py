@@ -17,16 +17,16 @@ class TripPackage(Document):
 		from travel_booking.travel_booking_management.doctype.trip_package_price.trip_package_price import TripPackagePrice
 
 		airport_form: DF.Link | None
-		currency: DF.Link
+		currency: DF.Link | None
 		is_a_cruise_trip: DF.Check
 		is_cruise_only: DF.Check
-		my_url: DF.Data | None
 		organizer_link: DF.Link | None
 		package_code: DF.Data | None
 		package_description: DF.TextEditor | None
 		package_pricing: DF.Table[TripPackagePrice]
 		package_title: DF.SmallText | None
 		package_type: DF.Literal["", "Fly Package", "Ground Only", "Fly Cruise", "Cruise Only", "Customed"]
+		price_review_required: DF.Check
 		select_group_by_date: DF.TableMultiSelect[TripPackageGroupDateSelect]
 		status: DF.Literal["Pending Review", "Active", "Inactive"]
 		trip_image: DF.AttachImage | None

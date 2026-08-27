@@ -26,6 +26,7 @@ class TripGroupDate(Document):
 		cruise_schedule_title: DF.Data | None
 		cruise_trip: DF.Data | None
 		current_participants: DF.Int
+		days_before_closure: DF.Int
 		departure_date: DF.Date | None
 		disembarkation_port: DF.Link | None
 		embarkation_port: DF.Link | None
@@ -34,8 +35,7 @@ class TripGroupDate(Document):
 		is_a_cruise_trip: DF.Check
 		is_cruise_only: DF.Check
 		max_participants: DF.Int
-		my_url: DF.Data | None
-		naming_series: DF.Literal[None]
+		naming_series: DF.Literal["RC.YY.##"]
 		return_date: DF.Date | None
 		sailing_end: DF.Date | None
 		sailing_start: DF.Date | None
@@ -46,7 +46,6 @@ class TripGroupDate(Document):
 		total_nights: DF.Int
 		trip: DF.Link
 		trip_group_code: DF.Data | None
-		trip_group_description: DF.TextEditor | None
 		trip_group_name: DF.Data | None
 		trip_name: DF.Data | None
 	# end: auto-generated types
@@ -59,9 +58,11 @@ class TripGroupDate(Document):
 	
 	def validate(self):
 
-
 		"""
 		JANGAN USIK
+		"""
+  
+		"""
 		Setting kalau trip ini CRUISE ONLY:
 		DEPARTURE DATE akan SAMA dengan SAILING START 
 		"""
@@ -107,9 +108,6 @@ class TripGroupDate(Document):
 			if sailing_end > return_date:
 				frappe.throw("RETURN DATE must earlier then SAILING END DATE" )
 
-		"""
-		JANGAN USIK
-		"""
 		# this is for FLY CRUISE trip = group title use sailing date
 		if (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (not self.is_cruise_only or self.is_cruise_only == 0):
 			self.trip_group_name = str(self.departure_date) + (" : " + self.trip or "") + " : Fly Cruise"

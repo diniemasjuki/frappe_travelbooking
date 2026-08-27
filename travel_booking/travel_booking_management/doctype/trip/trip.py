@@ -23,6 +23,7 @@ class Trip(Document):
 
 		description: DF.TextEditor | None
 		destination_list: DF.TableMultiSelect[TripDestinationPointSelect]
+		domain: DF.Data | None
 		facilities: DF.Table[TripFacility]
 		faqs: DF.Table[TripFAQ]
 		features: DF.Table[TripFeature]
@@ -38,7 +39,7 @@ class Trip(Document):
 		trip_image: DF.AttachImage | None
 		trip_name: DF.Data
 		trip_organizer: DF.Link
-		video_url: DF.Data | None
+		video_url: DF.SmallText | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Trip"
@@ -318,8 +319,10 @@ class Trip(Document):
 			self.name = make_autoname(self.naming_series)
 
 	def before_save(self):
+		# jangan usik 
 		self.title = self.trip_name.upper()
-		self.route = "trip/" + self.trip_name.lower().replace(" ", "-")
+		self.route = self.domain + "trip/" + self.trip_name.lower().replace(" ", "-")
+		# jangan usik - end
 
 	def validate(self):
 		pass
