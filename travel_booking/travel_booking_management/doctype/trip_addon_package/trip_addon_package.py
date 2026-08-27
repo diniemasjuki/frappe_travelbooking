@@ -35,7 +35,7 @@ class TripAddonPackage(Document):
 		unit_price: DF.Currency
 		valid_from_offset_days: DF.Int
 		valid_to_offset_days: DF.Int
-		validity_mode: DF.Literal["Same as Trip", "Relative to Departure", "Fixed Dates", "One-Off"]
+		validity_mode: DF.Literal["One-Off", "Same as Trip", "Relative to Departure", "Fixed Dates"]
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Trip Addon Package"

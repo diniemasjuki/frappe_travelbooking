@@ -9,35 +9,35 @@
  "field_order": [
   "offering_section",
   "addon",
-  "addon_title",
-  "applicable_to",
-  "scope",
   "column_break_offer",
   "status",
+  "addon_title",
   "naming_series",
-  "trip_scoping_section",
-  "trip_scoping",
   "pricing_section",
   "addon_package_name",
+  "scope",
   "column_break_lcct",
   "currency",
   "price_override",
   "unit_price",
+  "trip_scoping_section",
+  "applicable_to",
+  "trip_scoping",
   "validity_section",
   "validity_mode",
-  "valid_from_offset_days",
-  "valid_to_offset_days",
   "column_break_validity",
+  "valid_from_offset_days",
   "fixed_valid_from",
   "fixed_valid_to",
-  "sales_window_section",
-  "sales_cutoff_enabled",
-  "sales_cutoff_days_before_departure",
+  "valid_to_offset_days",
   "limits_section",
-  "current_qty_sold",
   "column_break_limits",
+  "current_qty_sold",
   "max_total_qty",
-  "max_qty_per_booking"
+  "max_qty_per_booking",
+  "sales_time_cut_off_column",
+  "sales_cutoff_enabled",
+  "sales_cutoff_days_before_departure"
  ],
  "fields": [
   {
@@ -117,6 +117,7 @@
    "read_only": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "validity_section",
    "fieldtype": "Section Break",
    "label": "Validity Rule"
@@ -126,8 +127,7 @@
    "fieldname": "validity_mode",
    "fieldtype": "Select",
    "label": "Validity Mode",
-   "options": "Same as Trip\nRelative to Departure\nFixed Dates\nOne-Off",
-   "reqd": 1
+   "options": "One-Off\nSame as Trip\nRelative to Departure\nFixed Dates"
   },
   {
    "depends_on": "eval:doc.validity_mode=='Relative to Departure'",
@@ -150,6 +150,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "collapsible": 1,
    "description": "Tentukan trip, tarikh berlepas (Group Date), dan/atau pakej mana addon ini ditawarkan. Biarkan kosong jika addon terpakai untuk semua trip/date (bergantung pada Applicable To setting di Trip Addon).",
    "fieldname": "trip_scoping_section",
    "fieldtype": "Section Break",
@@ -174,12 +175,6 @@
    "fieldtype": "Date",
    "label": "Fixed Valid To",
    "mandatory_depends_on": "eval:doc.validity_mode=='Fixed Dates'"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "sales_window_section",
-   "fieldtype": "Section Break",
-   "label": "Sales Cut Off Window"
   },
   {
    "default": "0",
@@ -211,7 +206,8 @@
   },
   {
    "fieldname": "column_break_limits",
-   "fieldtype": "Column Break"
+   "fieldtype": "Column Break",
+   "label": "Quantity Cut Off"
   },
   {
    "default": "0",
@@ -256,6 +252,11 @@
    "label": "Scope",
    "options": "Per Booking\nPer Pax",
    "reqd": 1
+  },
+  {
+   "fieldname": "sales_time_cut_off_column",
+   "fieldtype": "Column Break",
+   "label": "Sales Time Cut Off"
   }
  ],
  "grid_page_length": 50,
@@ -264,9 +265,13 @@
   {
    "link_doctype": "Booking Addon Item",
    "link_fieldname": "addon_package"
+  },
+  {
+   "link_doctype": "Trip Addon",
+   "link_fieldname": "name"
   }
  ],
- "modified": "2026-08-27 21:32:10.110257",
+ "modified": "2026-08-27 22:05:13.771651",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Addon Package",
