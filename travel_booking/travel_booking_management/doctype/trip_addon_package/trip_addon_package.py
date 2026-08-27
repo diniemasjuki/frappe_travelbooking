@@ -13,6 +13,7 @@ class TripAddonPackage(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
+		from travel_booking.travel_booking_management.doctype.trip_scoping.trip_scoping import TripScoping
 
 		addon: DF.Link
 		addon_package_name: DF.Data | None
@@ -30,6 +31,7 @@ class TripAddonPackage(Document):
 		sales_cutoff_enabled: DF.Check
 		scope: DF.Literal["Per Booking", "Per Pax"]
 		status: DF.Literal["Active", "Inactive"]
+		trip_scoping: DF.Table[TripScoping]
 		unit_price: DF.Currency
 		valid_from_offset_days: DF.Int
 		valid_to_offset_days: DF.Int

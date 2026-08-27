@@ -12,11 +12,11 @@
   "addon_title",
   "applicable_to",
   "scope",
-  "trip_scoping_section",
-  "trip_scoping",
   "column_break_offer",
   "status",
   "naming_series",
+  "trip_scoping_section",
+  "trip_scoping",
   "pricing_section",
   "addon_package_name",
   "column_break_lcct",
@@ -28,7 +28,6 @@
   "valid_from_offset_days",
   "valid_to_offset_days",
   "column_break_validity",
-  "trip_date",
   "fixed_valid_from",
   "fixed_valid_to",
   "sales_window_section",
@@ -59,6 +58,7 @@
    "fetch_from": "addon.addon_title",
    "fieldname": "addon_title",
    "fieldtype": "Data",
+   "hidden": 1,
    "in_list_view": 1,
    "label": "Addon Title",
    "read_only": 1
@@ -91,7 +91,6 @@
    "label": "Pricing"
   },
   {
-   "fetch_from": "addon.currency",
    "fieldname": "currency",
    "fieldtype": "Link",
    "label": "Currency",
@@ -123,7 +122,7 @@
    "label": "Validity Rule"
   },
   {
-   "default": "Same as Trip",
+   "default": "One-Off",
    "fieldname": "validity_mode",
    "fieldtype": "Select",
    "label": "Validity Mode",
@@ -151,7 +150,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "collapsible": 0,
    "description": "Tentukan trip, tarikh berlepas (Group Date), dan/atau pakej mana addon ini ditawarkan. Biarkan kosong jika addon terpakai untuk semua trip/date (bergantung pada Applicable To setting di Trip Addon).",
    "fieldname": "trip_scoping_section",
    "fieldtype": "Section Break",
@@ -161,7 +159,6 @@
    "fieldname": "trip_scoping",
    "fieldtype": "Table",
    "label": "Applicable Trips / Dates / Packages",
-   "reqd": 0,
    "options": "Trip Scoping"
   },
   {
@@ -251,7 +248,7 @@
    "reqd": 1
   },
   {
-   "default": "Per Booking",
+   "default": "Per Pax",
    "description": "Per Booking: kuantiti di peringkat booking. Per Pax: perlu assign kepada traveller tertentu.",
    "fieldname": "scope",
    "fieldtype": "Select",
@@ -269,7 +266,7 @@
    "link_fieldname": "addon_package"
   }
  ],
- "modified": "2026-08-27 11:47:05.309581",
+ "modified": "2026-08-27 21:32:10.110257",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Addon Package",
