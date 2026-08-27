@@ -27,6 +27,7 @@ let BOOKING = '';
 let CATALOG = [];         // hasil get_available_addons()
 const CART = {};          // addon_package -> qty
 let BANK_ACCOUNTS = {};   // {currency: {bank_name, account_name, account_number}}
+let ONLINE_PAYMENT_ENABLED = true;  // ditetapkan oleh get_payment_settings
 let _addonReceiptFile = null;
 
 
@@ -54,6 +55,7 @@ async function loadAddons() {
     try {
       const s = await _post('/api/method/travel_booking.api.pricing.get_payment_settings', {});
       BANK_ACCOUNTS = (s && s.bank_accounts) || {};
+      ONLINE_PAYMENT_ENABLED = s && s.online_payment_enabled !== false;
     } catch (e) { /* kekal kosong */ }
 
     renderAddons();
@@ -155,18 +157,33 @@ function renderCartBar() {
 }
 
 function renderCheckoutPanelInner() {
-  return (
-    '<div id="checkout-error" role="alert" style="display:none;font-size:11px;color:#C0392B;margin-top:2px;margin-bottom:10px;"></div>' +
-    '<div class="pay-opts">' +
-      '<label class="pay-opt on" data-act="method" data-kind="online">' +
+  // Online Payment option — hanya papar kalau payment gateway diconfigure
+  // di Travel Settings. Kalau tiada gateway, sembunyi & default ke Manual.
+  var onlineOpt = ONLINE_PAYMENT_ENABLED
+    ? '<label class="pay-opt on" data-act="method" data-kind="online">' +
         '<input type="radio" name="addon-pm" value="Online Payment" checked/>' +
         '<span style="flex:1;min-width:0;">' +
           '<span class="pay-opt__label">Online Payment</span>' +
           '<span class="pay-opt__desc">Pay securely by debit or credit card</span>' +
         '</span>' +
-      '</label>' +
-      '<label class="pay-opt" data-act="method" data-kind="manual">' +
-        '<input type="radio" name="addon-pm" value="Manual Transfer"/>' +
+      '</label>'
+    : '<div class="pay-opt disabled" style="opacity:0.5;cursor:not-allowed;">' +
+        '<span style="flex:1;min-width:0;">' +
+          '<span class="pay-opt__label">Online Payment</span>' +
+          '<span class="pay-opt__desc" style="color:#991B1B;">Not available — no payment gateway configured</span>' +
+        '</span>' +
+      '</div>';
+
+  // Manual Transfer — default selected kalau Online tak available
+  var manualChecked = ONLINE_PAYMENT_ENABLED ? '' : 'checked';
+  var manualCls = ONLINE_PAYMENT_ENABLED ? '' : ' on';
+
+  return (
+    '<div id="checkout-error" role="alert" style="display:none;font-size:11px;color:#C0392B;margin-top:2px;margin-bottom:10px;"></div>' +
+    '<div class="pay-opts">' +
+      onlineOpt +
+      '<label class="pay-opt' + manualCls + '" data-act="method" data-kind="manual">' +
+        '<input type="radio" name="addon-pm" value="Manual Transfer"' + manualChecked + '/>' +
         '<span style="flex:1;min-width:0;">' +
           '<span class="pay-opt__label">Manual Bank Transfer</span>' +
           '<span class="pay-opt__desc">Pay via bank transfer, verified within 1–2 business days</span>' +
@@ -308,7 +325,15 @@ async function confirmCheckout() {
   errBox.style.display = 'none';
 
   const checkedRadio = document.querySelector('input[name="addon-pm"]:checked');
-  const pm = checkedRadio ? checkedRadio.value : 'Online Payment';
+  const pm = checkedRadio ? checkedRadio.value : (ONLINE_PAYMENT_ENABLED ? 'Online Payment' : 'Manual Transfer');
+
+  // Guard: elak Online Payment submit kalau gateway tak diconfigure
+  if (pm === 'Online Payment' && !ONLINE_PAYMENT_ENABLED) {
+    errBox.textContent = 'Online payment is not available. Please use Manual Bank Transfer.';
+    errBox.style.display = 'block';
+    return;
+  }
+
   const lines = Object.keys(CART).map(ap => ({ addon_package: ap, qty: CART[ap] }));
 
   let receiptDataUrl = null;

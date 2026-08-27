@@ -11,9 +11,11 @@
 # jadi tiada risiko circular import.
 
 import frappe
+from frappe import _
 import json
 import random
 from datetime import date as datetime_date  # untuk delivery date comparison
+from datetime import datetime
 import string
 
 from travel_booking.api._helpers import get_customer_by_email, get_company_currency
@@ -652,17 +654,17 @@ def _recompute_booking_status(so_name):
     # jadi perlu check terus status bayaran SO ni SENDIRI, bukan agregat.
     _maybe_auto_invoice_so(so_name)
 
-    # Booking Addon Order — kalau SO ni ialah SO addon (bukan SO cabin
+    # Booking Addon — kalau SO ni ialah SO addon (bukan SO cabin
     # utama), refresh payment_status/status order tu SENDIRI (per-SO,
     # BUKAN agregat booking — rujuk nota reka bentuk addon/insurance:
     # order addon yang dah fully paid tak patut nampak "belum paid" sebab
     # baki SO cabin lain belum settle). Guard frappe.db.exists() elak
     # error kalau addon feature belum di-deploy (doctype belum wujud lagi
     # semasa migration progresif).
-    if frappe.db.exists("DocType", "Booking Addon Order"):
-        addon_order_name = frappe.db.get_value("Booking Addon Order", {"sales_order": so_name}, "name")
+    if frappe.db.exists("DocType", "Booking Addon"):
+        addon_order_name = frappe.db.get_value("Booking Addon", {"sales_order": so_name}, "name")
         if addon_order_name:
-            frappe.get_doc("Booking Addon Order", addon_order_name).refresh_payment_status()
+            frappe.get_doc("Booking Addon", addon_order_name).refresh_payment_status()
 
 
 # ══════════════════════════════════════════════
@@ -813,7 +815,8 @@ def mark_completed_trips(booking_name=None):
 def _generate_booking_number():
     while True:
         suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        booking_number = "RC" + suffix
+        year_month = datetime.now().strftime("%y%m")  # contoh: 2608
+        booking_number = "R" + suffix + year_month
         if not frappe.db.exists("Booking", {"booking_number": booking_number}):
             return booking_number
 

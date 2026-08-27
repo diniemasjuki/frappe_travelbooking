@@ -102,6 +102,11 @@
 
     var html = '';
 
+    /* Page nav: Back (top) */
+    html += '<div style="margin-bottom:20px;">';
+    html += '<a href="/traveller/bookings" class="tv-btn tv-btn--ghost tv-btn--sm">← Back to My Bookings</a>';
+    html += '</div>';
+
     /* ══════════════════════════════════════
        SECTION A: TRIP HERO (Main Info)
        ══════════════════════════════════════ */
@@ -212,10 +217,10 @@
     html += '<div class="tv-collapse-body" id="payment-summary-body" style="display:none;padding-top:16px;">';
 
     // Stats row
-    html += '<div class="tv-stats">';
+    html += '<div class="tv-stats tv-stats--payment">';
     html += '<div class="tv-stat"><div class="tv-stat__value">' + fmtDual(grandTotal) + '</div><div class="tv-stat__label">Total Billed</div></div>';
     html += '<div class="tv-stat"><div class="tv-stat__value tv-bk-fin-value--success">' + fmtDual(advancePaid) + '</div><div class="tv-stat__label">Total Paid</div></div>';
-    html += '<div class="tv-stat"><div class="tv-stat__value ' + (isPaid ? 'tv-bk-fin-value--success' : 'tv-bk-fin-value--warning') + '">' + fmtDual(balance) + '</div><div class="tv-stat__label">Balance Due</div></div>';
+    html += '<div class="tv-stat tv-stat--balance"><div class="tv-stat__value ' + (isPaid ? 'tv-bk-fin-value--success' : 'tv-bk-fin-value--warning') + '">' + fmtDual(balance) + '</div><div class="tv-stat__label">Balance Due</div></div>';
     html += '</div>'; // stats
 
     // Bill Orders list
@@ -271,16 +276,18 @@
     html += '</div>';
 
     // 3-column stats grid
-    html += '<div class="tv-hero-grid" style="margin-bottom:16px;">';
+    html += '<div class="tv-hero-grid tv-hero-grid--summary" style="margin-bottom:16px;">';
     html += '<div class="tv-hero-cell"><div class="tv-hero-label">' + roomLabel + 's</div><div class="tv-hero-value">' + cabinCount + '</div></div>';
     html += '<div class="tv-hero-cell"><div class="tv-hero-label">Travellers</div><div class="tv-hero-value">' + filledCount + ' / ' + totalSlots + '</div></div>';
     html += '<div class="tv-hero-cell"><div class="tv-hero-label">Completions</div><div class="tv-hero-value">' + docPct + '% (' + verifiedCount + '/' + filledCount + ')</div></div>';
     html += '</div>'; // grid
 
     // Manage button
-    html += '<a href="/traveller/travellers?ref=' + encodeURIComponent(ref) + '" class="tv-btn tv-btn--primary tv-btn--sm" style="width:100%;text-decoration:none;" onclick="event.stopPropagation();">';
+    html += '<div style="display:flex;justify-content:flex-end;">';
+    html += '<a href="/traveller/travellers?ref=' + encodeURIComponent(ref) + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;" onclick="event.stopPropagation();">';
     html += 'Manage Travellers →';
     html += '</a>';
+    html += '</div>';
     html += '</div>'; // header
 
     // Body (collapsible): cabin/room overview
@@ -330,9 +337,49 @@
     html += '</div>'; // collapse body
     html += '</div>'; // traveller card
 
-    /* Back button */
-    html += '<div style="margin-top:24px;text-align:center;">';
-    html += '<a href="/traveller/bookings" class="tv-btn-link">← Back to My Bookings</a>';
+    /* ══════════════════════════════════════
+       SECTION D: ADD-ONS & EXTRAS (Smart Panel)
+       - If no existing orders → "Browse Add-ons" link
+       - If has orders → "Manage Add-ons" link + summary
+       ══════════════════════════════════════ */
+    var addonOrders = (data.addon_orders || []);
+    var hasAddonOrders = addonOrders.length > 0;
+    var addonUrl = '/traveller/booking_addons?booking=' + encodeURIComponent(ref);
+
+    html += '<div class="tv-card tv-animate-in" style="border-left:3px solid #0F6E56;">';
+    // Header
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">';
+    html += '<div>';
+    html += '<h3 class="tv-card__title" style="margin:0;">🎁 Add-ons & Extras</h3>';
+
+    if (!hasAddonOrders) {
+      // No orders yet → encourage browsing
+      html += '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Enhance your trip with optional activities, upgrades & more</div>';
+    } else {
+      // Has orders → show summary
+      var totalAddonOrders = addonOrders.length;
+      var totalAddonAmount = 0;
+      addonOrders.forEach(function(o) { totalAddonAmount += parseFloat(o.total_amount) || 0; });
+      html += '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">';
+      html += totalAddonOrders + ' order(s) · Total: ' + fmtDual(totalAddonAmount);
+      html += '</div>';
+    }
+
+    html += '</div>';
+    // CTA Button (dynamic text based on state)
+    html += '<a href="' + addonUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;margin-left:auto;">';
+    if (!hasAddonOrders) {
+      html += 'Browse Add-ons →';
+    } else {
+      html += 'Manage Addons →';
+    }
+    html += '</a>';
+    html += '</div>'; // header row
+    html += '</div>'; // addons card
+
+    /* Page nav: Back (bottom) */
+    html += '<div style="margin-top:24px;">';
+    html += '<a href="/traveller/bookings" class="tv-btn tv-btn--ghost tv-btn--sm">← Back to My Bookings</a>';
     html += '</div>';
 
     return html;

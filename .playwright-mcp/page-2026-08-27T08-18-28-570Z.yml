@@ -1,0 +1,33 @@
+- generic [ref=f34e1]:
+  - generic [ref=f34e3]:
+    - img "Rarecation" [ref=f34e5]
+    - heading "Welcome Back" [level=1] [ref=f34e6]
+    - paragraph [ref=f34e7]: Sign in to manage your bookings
+    - generic [ref=f34e8]:
+      - generic [ref=f34e9]:
+        - generic [ref=f34e10]: Email Address
+        - textbox "Email Address" [active] [ref=f34e11]:
+          - /placeholder: you@example.com
+      - generic [ref=f34e12]:
+        - generic [ref=f34e13]: Password
+        - textbox "Password" [ref=f34e14]:
+          - /placeholder: Enter your password
+      - button "Sign In with Password" [ref=f34e15] [cursor=pointer]
+    - generic [ref=f34e16]: or Easy Access with
+    - generic [ref=f34e17]:
+      - button "✨ Magic Link" [ref=f34e18] [cursor=pointer]
+      - button "🔵 Google" [ref=f34e19] [cursor=pointer]
+    - generic [ref=f34e20]:
+      - link "Forgot password?" [ref=f34e21] [cursor=pointer]:
+        - /url: "#"
+      - text: ·
+      - link "Sign Up" [ref=f34e22] [cursor=pointer]:
+        - /url: "#"
+  - generic [ref=f34e23]:
+    - paragraph [ref=f34e24]: Not ready to sign in?
+    - paragraph [ref=f34e25]: Explore our travel experiences
+    - generic [ref=f34e26]:
+      - link "🌴 Rarecation Tour" [ref=f34e27] [cursor=pointer]:
+        - /url: /tour
+      - link "🚢 Rarecation Cruise" [ref=f34e28] [cursor=pointer]:
+        - /url: /cruise

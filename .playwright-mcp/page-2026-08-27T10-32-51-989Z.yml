@@ -1,0 +1,7 @@
+- main [ref=e4]:
+  - generic [ref=e7]:
+    - heading "Not Permitted" [level=4] [ref=e8]
+    - generic [ref=e9]:
+      - paragraph [ref=e10]: You are not permitted to access this page.
+      - link "Home" [active] [ref=e12] [cursor=pointer]:
+        - /url: /desk

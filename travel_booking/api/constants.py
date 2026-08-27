@@ -40,6 +40,12 @@ TRAVEL_ITEM_CODE = "TRAVEL-PKG"
 ADDON_ITEM_CODE = "TRAVEL-ADDON"
 INSURANCE_ITEM_CODE = "TRAVEL-INSURANCE"
 
+# Item code + name untuk SEMUA baris Sales Order addon (sama ada Per Pax
+# atau Per Booking). User request: setiap SO line guna item "Trip Addon
+# Package" — bukan TRAVEL-ADDON/TRAVEL-INSURAN yang lama. Item ni dicipta
+# auto oleh _get_or_create_travel_item() kali pertama addon dicheckout.
+ADDON_PACKAGE_ITEM_CODE = "Trip Addon Package"
+
 # Prefix nombor booking ("RC" + 6 aksara rawak, rujuk _generate_booking_number).
 BOOKING_NUMBER_PREFIX = "RC"
 

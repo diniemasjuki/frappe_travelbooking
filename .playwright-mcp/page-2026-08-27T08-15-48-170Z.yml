@@ -1,0 +1,130 @@
+- generic [active] [ref=f29e1]:
+  - navigation "Workspaces" [ref=f29e2]:
+    - link "Apps" [ref=f29e4] [cursor=pointer]:
+      - /url: /desk
+      - img "ERPNext" [ref=f29e5]
+    - separator [ref=f29e6]
+    - generic [ref=f29e7]:
+      - button "Search" [ref=f29e8] [cursor=pointer]
+      - button "Notifications" [ref=f29e11] [cursor=pointer]
+    - separator [ref=f29e14]
+    - generic [ref=f29e15]:
+      - button "Home" [ref=f29e16] [cursor=pointer]
+      - button "Invoicing" [ref=f29e18] [cursor=pointer]
+      - button "Payments" [ref=f29e20] [cursor=pointer]
+      - button "Accounting" [ref=f29e22] [cursor=pointer]
+      - button "Buying" [ref=f29e24] [cursor=pointer]
+      - button "Financial Reports" [ref=f29e26] [cursor=pointer]
+      - button "Selling" [ref=f29e28] [cursor=pointer]
+      - button "Stock" [ref=f29e30] [cursor=pointer]
+      - button "Assets" [ref=f29e32] [cursor=pointer]
+      - button "Manufacturing" [ref=f29e34] [cursor=pointer]
+      - button "Quality" [ref=f29e36] [cursor=pointer]
+      - button "Projects" [ref=f29e38] [cursor=pointer]
+      - button "Support" [ref=f29e40] [cursor=pointer]
+      - button "CRM" [ref=f29e42] [cursor=pointer]
+      - button "ERPNext Settings" [ref=f29e44] [cursor=pointer]
+      - button "Affiliate Manager" [ref=f29e46] [cursor=pointer]
+    - separator [ref=f29e48]
+    - button "User Menu" [ref=f29e49] [cursor=pointer]:
+      - generic "Warga Prihatin" [ref=f29e50]:
+        - generic "Warga Prihatin" [ref=f29e51]: WP
+  - generic [ref=f29e54]:
+    - generic [ref=f29e55] [cursor=pointer]: ERPNext
+    - generic [ref=f29e59]:
+      - generic "Item" [ref=f29e60]:
+        - link "Item" [ref=f29e62] [cursor=pointer]:
+          - /url: /desk/item
+      - generic "Home" [ref=f29e64]:
+        - link "Home" [ref=f29e66] [cursor=pointer]:
+          - /url: /desk/home
+      - generic "Customer" [ref=f29e68]:
+        - link "Customer" [ref=f29e70] [cursor=pointer]:
+          - /url: /desk/customer
+      - generic "Supplier" [ref=f29e72]:
+        - link "Supplier" [ref=f29e74] [cursor=pointer]:
+          - /url: /desk/supplier
+      - generic "Sales Invoice" [ref=f29e76]:
+        - link "Sales Invoice" [ref=f29e78] [cursor=pointer]:
+          - /url: /desk/sales-invoice
+    - generic [ref=f29e80]:
+      - paragraph
+  - generic [ref=f29e82]:
+    - banner
+    - generic [ref=f29e84]:
+      - generic [ref=f29e87]:
+        - generic [ref=f29e88]:
+          - button [ref=f29e89] [cursor=pointer]
+          - list [ref=f29e93]:
+            - listitem [ref=f29e94]:
+              - link "Home" [ref=f29e95] [cursor=pointer]:
+                - /url: "#"
+        - button [ref=f29e100] [cursor=pointer]
+      - generic [ref=f29e111]:
+        - generic [ref=f29e112]: Your Shortcuts
+        - link "Item" [ref=f29e119] [cursor=pointer]:
+          - generic [ref=f29e120]:
+            - generic "Item" [ref=f29e123]
+            - generic [ref=f29e124]: "19"
+        - link "Customer" [ref=f29e130] [cursor=pointer]:
+          - generic [ref=f29e131]:
+            - generic "Customer" [ref=f29e134]
+            - generic [ref=f29e135]: "7"
+        - link "Supplier" [ref=f29e141] [cursor=pointer]:
+          - generic [ref=f29e142]:
+            - generic "Supplier" [ref=f29e145]
+            - generic [ref=f29e146]: "3"
+        - link "Sales Invoice" [ref=f29e152] [cursor=pointer]:
+          - generic [ref=f29e153]:
+            - generic "Sales Invoice" [ref=f29e156]
+            - generic [ref=f29e157]: "9"
+        - generic [ref=f29e163]: Reports & Masters
+        - generic [ref=f29e170]:
+          - generic "Accounting" [ref=f29e174]
+          - generic [ref=f29e175]:
+            - link "Chart of Accounts" [ref=f29e176] [cursor=pointer]:
+              - /url: /desk/account
+            - link "Company" [ref=f29e179] [cursor=pointer]:
+              - /url: /desk/company
+            - link "Customer" [ref=f29e182] [cursor=pointer]:
+              - /url: /desk/customer
+            - link "Supplier" [ref=f29e185] [cursor=pointer]:
+              - /url: /desk/supplier
+        - generic [ref=f29e191]:
+          - generic "Stock" [ref=f29e195]
+          - generic [ref=f29e196]:
+            - link "Item" [ref=f29e197] [cursor=pointer]:
+              - /url: /desk/item
+            - link "Warehouse" [ref=f29e200] [cursor=pointer]:
+              - /url: /desk/warehouse
+            - link "Brand" [ref=f29e203] [cursor=pointer]:
+              - /url: /desk/brand
+            - link "Unit of Measure (UOM)" [ref=f29e206] [cursor=pointer]:
+              - /url: /desk/uom
+            - link "Stock Reconciliation" [ref=f29e209] [cursor=pointer]:
+              - /url: /desk/stock-reconciliation
+        - generic [ref=f29e215]:
+          - generic "CRM" [ref=f29e219]
+          - generic [ref=f29e220]:
+            - link "Lead" [ref=f29e221] [cursor=pointer]:
+              - /url: /desk/lead
+            - link "Customer Group" [ref=f29e224] [cursor=pointer]:
+              - /url: /desk/customer-group
+            - link "Territory" [ref=f29e227] [cursor=pointer]:
+              - /url: /desk/territory
+        - generic [ref=f29e233]:
+          - generic "Data Import and Settings" [ref=f29e237]
+          - generic [ref=f29e238]:
+            - link "Import Data" [ref=f29e239] [cursor=pointer]:
+              - /url: /desk/data-import
+            - link "Opening Invoice Creation Tool" [ref=f29e242] [cursor=pointer]:
+              - /url: /desk/opening-invoice-creation-tool/Opening Invoice Creation Tool
+            - link "Chart of Accounts Importer" [ref=f29e245] [cursor=pointer]:
+              - /url: /desk/chart-of-accounts-importer/Chart of Accounts Importer
+            - link "Letter Head" [ref=f29e248] [cursor=pointer]:
+              - /url: /desk/letter-head
+            - link "Email Account" [ref=f29e251] [cursor=pointer]:
+              - /url: /desk/email-account
+    - contentinfo
+  - generic:
+    - generic "Show Chats"

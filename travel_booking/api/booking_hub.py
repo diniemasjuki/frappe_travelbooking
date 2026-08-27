@@ -368,7 +368,7 @@ def get_booking_detail(booking_name: str) -> dict:
 
 	# Get addon orders
 	addon_orders = frappe.get_all(
-		'Booking Addon Order',
+		'Booking Addon',
 		fields=['name', 'booking', 'customer', 'total_amount', 'status', 'creation'],
 		filters={'booking': booking_name},
 		order_by='creation desc'
@@ -377,7 +377,7 @@ def get_booking_detail(booking_name: str) -> dict:
 	for ao in addon_orders:
 		# Get addon line items
 		addon_items = frappe.get_all(
-			'Booking Addon',
+			'Booking Addon Item',
 			fields=['name', 'addon', 'addon_title', 'qty', 'unit_price', 'amount', 'status'],
 			filters={'addon_order': ao.name}
 		)
@@ -1164,7 +1164,7 @@ def get_addon_orders(limit: int = 30, booking: str = None) -> list:
 	
 	try:
 		orders = frappe.get_all(
-			'Booking Addon Order',
+			'Booking Addon',
 			fields=['name', 'booking', 'customer', 'total_amount', 'status', 'creation'],
 			filters=filters,
 			order_by='creation desc',
@@ -1183,7 +1183,7 @@ def get_addon_orders(limit: int = 30, booking: str = None) -> list:
 
 			# Get addon items
 			items = frappe.get_all(
-				'Booking Addon',
+				'Booking Addon Item',
 				fields=['name', 'addon', 'addon_title', 'qty', 'unit_price', 'amount'],
 				filters={'addon_order': order.name}
 			)
@@ -1260,7 +1260,7 @@ def create_addon_order(booking_name: str, addon_items: str) -> dict:
 		
 		# Create Addon Order header
 		addon_order = frappe.get_doc({
-			'doctype': 'Booking Addon Order',
+			'doctype': 'Booking Addon',
 			'booking': booking_name,
 			'customer': booking.customer,
 			'trip_package': booking.trip_package,

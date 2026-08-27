@@ -2143,6 +2143,7 @@ var state_payment_settings = {
   cashback_enabled:          true,
   cashback_percent:          5,
   default_deposit_percent:   20,
+  online_payment_enabled:    true,
 };
 
 async function loadPaymentSettings() {
@@ -2154,7 +2155,8 @@ async function loadPaymentSettings() {
                                     ? result.bank_accounts : state_payment_settings.bank_accounts,
         cashback_enabled:        !!result.cashback_enabled,
         cashback_percent:        result.cashback_percent || 0,
-        default_deposit_percent: result.default_deposit_percent || 20
+        default_deposit_percent: result.default_deposit_percent || 20,
+        online_payment_enabled:  result.online_payment_enabled !== false,
       };
     }
   } catch (e) {
@@ -2281,6 +2283,29 @@ function renderPaymentSettingsUI() {
         if (onlineRadio) {
           onlineRadio.checked = true;
           onPaymentMethodChange(onlineRadio);
+        }
+      }
+    }
+  }
+
+  // Sembunyikan pilihan "Online Payment" kalau admin belum konfigurasikan
+  // Payment Gateway Account di Travel Settings > Currency Accounts. Mirror
+  // pattern Manual Transfer hide di atas — elak customer pilih Online
+  // Payment tapi Stripe checkout gagal kerana tiada gateway.
+  var labelOnlineEl = document.getElementById("labelOnline");
+  if (labelOnlineEl) {
+    if (s.online_payment_enabled) {
+      labelOnlineEl.style.display = "";
+    } else {
+      labelOnlineEl.style.display = "none";
+      // Kalau customer TERLANJUR dah pilih Online Payment — paksa balik
+      // ke Manual Transfer (satu-satunya pilihan yang tersedia).
+      var onlineRadioEl = labelOnlineEl.querySelector("input[type=radio]");
+      if (onlineRadioEl && onlineRadioEl.checked) {
+        var manualRadioEl = document.querySelector('input[name="paymentMethod"][value="Manual Transfer"]');
+        if (manualRadioEl) {
+          manualRadioEl.checked = true;
+          onPaymentMethodChange(manualRadioEl);
         }
       }
     }

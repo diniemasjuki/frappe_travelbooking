@@ -1,0 +1,116 @@
+- generic [ref=f3e1]:
+  - navigation [ref=f3e2]:
+    - generic [ref=f3e3]:
+      - link [ref=f3e4] [cursor=pointer]:
+        - /url: /traveller/bookings
+        - img "Rarecation" [ref=f3e5]
+      - generic [ref=f3e6]:
+        - link "My Bookings" [ref=f3e7] [cursor=pointer]:
+          - /url: /traveller/bookings
+        - link "Transactions" [ref=f3e8] [cursor=pointer]:
+          - /url: /traveller/transactions
+        - link "Profile" [ref=f3e9] [cursor=pointer]:
+          - /url: /traveller/profile
+      - button "User menu" [ref=f3e11] [cursor=pointer]:
+        - generic [ref=f3e12]: MD
+  - generic [ref=f3e16]:
+    - generic [ref=f3e17]:
+      - generic [ref=f3e18]:
+        - heading "🎁 Add-ons & Extras" [level=1] [ref=f3e19]
+        - generic [ref=f3e20]:
+          - text: "Booking:"
+          - strong [ref=f3e21]: RCWGN1H7
+          - text: "· Status: Accepted"
+      - link "← Back to Booking" [ref=f3e22] [cursor=pointer]:
+        - /url: /traveller/booking?ref=RCWGN1H7
+    - generic [ref=f3e23]:
+      - generic [ref=f3e24]: Travellers on this Booking
+      - generic [ref=f3e25]:
+        - generic [ref=f3e26]:
+          - generic [ref=f3e27]: "1"
+          - generic [ref=f3e28]: Traveller 1
+          - generic [ref=f3e29]: Adult
+        - generic [ref=f3e30]:
+          - generic [ref=f3e31]: "2"
+          - generic [ref=f3e32]: Traveller 2
+          - generic [ref=f3e33]: Adult
+        - generic [ref=f3e34]:
+          - generic [ref=f3e35]: "3"
+          - generic [ref=f3e36]: Traveller 3
+          - generic [ref=f3e37]: Adult
+        - generic [ref=f3e38]:
+          - generic [ref=f3e39]: "4"
+          - generic [ref=f3e40]: Traveller 4
+          - generic [ref=f3e41]: Adult
+        - generic [ref=f3e42]:
+          - generic [ref=f3e43]: "5"
+          - generic [ref=f3e44]: Traveller 5
+          - generic [ref=f3e45]: Adult
+        - generic [ref=f3e46]:
+          - generic [ref=f3e47]: "6"
+          - generic [ref=f3e48]: Traveller 6
+          - generic [ref=f3e49]: Adult
+        - generic [ref=f3e50]:
+          - generic [ref=f3e51]: "7"
+          - generic [ref=f3e52]: Traveller 7
+          - generic [ref=f3e53]: Adult
+        - generic [ref=f3e54]:
+          - generic [ref=f3e55]: "8"
+          - generic [ref=f3e56]: Traveller 8
+          - generic [ref=f3e57]: Adult
+    - generic [ref=f3e58]:
+      - generic [ref=f3e59]:
+        - generic [ref=f3e60]:
+          - heading "Add-on Catalog" [level=2] [ref=f3e61]
+          - paragraph [ref=f3e62]: Select extras to enhance your trip experience
+        - generic [ref=f3e64]:
+          - button "All" [ref=f3e65] [cursor=pointer]
+          - button "Other" [ref=f3e66] [cursor=pointer]
+        - generic [ref=f3e71]:
+          - generic [ref=f3e72]:
+            - heading "WiFi Pakej Onboard" [level=3] [ref=f3e73]
+            - generic [ref=f3e74]: Other
+          - paragraph [ref=f3e75]: SIgnal telefon biasanya terganggu didalam kapal.anda tak seharusnya biarkan diri anda offline. pakej...
+          - generic [ref=f3e76]:
+            - button "More Info" [active] [ref=f3e77] [cursor=pointer]
+            - button "Select Option ▾" [ref=f3e78] [cursor=pointer]
+      - generic [ref=f3e80]:
+        - heading "Your Selection" [level=3] [ref=f3e81]
+        - paragraph [ref=f3e83]: No items selected yet
+  - generic [ref=f3e85]:
+    - button "×" [ref=f3e86] [cursor=pointer]
+    - heading "WiFi Pakej Onboard" [level=3] [ref=f3e87]
+    - generic [ref=f3e88]: Other
+    - iframe [ref=f3e90]:
+      - generic [ref=f4e1]:
+        - generic "YouTube Video Player" [ref=f4e3]
+        - generic [ref=f4e5]:
+          - generic:
+            - generic:
+              - generic [ref=f4e6] [cursor=pointer]
+              - button "Play video" [ref=f4e10] [cursor=pointer]
+              - button "Hide player controls" [ref=f4e12] [cursor=pointer]
+              - generic [ref=f4e14]:
+                - generic [ref=f4e19]:
+                  - generic [ref=f4e20]:
+                    - link "Me at the zoo" [ref=f4e21] [cursor=pointer]:
+                      - /url: https://www.youtube.com/watch?v=jNQXAC9IVRw
+                    - link "jawed" [ref=f4e22] [cursor=pointer]:
+                      - /url: /channel/UC4QobU6STFB0P71PMvOGN5A
+                  - generic [ref=f4e24]:
+                    - button [ref=f4e25] [cursor=pointer]
+                    - generic [ref=f4e27]:
+                      - generic: jawed
+                      - generic: 6.45M subscribers
+                - generic [ref=f4e28]:
+                  - button "Share" [ref=f4e31] [cursor=pointer]
+                  - link "Watch on YouTube" [ref=f4e42] [cursor=pointer]:
+                    - /url: https://www.youtube.com/watch?v=jNQXAC9IVRw
+                    - generic [ref=f4e43]: Watch on
+    - button "📷 View Photo Gallery (6)" [ref=f3e91] [cursor=pointer]:
+      - generic [ref=f3e92]: 📷
+      - text: View Photo Gallery (6)
+    - generic [ref=f3e94]:
+      - paragraph [ref=f3e95]: SIgnal telefon biasanya terganggu didalam kapal.
+      - paragraph [ref=f3e96]: anda tak seharusnya biarkan diri anda offline.
+      - paragraph [ref=f3e97]: pakej internet sepanjang berada di dalam kapalb oleh membantu anda untuk online sepanjang masa.

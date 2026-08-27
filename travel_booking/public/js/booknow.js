@@ -96,6 +96,7 @@ var state_payment_settings = {
   cashback_enabled:          true,
   cashback_percent:          5,
   default_deposit_percent:   20,
+  online_payment_enabled:    true,
 };
 
 // Kapasiti PERINGKAT TRIP (Trip Group Date.max_participants). group_seats_left
@@ -1165,6 +1166,24 @@ function availableCabins() {
   return state.cabins.filter(function(c) { return c.is_available; });
 }
 
+// Ekstrak YouTube video ID dari pelbagai format URL
+// (watch?v=, youtu.be/, /embed/, /shorts/, /v/). Pulangkan null kalau
+// bukan link YouTube sah — digunakan untuk tentukan sama ada gambar
+// cabin dipaparkan sebagai POSTER video (click-to-play) atau statik.
+function parseYouTubeId(url) {
+  if (!url) return null;
+  var m = String(url).match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|shorts\/|v\/))([\w-]{11})/);
+  if (m) return m[1];
+  try {
+    var u = new URL(url);
+    if (u.hostname.indexOf("youtube.com") !== -1) {
+      var v = u.searchParams.get("v");
+      if (v) return v;
+    }
+  } catch (e) {}
+  return null;
+}
+
 function cabinByCategory(room_category) {
   return state.cabins.find(function(x) { return x.room_category === room_category; });
 }
@@ -1360,11 +1379,51 @@ function renderRooms() {
       // ditukar (renderRooms() dipanggil semula pada 'change' listener
       // dropdown di atas), tiada API call tambahan diperlukan.
       var cabinInfo = null;
-      if (c && (c.description || c.room_image)) {
+      if (c && (c.description || c.room_image || c.room_video_url)) {
         cabinInfo = document.createElement("div");
         cabinInfo.className = "bnw-cabin-info";
-        
-        if (c.room_image) {
+
+        // ── Cabin media: gambar sebagai PLACEHOLDER video YouTube ──
+        // Jika room_video_url (link YouTube) wujud, gambar room_profile
+        // dijadikan POSTER + butang play overlay — klik untuk swap ke
+        // iframe embed YouTube (autoplay). Tiada link YouTube → gambar
+        // statik seperti biasa. Poster fallback ke thumbnail YouTube
+        // kalau cabin tiada gambar room_profile.
+        var ytId = c.room_video_url ? parseYouTubeId(c.room_video_url) : null;
+        if (ytId) {
+          var mediaWrap = document.createElement("div");
+          mediaWrap.className = "bnw-cabin-media";
+
+          var poster = document.createElement("img");
+          poster.className = "bnw-cabin-img";
+          poster.src = c.room_image || ("https://img.youtube.com/vi/" + ytId + "/hqdefault.jpg");
+          poster.alt = c.room_name || "Cabin";
+          poster.loading = "lazy";
+          mediaWrap.appendChild(poster);
+
+          var playBtn = document.createElement("button");
+          playBtn.type = "button";
+          playBtn.className = "bnw-cabin-play";
+          playBtn.setAttribute("aria-label", "Play cabin video");
+          playBtn.innerHTML = '<i class="ti ti-player-play"></i>';
+          mediaWrap.appendChild(playBtn);
+
+          // Klik mana-mana bahagian media (gambar/play) → embed iframe.
+          // innerHTML kosongkan dulu supaya poster & butang dibuang, elak
+          // bertindih dengan video semasa dimainkan.
+          mediaWrap.addEventListener("click", function() {
+            var iframe = document.createElement("iframe");
+            iframe.className = "bnw-cabin-img bnw-cabin-iframe";
+            iframe.src = "https://www.youtube.com/embed/" + ytId + "?autoplay=1&rel=0&modestbranding=1";
+            iframe.title = c.room_name || "Cabin";
+            iframe.setAttribute("frameborder", "0");
+            iframe.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share");
+            iframe.setAttribute("allowfullscreen", "");
+            mediaWrap.innerHTML = "";
+            mediaWrap.appendChild(iframe);
+          });
+          cabinInfo.appendChild(mediaWrap);
+        } else if (c.room_image) {
           var cabinImg = document.createElement("img");
           cabinImg.className = "bnw-cabin-img";
           cabinImg.src = c.room_image;
@@ -2561,7 +2620,8 @@ async function loadPaymentSettings() {
                                     ? result.bank_accounts : state_payment_settings.bank_accounts,
         cashback_enabled:        !!result.cashback_enabled,
         cashback_percent:        result.cashback_percent || 0,
-        default_deposit_percent: result.default_deposit_percent || 20
+        default_deposit_percent: result.default_deposit_percent || 20,
+        online_payment_enabled:  result.online_payment_enabled !== false,
       };
     }
   } catch (e) {
@@ -2696,6 +2756,29 @@ function renderPaymentSettingsUI() {
         if (onlineRadio) {
           onlineRadio.checked = true;
           onPaymentMethodChange(onlineRadio);
+        }
+      }
+    }
+  }
+
+  // Sembunyikan pilihan "Online Payment" kalau admin belum konfigurasikan
+  // Payment Gateway Account di Travel Settings > Currency Accounts. Mirror
+  // pattern yang sama dengan Manual Transfer hide di atas — elak customer
+  // pilih Online Payment tapiStripe checkout gagal kerana tiada gateway.
+  var labelOnlineEl = document.getElementById("bnwLabelOnline");
+  if (labelOnlineEl) {
+    if (s.online_payment_enabled) {
+      labelOnlineEl.style.display = "";
+    } else {
+      labelOnlineEl.style.display = "none";
+      // Kalau customer TERLANJUR dah pilih Online Payment — paksa balik
+      // ke Manual Transfer (satu-satunya pilihan yang tersedia).
+      var onlineRadioEl = labelOnlineEl.querySelector("input[type=radio]");
+      if (onlineRadioEl && onlineRadioEl.checked) {
+        var manualRadioEl = document.querySelector('input[name="paymentMethod"][value="Manual Transfer"]');
+        if (manualRadioEl) {
+          manualRadioEl.checked = true;
+          onPaymentMethodChange(manualRadioEl);
         }
       }
     }

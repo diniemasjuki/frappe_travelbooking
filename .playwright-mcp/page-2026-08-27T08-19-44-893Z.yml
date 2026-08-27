@@ -1,0 +1,149 @@
+- generic [active] [ref=f37e1]:
+  - navigation [ref=f37e2]:
+    - generic [ref=f37e3]:
+      - link [ref=f37e4] [cursor=pointer]:
+        - /url: /traveller/bookings
+        - img "Rarecation" [ref=f37e5]
+      - generic [ref=f37e6]:
+        - link "My Bookings" [ref=f37e7] [cursor=pointer]:
+          - /url: /traveller/bookings
+        - link "Transactions" [ref=f37e8] [cursor=pointer]:
+          - /url: /traveller/transactions
+        - link "Profile" [ref=f37e9] [cursor=pointer]:
+          - /url: /traveller/profile
+      - button "User menu" [ref=f37e11] [cursor=pointer]:
+        - generic [ref=f37e12]: MD
+  - generic [ref=f37e16]:
+    - generic [ref=f37e17]:
+      - generic [ref=f37e18]:
+        - heading "🎁 Add-ons & Extras" [level=1] [ref=f37e19]
+        - generic [ref=f37e20]:
+          - text: "Booking:"
+          - strong [ref=f37e21]: RCWGN1H7
+          - text: "· Status: Accepted"
+      - link "← Back to Booking" [ref=f37e22] [cursor=pointer]:
+        - /url: /traveller/booking?ref=RCWGN1H7
+    - generic [ref=f37e23]:
+      - generic [ref=f37e24]: Travellers on this Booking
+      - generic [ref=f37e25]:
+        - generic [ref=f37e26]:
+          - generic [ref=f37e27]: "1"
+          - generic [ref=f37e28]: Traveller 1
+          - generic [ref=f37e29]: Adult
+        - generic [ref=f37e30]:
+          - generic [ref=f37e31]: "2"
+          - generic [ref=f37e32]: Traveller 2
+          - generic [ref=f37e33]: Adult
+        - generic [ref=f37e34]:
+          - generic [ref=f37e35]: "3"
+          - generic [ref=f37e36]: Traveller 3
+          - generic [ref=f37e37]: Adult
+        - generic [ref=f37e38]:
+          - generic [ref=f37e39]: "4"
+          - generic [ref=f37e40]: Traveller 4
+          - generic [ref=f37e41]: Adult
+        - generic [ref=f37e42]:
+          - generic [ref=f37e43]: "5"
+          - generic [ref=f37e44]: Traveller 5
+          - generic [ref=f37e45]: Adult
+        - generic [ref=f37e46]:
+          - generic [ref=f37e47]: "6"
+          - generic [ref=f37e48]: Traveller 6
+          - generic [ref=f37e49]: Adult
+        - generic [ref=f37e50]:
+          - generic [ref=f37e51]: "7"
+          - generic [ref=f37e52]: Traveller 7
+          - generic [ref=f37e53]: Adult
+        - generic [ref=f37e54]:
+          - generic [ref=f37e55]: "8"
+          - generic [ref=f37e56]: Traveller 8
+          - generic [ref=f37e57]: Adult
+    - generic [ref=f37e58]:
+      - generic [ref=f37e59]:
+        - generic [ref=f37e60]:
+          - heading "Add-on Catalog" [level=2] [ref=f37e61]
+          - paragraph [ref=f37e62]: Select extras to enhance your trip experience
+        - generic [ref=f37e64]:
+          - button "All" [ref=f37e65] [cursor=pointer]
+          - button "Other" [ref=f37e66] [cursor=pointer]
+        - generic [ref=f37e69]:
+          - generic [ref=f37e71]:
+            - generic [ref=f37e72]:
+              - heading "WiFi Pakej Onboard" [level=3] [ref=f37e73]
+              - generic [ref=f37e74]: Other
+            - paragraph [ref=f37e75]: SIgnal telefon biasanya terganggu didalam kapal.anda tak seharusnya biarkan diri anda offline. pakej...
+            - button "More Info" [ref=f37e76] [cursor=pointer]
+            - generic [ref=f37e77]:
+              - generic [ref=f37e78]: "Select option:"
+              - generic [ref=f37e79]:
+                - generic:
+                  - text: Basic 100MB
+                  - generic: RM5.00
+                - generic:
+                  - text: Streaming 50GB
+                  - generic: RM15.00
+            - generic [ref=f37e84]: RM15.00 per person
+            - generic [ref=f37e85]:
+              - generic [ref=f37e86]: "Select travellers:"
+              - generic [ref=f37e87]:
+                - generic [ref=f37e88] [cursor=pointer]:
+                  - checkbox "Traveller 1 (Adult)" [checked] [disabled] [ref=f37e89]
+                  - generic [ref=f37e90]: Traveller 1
+                  - generic [ref=f37e91]: (Adult)
+                - generic [ref=f37e92] [cursor=pointer]:
+                  - checkbox "Traveller 2 (Adult)" [checked] [disabled] [ref=f37e93]
+                  - generic [ref=f37e94]: Traveller 2
+                  - generic [ref=f37e95]: (Adult)
+                - generic [ref=f37e96] [cursor=pointer]:
+                  - checkbox "Traveller 3 (Adult)" [checked] [disabled] [ref=f37e97]
+                  - generic [ref=f37e98]: Traveller 3
+                  - generic [ref=f37e99]: (Adult)
+                - generic [ref=f37e100] [cursor=pointer]:
+                  - checkbox "Traveller 4 (Adult)" [ref=f37e101]
+                  - generic [ref=f37e102]: Traveller 4
+                  - generic [ref=f37e103]: (Adult)
+                - generic [ref=f37e104] [cursor=pointer]:
+                  - checkbox "Traveller 5 (Adult)" [ref=f37e105]
+                  - generic [ref=f37e106]: Traveller 5
+                  - generic [ref=f37e107]: (Adult)
+                - generic [ref=f37e108] [cursor=pointer]:
+                  - checkbox "Traveller 6 (Adult)" [ref=f37e109]
+                  - generic [ref=f37e110]: Traveller 6
+                  - generic [ref=f37e111]: (Adult)
+                - generic [ref=f37e112] [cursor=pointer]:
+                  - checkbox "Traveller 7 (Adult)" [ref=f37e113]
+                  - generic [ref=f37e114]: Traveller 7
+                  - generic [ref=f37e115]: (Adult)
+                - generic [ref=f37e116] [cursor=pointer]:
+                  - checkbox "Traveller 8 (Adult)" [ref=f37e117]
+                  - generic [ref=f37e118]: Traveller 8
+                  - generic [ref=f37e119]: (Adult)
+              - generic [ref=f37e120]: 3 travellers selected
+          - button "In Cart" [disabled] [ref=f37e142]
+      - generic [ref=f37e124]:
+        - heading "Your Selection" [level=3] [ref=f37e125]
+        - generic [ref=f37e126]:
+          - generic [ref=f37e143]:
+            - generic [ref=f37e144]:
+              - generic [ref=f37e145]: WiFi Pakej Onboard (Basic 100MB)
+              - generic [ref=f37e146]: 2 x RM5.00
+              - generic [ref=f37e147]:
+                - generic [ref=f37e148]: Traveller 1
+                - generic [ref=f37e149]: Traveller 2
+            - generic [ref=f37e150]:
+              - strong [ref=f37e151]: RM10.00
+              - button "x" [ref=f37e152] [cursor=pointer]
+          - generic [ref=f37e153]:
+            - generic [ref=f37e154]:
+              - generic [ref=f37e155]: WiFi Pakej Onboard (Streaming 50GB)
+              - generic [ref=f37e156]: 3 x RM15.00
+              - generic [ref=f37e157]:
+                - generic [ref=f37e158]: Traveller 1
+                - generic [ref=f37e159]: Traveller 2
+                - generic [ref=f37e160]: Traveller 3
+            - generic [ref=f37e161]:
+              - strong [ref=f37e162]: RM45.00
+              - button "x" [ref=f37e163] [cursor=pointer]
+        - generic [ref=f37e138]:
+          - strong [ref=f37e140]: "Total: RM55.00"
+          - button "Proceed to Checkout" [ref=f37e141] [cursor=pointer]

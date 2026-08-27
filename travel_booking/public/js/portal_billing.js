@@ -34,6 +34,7 @@ let BOOKING = '';
 let BANK_ACCOUNTS = {}; // {currency: {bank_name, account_name, account_number}}
 let CASHBACK = { enabled: false, percent: 0 };
 let DEPOSIT_PCT = 20;   // Travel Settings.default_deposit_percent
+let ONLINE_PAYMENT_ENABLED = true;  // dari Travel Settings payment_gateway_account
 const SO_CTX = {};      // soId → {name, symbol, min, max}
 let _cachedOrders = null;   // bookingOrders cache (for currency re-render)
 
@@ -69,6 +70,7 @@ async function loadBookingPayments() {
       BANK_ACCOUNTS = (s && s.bank_accounts) || {};
       CASHBACK = { enabled: !!s.cashback_enabled, percent: parseFloat(s.cashback_percent || 0) };
       DEPOSIT_PCT = parseFloat(s.default_deposit_percent || 20);
+      ONLINE_PAYMENT_ENABLED = s && s.online_payment_enabled !== false;
     } catch (e) { /* kekal default; manual option akan dilumpuhkan */ }
 
     _cachedOrders = bookingOrders;
@@ -407,18 +409,28 @@ function renderPaymentSection(so, soId, symbol, outstanding, paid, depositAmt, m
       '<div class="pay-quick">' + chipsHtml + '</div>' +
       '<div id="pay-err-' + soId + '" role="alert" style="display:none;font-size:11px;color:#C0392B;margin-top:8px;"></div>' +
 
-      /* Kaedah — radio-style macam wizard Payment Method */
+      /* Kaedah — radio-style macam wizard Payment Method.
+         Online Payment disembunyikan/dilumpuhkan kalau tiada payment
+         gateway diconfigure di Travel Settings (mirror pattern Manual
+         Transfer disabled di bawah). */
       '<div class="pay-opts" style="margin-top:14px;">' +
-        '<label class="pay-opt on" data-act="method" data-so="' + soId + '" data-kind="online">' +
-          '<input type="radio" name="paym-' + soId + '" value="online" checked/>' +
-          '<span style="flex:1;min-width:0;">' +
-            '<span class="pay-opt__label">Online Payment</span>' +
-            '<span class="pay-opt__desc">Pay securely by debit or credit card</span>' +
-          '</span>' +
-        '</label>' +
+        (ONLINE_PAYMENT_ENABLED
+          ? '<label class="pay-opt on" data-act="method" data-so="' + soId + '" data-kind="online">' +
+              '<input type="radio" name="paym-' + soId + '" value="online" checked/>' +
+              '<span style="flex:1;min-width:0;">' +
+                '<span class="pay-opt__label">Online Payment</span>' +
+                '<span class="pay-opt__desc">Pay securely by debit or credit card</span>' +
+              '</span>' +
+            '</label>'
+          : '<div class="pay-opt disabled">' +
+              '<span style="flex:1;min-width:0;">' +
+                '<span class="pay-opt__label">Online Payment</span>' +
+                '<span class="pay-opt__desc" style="color:#991B1B;">Not available — no payment gateway configured</span>' +
+              '</span>' +
+            '</div>') +
         (hasBank
-          ? '<label class="pay-opt" data-act="method" data-so="' + soId + '" data-kind="manual">' +
-              '<input type="radio" name="paym-' + soId + '" value="manual"/>' +
+          ? '<label class="pay-opt' + (ONLINE_PAYMENT_ENABLED ? '' : ' on') + '" data-act="method" data-so="' + soId + '" data-kind="manual">' +
+              '<input type="radio" name="paym-' + soId + '" value="manual"' + (ONLINE_PAYMENT_ENABLED ? '' : ' checked') + '/>' +
               '<span style="flex:1;min-width:0;">' +
                 '<span class="pay-opt__label">Manual Bank Transfer</span>' +
                 '<span class="pay-opt__desc">' + manualDesc + '</span>' +
@@ -433,7 +445,7 @@ function renderPaymentSection(so, soId, symbol, outstanding, paid, depositAmt, m
       '</div>' +
 
       /* Panel MANUAL — butir bank + borang bukti (macam manualTransferCard) */
-      '<div class="pay-panel" id="panel-manual-' + soId + '">' +
+      '<div class="pay-panel' + (ONLINE_PAYMENT_ENABLED ? '' : ' on') + '" id="panel-manual-' + soId + '">' +
         bankHtml +
         '<div class="g2">' +
           '<div class="f"><label class="lbl" for="pay-date-' + soId + '">Payment date</label>' +
@@ -453,8 +465,8 @@ function renderPaymentSection(so, soId, symbol, outstanding, paid, depositAmt, m
         '<button class="btn btn-p" id="pay-submit-btn-' + soId + '" data-act="submit-manual" data-so="' + soId + '" style="width:100%;margin-top:10px;">Submit Manual Payment →</button>' +
       '</div>' +
 
-      /* Panel ONLINE */
-      '<div class="pay-panel on" id="panel-online-' + soId + '">' +
+      /* Panel ONLINE — disembunyikan default kalai Online dilumpuhkan */
+      '<div class="pay-panel' + (ONLINE_PAYMENT_ENABLED ? ' on' : '') + '" id="panel-online-' + soId + '">' +
         '<div class="info-ok" style="margin:0 0 12px;"><p>You will be redirected to our secure payment page to complete this payment.</p></div>' +
         '<button class="btn btn-p" id="pay-online-submit-' + soId + '" data-act="submit-online" data-so="' + soId + '" style="width:100%;">Proceed to Payment →</button>' +
       '</div>' +

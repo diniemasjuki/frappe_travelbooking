@@ -1,0 +1,73 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 0,
+ "allow_rename": 0,
+ "autoname": "autoincrement",
+ "creation": "2026-08-27 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "trip",
+  "group_date",
+  "trip_package",
+  "package_type"
+ ],
+ "fields": [
+  {
+   "fieldname": "trip",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Trip",
+   "options": "Trip",
+   "reqd": 0
+  },
+  {
+   "fetch_from": "trip.trip_name",
+   "fieldname": "trip_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Trip Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "group_date",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Group Date (Departure)",
+   "options": "Trip Group Date"
+  },
+  {
+   "fetch_from": "group_date.trip_group_name",
+   "fieldname": "group_date_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Date / Sailing No.",
+   "read_only": 1
+  },
+  {
+   "fieldname": "trip_package",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Package Type",
+   "options": "Trip Package"
+  },
+  {
+   "fetch_from": "trip_package.package_title",
+   "fieldname": "package_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Package Title",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 20,
+ "index_web_pages_for_search": 1,
+ "is_child_table": 1,
+ "module": "Travel Booking Management",
+ "name": "Trip Scoping",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": []
+}

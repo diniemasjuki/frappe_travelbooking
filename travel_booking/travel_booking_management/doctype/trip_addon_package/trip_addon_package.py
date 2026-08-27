@@ -15,7 +15,9 @@ class TripAddonPackage(Document):
 		from frappe.types import DF
 
 		addon: DF.Link
+		addon_package_name: DF.Data | None
 		addon_title: DF.Data | None
+		applicable_to: DF.Literal["All Trips", "Specific Trips Only"]
 		currency: DF.Link | None
 		current_qty_sold: DF.Int
 		fixed_valid_from: DF.Date | None
@@ -26,28 +28,26 @@ class TripAddonPackage(Document):
 		price_override: DF.Currency
 		sales_cutoff_days_before_departure: DF.Int
 		sales_cutoff_enabled: DF.Check
+		scope: DF.Literal["Per Booking", "Per Pax"]
 		status: DF.Literal["Active", "Inactive"]
-		trip_package: DF.Link | None
 		unit_price: DF.Currency
 		valid_from_offset_days: DF.Int
 		valid_to_offset_days: DF.Int
 		validity_mode: DF.Literal["Same as Trip", "Relative to Departure", "Fixed Dates", "One-Off"]
 	# end: auto-generated types
 
-	_DOCTYPE_NAME = "Addon Package"
+	_DOCTYPE_NAME = "Trip Addon Package"
 
 	def validate(self):
 		self.set_currency_and_unit_price()
 		self.validate_validity_rule()
+		self.validate_scoping()
 
 	def set_currency_and_unit_price(self):
 		"""Currency selalu ikut Addon induk (fetch_from, tapi dipastikan semula
 		di sini sebab fetch_from client-side boleh tak jalan untuk operasi
 		backend/API). unit_price = price_override kalau diisi, jika tidak
-		guna Addon.base_price — dikira SEKALI di sini (bukan virtual), supaya
-		boleh di-list/sort/report macam field biasa (rujuk pattern
-		Booking.prog_payment — field agregat yang perlu tampil di List View
-		WAJIB stored, bukan @property).
+		guna Addon.base_price.
 		"""
 		if not self.addon:
 			return
@@ -72,3 +72,39 @@ class TripAddonPackage(Document):
 				and self.valid_from_offset_days > self.valid_to_offset_days
 			):
 				frappe.throw("Valid From Offset must not be greater than Valid To Offset.")
+
+	def validate_scoping(self):
+		"""Validate trip scoping child table.
+
+		Jika applicable_to = 'Specific Trips Only', mestikan sekurang-kurang
+		satu trip scoping ditetapkan. Jika 'All Trips', boleh kosong.
+		"""
+		scopings = self.get("trip_scoping", [])
+
+		if self.applicable_to == "Specific Trips Only" and not scopings:
+			frappe.throw(
+				"This addon is marked as 'Specific Trips Only' but no trip/date/package "
+				"scoping is specified. Please add at least one entry in 'Trip & Date Scoping' table."
+			)
+
+	def is_applicable_for_trip_package(self, trip_package_name=None, group_date_name=None):
+		"""Check if this addon package is applicable for a given trip package or group date.
+
+		Returns True if:
+		- applicable_to = 'All Trips' (global, available for all bookings)
+		- OR scoping exists and matches the given trip_package/group_date
+		"""
+		scopings = frappe.get_all("Trip Scoping", {"parent": self.name}, ["trip_package", "group_date", "trip"])
+
+		if self.applicable_to == "All Trips":
+			return True
+
+		for scope in scopings:
+			if trip_package_name and scope.trip_package == trip_package_name:
+				return True
+			if group_date_name and scope.group_date == group_date_name:
+				return True
+			if scope.trip and not trip_package_name and not group_date_name:
+				return True
+
+		return False

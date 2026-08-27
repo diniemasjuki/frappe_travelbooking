@@ -161,15 +161,18 @@
       if (loading) loading.style.display = 'none';
       if (content) {
         content.style.display = 'block';
+
+        // Load bank settings BEFORE render supaya renderPaymentFormCard
+        // tahu sama ada Online Payment tersedia (payment gateway configured).
+        await loadBankSettings();
+
         content.innerHTML = renderBilling(data, targetBill);
         wireDownloadButtons();
         wirePaymentForms();
 
-        // Load bank details from Travel Settings & populate tables
-        loadBankSettings().then(function () {
-          var so = allOrders[0];
-          if (so) populateBankTable(so.name);
-        });
+        // Populate bank table cells with live data
+        var so0 = allOrders[0];
+        if (so0) populateBankTable(so0.name);
       }
     } catch (e) {
       if (loading) loading.style.display = 'none';
@@ -474,26 +477,35 @@
     html += '<button type="button" class="tv-pay-chip" data-pct="100" style="flex:0.6;">Full Balance<br/><span style="font-size:11px;">' + fmtDual(outstanding) + '</span></button>';
     html += '</div>';
 
-    // Method selection
+    // Method selection — Online Payment hanya dipaparkan kalau payment
+    // gateway diconfigure di Travel Settings. Kalau tiada, default ke Manual.
+    var onlineEnabled = _bankSettings && _bankSettings.online_payment_enabled !== false;
+
     html += '<div class="tv-pay-methods">';
-    html += '<label class="tv-pay-method selected" data-method="online">';
-    html += '<input type="radio" name="pay-method-' + _esc(soName) + '" value="online" checked class="tv-pay-radio"/>';
-    html += '<span>💳 Online Payment (Stripe)</span>';
-    html += '</label>';
-    html += '<label class="tv-pay-method" data-method="manual">';
-    html += '<input type="radio" name="pay-method-' + _esc(soName) + '" value="manual" class="tv-pay-radio"/>';
+    if (onlineEnabled) {
+      html += '<label class="tv-pay-method selected" data-method="online">';
+      html += '<input type="radio" name="pay-method-' + _esc(soName) + '" value="online" checked class="tv-pay-radio"/>';
+      html += '<span>💳 Online Payment (Stripe)</span>';
+      html += '</label>';
+    } else {
+      html += '<div class="tv-pay-method" style="opacity:0.5;cursor:not-allowed;pointer-events:none;">';
+      html += '<span>💳 Online Payment — not available</span>';
+      html += '</div>';
+    }
+    html += '<label class="tv-pay-method' + (onlineEnabled ? '' : ' selected') + '" data-method="manual">';
+    html += '<input type="radio" name="pay-method-' + _esc(soName) + '" value="manual"' + (onlineEnabled ? '' : ' checked') + ' class="tv-pay-radio"/>';
     html += '<span>🏦 Manual Bank Transfer</span>';
     html += '</label>';
     html += '</div>';
 
-    // Online panel
-    html += '<div class="tv-pay-panel on" id="panel-online-' + _esc(soName) + '">';
+    // Online panel — sembunyi default kalau Online dilumpuhkan
+    html += '<div class="tv-pay-panel' + (onlineEnabled ? ' on' : '') + '" id="panel-online-' + _esc(soName) + '">';
     html += '<p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">You will be redirected to Stripe secure checkout to complete your payment.</p>';
     html += '<button type="submit" class="tv-btn tv-btn--primary" style="width:100%;" data-act="pay-online">Proceed to Payment →</button>';
     html += '</div>';
 
-    // Manual transfer panel — bank details from Travel Settings, reordered fields
-    html += '<div class="tv-pay-panel" id="panel-manual-' + _esc(soName) + '">';
+    // Manual transfer panel — papar default kalau Online dilumpuhkan
+    html += '<div class="tv-pay-panel' + (onlineEnabled ? '' : ' on') + '" id="panel-manual-' + _esc(soName) + '">';
     // Bank details table (populated dynamically after API load)
     html += '<div style="margin-bottom:16px;" id="bank-details-' + _esc(soName) + '">';
     html += '<p style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Bank Details:</p>';
@@ -909,6 +921,13 @@
     var soName = form.dataset.so;
     var amountInput = form.querySelector('.pay-amount-input');
     var amount = round2(amountInput?.value);
+
+    // Guard: elak Online Payment kalau tiada payment gateway diconfigure
+    var onlineEnabled = _bankSettings && _bankSettings.online_payment_enabled !== false;
+    if (!onlineEnabled) {
+      showPayError(form, 'Online payment is not available. Please use Manual Bank Transfer.');
+      return;
+    }
 
     var so = allOrders.find(function (o) { return o.name === soName; });
     var outstanding = so ? round2((parseFloat(so.grand_total) || 0) - (parseFloat(so.advance_paid) || 0)) : 0;

@@ -1,0 +1,6 @@
+- main [ref=f30e4]:
+  - generic [ref=f30e7]:
+    - heading "Not Permitted" [level=4] [ref=f30e8]
+    - generic [ref=f30e9]:
+      - paragraph [ref=f30e10]: "403: You do not have enough permissions to complete the action"
+      - button "Show Error" [ref=f30e11] [cursor=pointer]

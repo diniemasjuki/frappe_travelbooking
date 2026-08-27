@@ -375,7 +375,22 @@ def get_booking_data(booking_number: str):
         "slots":   slots,
         "cabins":  cabins,
         "payment": {"so": so_data, "so_list": so_list},
+        "addon_orders": _get_addon_orders_for_booking(booking.name),
     }
+
+
+def _get_addon_orders_for_booking(booking_name: str) -> list:
+    """Ambil senarai Booking Addon untuk satu booking (untuk paparan panel
+    Add-ons & Extras dalam booking detail). Return list of dicts dengan ringkasan
+    setiap order — bukan detail penuh baris (itu tugas get_booking_addons()).
+    """
+    orders = frappe.get_all(
+        "Booking Addon",
+        filters={"booking": booking_name, "status": ("!=", "Cancelled")},
+        fields=["name", "status", "payment_status", "total_amount", "currency", "order_date"],
+        order_by="order_date desc",
+    )
+    return orders
 
 
 @frappe.whitelist()

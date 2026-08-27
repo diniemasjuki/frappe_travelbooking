@@ -803,6 +803,53 @@ body:has(.bnw-main) .rc-public-main {
   border-radius: 10px 10px 0px 0px;
   opacity:0.9;
 }
+/* ── Cabin video placeholder (gambar sebagai poster, klik → embed YT) ── */
+.bnw-cabin-media {
+  position: relative;
+  width: 100%;
+  border-radius: 10px 10px 0 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+.bnw-cabin-media .bnw-cabin-img {
+  display: block;
+  opacity: 0.9;
+  transition: opacity 0.2s ease;
+}
+.bnw-cabin-media:hover .bnw-cabin-img {
+  opacity: 1;
+}
+.bnw-cabin-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(30, 28, 24, 0.72);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+  z-index: 2;
+}
+.bnw-cabin-play i {
+  font-size: 30px;
+  margin-left: 4px; /* optical centering untuk icon play segitiga */
+}
+.bnw-cabin-media:hover .bnw-cabin-play {
+  background: var(--bnw-gold);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+.bnw-cabin-media .bnw-cabin-iframe {
+  border: 0;
+  display: block;
+}
 .bnw-cabin-desc {
   font-size: 13px;
   color: var(--bnw-text-muted);
@@ -1513,6 +1560,8 @@ body:has(.bnw-main) .rc-public-main {
 @media (max-width: 768px) {
   .bnw-container { padding: 0 16px; }
   .bnw-section { padding: 32px 0 40px; }
+  /* Disable sticky step nav on mobile — biar scroll naturally dgn content */
+  .bnw-steps-nav { position: static; }
   .bnw-page-header h1 { font-size: 26px; }
   .bnw-page-header p { font-size: 14px; }
 

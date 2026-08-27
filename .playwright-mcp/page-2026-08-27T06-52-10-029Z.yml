@@ -1,0 +1,75 @@
+- generic [active] [ref=f3e1]:
+  - navigation [ref=f3e2]:
+    - generic [ref=f3e3]:
+      - link [ref=f3e4] [cursor=pointer]:
+        - /url: /traveller/bookings
+        - img "Rarecation" [ref=f3e5]
+      - generic [ref=f3e6]:
+        - link "My Bookings" [ref=f3e7] [cursor=pointer]:
+          - /url: /traveller/bookings
+        - link "Transactions" [ref=f3e8] [cursor=pointer]:
+          - /url: /traveller/transactions
+        - link "Profile" [ref=f3e9] [cursor=pointer]:
+          - /url: /traveller/profile
+      - button "User menu" [ref=f3e11] [cursor=pointer]:
+        - generic [ref=f3e12]: MD
+  - generic [ref=f3e16]:
+    - generic [ref=f3e17]:
+      - generic [ref=f3e18]:
+        - heading "🎁 Add-ons & Extras" [level=1] [ref=f3e19]
+        - generic [ref=f3e20]:
+          - text: "Booking:"
+          - strong [ref=f3e21]: RC1DC0KU
+          - text: "· Status: Accepted"
+      - link "← Back to Booking" [ref=f3e22] [cursor=pointer]:
+        - /url: /traveller/booking?ref=RC1DC0KU
+    - generic [ref=f3e23]:
+      - generic [ref=f3e24]: Travellers on this Booking
+      - generic [ref=f3e25]:
+        - generic [ref=f3e26]: MUHAMAD DINIE BIN MASJUKI (Adult)
+        - generic [ref=f3e27]: Traveller (Adult)
+    - generic [ref=f3e28]:
+      - generic [ref=f3e29]:
+        - generic [ref=f3e30]:
+          - heading "Add-on Catalog" [level=2] [ref=f3e31]
+          - paragraph [ref=f3e32]: Select extras to enhance your trip experience
+        - generic [ref=f3e34]:
+          - button "All" [ref=f3e35] [cursor=pointer]
+          - button "Other" [ref=f3e36] [cursor=pointer]
+          - button "Upgrade" [ref=f3e37] [cursor=pointer]
+        - generic [ref=f3e39]:
+          - generic [ref=f3e40]:
+            - generic [ref=f3e42]:
+              - generic [ref=f3e43]:
+                - heading "addon 1 merchandise per pax for all" [level=3] [ref=f3e44]
+                - generic [ref=f3e45]: Other
+              - generic [ref=f3e46]:
+                - generic [ref=f3e47]: "Select option:"
+                - generic [ref=f3e48]:
+                  - generic [ref=f3e49] [cursor=pointer]:
+                    - text: AP2608001
+                    - generic [ref=f3e50]: RM5.00
+                  - generic [ref=f3e51] [cursor=pointer]:
+                    - text: AP2608002
+                    - generic [ref=f3e52]: RM99.00
+              - generic [ref=f3e53]: RM5.00 per booking
+            - button "Add" [ref=f3e55] [cursor=pointer]
+          - generic [ref=f3e56]:
+            - generic [ref=f3e58]:
+              - generic [ref=f3e59]:
+                - heading "tiket fligt upgrade all trip by booking" [level=3] [ref=f3e60]
+                - generic [ref=f3e61]: Upgrade
+              - generic [ref=f3e62]:
+                - generic [ref=f3e63]: "Select option:"
+                - generic [ref=f3e64]:
+                  - generic [ref=f3e65] [cursor=pointer]:
+                    - text: AP2608003
+                    - generic [ref=f3e66]: RM100.00
+                  - generic [ref=f3e67] [cursor=pointer]:
+                    - text: AP2608004
+                    - generic [ref=f3e68]: RM89.00
+              - generic [ref=f3e69]: RM100.00 per booking
+            - button "Add" [ref=f3e71] [cursor=pointer]
+      - generic [ref=f3e73]:
+        - heading "Your Selection" [level=3] [ref=f3e74]
+        - paragraph [ref=f3e76]: No items selected yet

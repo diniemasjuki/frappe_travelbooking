@@ -24,6 +24,8 @@ class TripAddon(Document):
 		disable: DF.Check
 		naming_series: DF.Literal["TADD.YY.MM.##"]
 		scope: DF.Literal["Per Booking", "Per Pax"]
+		trip_link: DF.Link | None
+		trip_name: DF.Data | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "TripAddon"

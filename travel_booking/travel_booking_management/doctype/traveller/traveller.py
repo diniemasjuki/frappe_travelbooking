@@ -43,9 +43,11 @@ class Traveller(Document):
 		title: DF.Literal["Mr", "Mrs"]
 		visa_photo: DF.Attach | None
 		wheelchair_assistant: DF.Literal["", "Not Required", "Long Walk Only", "All Time"]
-	# end: auto-generated types
+		# end: auto-generated types
+	
+		_DOCTYPE_NAME = "Traveller"
+ 
 
-	_DOCTYPE_NAME = "Traveller"
 
 	def before_save(self):
 		self.set_uppercase()
@@ -53,6 +55,10 @@ class Traveller(Document):
 		self.set_age_from_dob()
 		self.set_age_category()
 		self.set_title_and_gender_from_name()
+  
+	def set_icnumber(self):
+		self.ic_number = self.ic_number.replace(" ","").replace("-","")
+  	
 
 	def set_uppercase(self):
 		text_fields = [

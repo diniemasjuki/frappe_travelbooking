@@ -1770,7 +1770,7 @@ window.BookingHubPage = (function () {
 	function show_create_addon_dialog(booking_name) {
 		// This would open a dialog to create addon order
 		// For now, redirect to create form
-		frappe.set_route('List', 'Booking Addon Order', { booking: booking_name });
+		frappe.set_route('List', 'Booking Addon', { booking: booking_name });
 	}
 
 	function add_addon_to_booking(booking_name, addon_name) {

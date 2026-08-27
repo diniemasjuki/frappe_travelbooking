@@ -321,7 +321,7 @@ class Trip(Document):
 	def before_save(self):
 		# jangan usik 
 		self.title = self.trip_name.upper()
-		self.route = self.domain + "trip/" + self.trip_name.lower().replace(" ", "-")
+		self.route = self.domain + "/trip/" + self.trip_name.lower().replace(" ", "-").replace("//", "/")
 		# jangan usik - end
 
 	def validate(self):

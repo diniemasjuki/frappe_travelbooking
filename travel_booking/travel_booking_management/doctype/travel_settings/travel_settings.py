@@ -13,12 +13,12 @@ class TravelSettings(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
-		from travel_booking.travel_booking_management.doctype.travel_currency_account.travel_currency_account import TravelCurrencyAccount
 		from travel_booking.travel_booking_management.doctype.price_category_label.price_category_label import PriceCategoryLabel
+		from travel_booking.travel_booking_management.doctype.travel_currency_account.travel_currency_account import TravelCurrencyAccount
 
-		account_name: DF.Data
-		account_number: DF.Data
-		bank_name: DF.Link
+		account_name: DF.Data | None
+		account_number: DF.Data | None
+		bank_name: DF.Link | None
 		cashback_discount_account: DF.Link | None
 		currency_accounts: DF.Table[TravelCurrencyAccount]
 		default_deposit_percent: DF.Percent

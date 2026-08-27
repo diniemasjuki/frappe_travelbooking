@@ -346,7 +346,8 @@
     var html = '<div class="rc-price-summary">';
     labels.forEach(function(cfg) {
       var minPrice = priceMap[cfg.price_key];
-      if (minPrice != null) {
+      // Auto-hide price category if price is null or zero (0 = not applicable)
+      if (minPrice != null && minPrice > 0) {
         html += '<div class="rc-price-row">';
         html += '<div class="rc-price-label">' + esc(cfg.display_label) + '</div>';
         var note = (cfg.display_note || "").replace(/<[^>]+>/g, "");

@@ -1,0 +1,126 @@
+- generic [ref=f43e275]:
+  - navigation [ref=f43e276]:
+    - generic [ref=f43e277]:
+      - link [ref=f43e278] [cursor=pointer]:
+        - /url: /traveller/bookings
+        - img "Rarecation" [ref=f43e279]
+      - generic [ref=f43e280]:
+        - link "My Bookings" [ref=f43e281] [cursor=pointer]:
+          - /url: /traveller/bookings
+        - link "Transactions" [ref=f43e282] [cursor=pointer]:
+          - /url: /traveller/transactions
+        - link "Profile" [ref=f43e283] [cursor=pointer]:
+          - /url: /traveller/profile
+      - button "User menu" [ref=f43e285] [cursor=pointer]:
+        - generic [ref=f43e286]: MD
+  - generic [ref=f43e290]:
+    - generic [ref=f43e291]:
+      - generic [ref=f43e292]:
+        - heading "🎁 Add-ons & Extras" [level=1] [ref=f43e293]
+        - generic [ref=f43e294]:
+          - text: "Booking:"
+          - strong [ref=f43e295]: RCWGN1H7
+          - text: "· Status: Accepted"
+      - link "← Back to Booking" [ref=f43e296] [cursor=pointer]:
+        - /url: /traveller/booking?ref=RCWGN1H7
+    - generic [ref=f43e297]:
+      - generic [ref=f43e298]: Travellers on this Booking
+      - generic [ref=f43e299]:
+        - generic [ref=f43e300]:
+          - generic [ref=f43e301]: "1"
+          - generic [ref=f43e302]: Traveller 1
+          - generic [ref=f43e303]: Adult
+        - generic [ref=f43e304]:
+          - generic [ref=f43e305]: "2"
+          - generic [ref=f43e306]: Traveller 2
+          - generic [ref=f43e307]: Adult
+        - generic [ref=f43e308]:
+          - generic [ref=f43e309]: "3"
+          - generic [ref=f43e310]: Traveller 3
+          - generic [ref=f43e311]: Adult
+        - generic [ref=f43e312]:
+          - generic [ref=f43e313]: "4"
+          - generic [ref=f43e314]: Traveller 4
+          - generic [ref=f43e315]: Adult
+        - generic [ref=f43e316]:
+          - generic [ref=f43e317]: "5"
+          - generic [ref=f43e318]: Traveller 5
+          - generic [ref=f43e319]: Adult
+        - generic [ref=f43e320]:
+          - generic [ref=f43e321]: "6"
+          - generic [ref=f43e322]: Traveller 6
+          - generic [ref=f43e323]: Adult
+        - generic [ref=f43e324]:
+          - generic [ref=f43e325]: "7"
+          - generic [ref=f43e326]: Traveller 7
+          - generic [ref=f43e327]: Adult
+        - generic [ref=f43e328]:
+          - generic [ref=f43e329]: "8"
+          - generic [ref=f43e330]: Traveller 8
+          - generic [ref=f43e331]: Adult
+    - generic [ref=f43e332]:
+      - generic [ref=f43e333]:
+        - generic [ref=f43e334]:
+          - heading "Add-on Catalog" [level=2] [ref=f43e335]
+          - paragraph [ref=f43e336]: Select extras to enhance your trip experience
+        - generic [ref=f43e338]:
+          - button "All" [ref=f43e339] [cursor=pointer]
+          - button "Other" [ref=f43e340] [cursor=pointer]
+        - generic [ref=f43e345]:
+          - generic [ref=f43e346]:
+            - heading "WiFi Pakej Onboard" [level=3] [ref=f43e347]
+            - generic [ref=f43e348]: Other
+          - paragraph [ref=f43e349]: SIgnal telefon biasanya terganggu didalam kapal.anda tak seharusnya biarkan diri anda offline. pakej...
+          - button "More Info" [ref=f43e350] [cursor=pointer]
+          - button "Hide ▴" [ref=f43e357] [cursor=pointer]
+          - generic [ref=f43e358]:
+            - generic [ref=f43e359]:
+              - generic [ref=f43e360]: "Select option:"
+              - generic [ref=f43e361]:
+                - generic [ref=f43e362] [cursor=pointer]:
+                  - text: Basic 100MB
+                  - generic [ref=f43e363]: RM5.00
+                - generic [ref=f43e364] [cursor=pointer]:
+                  - text: Streaming 50GB
+                  - generic [ref=f43e365]: RM15.00
+            - generic [ref=f43e366]: RM5.00 per person
+            - generic [ref=f43e367]:
+              - generic [ref=f43e368]: "Select travellers:"
+              - generic [ref=f43e369]:
+                - generic [ref=f43e370] [cursor=pointer]:
+                  - checkbox "Traveller 1 (Adult)" [checked] [active] [ref=f43e371]
+                  - generic [ref=f43e372]: Traveller 1
+                  - generic [ref=f43e373]: (Adult)
+                - generic [ref=f43e374] [cursor=pointer]:
+                  - checkbox "Traveller 2 (Adult)" [ref=f43e375]
+                  - generic [ref=f43e376]: Traveller 2
+                  - generic [ref=f43e377]: (Adult)
+                - generic [ref=f43e378] [cursor=pointer]:
+                  - checkbox "Traveller 3 (Adult)" [ref=f43e379]
+                  - generic [ref=f43e380]: Traveller 3
+                  - generic [ref=f43e381]: (Adult)
+                - generic [ref=f43e382] [cursor=pointer]:
+                  - checkbox "Traveller 4 (Adult)" [ref=f43e383]
+                  - generic [ref=f43e384]: Traveller 4
+                  - generic [ref=f43e385]: (Adult)
+                - generic [ref=f43e386] [cursor=pointer]:
+                  - checkbox "Traveller 5 (Adult)" [ref=f43e387]
+                  - generic [ref=f43e388]: Traveller 5
+                  - generic [ref=f43e389]: (Adult)
+                - generic [ref=f43e390] [cursor=pointer]:
+                  - checkbox "Traveller 6 (Adult)" [ref=f43e391]
+                  - generic [ref=f43e392]: Traveller 6
+                  - generic [ref=f43e393]: (Adult)
+                - generic [ref=f43e394] [cursor=pointer]:
+                  - checkbox "Traveller 7 (Adult)" [ref=f43e395]
+                  - generic [ref=f43e396]: Traveller 7
+                  - generic [ref=f43e397]: (Adult)
+                - generic [ref=f43e398] [cursor=pointer]:
+                  - checkbox "Traveller 8 (Adult)" [ref=f43e399]
+                  - generic [ref=f43e400]: Traveller 8
+                  - generic [ref=f43e401]: (Adult)
+              - generic [ref=f43e402]: 1 traveller selected
+            - button "Add Selected" [ref=f43e404] [cursor=pointer]
+      - generic [ref=f43e353]:
+        - heading "Your Selection" [level=3] [ref=f43e354]
+        - paragraph [ref=f43e356]: No items selected yet

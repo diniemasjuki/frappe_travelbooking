@@ -1,0 +1,29 @@
+- main [ref=f45e4]:
+  - generic [ref=f45e8]:
+    - generic [ref=f45e11]:
+      - heading "Sign In" [level=4] [ref=f45e12]
+      - paragraph [ref=f45e13]: Welcome! Please sign in to continue.
+    - form [ref=f45e14]:
+      - generic [ref=f45e15]:
+        - generic [ref=f45e16]:
+          - generic [ref=f45e17]: Email / Username
+          - textbox "Email / Username Email / Username" [active] [ref=f45e19]:
+            - /placeholder: jane@example.com
+        - generic [ref=f45e20]:
+          - generic [ref=f45e21]:
+            - generic [ref=f45e22]: Password
+            - generic [ref=f45e23]:
+              - textbox "Password Password" [ref=f45e24]:
+                - /placeholder: ••••••••
+              - img [ref=f45e25] [cursor=pointer]
+          - paragraph [ref=f45e27]:
+            - link "Forgot password?" [ref=f45e28] [cursor=pointer]:
+              - /url: "#forgot"
+      - generic [ref=f45e29]:
+        - button "Continue" [ref=f45e30] [cursor=pointer]
+        - link "Login with Email Link" [ref=f45e31] [cursor=pointer]:
+          - /url: "#login-with-email-link"
+        - link [ref=f45e35] [cursor=pointer]:
+          - /url: https://accounts.google.com/o/oauth2/auth?redirect_uri=http%3A%2F%2Ftest.rpwp.my%2Fapi%2Fmethod%2Ffrappe.integrations.oauth2_logins.login_via_google&state=c658901f12a45d45fc59b97c88a9bd5d&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email&response_type=code&client_id=413043601577-98vemsk970q24sl1a12d116t1b0ll5h4.apps.googleusercontent.com
+          - img "Google" [ref=f45e36]
+          - text: Login with Google

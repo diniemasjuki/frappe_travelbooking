@@ -269,6 +269,12 @@ def _get_or_create_travel_item(item_code=None, item_name=None):
         "is_stock_item":                 0,
         "is_sales_item":                 1,
         "include_item_in_manufacturing": 0,
+        # ERPNext's calculate_commission() only sums base_net_amount of
+        # items whose grant_commission flag is set - without this the
+        # affiliate app's Nett commission base would always compute 0.
+        # (The Gross base sums positive line items directly and is
+        # unaffected, but the flag is set here so both bases work.)
+        "grant_commission":              1,
     }).insert(ignore_permissions=True)
     return item_code
 
@@ -551,10 +557,24 @@ def _maybe_auto_invoice_so(so_name):
     try:
         from erpnext.selling.doctype.sales_order.mapper import make_sales_invoice
 
-        _original_user = frappe.session.user
-        frappe.set_user("Administrator")
+        _original_user = frappe.local.session.user
+        frappe.local.session.user = "Administrator"
         try:
             si = make_sales_invoice(so_name)
+
+            # make_sales_invoice mapper doesn't copy arbitrary custom fields
+            # from SO to SI — copy the booking link fields manually so the SI
+            # carries the same Booking + Booking Addon references as the SO.
+            so_custom = frappe.db.get_value(
+                "Sales Order", so_name,
+                ["custom_booking", "custom_booking_addon"], as_dict=True
+            )
+            if so_custom:
+                if so_custom.custom_booking:
+                    si.custom_booking = so_custom.custom_booking
+                if so_custom.custom_booking_addon:
+                    si.custom_booking_addon = so_custom.custom_booking_addon
+
             si.flags.ignore_permissions = True
             si.set_posting_time = 1
             si.posting_date = frappe.utils.today()
@@ -583,7 +603,7 @@ def _maybe_auto_invoice_so(so_name):
             si.insert(ignore_permissions=True)
             si.submit()
         finally:
-            frappe.set_user(_original_user)
+            frappe.local.session.user = _original_user
 
     except Exception as e:
         frappe.log_error(

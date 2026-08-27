@@ -41,6 +41,9 @@ def get_payment_settings():
     settings = frappe.get_cached_doc("Travel Settings")
 
     bank_accounts_by_currency = {}
+    # Track per-currency online payment availability: True if
+    # payment_gateway_account is configured for that currency row.
+    online_payment_by_currency = {}
     for row in (settings.get("currency_accounts") or []):
         if not row.currency:
             continue
@@ -64,6 +67,13 @@ def get_payment_settings():
             "account_name":   account_name,
             "account_number": account_number,
         }
+        online_payment_by_currency[row.currency] = bool(row.payment_gateway_account)
+
+    # Online payment globally available if ANY currency row has a gateway.
+    # Frontend pages that don't know the booking currency yet (wizard page
+    # load) use this flag to decide whether to show the Online Payment option.
+    # Pages that know the currency should use online_payment_by_currency instead.
+    online_payment_enabled = any(online_payment_by_currency.values())
 
     return {
         # dict {currency: {bank_name, account_name, account_number}} —
@@ -77,6 +87,11 @@ def get_payment_settings():
         "default_deposit_percent":          float(getattr(settings, "default_deposit_percent", 20) or 20),
         "support_email":                    getattr(settings, "support_email", "") or "",
         "support_phone":                    getattr(settings, "support_phone", "") or "",
+        # Online payment (Stripe) availability — hides/disables the Online
+        # Payment option at checkout when no Payment Gateway Account is
+        # configured in Travel Settings > Currency Accounts.
+        "online_payment_enabled":           online_payment_enabled,
+        "online_payment_by_currency":       online_payment_by_currency,
     }
 
 
@@ -243,6 +258,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             tpc.description,
             tpc.room_profile,
             tpc.read_more_url,
+            tpc.youtube_url,
             tpp.price_adult_single,
             tpp.price_adult,
             tpp.price_upperberth,
@@ -271,6 +287,9 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             "description":   row.description or "",
             "room_image":    row.room_profile or "",
             "read_more_url": row.read_more_url or "",
+            # Link video bilik (YouTube). Di-booknow.js, gambar room_profile
+            # jadi POSTER/placeholder — klik untuk embed iframe YouTube.
+            "room_video_url": row.youtube_url or "",
             "pricing": {
                 "price_adult_single":     float(row.price_adult_single     or 0),
                 "price_adult":            float(row.price_adult           or 0),

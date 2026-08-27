@@ -10,7 +10,6 @@
   "addon_title",
   "addon_organizer",
   "addon_type",
-  "scope",
   "naming_series",
   "column_break_skiv",
   "disable",
@@ -19,6 +18,7 @@
   "base_price",
   "section_break_vigu",
   "addon_gallery",
+  "youtube_video_url",
   "section_break_khju",
   "description"
  ],
@@ -38,15 +38,6 @@
    "in_list_view": 1,
    "label": "Addon Type",
    "options": "Activity\nUpgrade\nTransfer\nOther"
-  },
-  {
-   "default": "Per Booking",
-   "description": "Per Booking: qty di peringkat booking sahaja. Per Pax: perlu di-assign kepada Booking Reservation tertentu (belum disokong penuh di portal, reserved untuk fasa akan datang).",
-   "fieldname": "scope",
-   "fieldtype": "Select",
-   "label": "Scope",
-   "options": "Per Booking\nPer Pax",
-   "reqd": 1
   },
   {
    "fieldname": "description",
@@ -105,6 +96,12 @@
    "make_attachment_public": 1
   },
   {
+   "description": "YouTube video URL or video ID (e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ or just dQw4w9WgXcQ)",
+   "fieldname": "youtube_video_url",
+   "fieldtype": "Data",
+   "label": "YouTube Video URL"
+  },
+  {
    "fieldname": "cover_image",
    "fieldtype": "Attach Image",
    "label": "Cover Image",
@@ -124,11 +121,11 @@
  "index_web_pages_for_search": 1,
  "links": [
   {
-   "link_doctype": "Addon Package",
+   "link_doctype": "Trip Addon Package",
    "link_fieldname": "addon"
   }
  ],
- "modified": "2026-08-27 08:20:12.744924",
+ "modified": "2026-08-27 11:42:09.065110",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Addon",

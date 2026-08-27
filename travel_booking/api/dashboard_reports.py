@@ -335,8 +335,8 @@ def get_revenue_by_package(from_date: str = None, to_date: str = None) -> list:
 				tp.name,
 				COUNT(DISTINCT bao.name) as sales_count,
 				SUM(ba.amount) as revenue
-			FROM `tabBooking Addon Order` bao
-			INNER JOIN `Booking Addon` ba ON ba.addon_order = bao.name
+			FROM `tabBooking Addon` bao
+			INNER JOIN `tabBooking Addon Item` ba ON ba.addon_order = bao.name
 			RIGHT JOIN `Trip Package` tp ON tp.name = bao.trip_package
 			WHERE bao.creation BETWEEN %s AND %s
 			GROUP BY tp.name, tp.package_title

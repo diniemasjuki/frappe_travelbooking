@@ -8,37 +8,22 @@
  "engine": "InnoDB",
  "field_order": [
   "order_section",
-  "addon_order",
   "booking",
+  "booking_number",
   "customer",
-  "column_break_order2",
   "trip_package",
+  "column_break_order",
   "trip_date",
   "departure_date",
-  "addon_section",
-  "addon_package",
-  "addon",
-  "addon_title",
-  "column_break_addon",
-  "scope",
-  "naming_series",
-  "traveller_section",
-  "booking_reservation",
-  "traveller_name",
-  "column_break_traveller",
-  "qty",
-  "pricing_section",
-  "currency",
-  "unit_price",
-  "column_break_pricing",
-  "amount",
-  "validity_section",
-  "valid_from",
-  "valid_to",
-  "status_section",
+  "return_date",
+  "order_date",
   "status",
-  "column_break_status",
-  "sales_order",
+  "payment_status",
+  "billing_section",
+  "currency",
+  "total_amount",
+  "column_break_billing",
+  "naming_series",
   "notes"
  ],
  "fields": [
@@ -48,39 +33,35 @@
    "label": "Order"
   },
   {
-   "fieldname": "addon_order",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Addon Order",
-   "options": "Booking Addon Order",
-   "reqd": 1,
-   "search_index": 1,
-   "set_only_once": 1
-  },
-  {
-   "fetch_from": "addon_order.booking",
    "fieldname": "booking",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Booking",
    "options": "Booking",
+   "reqd": 1,
+   "search_index": 1,
+   "set_only_once": 1
+  },
+  {
+   "fetch_from": "booking.booking_number",
+   "fieldname": "booking_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Booking Number",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "booking.customer",
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Customer",
+   "options": "Customer",
    "read_only": 1,
    "search_index": 1
   },
   {
-   "fetch_from": "addon_order.customer",
-   "fieldname": "customer",
-   "fieldtype": "Link",
-   "label": "Customer",
-   "options": "Customer",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_order2",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fetch_from": "addon_order.trip_package",
+   "fetch_from": "booking.trip_package",
    "fieldname": "trip_package",
    "fieldtype": "Link",
    "label": "Trip Package",
@@ -88,7 +69,11 @@
    "read_only": 1
   },
   {
-   "fetch_from": "addon_order.trip_date",
+   "fieldname": "column_break_order",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "booking.trip_date",
    "fieldname": "trip_date",
    "fieldtype": "Link",
    "label": "Trip Group Date",
@@ -96,152 +81,25 @@
    "read_only": 1
   },
   {
-   "fetch_from": "addon_order.departure_date",
+   "fetch_from": "trip_date.departure_date",
    "fieldname": "departure_date",
    "fieldtype": "Date",
    "label": "Departure Date",
    "read_only": 1
   },
   {
-   "fieldname": "addon_section",
-   "fieldtype": "Section Break",
-   "label": "Addon"
-  },
-  {
-   "fieldname": "addon_package",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Addon Package",
-   "options": "Trip Addon Package",
-   "reqd": 1,
-   "set_only_once": 1
-  },
-  {
-   "fetch_from": "addon_package.addon",
-   "fieldname": "addon",
-   "fieldtype": "Link",
-   "label": "Addon",
-   "options": "Trip Addon",
-   "read_only": 1
-  },
-  {
-   "fetch_from": "addon_package.addon_title",
-   "fieldname": "addon_title",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Addon Title",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_addon",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fetch_from": "addon.scope",
-   "fieldname": "scope",
-   "fieldtype": "Select",
-   "label": "Scope",
-   "options": "Per Booking\nPer Pax",
-   "read_only": 1
-  },
-  {
-   "default": "BA.YY.MM.###",
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "hidden": 1,
-   "label": "naming series",
-   "options": "BA.YY.MM.###",
-   "reqd": 1
-  },
-  {
-   "fieldname": "traveller_section",
-   "fieldtype": "Section Break",
-   "label": "Traveller"
-  },
-  {
-   "depends_on": "eval:doc.scope=='Per Pax'",
-   "description": "Wajib diisi kalau Scope = Per Pax (belum disokong penuh di portal \u2014 reserved untuk fasa akan datang). Kosong kalau Scope = Per Booking.",
-   "fieldname": "booking_reservation",
-   "fieldtype": "Link",
-   "label": "Booking Reservation",
-   "mandatory_depends_on": "eval:doc.scope=='Per Pax'",
-   "options": "Booking Reservation"
-  },
-  {
-   "fetch_from": "booking_reservation.traveller_full_name",
-   "fieldname": "traveller_name",
-   "fieldtype": "Data",
-   "label": "Traveller Name",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_traveller",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "1",
-   "fieldname": "qty",
-   "fieldtype": "Int",
-   "in_list_view": 1,
-   "label": "Qty",
-   "non_negative": 1
-  },
-  {
-   "fieldname": "pricing_section",
-   "fieldtype": "Section Break",
-   "label": "Pricing Snapshot"
-  },
-  {
-   "fieldname": "currency",
-   "fieldtype": "Link",
-   "label": "Currency",
-   "options": "Currency",
-   "read_only": 1
-  },
-  {
-   "description": "Dibekukan waktu baris ini dicipta \u2014 perubahan harga Addon Package kemudian TIDAK mempengaruhi baris sedia ada.",
-   "fieldname": "unit_price",
-   "fieldtype": "Currency",
-   "label": "Unit Price",
-   "options": "doc.currency",
-   "precision": "2",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_pricing",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "amount",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Amount",
-   "options": "doc.currency",
-   "precision": "2",
-   "read_only": 1
-  },
-  {
-   "fieldname": "validity_section",
-   "fieldtype": "Section Break",
-   "label": "Validity Snapshot"
-  },
-  {
-   "description": "Dibekukan waktu baris ini dicipta ikut rule Addon Package + tarikh trip semasa itu.",
-   "fieldname": "valid_from",
+   "fetch_from": "trip_date.return_date",
+   "fieldname": "return_date",
    "fieldtype": "Date",
-   "label": "Valid From",
+   "label": "Return Date",
    "read_only": 1
   },
   {
-   "fieldname": "valid_to",
-   "fieldtype": "Date",
-   "label": "Valid To",
+   "default": "now",
+   "fieldname": "order_date",
+   "fieldtype": "Datetime",
+   "label": "Order Date",
    "read_only": 1
-  },
-  {
-   "fieldname": "status_section",
-   "fieldtype": "Section Break",
-   "label": "Status"
   },
   {
    "default": "Pending",
@@ -252,16 +110,48 @@
    "options": "Pending\nConfirmed\nCancelled"
   },
   {
-   "fieldname": "column_break_status",
+   "description": "Sync dari Sales Order (addon) untuk order ini SAHAJA — bukan agregat Booking.payment_status (yang termasuk SO cabin lain).",
+   "fieldname": "payment_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Payment Status",
+   "options": "Pending\nPartially Paid\nPaid",
+   "read_only": 1
+  },
+  {
+   "fieldname": "billing_section",
+   "fieldtype": "Section Break",
+   "label": "Billing"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "read_only": 1
+  },
+  {
+   "description": "Jumlah semua baris Booking Addon (status bukan Cancelled) di bawah order ini. Dikira semula automatik bila baris ditambah/dibuang.",
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Total Amount",
+   "options": "doc.currency",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_billing",
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "addon_order.sales_order",
-   "fieldname": "sales_order",
-   "fieldtype": "Link",
-   "label": "Sales Order",
-   "options": "Sales Order",
-   "read_only": 1
+   "default": "BAO.YY.MM.###",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "naming series",
+   "options": "BAO.YY.MM.###",
+   "reqd": 1
   },
   {
    "fieldname": "notes",
@@ -271,8 +161,13 @@
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "links": [],
- "modified": "2026-08-27 08:58:55.800286",
+ "links": [
+  {
+   "link_doctype": "Booking Addon Item",
+   "link_fieldname": "addon_order"
+  }
+ ],
+ "modified": "2026-08-27 19:42:56.240292",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking Addon",
@@ -308,5 +203,5 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
- "title_field": "addon_title"
+ "title_field": "booking_number"
 }

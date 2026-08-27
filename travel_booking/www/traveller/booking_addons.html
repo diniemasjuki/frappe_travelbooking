@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Add-ons — {{ site_name or 'Rarecation' }} Portal</title>
+  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v=1"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/traveller.css?v=1"/>
+</head>
+<body class="tv-page">
+
+{% include "templates/includes/traveller_nav.html" %}
+
+<div class="body">
+  <div class="tv-container">
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">
+      <div>
+        <h1 class="tv-section-title">🎁 Add-ons & Extras</h1>
+        <div style="font-size:13px;color:#7D7A70;margin-top:4px;">
+          Booking: <strong>{{ booking_ref }}</strong>
+          {% if booking_info %}
+            {% if booking_info.status %}
+              · Status: {{ booking_info.status }}
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+      <a href="/traveller/booking?ref={{ booking_ref }}" class="tv-btn tv-btn--ghost tv-btn--sm">← Back to Booking</a>
+    </div>
+
+    {% if trip_info %}
+    <div style="margin-bottom:20px;padding:14px 18px;background:#F8F6F3;border:1px solid #E5E0D5;border-radius:10px;">
+      {% if trip_info.trip_name %}
+      <div style="font-size:15px;font-weight:600;color:#1E1C18;margin-bottom:8px;">{{ trip_info.trip_name }}</div>
+      {% endif %}
+      <div style="display:flex;flex-wrap:wrap;gap:6px 20px;font-size:12px;">
+        {% if trip_info.departure_date %}
+        <span><span style="color:#7D7A70;">Departure:</span> {{ trip_info.departure_date }}</span>
+        {% endif %}
+        {% if trip_info.return_date %}
+        <span><span style="color:#7D7A70;">Return:</span> {{ trip_info.return_date }}</span>
+        {% endif %}
+        {% if trip_info.trip_is_cruise %}
+          {% if trip_info.sailing_start %}
+          <span><span style="color:#7D7A70;">Sailing:</span> {{ trip_info.sailing_start }}{% if trip_info.sailing_end %} – {{ trip_info.sailing_end }}{% endif %}</span>
+          {% endif %}
+          {% if trip_info.ship_name %}
+          <span><span style="color:#7D7A70;">Ship:</span> {{ trip_info.ship_name }}</span>
+          {% endif %}
+          {% if trip_info.embark_port_name %}
+          <span><span style="color:#7D7A70;">Embark:</span> {{ trip_info.embark_port_name }}</span>
+          {% endif %}
+          {% if trip_info.disembark_port_name %}
+          <span><span style="color:#7D7A70;">Disembark:</span> {{ trip_info.disembark_port_name }}</span>
+          {% endif %}
+        {% endif %}
+        {% if trip_info.package_title %}
+        <span><span style="color:#7D7A70;">Package:</span> {{ trip_info.package_title }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 2-column layout: 2/3 catalog + 1/3 sticky summary -->
+    <div style="display:flex;gap:24px;align-items:flex-start;">
+      <!-- Left column (2/3): Addon catalog -->
+      <div style="flex:2;min-width:0;">
+        <div style="margin-bottom:4px;">
+          <h2 style="font-size:18px;color:#1E1C18;margin:0 0 4px;">Add-on Catalog</h2>
+          <p style="font-size:13px;color:#7D7A70;margin:0 0 16px;">Select extras to enhance your trip experience</p>
+        </div>
+        <!-- Filter bar (populated by JS) -->
+        <div id="filter-bar"></div>
+        <!-- Addon list -->
+        <div id="addons-container">
+          <div style="text-align:center;padding:40px;color:#7D7A70;">
+            <div class="loading-spinner" style="margin:0 auto 16px;"></div>
+            Loading available add-ons...
+          </div>
+        </div>
+      </div>
+
+      <!-- Right column (1/3): Sticky selection summary -->
+      <div style="flex:1;min-width:0;position:sticky;top:20px;">
+        <div id="selection-summary" class="card" style="padding:20px;background:white;border:1px solid #E5E0D5;border-radius:12px;">
+          <h3 style="margin:0 0 12px;font-size:16px;color:#1E1C18;">Your Selection</h3>
+          <div id="selected-items">
+            <p style="font-size:13px;color:#999;margin:0;text-align:center;padding:20px 0;">No items selected yet</p>
+          </div>
+          <div id="summary-total" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:16px;border-top:1px solid #E5E0D5;">
+              <strong style="font-size:18px;color:#C47900;">Total: RM<span id="total-amount">0.00</span></strong>
+            </div>
+            <button onclick="proceedToCheckout()" class="tv-btn tv-btn--primary" style="width:100%;margin-top:12px;background:#C47900;color:white;border:none;padding:12px;border-radius:8px;cursor:pointer;font-weight:600;" id="checkout-btn" disabled>
+              Proceed to Checkout
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- pageData MUST come before traveller_common.js so the IIFE can read CSRF token -->
+<script id="pageData" type="application/json">{{ page_data | tojson | safe }}</script>
+
+<!-- Shared portal JS (nav, logout, helpers) -->
+<script src="/assets/travel_booking/js/traveller_common.js?v={{ asset_v('js/traveller_common.js') }}"></script>
+<script>
+// Global state
+var selectedAddons = {};
+var availableAddons = [];
+var bookingRef = '';
+var travellers = [];
+var activeFilter = 'All';
+
+document.addEventListener('DOMContentLoaded', function() {
+  var dataEl = document.getElementById('pageData');
+  if (!dataEl) { showError('Page data not found'); return; }
+  
+  try {
+    var pd = JSON.parse(dataEl.textContent);
+    bookingRef = pd.booking_ref;
+    travellers = pd.travellers || [];
+    
+    if (!bookingRef) { showError('Missing booking reference'); return; }
+    
+    if (typeof ensureSession === 'function') {
+      ensureSession().then(function(session) {
+        if (session && typeof renderNav === 'function') renderNav();
+      }).catch(function(err) { console.warn('Session init failed:', err); });
+    }
+    
+    if (pd.available_addons && Array.isArray(pd.available_addons)) {
+      availableAddons = pd.available_addons;
+      renderFilterBar();
+      renderAddonCatalog(availableAddons);
+    } else {
+      showEmptyState();
+    }
+  } catch (e) {
+    console.error('Error parsing page data:', e);
+    showError('Failed to initialize page');
+  }
+});
+
+function loadAvailableAddons() {
+  var csrfToken = '';
+  try {
+    var dataEl = document.getElementById('pageData');
+    if (dataEl) csrfToken = JSON.parse(dataEl.textContent).csrf_token || '';
+  } catch (e) {}
+  
+  fetch('/api/method/travel_booking.api.addon_manager.get_available_addons', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': csrfToken },
+    body: JSON.stringify({ booking_number: bookingRef })
+  })
+  .then(function(response) {
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return response.json();
+  })
+  .then(function(result) {
+    if (result.message && Array.isArray(result.message)) {
+      availableAddons = result.message;
+      renderFilterBar();
+      renderAddonCatalog(availableAddons);
+    } else { showEmptyState(); }
+  })
+  .catch(function(error) {
+    console.error('Error loading addons:', error);
+    showError('Failed to load add-ons. Please try again.');
+  });
+}
+
+// Render filter bar with addon_type tabs
+function renderFilterBar() {
+  // Collect unique addon_types
+  var types = ['All'];
+  availableAddons.forEach(function(a) {
+    if (types.indexOf(a.addon_type) === -1) types.push(a.addon_type);
+  });
+  
+  var html = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">';
+  types.forEach(function(t) {
+    var isActive = (t === activeFilter);
+    html += '<button onclick="filterAddons(\'' + escapeAttr(t) + '\')" class="filter-btn' + (isActive ? ' active' : '') + '" style="padding:6px 16px;border-radius:20px;border:1px solid ' + (isActive ? '#C47900' : '#E5E0D5') + ';background:' + (isActive ? '#C47900' : 'white') + ';color:' + (isActive ? 'white' : '#555') + ';cursor:pointer;font-size:13px;font-weight:500;transition:all 0.15s;">' + escapeHtml(t) + '</button>';
+  });
+  html += '</div>';
+  
+  var filterContainer = document.getElementById('filter-bar');
+  if (filterContainer) filterContainer.innerHTML = html;
+}
+
+function filterAddons(type) {
+  activeFilter = type;
+  renderFilterBar();
+  
+  if (type === 'All') {
+    renderAddonCatalog(availableAddons);
+  } else {
+    var filtered = availableAddons.filter(function(a) { return a.addon_type === type; });
+    renderAddonCatalog(filtered);
+  }
+}
+
+function renderAddonCatalog(addons) {
+  var container = document.getElementById('addons-container');
+  
+  if (!addons || addons.length === 0) { showEmptyState(); return; }
+  
+  var html = '';
+  
+  html += '<div class="addon-list">';
+  
+  addons.forEach(function(addon) {
+    var packages = addon.packages || [];
+    var firstPkg = packages[0] || {};
+    var hasMultiplePackages = packages.length > 1;
+    var anyPurchasable = packages.some(function(p) { return p.purchasable; });
+    var firstPerPax = firstPkg.scope === 'Per Pax';
+    
+    html += '<div class="addon-row" style="display:flex;align-items:flex-start;gap:16px;padding:16px;background:white;border:1px solid #E5E0D5;border-radius:12px;margin-bottom:12px;' + (!anyPurchasable ? 'opacity:0.6;' : '') + '" data-addon-id="' + escapeAttr(addon.addon) + '">';
+    
+    // Image
+    html += '<div class="addon-image" style="flex-shrink:0;width:80px;height:80px;border-radius:8px;overflow:hidden;background:#F8F6F3;display:flex;align-items:center;justify-content:center;">';
+    if (addon.cover_image) {
+      html += '<img src="' + escapeHtml(addon.cover_image) + '" alt="" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display=\'none\'">';
+    } else {
+      html += '<div style="font-size:28px;">&#127873;</div>';
+    }
+    html += '</div>';
+    
+    // Info column
+    html += '<div class="addon-info" style="flex:1;min-width:0;">';
+    
+    // Title + type badge
+    html += '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:4px;flex-wrap:wrap;">';
+    html += '<h3 style="font-size:15px;font-weight:600;color:#1E1C18;margin:0;">' + escapeHtml(addon.addon_title) + '</h3>';
+    html += '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#F0EDE6;color:#7D7A70;">' + escapeHtml(addon.addon_type) + '</span>';
+    html += '</div>';
+    
+    // Description preview (plain text)
+    if (addon.description) {
+      var plainText = stripHtml(addon.description);
+      if (plainText) {
+        html += '<p style="font-size:13px;color:#666;line-height:1.4;margin:0 0 4px;">' +
+                escapeHtml(plainText.substring(0, 100)) +
+                (plainText.length > 100 ? '...' : '') + '</p>';
+      }
+    }
+
+    // Actions row: More Info (left) + Toggle (right, pushed via margin-left:auto)
+    if (addon.description || anyPurchasable) {
+      html += '<div style="display:flex;align-items:center;gap:8px;margin:0 0 8px;">';
+      if (addon.description) {
+        html += '<button onclick="showAddonInfoModal(\'' + escapeAttr(addon.addon) + '\')" style="background:none;border:1px solid #C47900;color:#C47900;font-size:12px;font-weight:500;cursor:pointer;padding:4px 12px;border-radius:6px;">More Info</button>';
+      }
+      if (anyPurchasable) {
+        html += '<button onclick="toggleAddonPanel(\'' + escapeAttr(addon.addon) + '\')" id="toggle-' + escapeAttr(addon.addon) + '" style="margin-left:auto;background:none;border:1px solid #C47900;color:#C47900;font-size:12px;font-weight:500;cursor:pointer;padding:4px 12px;border-radius:6px;">Select Option <span style="font-size:10px;">\u25BE</span></button>';
+      }
+      html += '</div>';
+    }
+
+    // Collapsible panel start (purchasable addons only)
+    if (anyPurchasable) {
+      html += '<div id="panel-' + escapeAttr(addon.addon) + '" style="display:none;">';
+    }
+
+    // Variant selector (if multiple packages)
+    if (hasMultiplePackages) {
+      html += '<div style="margin-bottom:8px;">';
+      html += '<div style="font-size:11px;font-weight:600;color:#555;margin-bottom:4px;">Select option:</div>';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+      packages.forEach(function(pkg, idx) {
+        var label = pkg.plan_type || pkg.addon_package_name || pkg.addon_package;
+        var isSelected = (idx === 0);
+        var disabled = !pkg.purchasable;
+        html += '<label onclick="selectVariant(\'' + escapeAttr(addon.addon) + '\', ' + idx + ')" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:6px;background:' + (isSelected ? '#FFFBF5' : 'white') + ';border:1px solid ' + (isSelected ? '#C47900' : '#E5E0D5') + ';cursor:' + (disabled ? 'not-allowed' : 'pointer') + ';font-size:12px;' + (disabled ? 'opacity:0.5;' : '') + '" id="variant-' + escapeAttr(addon.addon) + '-' + idx + '">';
+        html += '<input type="radio" name="variant-' + escapeAttr(addon.addon) + '" value="' + escapeAttr(pkg.addon_package) + '"' + (isSelected ? ' checked' : '') + (disabled ? ' disabled' : '') + ' style="margin:0;display:none;">';
+        html += escapeHtml(label);
+        html += ' <span style="color:#C47900;font-weight:600;">RM' + formatPrice(pkg.unit_price) + '</span>';
+        if (pkg.sold_out) html += ' <span style="color:#DC2626;font-size:10px;">Sold Out</span>';
+        html += '</label>';
+      });
+      html += '</div></div>';
+    } else {
+      // Single package — just show price
+      html += '<div style="font-size:17px;font-weight:700;color:#C47900;margin-bottom:4px;">RM' + formatPrice(firstPkg.unit_price) + ' <span style="font-size:12px;color:#7D7A70;font-weight:400;">' + (firstPerPax ? 'per person' : 'per booking') + '</span></div>';
+      if (firstPkg.sold_out || firstPkg.cutoff_closed) {
+        html += '<span style="font-size:12px;padding:3px 8px;border-radius:4px;background:#FEF2F2;color:#DC2626;font-weight:500;">' + (firstPkg.sold_out ? 'Sold Out' : 'Sales Closed') + '</span>';
+      } else if (firstPkg.remaining !== null && firstPkg.remaining <= 5) {
+        html += '<span style="font-size:11px;padding:3px 8px;border-radius:4px;background:#FFF8E6;color:#D97706;">Only ' + firstPkg.remaining + ' left!</span>';
+      }
+    }
+
+    // Dynamic price display (updates when variant changes)
+    if (hasMultiplePackages) {
+      html += '<div id="price-' + escapeAttr(addon.addon) + '" style="font-size:17px;font-weight:700;color:#C47900;margin-bottom:4px;">RM' + formatPrice(firstPkg.unit_price) + ' <span style="font-size:12px;color:#7D7A70;font-weight:400;">' + (firstPerPax ? 'per person' : 'per booking') + '</span></div>';
+    }
+
+    // Traveller selection (for Per Pax)
+    if (anyPurchasable && firstPerPax && travellers.length > 0) {
+      html += '<div id="travellers-' + escapeAttr(addon.addon) + '" class="traveller-pickers" style="margin-top:8px;padding:10px;background:#FAFAF8;border-radius:8px;border:1px solid #E5E0D5;">';
+      html += '<div style="font-size:11px;font-weight:600;color:#555;margin-bottom:6px;">Select travellers:</div>';
+      html += '<div style="display:flex;flex-direction:column;gap:6px;">';
+      travellers.forEach(function(t) {
+        html += '<label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:6px;background:white;border:1px solid #E5E0D5;cursor:pointer;font-size:12px;width:100%;box-sizing:border-box;">';
+        html += '<input type="checkbox" value="' + t.name + '" onchange="onTravellerToggle(this)" class="traveller-checkbox" data-addon="' + escapeAttr(addon.addon) + '" style="margin:0;accent-color:#C47900;flex-shrink:0;width:16px;height:16px;">';
+        html += '<span style="flex:1;">' + escapeHtml(t.traveller_full_name || t.guest_label || 'Guest') + '</span>';
+        if (t.pax_type) html += '<span style="color:#999;white-space:nowrap;">(' + t.pax_type + ')</span>';
+        html += '</label>';
+      });
+      html += '</div>';
+      html += '<div style="font-size:11px;color:#999;margin-top:6px;" id="count-' + escapeAttr(addon.addon) + '">0 travellers selected</div>';
+      html += '</div>';
+    }
+
+    // Add button (inside panel for purchasable addons)
+    if (anyPurchasable) {
+      html += '<div style="margin-top:8px;">';
+      html += '<button onclick="addToCart(\'' + escapeAttr(addon.addon) + '\')" id="btn-' + escapeAttr(addon.addon) + '" class="tv-btn tv-btn--primary" style="background:#C47900;color:white;border:none;padding:10px 24px;border-radius:8px;cursor:pointer;font-weight:600;white-space:nowrap;font-size:13px;">';
+      html += firstPerPax ? 'Add Selected' : 'Add';
+      html += '</button>';
+      html += '</div>';
+      html += '</div>'; // end panel
+    }
+
+    html += '</div>'; // end info
+
+    html += '</div>'; // end row
+  });
+  
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// When user selects a different variant (package)
+function selectVariant(addonId, index) {
+  var addon = availableAddons.find(function(a) { return a.addon === addonId; });
+  if (!addon || !addon.packages[index]) return;
+
+  // Safety guard: don't allow selecting a disabled (already-in-cart) variant
+  var targetRadio = document.querySelector('#variant-' + addonId + '-' + index + ' input');
+  if (targetRadio && targetRadio.disabled) return;
+
+  var pkg = addon.packages[index];
+  var isPerPax = (pkg.scope === 'Per Pax');
+
+  // Update visual state of variant labels — skip disabled ones
+  addon.packages.forEach(function(p, i) {
+    var label = document.getElementById('variant-' + addonId + '-' + i);
+    if (label) {
+      var radio = label.querySelector('input');
+      if (i === index) {
+        label.style.background = '#FFFBF5';
+        label.style.borderColor = '#C47900';
+        if (radio) radio.checked = true;
+      } else if (radio && radio.disabled) {
+        // Already in cart — keep disabled styling untouched
+      } else {
+        label.style.background = 'white';
+        label.style.borderColor = '#E5E0D5';
+      }
+    }
+  });
+  
+  // Update price display
+  var priceEl = document.getElementById('price-' + addonId);
+  if (priceEl) {
+    priceEl.innerHTML = 'RM' + formatPrice(pkg.unit_price) + ' <span style="font-size:12px;color:#7D7A70;font-weight:400;">' + (isPerPax ? 'per person' : 'per booking') + '</span>';
+  }
+  
+  // Show/hide traveller selection based on scope
+  var travellerDiv = document.getElementById('travellers-' + addonId);
+  if (travellerDiv) {
+    travellerDiv.style.display = isPerPax ? 'block' : 'none';
+  }
+  
+  // Update button text
+  var btn = document.getElementById('btn-' + addonId);
+  if (btn) {
+    btn.textContent = isPerPax ? 'Add Selected' : 'Add';
+  }
+}
+
+function toggleAddonPanel(addonId) {
+  var panel = document.getElementById('panel-' + addonId);
+  var btn = document.getElementById('toggle-' + addonId);
+  if (!panel || !btn) return;
+  var isHidden = panel.style.display === 'none';
+  panel.style.display = isHidden ? 'block' : 'none';
+  btn.innerHTML = isHidden
+    ? 'Hide <span style="font-size:10px;">\u25B4</span>'
+    : 'Select Option <span style="font-size:10px;">\u25BE</span>';
+}
+
+function onTravellerToggle(checkbox) {
+  var addonId = checkbox.getAttribute('data-addon');
+  var countEl = document.getElementById('count-' + addonId);
+  if (countEl) {
+    var allChecked = document.querySelectorAll('.traveller-checkbox[data-addon="' + addonId + '"]:checked');
+    var active = 0;
+    allChecked.forEach(function(cb) { if (!cb.disabled) active++; });
+    countEl.textContent = active + ' traveller' + (active !== 1 ? 's' : '') + ' selected';
+    countEl.style.color = active > 0 ? '#C47900' : '#999';
+  }
+  var label = checkbox.parentElement;
+  if (checkbox.checked) {
+    label.style.borderColor = '#C47900';
+    label.style.background = '#FFFBF5';
+  } else {
+    label.style.borderColor = '#E5E0D5';
+    label.style.background = 'white';
+  }
+}
+
+function addToCart(addonId) {
+  var addon = availableAddons.find(function(a) { return a.addon === addonId; });
+  if (!addon) return;
+  
+  // Get selected variant (package)
+  var selectedPkg = addon.packages[0]; // default to first
+  var radios = document.querySelectorAll('input[name="variant-' + addonId + '"]');
+  if (radios.length > 0) {
+    for (var i = 0; i < radios.length; i++) {
+      if (radios[i].checked) {
+        var pkgName = radios[i].value;
+        selectedPkg = addon.packages.find(function(p) { return p.addon_package === pkgName; }) || addon.packages[0];
+        break;
+      }
+    }
+  }
+  
+  var isPerPax = (selectedPkg.scope === 'Per Pax');
+  var selectedTravellers = [];
+  
+  if (isPerPax) {
+    var checkboxes = document.querySelectorAll('.traveller-checkbox[data-addon="' + addonId + '"]:checked');
+    checkboxes.forEach(function(cb) {
+      if (!cb.disabled) selectedTravellers.push(cb.value);
+    });
+    if (selectedTravellers.length === 0) {
+      alert('Please select at least one traveller for this add-on');
+      return;
+    }
+    var qty = selectedTravellers.length;
+  } else {
+    var qty = 1;
+  }
+  
+  if (selectedPkg.max_qty_per_booking > 0 && qty > selectedPkg.max_qty_per_booking) {
+    alert('Maximum ' + selectedPkg.max_qty_per_booking + ' per booking allowed');
+    return;
+  }
+  
+  // Use package name as cart key (so different variants are separate cart items)
+  var cartKey = selectedPkg.addon_package;
+  selectedAddons[cartKey] = {
+    qty: qty,
+    unit_price: selectedPkg.unit_price,
+    currency: selectedPkg.currency,
+    addon_title: addon.addon_title + (addon.packages.length > 1 ? ' (' + (selectedPkg.plan_type || selectedPkg.addon_package_name || selectedPkg.addon_package) + ')' : ''),
+    scope: selectedPkg.scope,
+    travellers: selectedTravellers
+  };
+  
+  updateSelectionSummary();
+
+  // Disable the selected variant radio AND its label, plus selected traveller checkboxes
+  var radios = document.querySelectorAll('input[name="variant-' + addonId + '"]');
+  var remainingVariants = 0;
+  var nextIdx = -1;
+  for (var i = 0; i < radios.length; i++) {
+    if (radios[i].checked) {
+      radios[i].disabled = true;
+      var vLabel = document.getElementById('variant-' + addonId + '-' + i);
+      if (vLabel) {
+        vLabel.style.opacity = '0.4';
+        vLabel.style.pointerEvents = 'none';
+        vLabel.style.borderColor = '#E5E0D5';
+        vLabel.style.background = '#F5F5F5';
+      }
+    } else if (!radios[i].disabled) {
+      remainingVariants++;
+      if (nextIdx === -1) nextIdx = i;
+    }
+  }
+
+  var cbDisable = document.querySelectorAll('.traveller-checkbox[data-addon="' + addonId + '"]:checked');
+  cbDisable.forEach(function(cb) { cb.disabled = true; });
+
+  // Button: stay enabled if remaining variants exist; disable only when all used
+  var btn = document.getElementById('btn-' + addonId);
+  if (btn) {
+    if (remainingVariants > 0 && nextIdx >= 0) {
+      // Auto-select next available variant so user can immediately pick travellers
+      selectVariant(addonId, nextIdx);
+      btn.disabled = false;
+      btn.style.cursor = 'pointer';
+      btn.style.background = '#C47900';
+      var countEl = document.getElementById('count-' + addonId);
+      if (countEl) { countEl.textContent = '0 travellers selected'; countEl.style.color = '#999'; }
+    } else {
+      btn.textContent = 'In Cart';
+      btn.style.background = '#059669';
+      btn.disabled = true;
+      btn.style.cursor = 'default';
+    }
+  }
+}
+
+function updateSelectionSummary() {
+  var itemsDiv = document.getElementById('selected-items');
+  var totalEl = document.getElementById('total-amount');
+  var checkoutBtn = document.getElementById('checkout-btn');
+  var summaryTotal = document.getElementById('summary-total');
+  
+  var keys = Object.keys(selectedAddons);
+  
+  if (keys.length === 0) {
+    itemsDiv.innerHTML = '<p style="font-size:13px;color:#999;margin:0;text-align:center;padding:20px 0;">No items selected yet</p>';
+    summaryTotal.style.display = 'none';
+    return;
+  }
+  
+  summaryTotal.style.display = 'block';
+  
+  var html = '';
+  var total = 0;
+  
+  keys.forEach(function(key) {
+    var item = selectedAddons[key];
+    var lineTotal = item.qty * item.unit_price;
+    total += lineTotal;
+    
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #F0EDE6;">';
+    html += '<div>';
+    html += '<div style="font-weight:600;font-size:13px;">' + escapeHtml(item.addon_title) + '</div>';
+    if (item.scope === 'Per Pax' && item.travellers.length > 0) {
+      html += '<div style="font-size:11px;color:#7D7A70;">' + item.travellers.length + ' x RM' + formatPrice(item.unit_price) + '</div>';
+      var names = item.travellers.map(function(tName) {
+        var t = travellers.find(function(t) { return t.name === tName; });
+        return t ? (t.traveller_full_name || t.guest_label || '') : '';
+      }).filter(function(n) { return n; });
+      if (names.length > 0) {
+        html += '<div style="font-size:10px;color:#999;display:flex;flex-direction:column;gap:2px;">';
+        names.forEach(function(n) { html += '<span>' + escapeHtml(n) + '</span>'; });
+        html += '</div>';
+      }
+    } else {
+      html += '<div style="font-size:11px;color:#7D7A70;">1 x RM' + formatPrice(item.unit_price) + '</div>';
+    }
+    html += '</div>';
+    html += '<div style="display:flex;align-items:center;gap:8px;">';
+    html += '<strong style="color:#C47900;font-size:13px;">RM' + formatPrice(lineTotal) + '</strong>';
+    html += '<button onclick="removeFromCart(\'' + escapeAttr(key) + '\')" style="background:none;border:none;color:#DC2626;cursor:pointer;font-size:16px;padding:0 4px;">x</button>';
+    html += '</div>';
+    html += '</div>';
+  });
+  
+  itemsDiv.innerHTML = html;
+  totalEl.textContent = formatPrice(total);
+  checkoutBtn.disabled = false;
+}
+
+function removeFromCart(cartKey) {
+  delete selectedAddons[cartKey];
+
+  // Find addonId and package index from cartKey (package name)
+  var addonId = null;
+  var pkgIdx = -1;
+  for (var i = 0; i < availableAddons.length; i++) {
+    var idx = availableAddons[i].packages.findIndex(function(p) { return p.addon_package === cartKey; });
+    if (idx >= 0) { addonId = availableAddons[i].addon; pkgIdx = idx; break; }
+  }
+
+  if (addonId) {
+    var radios = document.querySelectorAll('input[name="variant-' + addonId + '"]');
+
+    // Re-enable the specific variant radio + its label
+    if (pkgIdx >= 0 && radios[pkgIdx]) {
+      radios[pkgIdx].disabled = false;
+      var vLabel = document.getElementById('variant-' + addonId + '-' + pkgIdx);
+      if (vLabel) {
+        vLabel.style.opacity = '';
+        vLabel.style.pointerEvents = '';
+        vLabel.style.borderColor = '#E5E0D5';
+        vLabel.style.background = 'white';
+      }
+    }
+
+    // Re-enable traveller checkboxes that are NOT still in cart for this addon
+    var stillInCart = {};
+    for (var key in selectedAddons) {
+      if (!selectedAddons.hasOwnProperty(key)) continue;
+      var item = selectedAddons[key];
+      var belongs = false;
+      for (var j = 0; j < availableAddons.length; j++) {
+        if (availableAddons[j].addon === addonId &&
+            availableAddons[j].packages.some(function(p) { return p.addon_package === key; })) {
+          belongs = true; break;
+        }
+      }
+      if (belongs && item.travellers) {
+        item.travellers.forEach(function(t) { stillInCart[t] = true; });
+      }
+    }
+    document.querySelectorAll('.traveller-checkbox[data-addon="' + addonId + '"]').forEach(function(cb) {
+      if (!stillInCart[cb.value]) {
+        cb.disabled = false;
+        cb.checked = false;
+        cb.parentElement.style.borderColor = '#E5E0D5';
+        cb.parentElement.style.background = 'white';
+      }
+    });
+
+    // Button: enabled if any non-disabled variant remains; auto-select first available
+    var btn = document.getElementById('btn-' + addonId);
+    if (btn) {
+      var hasAvailable = false;
+      var firstAvail = -1;
+      for (var k = 0; k < radios.length; k++) {
+        if (!radios[k].disabled) { hasAvailable = true; if (firstAvail === -1) firstAvail = k; break; }
+      }
+      if (radios.length === 0) hasAvailable = true; // single-package: always re-enable
+
+      if (hasAvailable) {
+        if (firstAvail >= 0) {
+          selectVariant(addonId, firstAvail);
+        } else {
+          var addonData = availableAddons.find(function(a) { return a.addon === addonId; });
+          var isPerPax = addonData && addonData.packages[0] && addonData.packages[0].scope === 'Per Pax';
+          btn.textContent = isPerPax ? 'Add Selected' : 'Add';
+        }
+        btn.style.background = '#C47900';
+        btn.disabled = false;
+        btn.style.cursor = 'pointer';
+      } else {
+        btn.textContent = 'In Cart';
+        btn.style.background = '#059669';
+        btn.disabled = true;
+        btn.style.cursor = 'default';
+      }
+    }
+
+    // Update traveller count (exclude disabled/already-in-cart travellers)
+    var countEl = document.getElementById('count-' + addonId);
+    if (countEl) {
+      var allChecked = document.querySelectorAll('.traveller-checkbox[data-addon="' + addonId + '"]:checked');
+      var active = 0;
+      allChecked.forEach(function(cb) { if (!cb.disabled) active++; });
+      countEl.textContent = active + ' traveller' + (active !== 1 ? 's' : '') + ' selected';
+      countEl.style.color = active > 0 ? '#C47900' : '#999';
+    }
+  }
+
+  updateSelectionSummary();
+}
+
+function proceedToCheckout() {
+  var keys = Object.keys(selectedAddons);
+  if (keys.length === 0) { alert('No items selected'); return; }
+
+  var lines = keys.map(function(key) {
+    var item = selectedAddons[key];
+    return { addon_package: key, qty: item.qty, travellers: item.travellers || [] };
+  });
+
+  var csrfToken = '';
+  try {
+    var dataEl = document.getElementById('pageData');
+    if (dataEl) csrfToken = JSON.parse(dataEl.textContent).csrf_token || '';
+  } catch (e) {}
+
+  var btn = document.getElementById('checkout-btn');
+  var originalText = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = 'Processing…'; }
+
+  fetch('/api/method/travel_booking.api.addon_manager.checkout_addons', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': csrfToken },
+    body: JSON.stringify({ booking_number: bookingRef, lines: JSON.stringify(lines) })
+  })
+  .then(function(response) { return response.json(); })
+  .then(function(result) {
+    if (result.message && result.message.sales_order) {
+      if (result.message.billing_url) {
+        window.location.href = result.message.billing_url;
+      } else {
+        alert('Order created: ' + result.message.sales_order);
+      }
+    } else {
+      if (btn) { btn.disabled = false; btn.innerHTML = originalText; }
+      alert('Error: ' + (result.exception || result._server_messages || 'Unknown error'));
+    }
+  })
+  .catch(function(error) {
+    if (btn) { btn.disabled = false; btn.innerHTML = originalText; }
+    console.error('Checkout error:', error);
+    alert('Failed to process order. Please try again.');
+  });
+}
+
+function showEmptyState() {
+  document.getElementById('addons-container').innerHTML = 
+    '<div style="text-align:center;padding:60px 20px;">' +
+    '<div style="font-size:48px;margin-bottom:16px;">&#128466;</div>' +
+    '<h3 style="font-size:18px;color:#1E1C18;margin:0 0 8px;">No Add-ons Available</h3>' +
+    '<p style="color:#7D7A70;margin:0;">There are currently no add-ons available for this booking.</p>' +
+    '</div>';
+}
+
+function showError(message) {
+  document.getElementById('addons-container').innerHTML = 
+    '<div style="text-align:center;padding:60px 20px;">' +
+    '<div style="font-size:48px;margin-bottom:16px;">&#9888;</div>' +
+    '<h3 style="font-size:18px;color:#DC2626;margin:0 0 8px;">Error</h3>' +
+    '<p style="color:#7D7A70;margin:0;">' + escapeHtml(message) + '</p>' +
+    '<button onclick="loadAvailableAddons()" style="margin-top:16px;padding:8px 20px;background:#C47900;color:white;border:none;border-radius:6px;cursor:pointer;">Try Again</button>' +
+    '</div>';
+}
+
+function formatPrice(price) { return parseFloat(price || 0).toFixed(2); }
+
+function escapeHtml(text) {
+  if (!text) return '';
+  var div = document.createElement('div');
+  div.appendChild(document.createTextNode(text));
+  return div.innerHTML;
+}
+
+function escapeAttr(text) {
+  if (!text) return '';
+  return String(text).replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+function stripHtml(html) {
+  if (!html) return '';
+  var tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return (tmp.textContent || tmp.innerText || '').trim();
+}
+
+function extractYouTubeId(url) {
+  if (!url) return '';
+  url = url.trim();
+  if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
+  var m = url.match(/[?&]v=([^&]+)/);
+  if (m) return m[1];
+  m = url.match(/youtu\.be\/([^?&/]+)/);
+  if (m) return m[1];
+  m = url.match(/embed\/([^?&/]+)/);
+  if (m) return m[1];
+  return '';
+}
+
+function showAddonInfoModal(addonId) {
+  var addon = availableAddons.find(function(a) { return a.addon === addonId; });
+  if (!addon) return;
+
+  var overlay = document.createElement('div');
+  overlay.setAttribute('style', 'position:fixed;inset:0;z-index:10000;background:rgba(30,28,24,0.6);display:flex;align-items:center;justify-content:center;padding:20px;');
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) document.body.removeChild(overlay);
+  });
+
+  var card = document.createElement('div');
+  card.setAttribute('style', 'position:relative;background:white;border-radius:12px;padding:24px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,0.25);');
+
+  var closeBtn = document.createElement('button');
+  closeBtn.innerHTML = '&times;';
+  closeBtn.setAttribute('style', 'position:absolute;top:12px;right:12px;background:none;border:none;font-size:24px;color:#999;cursor:pointer;line-height:1;padding:4px 8px;z-index:1;');
+  closeBtn.onclick = function() { document.body.removeChild(overlay); };
+
+  var title = document.createElement('h3');
+  title.textContent = addon.addon_title;
+  title.setAttribute('style', 'font-size:16px;font-weight:600;color:#1E1C18;margin:0 0 4px;padding-right:32px;');
+
+  var typeBadge = document.createElement('span');
+  typeBadge.textContent = addon.addon_type;
+  typeBadge.setAttribute('style', 'display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:#F0EDE6;color:#7D7A70;margin-bottom:12px;');
+
+  card.appendChild(closeBtn);
+  card.appendChild(title);
+  card.appendChild(typeBadge);
+
+  // YouTube video (facade: thumbnail + play button, iframe loads on click)
+  var ytId = extractYouTubeId(addon.youtube_video_url);
+  if (ytId) {
+    var ytWrap = document.createElement('div');
+    ytWrap.setAttribute('style', 'position:relative;width:100%;padding-bottom:56.25%;margin-bottom:12px;border-radius:8px;overflow:hidden;background:#000;cursor:pointer;');
+    var thumb = document.createElement('img');
+    thumb.setAttribute('src', 'https://img.youtube.com/vi/' + ytId + '/hqdefault.jpg');
+    thumb.setAttribute('style', 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;');
+    thumb.setAttribute('alt', '');
+    var playBtn = document.createElement('div');
+    playBtn.setAttribute('style', 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;');
+    var playIcon = document.createElement('div');
+    playIcon.setAttribute('style', 'width:64px;height:64px;border-radius:50%;background:rgba(196,121,0,0.9);display:flex;align-items:center;justify-content:center;pointer-events:none;');
+    playIcon.innerHTML = '<svg width="28" height="28" viewBox="0 0 24 24" style="margin-left:3px;"><path d="M8 5v14l11-7z" fill="white"/></svg>';
+    playBtn.appendChild(playIcon);
+    ytWrap.appendChild(thumb);
+    ytWrap.appendChild(playBtn);
+    ytWrap.onclick = function() {
+      var iframe = document.createElement('iframe');
+      iframe.setAttribute('src', 'https://www.youtube.com/embed/' + ytId + '?rel=0&autoplay=1');
+      iframe.setAttribute('style', 'position:absolute;inset:0;width:100%;height:100%;border:none;');
+      iframe.setAttribute('allowfullscreen', '');
+      iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+      ytWrap.innerHTML = '';
+      ytWrap.appendChild(iframe);
+    };
+    card.appendChild(ytWrap);
+  }
+
+  // Gallery button (if images exist)
+  if (addon.gallery_images && addon.gallery_images.length > 0) {
+    var galleryBtn = document.createElement('button');
+    galleryBtn.innerHTML = '<span>&#128247;</span> View Photo Gallery (' + addon.gallery_images.length + ')';
+    galleryBtn.setAttribute('style', 'display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:10px 16px;border:1px solid #C47900;background:white;color:#C47900;font-size:13px;font-weight:500;cursor:pointer;border-radius:8px;margin-bottom:12px;');
+    var galleryImages = addon.gallery_images;
+    var galleryTitle = addon.addon_title;
+    galleryBtn.onclick = function() {
+      document.body.removeChild(overlay);
+      showGalleryModal(galleryImages, galleryTitle);
+    };
+    card.appendChild(galleryBtn);
+  }
+
+  // Description
+  var desc = document.createElement('div');
+  desc.innerHTML = addon.description || '';
+  desc.setAttribute('style', 'font-size:13px;color:#444;line-height:1.6;');
+  var imgs = desc.querySelectorAll('img');
+  for (var i = 0; i < imgs.length; i++) {
+    imgs[i].setAttribute('style', 'max-width:100%;height:auto;border-radius:6px;');
+  }
+  card.appendChild(desc);
+
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+}
+
+function showGalleryModal(images, title) {
+  var overlay = document.createElement('div');
+  overlay.setAttribute('style', 'position:fixed;inset:0;z-index:10001;background:rgba(30,28,24,0.8);display:flex;align-items:center;justify-content:center;padding:20px;');
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) document.body.removeChild(overlay);
+  });
+
+  var card = document.createElement('div');
+  card.setAttribute('style', 'position:relative;background:white;border-radius:12px;padding:24px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,0.25);');
+
+  var closeBtn = document.createElement('button');
+  closeBtn.innerHTML = '&times;';
+  closeBtn.setAttribute('style', 'position:absolute;top:12px;right:12px;background:none;border:none;font-size:24px;color:#999;cursor:pointer;line-height:1;padding:4px 8px;z-index:1;');
+  closeBtn.onclick = function() { document.body.removeChild(overlay); };
+
+  var heading = document.createElement('h3');
+  heading.textContent = title + ' \u2014 Gallery';
+  heading.setAttribute('style', 'font-size:16px;font-weight:600;color:#1E1C18;margin:0 0 12px;padding-right:32px;');
+
+  var grid = document.createElement('div');
+  grid.setAttribute('style', 'display:grid;grid-template-columns:1fr 1fr;gap:8px;');
+
+  images.forEach(function(url) {
+    var img = document.createElement('img');
+    img.setAttribute('src', url);
+    img.setAttribute('loading', 'lazy');
+    img.setAttribute('style', 'width:100%;height:auto;border-radius:6px;cursor:pointer;');
+    grid.appendChild(img);
+  });
+
+  card.appendChild(closeBtn);
+  card.appendChild(heading);
+  card.appendChild(grid);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+}
+</script>
+
+<style>
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #F0EDE6;
+  border-top-color: #C47900;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* List layout styles */
+.addon-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.addon-row {
+  transition: all 0.2s ease;
+  border: 1px solid #E5E0D5;
+  background: white;
+}
+
+.addon-row:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border-color: #D4CFC4;
+}
+
+.trip-group-header {
+  page-break-after: avoid;
+}
+
+/* Responsive: stack columns on mobile */
+@media (max-width: 768px) {
+  /* Stack the 2-column layout vertically */
+  .body > .tv-container > div[style*="display:flex;gap:24px"] {
+    flex-direction: column !important;
+  }
+  
+  .body > .tv-container > div[style*="display:flex;gap:24px"] > div:last-child {
+    position: static !important;
+  }
+  
+  .addon-row {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  
+  .addon-image {
+    width: 100% !important;
+    height: 100px !important;
+  }
+  
+  .addon-actions {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid #F0EDE6;
+    justify-content: flex-end;
+  }
+  
+  .addon-actions button {
+    width: 100%;
+  }
+}
+</style>
+</body>
+</html>

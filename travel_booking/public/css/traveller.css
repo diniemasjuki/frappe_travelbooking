@@ -1663,6 +1663,17 @@
   }
 }
 
+/* Payment Summary — mobile: hide Balance Due cell,
+   keep Total Billed + Total Paid as 2-col */
+@media (max-width: 768px) {
+  .tv-stats--payment {
+    grid-template-columns: 1fr 1fr;
+  }
+  .tv-stats--payment .tv-stat--balance {
+    display: none;
+  }
+}
+
 /* ── Animations ── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -1763,6 +1774,8 @@
 }
 
 @media (max-width: 768px) {
+  /* Disable sticky nav on mobile — biar scroll naturally dgn content */
+  .tv-nav { position: static; }
   .tv-hero-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -1780,6 +1793,18 @@
   .tv-user-menu {
     width: calc(100vw - 32px);
     max-width: 280px;
+  }
+}
+
+/* Traveller Summary card — mobile: hide Rooms & Travellers cells,
+   keep only Completions cell + Manage button */
+@media (max-width: 768px) {
+  .tv-hero-grid.tv-hero-grid--summary {
+    grid-template-columns: 1fr;
+  }
+  .tv-hero-grid--summary .tv-hero-cell:nth-child(1),
+  .tv-hero-grid--summary .tv-hero-cell:nth-child(2) {
+    display: none;
   }
 }
 

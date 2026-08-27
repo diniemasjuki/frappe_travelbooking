@@ -6,14 +6,6 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "tab_information",
-  "data_flow_information_section",
-  "column_break_hpzn",
-  "selling_operation_data_table",
-  "section_break_whxn",
-  "html_apxx",
-  "section_break_kdna",
-  "trip_package",
   "tab_config",
   "bank_accounts_section",
   "bank_name",
@@ -36,7 +28,15 @@
   "referral_and_voucher_section",
   "default_referral_discount_percent",
   "price_category_section",
-  "price_category_labels"
+  "price_category_labels",
+  "tab_information",
+  "data_flow_information_section",
+  "column_break_hpzn",
+  "selling_operation_data_table",
+  "section_break_whxn",
+  "html_apxx",
+  "section_break_kdna",
+  "trip_package"
  ],
  "fields": [
   {
@@ -51,8 +51,7 @@
    "hidden": 1,
    "in_list_view": 1,
    "label": "Bank Name",
-   "options": "Bank Account",
-   "reqd": 0
+   "options": "Bank Account"
   },
   {
    "fetch_from": "bank_name.account_name",
@@ -60,8 +59,7 @@
    "fieldtype": "Data",
    "hidden": 1,
    "in_list_view": 1,
-   "label": "Account Name",
-   "reqd": 0
+   "label": "Account Name"
   },
   {
    "fetch_from": "bank_name.bank_account_no",
@@ -69,8 +67,7 @@
    "fieldtype": "Data",
    "hidden": 1,
    "in_list_view": 1,
-   "label": "Account Number",
-   "reqd": 0
+   "label": "Account Number"
   },
   {
    "description": "For Accounting Purpose : Account to manage manual transfer record in payment entry",
@@ -228,7 +225,7 @@
  "grid_page_length": 50,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-13 08:05:45.358184",
+ "modified": "2026-08-27 10:54:52.232582",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Settings",

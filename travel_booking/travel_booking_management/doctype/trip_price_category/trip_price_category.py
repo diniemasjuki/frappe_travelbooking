@@ -24,6 +24,7 @@ class TripPriceCategory(Document):
 		read_more_url: DF.Data | None
 		room_profile: DF.AttachImage | None
 		room_type: DF.Literal["", "Cabin", "Suite", "Villa", "Room"]
+		youtube_url: DF.Data | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Trip Price Category"

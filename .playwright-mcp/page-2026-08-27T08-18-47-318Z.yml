@@ -1,0 +1,5 @@
+- main [ref=f36e4]:
+  - generic [ref=f36e7]:
+    - heading "Page not found" [level=4] [ref=f36e8]
+    - link "Back to Home" [ref=f36e10] [cursor=pointer]:
+      - /url: /
