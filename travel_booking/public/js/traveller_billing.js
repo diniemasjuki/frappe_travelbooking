@@ -963,7 +963,7 @@
 
       var result = await API_PM('create_payment_request', {
         booking_number: BOOKING_REF,
-        so_name: soName,
+        sales_order: soName,
         amount: amount,
         return_to: returnUrl
       });
@@ -1094,7 +1094,7 @@
 
       var result = await API_PM('submit_manual_payment', {
         booking_number: BOOKING_REF,
-        so_name: soName,
+        sales_order: soName,
         amount: amount,
         reference_no: refNo,
         payment_date: dateInput?.value || '',

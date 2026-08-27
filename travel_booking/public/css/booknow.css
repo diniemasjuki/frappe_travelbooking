@@ -626,6 +626,18 @@ body:has(.bnw-main) .rc-public-main {
   gap: 28px;
   align-items: start;
 }
+.bnw-rooms-col { min-width: 0; }
+.bnw-bill-col { min-width: 0; }
+.bnw-pay-col { min-width: 0; }
+.bnw-summary-col {
+  top: 111px;
+  position:sticky;
+}
+
+/* Override asas di atas — MESTI selepas peraturan .bnw-summary-col asas
+   (position:sticky) supaya menang dalam cascade (specificity sama, yang
+   lepas menang). Sebelum ni blok media ni di ATAS peraturan asas →
+   static dikalahkan oleh sticky → summary-col masih melekat di mobile. */
 @media (max-width: 900px) {
   .bnw-grid-two-col {
     grid-template-columns: 1fr;
@@ -633,15 +645,8 @@ body:has(.bnw-main) .rc-public-main {
   .bnw-summary-col {
     order: -1; /* Summary on top on mobile */
     position: static; /* Remove sticky on mobile */
+    top: auto;
   }
-}
-
-.bnw-rooms-col { min-width: 0; }
-.bnw-bill-col { min-width: 0; }
-.bnw-pay-col { min-width: 0; }
-.bnw-summary-col {
-  top: 111px;
-  position:sticky;
 }
 
 .bnw-card-header {
