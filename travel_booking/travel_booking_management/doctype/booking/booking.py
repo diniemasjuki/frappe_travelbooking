@@ -24,6 +24,13 @@ class Booking(Document):
 		customer: DF.Link | None
 		departure_date: DF.Date | None
 		flight: DF.Link | None
+		flight_airline: DF.Link | None
+		flight_departure_date: DF.Date | None
+		flight_destination_airport: DF.Link | None
+		flight_from_airport: DF.Link | None
+		flight_pnr: DF.Data | None
+		flight_return_arrival_date: DF.Date | None
+		flight_ticket_type: DF.Data | None
 		is_a_cruise_trip: DF.Check
 		is_cruise_only: DF.Check
 		naming_series: DF.Literal["BK.YY.MM.###"]
@@ -33,6 +40,7 @@ class Booking(Document):
 		referral_code_used: DF.Data | None
 		return_date: DF.Date | None
 		status: DF.Literal["Pending", "Processing", "Accepted", "Confirmed", "Completed", "Abandoned", "Cancelled"]
+		text_editor_logm: DF.TextEditor | None
 		total_amount: DF.Currency
 		trip_date: DF.Link | None
 		trip_date_group_status: DF.ReadOnly | None

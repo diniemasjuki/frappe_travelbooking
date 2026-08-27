@@ -64,7 +64,7 @@
           ✨ Magic Link
         </button>
         <button type="button" id="btn-google" class="tv-btn tv-btn--ghost tv-btn--sm">
-          🔵 Google
+          <img src="/assets/travel_booking/img/google-logo.svg" alt="Google" class="tv-btn-social-logo"/> Google
         </button>
       </div>
 
@@ -212,13 +212,24 @@
   </div>
   {% endif %}
 
-  <!-- Navigation Card: explore tour / cruise without signing in -->
+  <!-- Navigation Card: explore tour / cruise without signing in.
+       Logos come from the Travel Website singleton (tour_logo / cruise_logo)
+       via the cached get_website_config() Jinja global; falls back to the
+       shared brand logo when a section-specific logo is not configured. -->
+  {% set wc = get_website_config() %}
+  {% set default_brand_logo = "/assets/travel_booking/img/logo-horizontal.png" %}
   <div class="tv-login-nav-card">
-    <p class="tv-login-nav-title">Not ready to sign in?</p>
+    <p class="tv-login-nav-title">Browse for more trip ?</p>
     <p class="tv-login-nav-subtitle">Explore our travel experiences</p>
     <div class="tv-login-nav-buttons">
-      <a href="/tour" class="tv-btn tv-btn--ghost">🌴 Rarecation Tour</a>
-      <a href="/cruise" class="tv-btn tv-btn--ghost">🚢 Rarecation Cruise</a>
+      <a href="/tour" class="tv-btn tv-btn--ghost tv-login-nav-brand">
+        <img src="{{ wc.tour.logo or default_brand_logo }}" alt="Rarecation" class="tv-nav-brand-logo"/>
+        <span>Rarecation</span>
+      </a>
+      <a href="/cruise" class="tv-btn tv-btn--ghost tv-login-nav-brand">
+        <img src="{{ wc.cruise.logo or default_brand_logo }}" alt="Rarecruise" class="tv-nav-brand-logo"/>
+        <span>Rarecruise</span>
+      </a>
     </div>
   </div>
 

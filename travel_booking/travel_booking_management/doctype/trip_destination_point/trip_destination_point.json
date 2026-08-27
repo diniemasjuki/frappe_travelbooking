@@ -59,7 +59,7 @@
    "fieldname": "image_reli",
    "fieldtype": "Image",
    "is_virtual": 1,
-   "options": "doc.destination_image"
+   "options": "destination_image"
   },
   {
    "fieldname": "section_break_ccol",
@@ -75,7 +75,7 @@
  "grid_page_length": 50,
  "image_field": "destination_image",
  "links": [],
- "modified": "2026-08-21 20:00:06.614441",
+ "modified": "2026-08-28 07:14:08.684301",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Destination Point",

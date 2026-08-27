@@ -446,6 +446,19 @@
   padding-top: 0;
 }
 
+/* Rich flight itinerary HTML (admin-entered Text Editor content — trusted source) */
+.tv-flight-itinerary-html {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-light);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.tv-flight-itinerary-html img { max-width: 100%; height: auto; }
+.tv-flight-itinerary-html p { margin: 0 0 8px; }
+.tv-flight-itinerary-html p:last-child { margin-bottom: 0; }
+
 /* ── Booking Card (List View) ── */
 .tv-bk-card {
   display: block;
@@ -473,12 +486,27 @@
 .tv-bk-card__ref {
   font-family: 'SF Mono', Monaco, monospace;
   font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
-  background: var(--bg-tertiary);
+  font-weight: 600;
+  color: var(--c-gold-dark);
+  background: var(--c-gold-light);
+  border: 1px solid var(--c-gold-mid);
   padding: 4px 10px;
   border-radius: var(--radius-sm);
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tv-bk-card__ref-tag {
+  font-family: var(--font-body);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--c-gold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-right: 1px solid var(--c-gold-mid);
+  padding-right: 6px;
 }
 
 .tv-bk-card__meta {
@@ -488,8 +516,43 @@
   margin-bottom: 16px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  /* gap: 16px; */
   flex-wrap: wrap;
+}
+
+/* Cruise route + sailing info (small, sits between name and meta) */
+.tv-bk-card__info {
+  margin: 6px 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tv-bk-card__info-row {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.tv-bk-card__info-k {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 4px;
+}
+
+.tv-bk-card__info-arrow {
+  color: var(--text-muted);
+  margin: 0 2px;
+}
+
+.tv-bk-card__info-sep {
+  color: var(--text-muted);
+  margin: 0 2px;
 }
 
 .tv-bk-card__badges {
@@ -502,7 +565,7 @@
 
 .tv-bk-card__fin-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 12px;
   padding-top: 16px;
   border-top: 1px solid var(--border-light);
@@ -531,6 +594,18 @@
 
 .tv-bk-fin-value--success { color: var(--c-success); }
 .tv-bk-fin-value--warning { color: var(--c-warning-text); }
+
+/* Payment-status cell — badge sits where the value normally goes */
+.tv-bk-fin-item--badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tv-bk-fin-item--badge .tv-badge {
+  font-size: 12px;
+  padding: 4px 10px;
+}
 
 /* Countdown Badge */
 .tv-countdown {
@@ -870,6 +945,13 @@
   padding: 8px 16px;
 }
 
+/* Inline icon/logo inside a small ghost button (e.g. Google sign-in) */
+.tv-btn-social-logo {
+  height: 16px;
+  width: auto;
+  flex: 0 0 auto;
+}
+
 /* Link-style button */
 .tv-btn-link {
   font-family: var(--font-body);
@@ -1093,7 +1175,7 @@
 
 .tv-login-box {
   width: 100%;
-  width: 560px;
+  max-width: 360px;
   background: var(--bg-card);
   border-radius: var(--radius-xl);
   padding: 40px 32px;
@@ -1106,8 +1188,8 @@
 }
 
 .tv-login-logo img {
-  height: 40px;
-  width: auto;
+  height: auto;
+  width: 50%;
 }
 
 .tv-login-title {
@@ -1171,7 +1253,7 @@
 /* ── Second card: navigation to tour / cruise ── */
 .tv-login-nav-card {
   width: 100%;
-  max-width: 560px;
+  max-width: 360px;
   background: var(--bg-card);
   border-radius: var(--radius-xl);
   padding: 24px 32px;
@@ -1205,6 +1287,14 @@
   justify-content: center;
   font-size: 14px;
   padding: 12px 16px;
+}
+
+.tv-nav-brand-logo {
+  height: 22px;
+  width: auto;
+  max-width: 36px;
+  object-fit: contain;
+  flex: 0 0 auto;
 }
 
 /* Screen switcher for login views */
@@ -1380,6 +1470,43 @@
   background: var(--c-gold);
   border-color: var(--c-gold);
   color: var(--text-primary);
+}
+
+/* ── Collapsible group cards (Manage Add-ons) ── */
+.ma-group-card .ma-group-header {
+  cursor: pointer;
+  user-select: none;
+}
+.ma-group-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  color: var(--text-muted);
+  transition: transform 0.2s ease, background 0.2s ease;
+  flex-shrink: 0;
+}
+.ma-group-header:hover .ma-group-chevron {
+  background: var(--bg-tertiary);
+  color: var(--c-gold);
+}
+.ma-group-card.collapsed .ma-group-chevron {
+  transform: rotate(-90deg);
+}
+.ma-group-body {
+  overflow: hidden;
+  transition: opacity 0.2s ease;
+}
+.ma-group-card.collapsed .ma-group-body {
+  display: none;
+}
+.ma-group-card.collapsed .ma-group-header {
+  border-bottom: none !important;
+  margin-bottom: 0 !important;
+  padding-bottom: 0 !important;
 }
 
 .tv-pay-methods {
@@ -1625,6 +1752,11 @@
     align-self: flex-start;
   }
 
+  /* 5-col grid eases to 3 on tablet */
+  .tv-bk-card__fin-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
   .tv-login-box {
     padding: 28px 20px;
   }
@@ -1632,7 +1764,7 @@
 
 @media (max-width: 500px) {
   .tv-bk-card__fin-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
 
   .tv-stats {
@@ -1660,17 +1792,6 @@
     margin-top: 8px;
     padding-top: 8px;
     border-top: 1px solid var(--border-light);
-  }
-}
-
-/* Payment Summary — mobile: hide Balance Due cell,
-   keep Total Billed + Total Paid as 2-col */
-@media (max-width: 768px) {
-  .tv-stats--payment {
-    grid-template-columns: 1fr 1fr;
-  }
-  .tv-stats--payment .tv-stat--balance {
-    display: none;
   }
 }
 
@@ -1793,18 +1914,6 @@
   .tv-user-menu {
     width: calc(100vw - 32px);
     max-width: 280px;
-  }
-}
-
-/* Traveller Summary card — mobile: hide Rooms & Travellers cells,
-   keep only Completions cell + Manage button */
-@media (max-width: 768px) {
-  .tv-hero-grid.tv-hero-grid--summary {
-    grid-template-columns: 1fr;
-  }
-  .tv-hero-grid--summary .tv-hero-cell:nth-child(1),
-  .tv-hero-grid--summary .tv-hero-cell:nth-child(2) {
-    display: none;
   }
 }
 

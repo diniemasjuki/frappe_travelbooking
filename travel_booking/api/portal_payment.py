@@ -24,7 +24,8 @@ def get_all_so_payments():
 
     so_rows = frappe.db.sql("""
         SELECT so.name, so.grand_total, so.advance_paid, so.status, so.docstatus,
-               so.currency, so.transaction_date, cur.symbol AS currency_symbol
+               so.currency, so.transaction_date, so.custom_booking_addon,
+               cur.symbol AS currency_symbol
         FROM `tabSales Order` so
         LEFT JOIN `tabCurrency` cur ON cur.name = so.currency
         WHERE so.customer = %s AND so.docstatus IN (1, 2)
@@ -223,6 +224,7 @@ def get_all_so_payments():
             # ni untuk papar simbol yang BETUL untuk card SO ni.
             "currency":        so.currency or "MYR",
             "currency_symbol": so.currency_symbol or (so.currency or "MYR"),
+            "has_booking_addon": bool(so.custom_booking_addon),
         })
 
     return {"orders": orders}

@@ -47,7 +47,7 @@ def get_booking_data(booking_number: str):
     booking = frappe.db.sql("""
         SELECT
             b.name, b.booking_number, b.customer, b.trip_date,
-            b.trip_package, b.status,
+            b.trip_package, b.status, b.flight,
             -- Trip info
             tm.trip_name,
             tm.is_a_cruise_trip AS trip_is_cruise,
@@ -333,6 +333,60 @@ def get_booking_data(booking_number: str):
         else:
             trip_category = "Tour Package"
 
+    # ── Flight itinerary (booking-level) ──
+    # Booking.flight ialah Link ke tabFlight (slot mewarisi via fetch_from).
+    # Surface di booking level supaya Trip Hero boleh papar block Flight Itinerary.
+    flight_info = {}
+    flight_link = booking.flight or ""
+    if not flight_link:
+        # Fallback: jika booking-level flight kosong, ambil flight DISTINCT dari
+        # slots (slot biasanya mewarisi booking.flight, jadi biasanya satu/kosong).
+        distinct = [
+            r[0] for r in frappe.db.sql(
+                "SELECT DISTINCT flight FROM `tabBooking Reservation` "
+                "WHERE booking=%s AND IFNULL(flight,'')!=''",
+                booking.name,
+            )
+        ]
+        if len(distinct) == 1:
+            flight_link = distinct[0]
+
+    if flight_link:
+        fd = frappe.db.get_value(
+            "Flight", flight_link,
+            ["pnr", "airline", "home_airport", "destination_airport",
+             "departure_date", "arrival_date", "flight_class", "flight_itinerary"],
+            as_dict=True,
+        )
+        if fd:
+            airline_name = ""
+            if fd.airline:
+                airline_name = frappe.db.get_value("Flight Airline", fd.airline, "airline_name") or ""
+            home = {}
+            if fd.home_airport:
+                home = frappe.db.get_value(
+                    "Flight Airport", fd.home_airport,
+                    ["airport_code", "airport_name", "airport_city"], as_dict=True,
+                ) or {}
+            dest = {}
+            if fd.destination_airport:
+                dest = frappe.db.get_value(
+                    "Flight Airport", fd.destination_airport,
+                    ["airport_code", "airport_name", "airport_city"], as_dict=True,
+                ) or {}
+            flight_info = {
+                "pnr":               fd.pnr or flight_link,
+                "airline":           airline_name,
+                "home_airport_code": home.get("airport_code", ""),
+                "home_airport_name": home.get("airport_name", ""),
+                "dest_airport_code": dest.get("airport_code", ""),
+                "dest_airport_name": dest.get("airport_name", ""),
+                "departure_date":    str(fd.departure_date) if fd.departure_date else "",
+                "arrival_date":      str(fd.arrival_date) if fd.arrival_date else "",
+                "flight_class":      fd.flight_class or "",
+                "itinerary_html":    fd.flight_itinerary or "",
+            }
+
     return {
         "booking": {
             "name":           booking.name,
@@ -371,6 +425,8 @@ def get_booking_data(booking_number: str):
             "booking_status":     booking.status or "",
             "payment_status":     payment_status,
             "can_edit_traveller_details": can_edit_traveller_details,
+            # Flight itinerary (booking-level, from tabFlight via booking.flight)
+            "flight_itinerary":           flight_info,
         },
         "slots":   slots,
         "cabins":  cabins,
@@ -416,7 +472,9 @@ def get_bookings_list():
     bookings = frappe.db.sql("""
         SELECT b.name, b.booking_number, b.status,
                tm.trip_name, td.trip_group_name,
-               td.departure_date, td.return_date
+               td.departure_date, td.return_date,
+               td.embarkation_port, td.disembarkation_port,
+               td.sailing_start, td.sailing_end
         FROM `tabBooking` b
         LEFT JOIN `tabTrip Group Date` td ON td.name = b.trip_date
         LEFT JOIN `tabTrip` tm ON tm.name = td.trip
@@ -461,6 +519,10 @@ def get_bookings_list():
             "group_name":      bk.trip_group_name or "",
             "departure_date":  str(bk.departure_date) if bk.departure_date else "",
             "return_date":     str(bk.return_date)    if bk.return_date    else "",
+            "embarkation_port":   bk.embarkation_port    or "",
+            "disembarkation_port": bk.disembarkation_port or "",
+            "sailing_start":   str(bk.sailing_start) if bk.sailing_start else "",
+            "sailing_end":     str(bk.sailing_end)   if bk.sailing_end   else "",
             "booking_status":  bk.status or "",
             "payment_status":  _compute_payment_status(paid, billed),
             "total_slots":     total_slots,

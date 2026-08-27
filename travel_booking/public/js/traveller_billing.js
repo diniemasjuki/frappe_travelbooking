@@ -305,6 +305,10 @@
     if (so.currency_symbol) {
       html += '<span>Currency: ' + _esc(so.currency_symbol) + '</span>';
     }
+    // Manage Add-ons link — hanya kalau SO ada booking addon
+    if (so.has_booking_addon) {
+      html += '<a href="/traveller/manage_addon?ref=' + encodeURIComponent(BOOKING_REF) + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="text-decoration:none;">🎁 Manage Add-ons</a>';
+    }
     html += '</div>';
 
     html += '</div>'; // card

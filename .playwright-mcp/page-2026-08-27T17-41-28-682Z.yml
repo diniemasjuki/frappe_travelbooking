@@ -1,0 +1,23 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]:
+      - link [ref=e4] [cursor=pointer]:
+        - /url: /traveller/bookings
+        - img "Rarecation" [ref=e5]
+      - generic [ref=e6]:
+        - link "My Bookings" [ref=e7] [cursor=pointer]:
+          - /url: /traveller/bookings
+        - link "Transactions" [ref=e8] [cursor=pointer]:
+          - /url: /traveller/transactions
+        - link "Profile" [ref=e9] [cursor=pointer]:
+          - /url: /traveller/profile
+      - button "User menu" [ref=e11] [cursor=pointer]:
+        - generic [ref=e12]: MD
+  - generic [ref=e16]:
+    - generic [ref=e17]:
+      - heading "My Bookings" [level=1] [ref=e18]
+      - link "+ New Trip Booking" [ref=e19] [cursor=pointer]:
+        - /url: /trips
+    - generic [ref=e20]:
+      - generic [ref=e21]: ⏳
+      - paragraph [ref=e22]: Loading your bookings...

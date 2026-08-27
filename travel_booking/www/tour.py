@@ -22,9 +22,10 @@ def get_context(context):
     # Enrich with tour-specific fields for card display
     featured_tours = _enrich_tour_cards(all_tours[:6], trip_group_dates)
 
-    # 2. Get popular destinations (from filter options + count tours per dest)
+    # 2. Get popular destinations — only those linked to published, active
+    # NON-CRUISE trips, sorted by tour count.
     options = get_filter_options()
-    popular_destinations = _get_popular_destinations(options.get("destinations", []))
+    popular_destinations = _get_popular_destinations()
 
     # 3. Pass to template
     context.featured_tours = featured_tours
@@ -101,48 +102,43 @@ def _enrich_tour_cards(trips, trip_group_dates):
     return enriched
 
 
-def _get_popular_destinations(destination_list):
-    """Get destinations with tour count. Returns list of dicts."""
-    if not destination_list:
+def _get_popular_destinations():
+    """Destinasi yang terkait dengan trip Active, published, NON-CRUISE,
+    disusun ikut jumlah tour menurun. Self-contained — tak bergantung pada
+    get_filter_options() (yang pulangkan semua destinasi termasuk cruise).
+
+    Child table Trip.destination_list → Trip Destination Point Select,
+    medan `select_destination_point` → Trip Destination Point master.
+    """
+    try:
+        rows = frappe.db.sql(
+            """
+            SELECT dp.name, dp.destination_name, dp.destination_country,
+                   dp.destination_image, COUNT(DISTINCT t.name) AS tour_count
+            FROM `tabTrip Destination Point` dp
+            JOIN `tabTrip Destination Point Select` sel
+                ON sel.select_destination_point = dp.name
+            JOIN `tabTrip` t
+                ON t.name = sel.parent AND sel.parenttype = 'Trip'
+            WHERE t.status = 'Active'
+              AND t.is_a_cruise_trip = 0
+              AND t.published = 1
+            GROUP BY dp.name
+            ORDER BY tour_count DESC
+            LIMIT 8
+            """,
+            as_dict=True,
+        )
+    except Exception:
         return []
 
-    dest_names = [d.get("name") for d in destination_list if d.get("name")]
-
-    counts = {}
-    if dest_names:
-        try:
-            rows = frappe.db.sql(
-                """
-                SELECT dp.name, COUNT(DISTINCT t.name) as tour_count
-                FROM `tabTrip Destination Point` dp
-                JOIN `tabTrip Destination` td ON td.destination_point = dp.name
-                JOIN `tabTrip` t ON t.name = td.parent
-                WHERE t.status = 'Active'
-                  AND t.is_a_cruise_trip = 0
-                  AND dp.name IN %(dests)s
-                GROUP BY dp.name
-                ORDER BY tour_count DESC
-                LIMIT 8
-            """,
-                {"dests": dest_names},
-                as_dict=True,
-            )
-
-            counts = {r.name: r.tour_count for r in rows}
-        except Exception:
-            pass
-
-    result = []
-    for d in destination_list[:8]:
-        name = d.get("name")
-        result.append(
-            {
-                "name": name,
-                "destination_name": d.get("destination_name", ""),
-                "destination_country": d.get("destination_country", ""),
-                "image": d.get("image"),
-                "tour_count": counts.get(name, 0),
-            }
-        )
-
-    return result
+    return [
+        {
+            "name": r.name,
+            "destination_name": r.destination_name or r.name,
+            "destination_country": r.destination_country or "",
+            "image": r.destination_image or "",
+            "tour_count": r.tour_count or 0,
+        }
+        for r in rows
+    ]

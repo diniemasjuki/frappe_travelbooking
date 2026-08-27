@@ -160,14 +160,13 @@
   }
  ],
  "grid_page_length": 50,
- "index_web_pages_for_search": 1,
  "links": [
   {
    "link_doctype": "Booking Addon Item",
    "link_fieldname": "addon_order"
   }
  ],
- "modified": "2026-08-27 22:22:24.651341",
+ "modified": "2026-08-28 03:48:45.337376",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking Addon",

@@ -82,6 +82,9 @@
     var airportCity = _esc(b.airport_city || '');
     var airportName = _esc(b.airport_name || airportCity);
 
+    // Flight itinerary (booking-level, dari tabFlight via booking.flight)
+    var fi = b.flight_itinerary || {};
+
     // Group/Trip code
     var groupName = _esc(b.group_name || '');
     var packageTitle = _esc(b.package_title || '');
@@ -154,13 +157,12 @@
     html += '</span>';
     html += '</div>';
 
-    // ── INFO GRID: 3 columns per row ──
+    // ── BLOCK 1: ✈ Departure & Arrival (selalu ditunjuk) ──
+    html += '<div class="tv-sec">✈ Departure &amp; Arrival</div>';
     html += '<div class="tv-hero-grid">';
-
-    // Row 1: Departure Date | Return Date | Fly From
     html += '<div class="tv-hero-cell"><div class="tv-hero-label">Departure Date</div><div class="tv-hero-value">' + (depDate || '—') + '</div></div>';
     html += '<div class="tv-hero-cell"><div class="tv-hero-label">Return Date</div><div class="tv-hero-value">' + (retDate || '—') + '</div></div>';
-    // Fly From: Airport Code (bold big) + Airport Name (small muted)
+    // Fly From: Airport Code (bold) + Airport Name (small muted)
     var flyFromHtml = '<span style="color:var(--text-muted);">—</span>';
     if (!cruiseOnly && packageType !== 'Ground Only' && (airportCode || airportCity)) {
       flyFromHtml = '';
@@ -173,21 +175,54 @@
       if (!flyFromHtml) flyFromHtml = '<span style="color:var(--text-muted);">—</span>';
     }
     html += '<div class="tv-hero-cell"><div class="tv-hero-label">Fly From</div><div class="tv-hero-value">' + flyFromHtml + '</div></div>';
+    html += '</div>'; // grid Block 1
 
-    // Row 2 (cruise only): Sailing Start | Sailing End | Ship
+    // ── BLOCK 2: ⚓ Cruise & Sailing (cruise sahaja) ──
     if (isCruise) {
+      html += '<div class="tv-sec">⚓ Cruise &amp; Sailing</div>';
+      html += '<div class="tv-hero-grid">';
       html += '<div class="tv-hero-cell"><div class="tv-hero-label">Sailing Start</div><div class="tv-hero-value">' + (sailingStart || '—') + '</div></div>';
       html += '<div class="tv-hero-cell"><div class="tv-hero-label">Sailing End</div><div class="tv-hero-value">' + (sailingEnd || '—') + '</div></div>';
       html += '<div class="tv-hero-cell"><div class="tv-hero-label">Ship</div><div class="tv-hero-value">' + (shipName || '—') + '</div></div>';
-    }
-
-    // Row 3: Embarkation Port | Disembarkation Port
-    if (isCruise) {
       html += '<div class="tv-hero-cell"><div class="tv-hero-label">Embarkation Port</div><div class="tv-hero-value">' + (embarkPort || '—') + '</div></div>';
       html += '<div class="tv-hero-cell"><div class="tv-hero-label">Disembarkation Port</div><div class="tv-hero-value">' + (disembarkPort || '—') + '</div></div>';
+      html += '</div>'; // grid Block 2
     }
 
-    html += '</div>'; // grid
+    // ── BLOCK 3: 🛫 Flight Itinerary (booking-level flight link) ──
+    // fi dari tabFlight (booking.flight). Slot mewarisi flight sama, jadi
+    // biasanya satu flight per booking. Hanya papar jika wujud PNR.
+    if (fi && fi.pnr) {
+      var fiDepDate = fi.departure_date ? fmtDate(fi.departure_date) : '';
+      var fiArrDate = fi.arrival_date ? fmtDate(fi.arrival_date) : '';
+      // Airport cell: code (bold) + name (small muted)
+      var fiAirport = function(code, name) {
+        if (!code && !name) return '<span style="color:var(--text-muted);">—</span>';
+        var h = '';
+        if (code) h += '<div style="font-size:16px;font-weight:700;color:var(--text-primary);">' + _esc(code) + '</div>';
+        if (name) h += '<div style="font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px;">' + _esc(name) + '</div>';
+        return h || '<span style="color:var(--text-muted);">—</span>';
+      };
+      // Airline cell: name + flight class (small subtitle)
+      var fiAirline = '—';
+      if (fi.airline) {
+        fiAirline = _esc(fi.airline);
+        if (fi.flight_class) fiAirline += '<div style="font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px;">' + _esc(fi.flight_class) + '</div>';
+      }
+      html += '<div class="tv-sec">🛫 Flight Itinerary</div>';
+      html += '<div class="tv-hero-grid">';
+      html += '<div class="tv-hero-cell"><div class="tv-hero-label">PNR</div><div class="tv-hero-value">' + _esc(fi.pnr) + '</div></div>';
+      html += '<div class="tv-hero-cell"><div class="tv-hero-label">Airline</div><div class="tv-hero-value">' + fiAirline + '</div></div>';
+      html += '<div class="tv-hero-cell"><div class="tv-hero-label">Departure</div><div class="tv-hero-value">' + (fiDepDate || '—') + '</div></div>';
+      html += '<div class="tv-hero-cell"><div class="tv-hero-label">Return Arrival</div><div class="tv-hero-value">' + (fiArrDate || '—') + '</div></div>';
+      html += '<div class="tv-hero-cell"><div class="tv-hero-label">Departure Airport</div><div class="tv-hero-value">' + fiAirport(fi.home_airport_code, fi.home_airport_name) + '</div></div>';
+      html += '<div class="tv-hero-cell"><div class="tv-hero-label">Arrival Airport</div><div class="tv-hero-value">' + fiAirport(fi.dest_airport_code, fi.dest_airport_name) + '</div></div>';
+      html += '</div>'; // grid Block 3
+      // Rich itinerary (admin-entered Text Editor HTML — trusted source)
+      if (fi.itinerary_html) {
+        html += '<div class="tv-flight-itinerary-html">' + fi.itinerary_html + '</div>';
+      }
+    }
 
     html += '</div>'; // hero
 
@@ -201,8 +236,10 @@
     html += '<div class="tv-collapse-header" data-toggle="payment-summary" style="cursor:pointer;">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
     html += '<h3 class="tv-card__title">💰 Payment Summary</h3>';
-    html += '<span class="tv-collapse-arrow" style="font-size:18px;color:var(--text-muted);transition:transform .2s;">▾</span>';
+    html += '<button type="button" class="tv-btn tv-btn--ghost tv-btn--sm tv-collapse-toggle" style="flex-shrink:0;">Open</button>';
     html += '</div>';
+    // Summary line (replaces stats grid) — always visible, left aligned
+    html += '<div style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-top:8px;">Total Billed: ' + fmtDual(grandTotal) + ' · Balance Due: ' + fmtDual(balance) + '</div>';
     // Progress bar
     html += '<div class="tv-progress" role="progressbar" aria-valuenow="' + payPct + '" aria-valuemin="0" aria-valuemax="100" style="margin-top:12px;">';
     html += '<div class="tv-progress__fill' + (isPaid ? ' done' : '') + '" style="width:' + payPct + '%"></div>';
@@ -210,18 +247,11 @@
     var progressLabel = isPaid
       ? '<span class="tv-progress-label--success">✓ Paid in full — thank you!</span>'
       : '<span class="tv-progress-label">' + fmtDual(balance) + ' remaining to settle</span>';
-    html += '<div class="tv-progress-label" style="justify-content:center;margin-bottom:0;">' + progressLabel + '</div>';
+    html += '<div class="tv-progress-label" style="justify-content:flex-end;margin-bottom:0;">' + progressLabel + '</div>';
     html += '</div>'; // header
 
-    // Body (collapsible)
+    // Body (collapsible): bill orders list
     html += '<div class="tv-collapse-body" id="payment-summary-body" style="display:none;padding-top:16px;">';
-
-    // Stats row
-    html += '<div class="tv-stats tv-stats--payment">';
-    html += '<div class="tv-stat"><div class="tv-stat__value">' + fmtDual(grandTotal) + '</div><div class="tv-stat__label">Total Billed</div></div>';
-    html += '<div class="tv-stat"><div class="tv-stat__value tv-bk-fin-value--success">' + fmtDual(advancePaid) + '</div><div class="tv-stat__label">Total Paid</div></div>';
-    html += '<div class="tv-stat tv-stat--balance"><div class="tv-stat__value ' + (isPaid ? 'tv-bk-fin-value--success' : 'tv-bk-fin-value--warning') + '">' + fmtDual(balance) + '</div><div class="tv-stat__label">Balance Due</div></div>';
-    html += '</div>'; // stats
 
     // Bill Orders list
     var soList = (data.payment && data.payment.so_list) || [];
@@ -261,80 +291,20 @@
     html += '</div>'; // payment card
 
     /* ══════════════════════════════════════
-       SECTION C: TRAVELLER SUMMARY (Collapsible)
-       Header: title + 3-col stats + Manage button (always visible)
-       Body: cabin/room overview preview (collapsible)
+       SECTION C: TRAVELLER SUMMARY (compact)
+       Header: title + small summary string + Manage button
        ══════════════════════════════════════ */
     var roomLabel = isCruise ? 'Cabin' : 'Room';
 
     html += '<div class="tv-card tv-animate-in">';
-    // Header (always visible): title + 3-col grid + button
-    html += '<div class="tv-collapse-header" data-toggle="traveller-summary" style="cursor:pointer;">';
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+    // Header: title + summary string (left) + Manage button (right)
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">';
+    html += '<div>';
     html += '<h3 class="tv-card__title" style="margin:0;">👥 Traveller Summary</h3>';
-    html += '<span class="tv-collapse-arrow" style="font-size:18px;color:var(--text-muted);transition:transform .2s;">▾</span>';
+    html += '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">' + cabinCount + ' ' + roomLabel.toLowerCase() + '(s) · ' + filledCount + '/' + totalSlots + ' travellers · ' + docPct + '% completed</div>';
     html += '</div>';
-
-    // 3-column stats grid
-    html += '<div class="tv-hero-grid tv-hero-grid--summary" style="margin-bottom:16px;">';
-    html += '<div class="tv-hero-cell"><div class="tv-hero-label">' + roomLabel + 's</div><div class="tv-hero-value">' + cabinCount + '</div></div>';
-    html += '<div class="tv-hero-cell"><div class="tv-hero-label">Travellers</div><div class="tv-hero-value">' + filledCount + ' / ' + totalSlots + '</div></div>';
-    html += '<div class="tv-hero-cell"><div class="tv-hero-label">Completions</div><div class="tv-hero-value">' + docPct + '% (' + verifiedCount + '/' + filledCount + ')</div></div>';
-    html += '</div>'; // grid
-
-    // Manage button
-    html += '<div style="display:flex;justify-content:flex-end;">';
-    html += '<a href="/traveller/travellers?ref=' + encodeURIComponent(ref) + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;" onclick="event.stopPropagation();">';
-    html += 'Manage Travellers →';
-    html += '</a>';
-    html += '</div>';
-    html += '</div>'; // header
-
-    // Body (collapsible): cabin/room overview
-    html += '<div class="tv-collapse-body" id="traveller-summary-body" style="display:none;padding-top:16px;margin-top:16px;">';
-
-    if (cabins.length > 0) {
-      html += '<div class="tv-sec">' + roomLabel + ' Overview</div>';
-      cabins.forEach(function (cabin) {
-        var cabinLabel = _esc(cabin.cabin_assignment || cabin.room_name || roomLabel);
-        var cabinSlots = cabin.slots || [];
-
-        html += '<div class="tv-cabin">';
-        html += '<div class="tv-cabin__header">';
-        html += '<span>' + cabinLabel + '</span>';
-        html += '<span style="font-size:12px;color:var(--text-muted);">' + cabinSlots.length + ' slot(s)</span>';
-        html += '</div>';
-        html += '<div class="tv-cabin__body">';
-
-        cabinSlots.forEach(function (slot) {
-          var slotName = _esc(slot.slot_label || slot.pax_type || 'Slot');
-          var isFilled = slot.filled || slot.traveller_id;
-          var isVerified = slot.is_verified || slot.document_status === 'Verified';
-          var travellerName = isFilled ? (_esc(slot.full_name || (slot.first_name || '') + ' ' + (slot.last_name || ''))) : '';
-          var statusCls = isVerified ? 'verified' : (isFilled ? 'pending' : 'empty');
-
-          html += '<div class="tv-slot-item">';
-          html += '<div class="tv-slot-status tv-slot-status--' + statusCls + '"></div>';
-          html += '<div class="tv-slot-name">';
-          if (travellerName) {
-            html += travellerName;
-            html += '<div class="tv-slot-type">' + slotName + (isVerified ? ' ✓' : '') + '</div>';
-          } else {
-            html += '<span style="color:var(--text-muted);">' + slotName + '</span>';
-            html += '<div class="tv-slot-type">Empty</div>';
-          }
-          html += '</div>'; // name
-          html += '</div>'; // slot-item
-        });
-
-        html += '</div>'; // body
-        html += '</div>'; // cabin
-      });
-    } else {
-      html += '<p style="font-size:13px;color:var(--text-muted);padding:12px 0;">No ' + roomLabel.toLowerCase() + ' assignments found.</p>';
-    }
-
-    html += '</div>'; // collapse body
+    html += '<a href="/traveller/travellers?ref=' + encodeURIComponent(ref) + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;margin-left:auto;">Manage Travellers →</a>';
+    html += '</div>'; // header row
     html += '</div>'; // traveller card
 
     /* ══════════════════════════════════════
@@ -347,7 +317,7 @@
     var addonUrl  = '/traveller/booking_addons?booking=' + encodeURIComponent(ref);
     var manageUrl = '/traveller/manage_addon?ref=' + encodeURIComponent(ref);
 
-    html += '<div class="tv-card tv-animate-in" style="border-left:3px solid #0F6E56;">';
+    html += '<div class="tv-card tv-animate-in">';
     // Header
     html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">';
     html += '<div>';
@@ -385,25 +355,29 @@
 
   /* ── Wire collapsible card headers ──
      Convention: header has data-toggle="key", body has id="key-body".
-     Arrow (.tv-collapse-arrow) rotates -90deg when collapsed. */
+     Toggle button (.tv-collapse-toggle) shows Open/Hide. */
   function wireCollapsibles() {
     var headers = document.querySelectorAll('[data-toggle]');
     for (var i = 0; i < headers.length; i++) {
       (function (header) {
-        var key   = header.getAttribute('data-toggle');
-        var body  = document.getElementById(key + '-body');
-        var arrow = header.querySelector('.tv-collapse-arrow');
+        var key    = header.getAttribute('data-toggle');
+        var body   = document.getElementById(key + '-body');
+        var toggle = header.querySelector('.tv-collapse-toggle');
         if (!body) return;
+
+        function setLabel(collapsed) {
+          if (toggle) toggle.textContent = collapsed ? 'Open' : 'Hide';
+        }
 
         /* Sync initial collapsed state */
         var collapsed = body.style.display === 'none' || !body.style.display;
         body.style.display = collapsed ? 'none' : 'block';
-        if (arrow) arrow.style.transform = collapsed ? 'rotate(-90deg)' : '';
+        setLabel(collapsed);
 
         header.addEventListener('click', function () {
           var hidden = body.style.display === 'none';
           body.style.display = hidden ? 'block' : 'none';
-          if (arrow) arrow.style.transform = hidden ? '' : 'rotate(-90deg)';
+          setLabel(!hidden);
         });
       })(headers[i]);
     }

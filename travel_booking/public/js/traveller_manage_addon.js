@@ -111,14 +111,28 @@
       return;
     }
 
-    /* ── Group selector ── */
+    /* ── Group selector (segmented pill toggle, reuses .tv-pay-chip) ── */
+    var GROUP_MODES = [
+      { key: 'order',     icon: '🧾', label: 'Booking Addon' },
+      { key: 'package',   icon: '📦', label: 'Addon Package' },
+      { key: 'traveller', icon: '👤', label: 'Traveller' }
+    ];
+    var modeCounts = {};
+    GROUP_MODES.forEach(function (m) {
+      modeCounts[m.key] = groupLines(lines, m.key).length;
+    });
+
     html += '<div class="tv-card" style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">';
-    html += '<label style="font-size:13px;font-weight:600;margin:0;">Group by:</label>';
-    html += '<select id="group-by" style="padding:6px 12px;border:1px solid var(--c-border);border-radius:6px;font-size:13px;background:var(--c-surface);cursor:pointer;">';
-    html += '<option value="order">Booking Addon</option>';
-    html += '<option value="package">Addon Package</option>';
-    html += '<option value="traveller">Traveller</option>';
-    html += '</select>';
+    html += '<span style="font-size:13px;font-weight:600;color:var(--text-secondary);">Group by</span>';
+    html += '<div class="tv-pay-chips" id="ma-group-chips" style="margin:0;flex-wrap:wrap;">';
+    GROUP_MODES.forEach(function (m, i) {
+      var on = (i === 0) ? ' on' : '';
+      html += '<button type="button" class="tv-pay-chip' + on + '" data-mode="' + m.key + '">'
+        + m.icon + ' ' + _esc(m.label)
+        + ' <span style="font-size:11px;opacity:0.65;">' + modeCounts[m.key] + '</span>'
+        + '</button>';
+    });
+    html += '</div>';
     html += '<span style="font-size:12px;color:var(--text-muted);margin-left:auto;">'
       + lines.length + ' item(s) across ' + ADDON_ORDERS.length + ' order(s)</span>';
     html += '</div>';
@@ -128,11 +142,30 @@
 
     content.innerHTML = html;
 
-    /* Render initial groups + wire up selector */
+    /* Render initial groups + wire up pill toggle */
     renderItems('order');
-    var sel = document.getElementById('group-by');
-    if (sel)
-      sel.addEventListener('change', function () { renderItems(sel.value); });
+    var chipBox = document.getElementById('ma-group-chips');
+    if (chipBox) {
+      chipBox.addEventListener('click', function (e) {
+        var chip = e.target.closest('.tv-pay-chip');
+        if (!chip) return;
+        chipBox.querySelectorAll('.tv-pay-chip').forEach(function (c) { c.classList.remove('on'); });
+        chip.classList.add('on');
+        renderItems(chip.dataset.mode);
+      });
+    }
+
+    /* Wire up collapsible group headers (event delegation on items container) */
+    var itemsBox = document.getElementById('ma-items');
+    if (itemsBox) {
+      itemsBox.addEventListener('click', function (e) {
+        var header = e.target.closest('.ma-group-header');
+        if (!header) return;
+        var card = header.closest('.ma-group-card');
+        if (!card) return;
+        card.classList.toggle('collapsed');
+      });
+    }
   }
 
   /* ── Re-render the items area for the selected grouping ── */
@@ -149,9 +182,11 @@
     var html = '';
     groups.forEach(function (g) {
       html += renderGroupHeader(g, mode);
+      html += '<div class="ma-group-body">';
       g.lines.forEach(function (l) {
         html += renderItemRow(l, mode);
       });
+      html += '</div>'; /* close group body */
       html += '</div>'; /* close group card */
     });
     return html;
@@ -162,16 +197,17 @@
     var s = g.sample;
     var html = '';
 
-    html += '<div class="tv-card tv-animate-in" style="margin-bottom:12px;">';
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--c-border);margin-bottom:12px;">';
+    html += '<div class="tv-card tv-animate-in ma-group-card" style="margin-bottom:12px;">';
+    html += '<div class="ma-group-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding-bottom:12px;border-bottom:1px solid var(--border-default);margin-bottom:12px;">';
 
     if (mode === 'order') {
       /* By Booking Addon (order) */
       var totalAmount = 0;
       g.lines.forEach(function (l) { totalAmount += parseFloat(l.amount) || 0; });
-      html += '<div>';
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<span class="ma-group-chevron">▾</span>';
       html += '<span style="font-weight:700;font-size:14px;">' + _esc(s.order_name) + '</span>';
-      html += '<span style="font-size:12px;color:var(--text-muted);margin-left:8px;">'
+      html += '<span style="font-size:12px;color:var(--text-muted);">'
         + g.lines.length + ' item(s) · Total: ' + fmtDual(totalAmount) + '</span>';
       html += '</div>';
       html += '<div style="display:flex;gap:6px;">';
@@ -182,20 +218,22 @@
       /* By Addon Package */
       var pkgName = s.addon_package_name || '';
       var title = s.addon_title || 'Unknown Addon';
-      html += '<div>';
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<span class="ma-group-chevron">▾</span>';
       html += '<span style="font-weight:700;font-size:14px;">' + _esc(title) + '</span>';
       if (pkgName)
-        html += '<span style="font-size:12px;color:var(--text-muted);margin-left:8px;">' + _esc(pkgName) + '</span>';
-      html += '<span style="font-size:12px;color:var(--text-muted);margin-left:8px;">· '
+        html += '<span style="font-size:12px;color:var(--text-muted);">' + _esc(pkgName) + '</span>';
+      html += '<span style="font-size:12px;color:var(--text-muted);">· '
         + g.lines.length + ' item(s)</span>';
       html += '</div>';
     } else {
       /* By Traveller */
       var tname = (g.key === '__per_booking__')
         ? 'Per Booking (Unassigned)' : resolveTravellerName(s);
-      html += '<div>';
+      html += '<div style="display:flex;align-items:center;gap:8px;">';
+      html += '<span class="ma-group-chevron">▾</span>';
       html += '<span style="font-weight:700;font-size:14px;">👤 ' + _esc(tname) + '</span>';
-      html += '<span style="font-size:12px;color:var(--text-muted);margin-left:8px;">· '
+      html += '<span style="font-size:12px;color:var(--text-muted);">· '
         + g.lines.length + ' item(s)</span>';
       html += '</div>';
     }

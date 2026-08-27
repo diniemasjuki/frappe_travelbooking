@@ -26,7 +26,7 @@
     <div class="rc-hero-intro">{{ hp.hero.intro|safe }}</div>
 
     {# Search Widget #}
-    <form class="rc-hero-search" action="/trips" method="get">
+    <form class="rc-hero-search" action="/tours" method="get">
       <input type="hidden" name="cruise" value="0"/>
       <div class="rc-search-grid">
         <label class="rc-search-field">
@@ -74,7 +74,7 @@
       <article class="rc-tour-card">
         <a class="rc-tour-img" href="/{{ tour.route }}">
           <img src="{{ tour.trip_image }}" alt="{{ tour.trip_name }}" loading="lazy"
-               onerror="this.src='/assets/travel_booking/img/defaultaroyo.jpg'"/>
+               onerror="this.src='/assets/travel_booking/img/defaultaroya.jpg'"/>
           <span class="rc-tour-badge">{{ tour.days_nights }}</span>
           {% if tour.is_hot_sale %}
           <span class="rc-tour-hot">🔥 Hot Deal</span>
@@ -148,7 +148,7 @@
     <div class="rc-dest-grid">
       {% for dest in popular_destinations %}
       <a href="/trips?cruise=0&destination={{ dest.name | urlencode }}" class="rc-dest-card">
-        <div class="rc-dest-img" style="background-image:url('{{ dest.image or '/assets/travel_booking/img/defaultaroyo.jpg' }}')">
+        <div class="rc-dest-img" style="background-image:url('{{ dest.image or '/assets/travel_booking/img/defaultaroya.jpg' }}')">
           <div class="rc-dest-overlay">
             <h3>{{ dest.destination_name }}</h3>
             <span>{{ dest.tour_count or '' }} Tours</span>

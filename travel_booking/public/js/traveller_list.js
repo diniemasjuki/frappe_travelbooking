@@ -136,6 +136,11 @@
       }
     }
     var group = _esc(b.group_name || b.sailing_no || '');
+    var embark = _esc(b.embarkation_port || '');
+    var disembark = _esc(b.disembarkation_port || '');
+    var sailOn = b.sailing_start ? fmtDate(b.sailing_start) : '';
+    var sailOff = (b.sailing_end && b.sailing_end !== b.sailing_start)
+      ? fmtDate(b.sailing_end) : '';
     var status = _esc(b.booking_status || 'Pending');
     var payStatus = _esc(b.payment_status || 'Pending');
 
@@ -174,29 +179,55 @@
     html += '<div class="tv-bk-card__name">' + tripName;
     if (status === 'Cancelled') html += ' 🔒';
     html += '</div>';
+
+    // Cruise route + sailing info (small font, after trip name)
+    var infoRows = '';
+    if (embark) {
+      if (disembark && disembark !== embark) {
+        infoRows += '<div class="tv-bk-card__info-row"><span class="tv-bk-card__info-k">Departure</span> '
+          + embark + ' <span class="tv-bk-card__info-arrow">→</span> <span class="tv-bk-card__info-k">Arrival</span> '
+          + disembark + '</div>';
+      } else {
+        infoRows += '<div class="tv-bk-card__info-row"><span class="tv-bk-card__info-k">Port</span> '
+          + embark + '</div>';
+      }
+    }
+    if (sailOn) {
+      var sailTxt = '<span class="tv-bk-card__info-k">Sailing On</span> ' + sailOn;
+      if (sailOff) sailTxt += ' <span class="tv-bk-card__info-sep">·</span> <span class="tv-bk-card__info-k">Off</span> ' + sailOff;
+      infoRows += '<div class="tv-bk-card__info-row">' + sailTxt + '</div>';
+    }
+    if (infoRows) {
+      html += '<div class="tv-bk-card__info">' + infoRows + '</div>';
+    }
+
     html += '<div class="tv-bk-card__meta">';
     if (group) html += '<span>' + group + ' · </span>';
     html += '<span>' + dates + '</span>';
     html += '</div>'; // meta
     html += '</div>'; // left col
     html += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">';
-    html += '<span class="tv-bk-card__ref">' + ref + '</span>';
+    html += '<span class="tv-bk-card__ref"><span class="tv-bk-card__ref-tag">REF</span>' + ref + '</span>';
     if (countdownHtml) html += countdownHtml;
     html += '</div>'; // right col
     html += '</div>'; // hero
 
-    // Badges row
-    html += '<div class="tv-bk-card__badges">';
-    html += statusBadge(status, 'booking');
-    html += '<span class="tv-badge tv-badge--neutral">' + filledCount + '/' + totalSlots + ' Travellers</span>';
+    // Doc-readiness badge (shown only when travellers exist)
     if (filledCount > 0) {
       var docCls = docPct >= 100 ? 'success' : (docPct > 0 ? 'warning' : 'neutral');
-      html += '<span class="tv-badge tv-badge--' + docCls + '">' + docPct + '% Docs</span>';
+      html += '<div class="tv-bk-card__badges"><span class="tv-badge tv-badge--' + docCls + '">' + docPct + '% Docs</span></div>';
     }
-    html += '</div>'; // badges
 
-    // Financial summary row
+    // Summary grid: Booking · Travellers · Billed · Paid · Balance · Payment
     html += '<div class="tv-bk-card__fin-row">';
+    html += '<div class="tv-bk-fin-item tv-bk-fin-item--badge">';
+    html += '<div class="tv-bk-fin-label">Booking</div>';
+    html += statusBadge(status, 'booking');
+    html += '</div>';
+    html += '<div class="tv-bk-fin-item">';
+    html += '<div class="tv-bk-fin-label">Travellers</div>';
+    html += '<div class="tv-bk-fin-value">' + filledCount + '/' + totalSlots + '</div>';
+    html += '</div>';
     html += '<div class="tv-bk-fin-item">';
     html += '<div class="tv-bk-fin-label">Total Billed</div>';
     html += '<div class="tv-bk-fin-value">' + fmtDual(billed) + '</div>';
@@ -209,7 +240,10 @@
     html += '<div class="tv-bk-fin-label">Balance Due</div>';
     var balCls = balance <= 0 ? 'tv-bk-fin-value--success' : 'tv-bk-fin-value--warning';
     html += '<div class="tv-bk-fin-value ' + balCls + '">' + fmtDual(balance) + '</div>';
-    html += '<div style="margin-top:4px;">' + statusBadge(payStatus, 'payment') + '</div>';
+    html += '</div>';
+    html += '<div class="tv-bk-fin-item tv-bk-fin-item--badge">';
+    html += '<div class="tv-bk-fin-label">Payment</div>';
+    html += statusBadge(payStatus, 'payment');
     html += '</div>';
     html += '</div>'; // fin-row
 

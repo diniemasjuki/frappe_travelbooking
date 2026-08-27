@@ -1,0 +1,64 @@
+- generic [ref=e2]:
+  - generic [ref=e3]: ⭐ Upcoming Trip
+  - link "Mediterranean Cruise — Greek Isles GRP-2026-07 · 3 Sep 2026 – 12 Sep 2026 REF BKG-2026-0042 ⏰ 6 days to go 67% Docs Booking Confirmed Travellers 3/4 Total Billed RM 8,400.00 Total Paid RM 4,200.00 Balance Due RM 4,200.00 Payment Partially Paid" [ref=e4] [cursor=pointer]:
+    - /url: "#"
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: Mediterranean Cruise — Greek Isles
+        - generic [ref=e8]:
+          - generic [ref=e9]: GRP-2026-07 ·
+          - generic [ref=e10]: 3 Sep 2026 – 12 Sep 2026
+      - generic [ref=e11]:
+        - generic [ref=e12]:
+          - generic [ref=e13]: REF
+          - text: BKG-2026-0042
+        - generic [ref=e14]: ⏰ 6 days to go
+    - generic [ref=e15]: 67% Docs
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - generic [ref=e19]: Booking
+        - generic [ref=e20]: Confirmed
+      - generic [ref=e21]:
+        - generic [ref=e22]: Travellers
+        - generic [ref=e23]: 3/4
+      - generic [ref=e24]:
+        - generic [ref=e25]: Total Billed
+        - generic [ref=e26]: RM 8,400.00
+      - generic [ref=e27]:
+        - generic [ref=e28]: Total Paid
+        - generic [ref=e29]: RM 4,200.00
+      - generic [ref=e30]:
+        - generic [ref=e31]: Balance Due
+        - generic [ref=e32]: RM 4,200.00
+      - generic [ref=e33]:
+        - generic [ref=e34]: Payment
+        - generic [ref=e35]: Partially Paid
+  - generic [ref=e36]: 📅 Future Trips
+  - link "Bali Cultural Tour 15 Nov 2026 – 20 Nov 2026 REF BKG-2026-0118 Booking Accepted Travellers 2/2 Total Billed RM 2,600.00 Total Paid RM 0.00 Balance Due RM 2,600.00 Payment Pending" [ref=e37] [cursor=pointer]:
+    - /url: "#"
+    - generic [ref=e38]:
+      - generic [ref=e39]:
+        - generic [ref=e40]: Bali Cultural Tour
+        - generic [ref=e41]: 15 Nov 2026 – 20 Nov 2026
+      - generic [ref=e44]:
+        - generic [ref=e45]: REF
+        - text: BKG-2026-0118
+    - generic [ref=e46]:
+      - generic [ref=e47]:
+        - generic [ref=e48]: Booking
+        - generic [ref=e49]: Accepted
+      - generic [ref=e50]:
+        - generic [ref=e51]: Travellers
+        - generic [ref=e52]: 2/2
+      - generic [ref=e53]:
+        - generic [ref=e54]: Total Billed
+        - generic [ref=e55]: RM 2,600.00
+      - generic [ref=e56]:
+        - generic [ref=e57]: Total Paid
+        - generic [ref=e58]: RM 0.00
+      - generic [ref=e59]:
+        - generic [ref=e60]: Balance Due
+        - generic [ref=e61]: RM 2,600.00
+      - generic [ref=e62]:
+        - generic [ref=e63]: Payment
+        - generic [ref=e64]: Pending

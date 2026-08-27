@@ -28,9 +28,10 @@ def get_context(context):
     # Enrich with cruise-specific fields for card display
     featured_cruises = _enrich_cruise_cards(all_cruises[:6], trip_group_dates)
 
-    # 2. Get popular destinations (from filter options + count cruises per dest)
+    # 2. Popular destinations — hanya destinasi yang ada trip cruise aktif,
+    # disusun ikut bilangan cruise. (options masih dipakai utk hero search.)
     options = get_filter_options()
-    popular_destinations = _get_popular_destinations(options.get("destinations", []))
+    popular_destinations = _get_popular_destinations()
 
     # 3. Pass to template
     context.featured_cruises = featured_cruises
@@ -94,44 +95,46 @@ def _enrich_cruise_cards(trips, trip_group_dates):
     return enriched
 
 
-def _get_popular_destinations(destination_list):
-    """Get destinations with cruise count. Returns list of dicts."""
-    if not destination_list:
+def _get_popular_destinations():
+    """Destinasi yang disentuh oleh sekurang-kurangnya satu trip cruise
+    aktif, disusun ikut bilangan cruise (terbanyak dahulu, maks 8).
+
+    Query ini menggantikan pendekatan lama yang mengambil senarai generik
+    dari get_filter_options (semua destinasi mana-mana trip) lalu
+    menghiasnya dengan count — yang menyebabkan destinasi tanpa cruise
+    tetap terpapar dan medan image sentiasa None (sebab get_filter_options
+    tak SELECT destination_image).
+    """
+    try:
+        rows = frappe.db.sql(
+            """
+            SELECT dp.name, dp.destination_name, dp.destination_country,
+                   dp.destination_image AS image,
+                   COUNT(DISTINCT t.name) AS cruise_count
+            FROM `tabTrip Destination Point` dp
+            JOIN `tabTrip Destination Point Select` sel
+              ON sel.select_destination_point = dp.name
+            JOIN `tabTrip` t ON t.name = sel.parent
+            WHERE t.status = 'Active'
+              AND t.is_a_cruise_trip = 1
+            GROUP BY dp.name, dp.destination_name,
+                     dp.destination_country, dp.destination_image
+            ORDER BY cruise_count DESC
+            LIMIT 8
+            """,
+            as_dict=True,
+        )
+    except Exception:
+        frappe.logger().exception("cruise homepage: popular destinations query failed")
         return []
 
-    # Count how many active cruises go to each destination
-    dest_names = [d.get("name") for d in destination_list if d.get("name")]
-
-    counts = {}
-    if dest_names:
-        try:
-            rows = frappe.db.sql("""
-                SELECT dp.name, COUNT(DISTINCT t.name) as cruise_count
-                FROM `tabTrip Destination Point` dp
-                JOIN `tabTrip Destination` td ON td.destination_point = dp.name
-                JOIN `tabTrip` t ON t.name = td.parent
-                WHERE t.status = 'Active'
-                  AND t.is_a_cruise_trip = 1
-                  AND dp.name IN %(dests)s
-                GROUP BY dp.name
-                ORDER BY cruise_count DESC
-                LIMIT 8
-            """, {"dests": dest_names}, as_dict=True)
-
-            counts = {r.name: r.cruise_count for r in rows}
-        except Exception:
-            pass
-
-    # Build result list with image placeholder
-    result = []
-    for d in destination_list[:8]:
-        name = d.get("name")
-        result.append({
-            "name": name,
-            "destination_name": d.get("destination_name", ""),
-            "destination_country": d.get("destination_country", ""),
-            "image": d.get("image"),  # optional field
-            "cruise_count": counts.get(name, 0),
-        })
-
-    return result
+    return [
+        {
+            "name": r.name,
+            "destination_name": r.destination_name or "",
+            "destination_country": r.destination_country or "",
+            "image": r.image,
+            "cruise_count": r.cruise_count,
+        }
+        for r in rows
+    ]
