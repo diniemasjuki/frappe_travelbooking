@@ -19,7 +19,7 @@ class BookingAddon(Document):
 		currency: DF.Link | None
 		customer: DF.Link | None
 		departure_date: DF.Date | None
-		naming_series: DF.Literal["BAO.YY.MM.###"]
+		naming_series: DF.Literal["BA.YY.MM.###"]
 		notes: DF.SmallText | None
 		order_date: DF.Datetime | None
 		payment_status: DF.Literal["Pending", "Partially Paid", "Paid"]

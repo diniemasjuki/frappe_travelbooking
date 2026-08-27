@@ -271,6 +271,11 @@ function saveState() {
       otp_verified: state.otp_verified,
       pay_method:   (typeof state_payment_method !== "undefined") ? state_payment_method : "Online Payment",
       pay_amount:   (typeof state_payment_amount !== "undefined") ? state_payment_amount : 0,
+      // Affiliate code mesti tersimpan supaya survive refresh selepas customer
+      // taip manual (sebelum bayar) — tanpa ni, refresh di Step 3 hilangkan kod
+      // dan confirm_booking hantar affiliate_code kosong.
+      affiliate_code:   (typeof state_affiliate_code !== "undefined") ? state_affiliate_code : "",
+      referral_percent: (typeof state_referral_percent !== "undefined") ? state_referral_percent : 0,
     };
     sessionStorage.setItem("bnw_booking_wizard", JSON.stringify(snap));
   } catch (e) {}
@@ -456,6 +461,12 @@ function restoreWizard() {
 
   if (snap.billing) state.billing = snap.billing;
   state.otp_verified = !!snap.otp_verified;
+
+  // Affiliate code dipulihkan ke state sahaja di sini — re-apply UI (validate
+  // + lock input) dilakukan oleh prefillAffiliateCodeFromUrl() di hujung init
+  // supaya turut cover kes kod datang dari URL ?sp= atau bnw_cart.
+  state_affiliate_code   = snap.affiliate_code || "";
+  state_referral_percent = snap.referral_percent || 0;
 
   // booknow: Tiada Step 0 — terus load cabins & restore rooms
   if (typeof renderPaymentSettingsUI === "function") renderPaymentSettingsUI();
@@ -3023,14 +3034,30 @@ function prefillAffiliateCodeFromUrl() {
   // Stripe akan tersalah dapat booking_number diproses SEBAGAI kod
   // affiliate (dua maksud berlainan berkongsi satu nama parameter). 'sp'
   // parameter baharu yang tak bertembung dengan mana-mana penggunaan lain.
+  //
+  // Priority: URL ?sp= → restored wizard snapshot → bnw_cart. Tiga-tiga
+  // jaminan kod affiliate tak hilang: deep-link baharu dari trip-detail,
+  // refresh selepas taip manual, dan handoff dari trip-detail via cart.
   var params = new URLSearchParams(window.location.search);
-  var ref = params.get("sp");
-  if (!ref) return;
+
+  // Skip pada screen confirmation pasca-Stripe — booking dah dibuat, kod
+  // affiliate sudah dipersist server-side di confirm_booking.
+  if (params.get("step") === "confirm") return;
+
+  var code = (params.get("sp") || "").trim().toUpperCase();
+  if (!code) code = (state_affiliate_code || "").trim().toUpperCase();
+  if (!code) {
+    try {
+      var _c = sessionStorage.getItem("bnw_cart");
+      if (_c) code = (JSON.parse(_c).affiliate_code || "").trim().toUpperCase();
+    } catch (_e) {}
+  }
+  if (!code) return;
 
   var input = document.getElementById("bnwAffiliateInput");
   if (!input) return;
 
-  input.value = ref.trim().toUpperCase();
+  input.value = code;
   applyAffiliateCode();
 }
 
@@ -3810,6 +3837,7 @@ loadSalesPersons();
 initDisplayCurrency();
 
 // Auto-fill + auto-apply referral code if the customer arrived via an
-// affiliate's shareable link (?ref=CODE). Manual entry via the Apply
-// button / Enter key continues to work exactly as before.
+// affiliate's shareable link (?sp=CODE), or via a restored wizard snapshot
+// / bnw_cart handoff dari trip-detail. Manual entry via the Apply button /
+// Enter key continues to work exactly as before.
 prefillAffiliateCodeFromUrl();

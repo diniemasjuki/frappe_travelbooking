@@ -49,12 +49,17 @@
   var shareBtn = document.getElementById("rcDetailShareBtn");
   if (!gdSel || !pkgSel) return;
 
-  // ── Parse ?trip_group_date=RC...&trip_package=TP... from URL (shared variant) ──
-  var _wishPkg = "", _wishGd = "";
+  // ── Parse ?trip_group_date=RC...&trip_package=TP...&sp=... from URL ──
+  // 'sp' ialah affiliate referral code (Sales Partner) — dipasang oleh pautan
+  // affiliate yang menuju terus ke page detail trip. Code ni dirambat ke
+  // /booknow (via bnw_cart + URL param) supaya wizard boleh pre-fill &
+  // atribut komisen affiliate pada booking.
+  var _wishPkg = "", _wishGd = "", _sp = "";
   try {
     var qs = new URLSearchParams(window.location.search);
     _wishGd = qs.get("trip_group_date") || "";
     _wishPkg = qs.get("trip_package") || "";
+    _sp = (qs.get("sp") || "").trim().toUpperCase();
   } catch (_e) {}
 
   function esc(s) {
@@ -527,6 +532,7 @@
       package_name: pkg,                                // backward compat
       package_label: pkgLabel,
       company_currency: DATA.company_symbol || "RM",
+      affiliate_code: _sp,                              // rambat ke /booknow
       added_at: new Date().toISOString()
     };
 
@@ -536,7 +542,11 @@
       return;
     }
 
-    window.location.href = "/booknow";
+    // Append ?sp= ke /booknow supaya prefillAffiliateCodeFromUrl() di wizard
+    // terus apply kod affiliate — bnw_cart.affiliate_code ialah fallback.
+    var bnwUrl = "/booknow";
+    if (_sp) bnwUrl += "?sp=" + encodeURIComponent(_sp);
+    window.location.href = bnwUrl;
   }
 
   function refreshItineraryDates() {

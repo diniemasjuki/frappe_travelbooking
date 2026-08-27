@@ -38,7 +38,6 @@
   "status_section",
   "status",
   "column_break_status",
-  "sales_order",
   "notes"
  ],
  "fields": [
@@ -114,22 +113,24 @@
    "label": "Addon Package",
    "options": "Trip Addon Package",
    "reqd": 1,
+   "search_index": 1,
    "set_only_once": 1
   },
   {
    "fetch_from": "addon_package.addon",
    "fieldname": "addon",
    "fieldtype": "Link",
-   "label": "Addon",
+   "label": "Trip Addon",
    "options": "Trip Addon",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fetch_from": "addon_package.addon_title",
    "fieldname": "addon_title",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Addon Title",
+   "label": "Trip Addon Title",
    "read_only": 1
   },
   {
@@ -160,7 +161,7 @@
   },
   {
    "depends_on": "eval:doc.scope=='Per Pax'",
-   "description": "Wajib diisi kalau Scope = Per Pax (belum disokong penuh di portal — reserved untuk fasa akan datang). Kosong kalau Scope = Per Booking.",
+   "description": "Wajib diisi kalau Scope = Per Pax (belum disokong penuh di portal \u2014 reserved untuk fasa akan datang). Kosong kalau Scope = Per Booking.",
    "fieldname": "booking_reservation",
    "fieldtype": "Link",
    "label": "Booking Reservation",
@@ -199,7 +200,7 @@
    "read_only": 1
   },
   {
-   "description": "Dibekukan waktu baris ini dicipta — perubahan harga Addon Package kemudian TIDAK mempengaruhi baris sedia ada.",
+   "description": "Dibekukan waktu baris ini dicipta \u2014 perubahan harga Addon Package kemudian TIDAK mempengaruhi baris sedia ada.",
    "fieldname": "unit_price",
    "fieldtype": "Currency",
    "label": "Unit Price",
@@ -256,14 +257,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "addon_order.sales_order",
-   "fieldname": "sales_order",
-   "fieldtype": "Link",
-   "label": "Sales Order",
-   "options": "Sales Order",
-   "read_only": 1
-  },
-  {
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "label": "Notes"
@@ -272,7 +265,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-27 20:19:48.055948",
+ "modified": "2026-08-27 22:30:15.072435",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking Addon Item",

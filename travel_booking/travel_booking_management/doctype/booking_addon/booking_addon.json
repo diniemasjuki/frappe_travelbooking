@@ -110,7 +110,7 @@
    "options": "Pending\nConfirmed\nCancelled"
   },
   {
-   "description": "Sync dari Sales Order (addon) untuk order ini SAHAJA — bukan agregat Booking.payment_status (yang termasuk SO cabin lain).",
+   "description": "Sync dari Sales Order (addon) untuk order ini SAHAJA \u2014 bukan agregat Booking.payment_status (yang termasuk SO cabin lain).",
    "fieldname": "payment_status",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -145,12 +145,12 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "BAO.YY.MM.###",
+   "default": "BA.YY.MM.###",
    "fieldname": "naming_series",
    "fieldtype": "Select",
    "hidden": 1,
    "label": "naming series",
-   "options": "BAO.YY.MM.###",
+   "options": "BA.YY.MM.###",
    "reqd": 1
   },
   {
@@ -167,7 +167,7 @@
    "link_fieldname": "addon_order"
   }
  ],
- "modified": "2026-08-27 19:42:56.240292",
+ "modified": "2026-08-27 22:22:24.651341",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking Addon",

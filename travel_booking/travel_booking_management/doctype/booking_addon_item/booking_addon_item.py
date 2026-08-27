@@ -28,7 +28,6 @@ class BookingAddonItem(Document):
 		naming_series: DF.Literal["BAI.YY.MM.###"]
 		notes: DF.SmallText | None
 		qty: DF.Int
-		sales_order: DF.Link | None
 		scope: DF.Literal["Per Booking", "Per Pax"]
 		status: DF.Literal["Pending", "Confirmed", "Cancelled"]
 		traveller_name: DF.Data | None

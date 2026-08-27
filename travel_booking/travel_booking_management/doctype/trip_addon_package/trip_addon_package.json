@@ -271,7 +271,7 @@
    "link_fieldname": "name"
   }
  ],
- "modified": "2026-08-27 22:05:13.771651",
+ "modified": "2026-08-27 22:27:32.672123",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Addon Package",
@@ -308,5 +308,5 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
- "title_field": "addon_title"
+ "title_field": "addon_package_name"
 }
