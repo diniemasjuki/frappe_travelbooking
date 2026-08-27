@@ -446,7 +446,12 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
 @frappe.whitelist()
 def get_booking_addons(booking_number: str):
     """Senarai Booking Addon + baris untuk booking ni — untuk
-    paparan "apa yang saya dah beli" di portal.
+    paparan "apa yang saya dah beli" di portal (Manage Add-on page).
+
+    Setiap baris (Booking Addon Item) membawa medan pengepal
+    ternormalisasi (order_status, order_payment_status, dll) supaya
+    boleh di-group by addon_package / traveller tanpa kehilangan info
+    order asal.
     """
     booking = _get_owned_booking(booking_number)
 
@@ -457,12 +462,41 @@ def get_booking_addons(booking_number: str):
                 "sales_order", "order_date"],
         order_by="order_date desc",
     )
+
+    # Batch-fetch addon_package_name for all lines across all orders
+    all_pkg_names = set()
     for o in orders:
         o["lines"] = frappe.get_all(
             "Booking Addon Item",
             filters={"addon_order": o.name},
-            fields=["name", "addon_title", "qty", "unit_price", "amount",
+            fields=["name", "addon_title", "addon_package", "addon",
+                    "booking_reservation", "traveller_name", "scope",
+                    "qty", "unit_price", "amount", "currency",
                     "status", "valid_from", "valid_to"],
             order_by="creation asc",
         )
+        for l in o["lines"]:
+            if l.get("addon_package"):
+                all_pkg_names.add(l["addon_package"])
+
+    pkg_name_map = {}
+    if all_pkg_names:
+        for name, pkg_name in frappe.db.sql(
+            "SELECT name, addon_package_name FROM `tabTrip Addon Package` WHERE name IN %s",
+            (tuple(all_pkg_names),), as_list=True
+        ):
+            pkg_name_map[name] = pkg_name
+
+    # Denormalize header fields onto each line for grouping views
+    for o in orders:
+        for l in o["lines"]:
+            l["order_name"] = o["name"]
+            l["order_status"] = o["status"]
+            l["order_payment_status"] = o["payment_status"]
+            l["order_total"] = o["total_amount"]
+            l["order_currency"] = o["currency"]
+            l["sales_order"] = o.get("sales_order")
+            l["order_date"] = o.get("order_date")
+            l["addon_package_name"] = pkg_name_map.get(l.get("addon_package"), "")
+
     return orders

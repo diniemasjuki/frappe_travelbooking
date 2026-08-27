@@ -1,0 +1,18 @@
+- generic [active] [ref=f6e1]:
+  - navigation [ref=f6e2]:
+    - generic [ref=f6e3]:
+      - link [ref=f6e4] [cursor=pointer]:
+        - /url: /traveller/bookings
+        - img "Rarecation" [ref=f6e5]
+      - generic [ref=f6e6]:
+        - link "My Bookings" [ref=f6e7] [cursor=pointer]:
+          - /url: /traveller/bookings
+        - link "Transactions" [ref=f6e8] [cursor=pointer]:
+          - /url: /traveller/transactions
+        - link "Profile" [ref=f6e9] [cursor=pointer]:
+          - /url: /traveller/profile
+      - button "User menu" [ref=f6e11] [cursor=pointer]:
+        - generic [ref=f6e12]: "?"
+  - generic [ref=f6e17]:
+    - generic [ref=f6e18]: ⏳
+    - paragraph [ref=f6e19]: Loading add-ons...

@@ -1,0 +1,7 @@
+- main [ref=f2e4]:
+  - generic [ref=f2e7]:
+    - heading "Server Error" [level=4] [ref=f2e8]
+    - generic [ref=f2e9]:
+      - paragraph [ref=f2e10]: "500: There was an error building this page"
+      - button "Hide Error" [active] [ref=f2e12] [cursor=pointer]
+      - code [ref=f2e15]

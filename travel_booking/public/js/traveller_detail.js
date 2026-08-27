@@ -344,7 +344,8 @@
        ══════════════════════════════════════ */
     var addonOrders = (data.addon_orders || []);
     var hasAddonOrders = addonOrders.length > 0;
-    var addonUrl = '/traveller/booking_addons?booking=' + encodeURIComponent(ref);
+    var addonUrl  = '/traveller/booking_addons?booking=' + encodeURIComponent(ref);
+    var manageUrl = '/traveller/manage_addon?ref=' + encodeURIComponent(ref);
 
     html += '<div class="tv-card tv-animate-in" style="border-left:3px solid #0F6E56;">';
     // Header
@@ -366,13 +367,10 @@
     }
 
     html += '</div>';
-    // CTA Button (dynamic text based on state)
-    html += '<a href="' + addonUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;margin-left:auto;">';
-    if (!hasAddonOrders) {
-      html += 'Browse Add-ons →';
-    } else {
-      html += 'Manage Addons →';
-    }
+    // CTA Button — Browse (no orders) or Manage (has orders)
+    var btnUrl = hasAddonOrders ? manageUrl : addonUrl;
+    html += '<a href="' + btnUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;margin-left:auto;">';
+    html += hasAddonOrders ? 'Manage Addon →' : 'Browse Addon →';
     html += '</a>';
     html += '</div>'; // header row
     html += '</div>'; // addons card

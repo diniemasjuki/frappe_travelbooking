@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Manage Add-ons — {{ site_name or 'Rarecation' }} Portal</title>
+  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800;900&family=Rubik:wght@300;400;500;600;700;800;900&family=Satisfy&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') }}"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/traveller.css?v={{ asset_v('css/traveller.css') }}"/>
+</head>
+<body class="tv-page">
+
+{% include "templates/includes/traveller_nav.html" %}
+
+<div class="body">
+  <div class="tv-container">
+    {% if not booking_ref %}
+    <!-- Missing ref guard -->
+    <div class="tv-card tv-text-center" style="padding:40px 24px;">
+      <p style="color:var(--c-danger-text);font-size:14px;">Booking reference missing.</p>
+      <a href="/traveller/bookings" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:16px;">
+        ← Back to My Bookings
+      </a>
+    </div>
+    {% else %}
+    <!-- Loading State -->
+    <div id="ma-loading" class="tv-text-center" style="padding:60px 24px;">
+      <div style="font-size:32px;color:var(--text-muted);margin-bottom:12px;">⏳</div>
+      <p style="color:var(--text-muted);">Loading add-ons...</p>
+    </div>
+
+    <!-- Content (populated by JS) -->
+    <div id="ma-content" style="display:none;"></div>
+    {% endif %}
+  </div>
+</div>
+
+<script id="rcCurrencyData" type="application/json">{"company_currency": "{{ get_company_currency() }}", "company_symbol": "{{ get_company_symbol() }}"}</script>
+<script type="application/json" id="pageData">{{ page_data | tojson | safe }}</script>
+<script src="/assets/travel_booking/js/traveller_common.js?v={{ asset_v('js/traveller_common.js') }}"></script>
+<script src="/assets/travel_booking/js/traveller_manage_addon.js?v={{ asset_v('js/traveller_manage_addon.js') }}"></script>
+</body>
+</html>
