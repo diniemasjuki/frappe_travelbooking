@@ -472,8 +472,9 @@
     html += '</div>';
 
     // Quick chips — 2-column layout
+    var depositPct = parseInt(_bankSettings && _bankSettings.default_deposit_percent) || 20;
     html += '<div class="tv-pay-chips" style="display:flex;gap:12px;">';
-    html += '<button type="button" class="tv-pay-chip" data-pct="20" style="flex:0.4;">Deposit<br/><span style="font-size:11px;">(20%)</span></button>';
+    html += '<button type="button" class="tv-pay-chip" data-pct="' + depositPct + '" style="flex:0.4;">Deposit<br/><span style="font-size:11px;">(' + depositPct + '%)</span></button>';
     html += '<button type="button" class="tv-pay-chip" data-pct="100" style="flex:0.6;">Full Balance<br/><span style="font-size:11px;">' + fmtDual(outstanding) + '</span></button>';
     html += '</div>';
 
