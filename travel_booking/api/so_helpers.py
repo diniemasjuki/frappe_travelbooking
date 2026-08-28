@@ -8,6 +8,7 @@
 # booking_engine.py yang jadi "orchestrator" yang panggil kedua-duanya.
 
 import frappe
+from frappe import _
 
 from travel_booking.api._helpers import get_company_currency
 from travel_booking.api.constants import TRAVEL_ITEM_CODE

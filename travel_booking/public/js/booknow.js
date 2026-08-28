@@ -1890,7 +1890,16 @@ function updateTotals() {
   if (grandEl) grandEl.textContent = fmt(amt);
 
   var depEl = document.getElementById("bnwTotalsDeposit");
-  if (depEl) depEl.textContent = fmt(Math.round(amt * (state_payment_settings.default_deposit_percent / 100) * 100) / 100);
+  if (depEl) {
+    var stdDep = Math.round(amt * (state_payment_settings.default_deposit_percent / 100) * 100) / 100;
+    var onlineMin = parseFloat((state_payment_settings || {}).online_payment_min_amount) || 0;
+    // Rule 2: bila Online (kaedah default) & deposit (%) < min gateway,
+    // naikkan anggaran deposit ke min (di-cap pada total) supaya Step 1
+    // padan dengan chip Deposit di Step 3 (getOnlineMinPay).
+    var effDep = (state_payment_method === "Online Payment" && onlineMin && stdDep < onlineMin)
+      ? Math.min(onlineMin, amt) : stdDep;
+    depEl.textContent = fmt(effDep);
+  }
 
   var nextBtn = document.getElementById("bnwStep1Next");
   if (nextBtn) nextBtn.disabled = pax === 0;

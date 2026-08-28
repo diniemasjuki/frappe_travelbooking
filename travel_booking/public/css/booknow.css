@@ -1409,6 +1409,35 @@ body:has(.bnw-main) .rc-public-main {
   letter-spacing: 0;
 }
 
+/* Sales Person rows — tiada gaya sedia ada, jadi butang "Remove" jatuh ke
+   default browser (kelabu, lari dari tema). Susun flex (dropdown + Remove
+   sebaris) dan padankan gaya butang Remove dengan .bnw-cabin-remove. */
+.bnw-sales-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.bnw-sales-row .bnw-select-wrap { flex: 1 1 auto; min-width: 0; }
+.bnw-sales-remove {
+  background: none;
+  border: 1px solid var(--bnw-gold-hover);
+  color: var(--bnw-dark-soft);
+  cursor: pointer;
+  padding: 5px 10px;
+  margin-left: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 10px;
+  white-space: nowrap;
+  transition: background .2s, border-color .2s, color .2s;
+}
+.bnw-sales-remove:hover {
+  background: var(--bnw-gold-light);
+  border-color: var(--bnw-gold);
+  color: var(--bnw-dark);
+}
+
 /* Grand Total */
 .bnw-grand-total {
   display: flex;

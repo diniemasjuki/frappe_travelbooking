@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-08-28T03:09:11.221Z",
+  "sessionId": "sess_cc35ca47-0183-4fed-ac6b-88ee15b9b323",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "public/css/booknow.css",
+  "outcome": "clear",
+  "coverage": "complete",
+  "findingCount": 0,
+  "durationMs": 5,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}

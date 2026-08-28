@@ -3,6 +3,7 @@
 # These functions are kept only for backward compatibility but return errors.
 
 import frappe
+from frappe import _
 
 
 @frappe.whitelist(allow_guest=True)

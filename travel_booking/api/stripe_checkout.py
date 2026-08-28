@@ -10,6 +10,7 @@
 
 import frappe
 import stripe
+from frappe import _
 
 from travel_booking.api._helpers import get_customer_email
 

@@ -7,6 +7,7 @@
 
 import frappe
 import json
+from frappe import _
 
 from travel_booking.api._helpers import get_customer_by_email
 from travel_booking.api.pricing import fmt_currency, _get_pricing_map, _price_selection
