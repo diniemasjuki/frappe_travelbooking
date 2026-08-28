@@ -227,8 +227,10 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     try:
         settings = frappe.get_single("Travel Settings")
         min_deposit_pct = float(getattr(settings, 'default_deposit_percent', None) or 20)
+        online_min = float(getattr(settings, "online_payment_min_amount", 0) or 0)
     except Exception:
         min_deposit_pct = 20  # fallback
+        online_min = 0
 
     effective_so_total = float(so.grand_total or 0)
     min_deposit = round(effective_so_total * (min_deposit_pct / 100), 2)
@@ -243,6 +245,19 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
                 frappe.utils.fmt_currency(effective_so_total, currency=so.currency or "MYR")
             ),
             title="Amount Below Minimum"
+        )
+
+    # ══════════════════════════════════════════════
+    # SECURITY: Online Payment minimum amount (Travel Settings).
+    # Stripe ada minimum charge per currency; bila jumlah caj di bawah nilai
+    # ni, reject supaya checkout tak gagal di hujung Stripe. 0 = dilumpuhkan.
+    # ══════════════════════════════════════════════
+    if online_min and amount < online_min:
+        frappe.throw(
+            _("Online payment requires a minimum of {0}.").format(
+                frappe.utils.fmt_currency(online_min, currency=so.currency or "MYR")
+            ),
+            title="Below Online Payment Minimum"
         )
 
     # Cap amount to outstanding (elak overpayment)

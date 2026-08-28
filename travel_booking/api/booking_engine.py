@@ -397,10 +397,29 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # ══════════════════════════════════════════════
     default_deposit_percent = float(settings.default_deposit_percent or 20)
     std_deposit    = round(grand_total * (default_deposit_percent / 100), 2)
+    online_min = float(getattr(settings, "online_payment_min_amount", 0) or 0)
+
+    # Online Payment mustahil bila jumlah penuh trip sendiri < min gateway
+    # (mustahil caj Stripe mencukupi walau bayar full) — reject awal, elak
+    # booking dicipta dengan kaedah yang tak boleh dibayar.
+    if payment_method == "Online Payment" and online_min and grand_total < online_min:
+        frappe.throw(
+            _("Online payment requires a minimum total of {0}. Please choose Manual Transfer or Held Booking.").format(
+                frappe.utils.fmt_currency(online_min, currency=so.currency or "MYR")
+            ),
+            title="Below Online Payment Minimum"
+        )
 
     # Ignore client-supplied amount_paid — compute server-side based on payment_type
     if payment_type == "Deposit":
         deposit_amount = std_deposit
+        # Online Payment: Stripe ada min charge per currency — bila deposit
+        # biasa lebih rendah dari min gateway, angkat deposit ke min gateway
+        # (di-cap pada grand_total) supaya caj Stripe mencukupi dan guard di
+        # create_payment_intent tak reject. Deposit biasa sentiasa menjadi
+        # asas (tak pernah kurang dari std_deposit).
+        if payment_method == "Online Payment" and online_min and deposit_amount < online_min:
+            deposit_amount = min(online_min, grand_total)
     else:
         deposit_amount = grand_total  # Full Payment
 

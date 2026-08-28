@@ -97,6 +97,7 @@ var state_payment_settings = {
   cashback_percent:          5,
   default_deposit_percent:   20,
   online_payment_enabled:    true,
+  online_payment_min_amount: 0,
 };
 
 // Kapasiti PERINGKAT TRIP (Trip Group Date.max_participants). group_seats_left
@@ -773,9 +774,21 @@ function renderStripeReturnConfirmation(bookingNumber, result, isSettled) {
       }
     }
 
+    // Embarkation / Disembarkation Port — selepas Sailing (Stripe-return).
+    // Sumber: result dari get_wizard_confirmation (return embarkation_port).
+    var embark4El = document.getElementById("bnwBannerEmbarkation4");
+    if (embark4El) {
+      if (result.embarkation_port) {
+        embark4El.textContent = "Embarkation: " + formatPortRange(result.embarkation_port, result.disembarkation_port);
+        embark4El.style.display = "";
+      } else {
+        embark4El.style.display = "none";
+      }
+    }
+
     // Package Type Badge (yellow badge on right side of banner)
     var badge4El = document.getElementById("bnwBannerTripType4");
-    if (badge4El) badge4El.textContent = result.package_label || "";
+    if (badge4El) badge4El.textContent = badgeShort(result.package_label || "");
 
     // Fly From text below badge
     var flyFrom4El = document.getElementById("bnwBannerFlyFrom4");
@@ -1057,7 +1070,7 @@ async function loadCabins() {
     } else if (state.package_label) {
       _badgeText = state.package_label;
     }
-    if (bannerTypeEl) bannerTypeEl.textContent = _badgeText;
+    if (bannerTypeEl) bannerTypeEl.textContent = badgeShort(_badgeText);
 
     // Fly From note — papar di luar/bawah badge, kecuali kalau tiada flight info
     // (Cruise Only / Ground Only — package tanpa komponen flight)
@@ -1074,7 +1087,7 @@ async function loadCabins() {
 
     // ── Date Info: Separate lines for Departure & Sailing ──
     // Semua tarikh dari SELECTED TRIP GROUP DATE (user's choice), bukan dari package
-    var _depText = "", _sailText = "", _departFromText = "";
+    var _depText = "", _sailText = "", _departFromText = "", _embarkText = "";
 
     // Departure/Return dates — papar kecuali Cruise Only (cruise only ada Sailing sahaja)
     // ✈️ emoji HANYA kalau ada flight component (Fly Cruise, Fly Package, dsb)
@@ -1101,15 +1114,24 @@ async function loadCabins() {
       }
     }
 
+    // Embarkation / Disembarkation Port — dipapar selepas Sailing (cruise).
+    // Format: "Embarkation: {embark} – {disembark}". Sumber: _selectedTgd
+    // (pageData trip_group_dates, dari get_ready_bundle trip_catalog.py).
+    if (state.is_cruise_trip && _selectedTgd && _selectedTgd.embarkation_port) {
+      _embarkText = "Embarkation: " + formatPortRange(_selectedTgd.embarkation_port, _selectedTgd.disembarkation_port);
+    }
+
     // Helper function untuk update semua banner instances (Step 1-4)
     function _updateBannerDates(suffix) {
       var depEl = document.getElementById("bnwBannerDeparture" + (suffix || ""));
       var departFromEl = document.getElementById("bnwBannerDepartFrom" + (suffix || ""));
       var sailEl = document.getElementById("bnwBannerSailing" + (suffix || ""));
+      var embarkEl = document.getElementById("bnwBannerEmbarkation" + (suffix || ""));
       var flyFromEl = document.getElementById("bnwBannerFlyFrom" + (suffix || ""));
       if (depEl) { depEl.textContent = _depText; depEl.style.display = _depText ? "" : "none"; }
       if (departFromEl) { departFromEl.textContent = _departFromText; departFromEl.style.display = _departFromText ? "" : "none"; }
       if (sailEl) { sailEl.textContent = _sailText; sailEl.style.display = _sailText ? "" : "none"; }
+      if (embarkEl) { embarkEl.textContent = _embarkText; embarkEl.style.display = _embarkText ? "" : "none"; }
       // Fly From note — same logic for all banners
       if (flyFromEl) {
         if (_flightCode && _hasFlightComponent) {
@@ -1146,7 +1168,7 @@ async function loadCabins() {
         groupEl.textContent = "Group: " + _groupName2;
       }
 
-      if (badgeEl) badgeEl.textContent = _badgeText;
+      if (badgeEl) badgeEl.textContent = badgeShort(_badgeText);
 
       // Fly From note for Steps 2-4
       if (flyFromEl) {
@@ -1193,6 +1215,26 @@ function parseYouTubeId(url) {
     }
   } catch (e) {}
   return null;
+}
+
+// Badge package type: cuma 2 perkataan pertama, UPPERCASE.
+// cth "Fly Cruise" → "FLY CRUISE", "Cruise Only" → "CRUISE ONLY".
+// Jika package_type masa depan lebih panjang (cth "Fly Cruise Premium"),
+// masih potong ke 2 perkataan pertama sahaja.
+function badgeShort(label) {
+  if (!label) return "";
+  return String(label).trim().split(/\s+/).slice(0, 2).join(" ").toUpperCase();
+}
+
+// Gabungkan embarkation & disembarkation port: kalau sama, papar satu sahaja
+// (cth. "Agra" bukan "Agra – Agra"); kalau berbeza, "Agra – Belgrade".
+function formatPortRange(emb, disb) {
+  emb = (emb || "").trim();
+  disb = (disb || "").trim();
+  if (!emb && !disb) return "";
+  if (emb && disb && emb.toLowerCase() === disb.toLowerCase()) return emb;
+  if (emb && disb) return emb + " – " + disb;
+  return emb || disb;
 }
 
 function cabinByCategory(room_category) {
@@ -2633,6 +2675,7 @@ async function loadPaymentSettings() {
         cashback_percent:        result.cashback_percent || 0,
         default_deposit_percent: result.default_deposit_percent || 20,
         online_payment_enabled:  result.online_payment_enabled !== false,
+        online_payment_min_amount: parseFloat(result.online_payment_min_amount) || 0,
       };
     }
   } catch (e) {
@@ -2728,7 +2771,9 @@ function renderPaymentSettingsUI() {
     },
     cashback_enabled: true,
     cashback_percent: 5,
-    default_deposit_percent: 20
+    default_deposit_percent: 20,
+    online_payment_enabled: true,
+    online_payment_min_amount: 0
   };
 
   // COMPANY-CURRENCY: bank details (Manual Transfer) ikut COMPANY currency
@@ -2772,28 +2817,12 @@ function renderPaymentSettingsUI() {
     }
   }
 
-  // Sembunyikan pilihan "Online Payment" kalau admin belum konfigurasikan
-  // Payment Gateway Account di Travel Settings > Currency Accounts. Mirror
-  // pattern yang sama dengan Manual Transfer hide di atas — elak customer
-  // pilih Online Payment tapiStripe checkout gagal kerana tiada gateway.
-  var labelOnlineEl = document.getElementById("bnwLabelOnline");
-  if (labelOnlineEl) {
-    if (s.online_payment_enabled) {
-      labelOnlineEl.style.display = "";
-    } else {
-      labelOnlineEl.style.display = "none";
-      // Kalau customer TERLANJUR dah pilih Online Payment — paksa balik
-      // ke Manual Transfer (satu-satunya pilihan yang tersedia).
-      var onlineRadioEl = labelOnlineEl.querySelector("input[type=radio]");
-      if (onlineRadioEl && onlineRadioEl.checked) {
-        var manualRadioEl = document.querySelector('input[name="paymentMethod"][value="Manual Transfer"]');
-        if (manualRadioEl) {
-          manualRadioEl.checked = true;
-          onPaymentMethodChange(manualRadioEl);
-        }
-      }
-    }
-  }
+  // Online Payment radio visibility — diuruskan oleh evaluateOnlinePayment()
+  // (single source of truth: gateway configured + jumlah caj customer
+  // mencukupi online_payment_min_amount). Dipanggil juga dari refreshPaySummary
+  // bila customer tukar Deposit↔Full / edit amount, supaya Online boleh
+  // muncul/hilang ikut jumlah yang dicaj.
+  evaluateOnlinePayment();
 
   // Cashback badge — sembunyi terus kalau admin matikan cashback ATAU
   // Manual Transfer sendiri tak available untuk currency ni (tiada bank
@@ -3077,8 +3106,28 @@ function getDiscounted() { return calcDiscountedTotal(); }
 function getMinPay()    { return Math.round(getDiscounted() * (state_payment_settings.default_deposit_percent / 100) * 100) / 100; }
 function getMaxPay()    { return Math.round(getDiscounted() * 100) / 100; }
 
+// Deposit floor untuk Online Payment — diangkat ke online_payment_min_amount
+// (min gateway, cth Stripe minimum per currency) bila deposit biasa
+// (default_deposit_percent%) lebih rendah, di-cap pada full total. Jadi bila
+// deposit < min gateway, customer masih boleh bayar online tapi deposit
+// DINAIKKAN ke min gateway (bukan disembunyikan). Online cuma disembunyikan
+// bila jumlah penuh trip sendiri < min gateway (lihat evaluateOnlinePayment).
+function getOnlineMinPay() {
+  var base = getMinPay();
+  var full = getMaxPay();
+  var onlineMin = parseFloat((state_payment_settings || {}).online_payment_min_amount) || 0;
+  if (!onlineMin) return base;
+  return Math.min(Math.max(base, onlineMin), full);
+}
+
+// Lantai deposit berkesan ikut kaedah pembayaran: Online guna getOnlineMinPay
+// (diangkat ke min gateway), lain-lain guna deposit biasa (getMinPay).
+function getEffectiveMin() {
+  return (state_payment_method === "Online Payment") ? getOnlineMinPay() : getMinPay();
+}
+
 function refreshPaySummary() {
-  var min = getMinPay(), max = getMaxPay();
+  var min = getEffectiveMin(), max = getMaxPay();
   var balance = Math.max(0, Math.round((max - state_payment_amount) * 100) / 100);
   var isPartial = state_payment_amount < max - 0.001;
 
@@ -3097,6 +3146,71 @@ function refreshPaySummary() {
 
   var fullChipEl = document.getElementById("bnwPayFullChip");
   if (fullChipEl) fullChipEl.classList.toggle("active", Math.abs(state_payment_amount - max) < 0.001);
+
+  // Re-eval Online Payment availability — jumlah caj mungkin berubah
+  // (Deposit↔Full / input custom), dan minimum amount bergantung padanya.
+  evaluateOnlinePayment();
+}
+
+// ─── Online Payment availability (single source of truth) ──────────────
+// Online Payment radio boleh dipilih kalau: (a) admin dah configure Payment
+// Gateway Account (online_payment_enabled) DAN (b) jumlah caj customer
+// mencukupi online_payment_min_amount (Stripe ada minimum charge per
+// currency). Bila tak available, sembunyikan radio + note, dan kalau Online
+// terlanjur dipilih, fallback ke Manual Transfer (kalau bank configured)
+// atau Held Booking (Pay Later). Dipanggil dari renderPaymentSettingsUI
+// (settings load) dan refreshPaySummary (bila customer tukar Deposit↔Full /
+// edit amount).
+function evaluateOnlinePayment() {
+  var s = state_payment_settings || {};
+  var currency = state.company_currency || "MYR";
+  var bankInfo = (s.bank_accounts && s.bank_accounts[currency]) || null;
+  var minAmount = parseFloat(s.online_payment_min_amount) || 0;
+
+  var fullTotal = getMaxPay();
+
+  var gatewayOk = s.online_payment_enabled !== false;
+  // Online boleh dipilih kalau gateway configured DAN jumlah penuh trip
+  // mencukupi min gateway. Bila deposit biasa < min gateway, lantai deposit
+  // DIANGKAT ke min gateway (getOnlineMinPay) supaya customer masih boleh
+  // bayar online (deposit dinaikkan, bukan disembunyikan). Online cuma
+  // disembunyikan bila jumlah penuh SENDIRI < min gateway (mustahil caj
+  // Stripe mencukupi walau bayar full) — maka fallback ke Manual Transfer.
+  var amountOk = !minAmount || fullTotal >= minAmount - 0.001;
+  var available = gatewayOk && amountOk;
+
+  var labelOnlineEl = document.getElementById("bnwLabelOnline");
+  if (labelOnlineEl) labelOnlineEl.style.display = available ? "" : "none";
+
+  // Note: tunjuk bila Online disembunyikan kerana jumlah penuh trip terlalu
+  // rendah untuk min gateway (gateway OK tapi total < min).
+  var noteEl = document.getElementById("bnwOnlineMinNote");
+  if (noteEl) {
+    if (gatewayOk && !amountOk) {
+      noteEl.textContent = "Online payment unavailable — total is below the minimum (" + fmt(minAmount) + ").";
+      noteEl.style.display = "";
+    } else {
+      noteEl.style.display = "none";
+    }
+  }
+
+  // Kalau Online disembunyikan tapi customer terlanjur pilih — fallback ke
+  // Manual Transfer (kalau bank configured) atau Held Booking (Pay Later).
+  if (!available && labelOnlineEl) {
+    var onlineRadioEl = labelOnlineEl.querySelector("input[type=radio]");
+    if (onlineRadioEl && onlineRadioEl.checked) {
+      var fallback = bankInfo
+        ? document.querySelector('input[name="paymentMethod"][value="Manual Transfer"]')
+        : null;
+      if (!fallback) {
+        fallback = document.querySelector('input[name="paymentMethod"][value="Pay Later"]');
+      }
+      if (fallback) {
+        fallback.checked = true;
+        onPaymentMethodChange(fallback);
+      }
+    }
+  }
 }
 
 function validatePay() {
@@ -3115,11 +3229,14 @@ function validatePay() {
     return true;
   }
 
-  var min = getMinPay(), max = getMaxPay();
+  var min = getEffectiveMin(), max = getMaxPay();
   var ok  = true;
   if (state_payment_amount < min) {
     err.style.display = "block";
-    err.textContent = "Minimum payment is " + fmt(min) + " (" + state_payment_settings.default_deposit_percent + "% deposit).";
+    // Bila Online & deposit diangkat ke min gateway, label "(X% deposit)"
+    // tak tepat — guna label min gateway sebaliknya.
+    var raised = state_payment_method === "Online Payment" && min > getMinPay() + 0.001;
+    err.textContent = "Minimum payment is " + fmt(min) + (raised ? " (online payment minimum)." : " (" + state_payment_settings.default_deposit_percent + "% deposit).");
     ok = false;
   } else if (state_payment_amount > max) {
     err.style.display = "block";
@@ -3133,7 +3250,7 @@ function validatePay() {
 }
 
 function setPayAmount(v) {
-  var min = getMinPay(), max = getMaxPay();
+  var min = getEffectiveMin(), max = getMaxPay();
   if (isNaN(v)) v = max;
   v = Math.max(min, Math.min(max, Math.round(v * 100) / 100));
   state_payment_amount = v;
@@ -3145,7 +3262,7 @@ function setPayAmount(v) {
 function updatePaymentUI() {
   var isPayLater = state_payment_method === "Pay Later";
 
-  var min = getMinPay(), max = getMaxPay();
+  var min = getEffectiveMin(), max = getMaxPay();
 
   // Guard: elemen Step 3 (Payment) mungkin belum wujud bila fungsi ini
   // dipanggil awal (semasa init dari cart, user masih di Step 1).
@@ -3236,7 +3353,7 @@ if (payInputEl) {
 // Payment chip buttons (Step 3)
 var depositChipEl = document.getElementById("bnwPayDepositChip");
 var fullChipEl = document.getElementById("bnwPayFullChip");
-if (depositChipEl) depositChipEl.addEventListener("click", function() { setPayAmount(getMinPay()); });
+if (depositChipEl) depositChipEl.addEventListener("click", function() { setPayAmount(getEffectiveMin()); });
 if (fullChipEl) fullChipEl.addEventListener("click", function() { setPayAmount(getMaxPay()); });
 
 function calcGrandTotal() {
@@ -3477,7 +3594,7 @@ async function analyzeReceipt(file) {
 
 document.getElementById("bnwPayNowBtn").addEventListener("click", async function() {
   if (!validatePay()) {
-    alert("Please enter a payment amount between " + fmt(getMinPay()) + " and " + fmt(getMaxPay()) + ".");
+    alert("Please enter a payment amount between " + fmt(getEffectiveMin()) + " and " + fmt(getMaxPay()) + ".");
     return;
   }
   if (state_payment_method === "Manual Transfer" && !state_receipt_data) {
@@ -3647,9 +3764,21 @@ function showConfirmation(booking) {
     sail4El.style.display = "";
   } else if (sail4El) { sail4El.style.display = "none"; }
 
+  // Embarkation / Disembarkation Port — selepas Sailing (Step 4 normal).
+  // Sumber: _selectedTgd4 (pageData trip_group_dates dari get_ready_bundle).
+  var embark4El = document.getElementById("bnwBannerEmbarkation4");
+  if (embark4El) {
+    if (state.is_cruise_trip && _selectedTgd4 && _selectedTgd4.embarkation_port) {
+      embark4El.textContent = "Embarkation: " + formatPortRange(_selectedTgd4.embarkation_port, _selectedTgd4.disembarkation_port);
+      embark4El.style.display = "";
+    } else {
+      embark4El.style.display = "none";
+    }
+  }
+
   // Badge (package type)
   var badge4El = document.getElementById("bnwBannerTripType4");
-  if (badge4El) badge4El.textContent = state.package_label || "";
+  if (badge4El) badge4El.textContent = badgeShort(state.package_label || "");
 
   // Fly From note
   var flyFrom4El = document.getElementById("bnwBannerFlyFrom4");

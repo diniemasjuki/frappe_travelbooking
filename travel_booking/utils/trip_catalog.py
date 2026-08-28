@@ -70,6 +70,7 @@ def get_ready_bundle() -> tuple[list, dict, dict, dict]:
 		SELECT td.name, td.trip, td.trip_group_name, td.trip_group_code,
 		       td.departure_date, td.return_date, td.total_days, td.total_nights,
 		       td.sailing_start, td.sailing_end, td.cruise_schedule,
+		       td.embarkation_port, td.disembarkation_port,
 		       td.max_participants, td.current_participants
 		FROM `tabTrip Group Date` td
 		WHERE td.trip IN %(trips)s
@@ -121,6 +122,8 @@ def get_ready_bundle() -> tuple[list, dict, dict, dict]:
 				"sailing_start": str(d.sailing_start) if d.sailing_start else "",
 				"sailing_end": str(d.sailing_end) if d.sailing_end else "",
 				"cruise_schedule": d.cruise_schedule or "",
+				"embarkation_port": d.embarkation_port or "",
+				"disembarkation_port": d.disembarkation_port or "",
 				"total_days": d.total_days or 0,
 				"total_nights": d.total_nights or 0,
 				"max_participants": max_pax,

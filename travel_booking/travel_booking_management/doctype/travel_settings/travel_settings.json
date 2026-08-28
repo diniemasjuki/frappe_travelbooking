@@ -18,6 +18,7 @@
   "deposit_and_payment_section",
   "payment_gateway",
   "default_deposit_percent",
+  "online_payment_min_amount",
   "column_break_zykz",
   "manual_transfer_cashback_enabled",
   "cashback_discount_account",
@@ -88,6 +89,15 @@
    "fieldname": "default_deposit_percent",
    "fieldtype": "Percent",
    "label": "Default Deposit Percent"
+  },
+  {
+   "default": "0",
+   "description": "Minimum chargeable amount (company currency) for Online Payment. If the payable amount is below this, Online Payment is hidden and the customer must use Manual Transfer or Held Booking. Leave 0 to disable.",
+   "fieldname": "online_payment_min_amount",
+   "fieldtype": "Float",
+   "label": "Online Payment Minimum Amount",
+   "non_negative": 1,
+   "precision": "2"
   },
   {
    "fieldname": "column_break_zykz",

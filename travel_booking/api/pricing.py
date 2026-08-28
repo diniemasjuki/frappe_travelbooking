@@ -92,6 +92,11 @@ def get_payment_settings():
         # configured in Travel Settings > Currency Accounts.
         "online_payment_enabled":           online_payment_enabled,
         "online_payment_by_currency":       online_payment_by_currency,
+        # Minimum chargeable amount (company currency) untuk Online Payment.
+        # Bila jumlah caj customer di bawah nilai ni, frontend sembunyikan
+        # pilihan Online Payment (fallback ke Manual/Held) dan guard server
+        # di create_payment_intent (stripe_checkout.py) reject. 0 = dilumpuhkan.
+        "online_payment_min_amount":        float(getattr(settings, "online_payment_min_amount", 0) or 0),
     }
 
 
