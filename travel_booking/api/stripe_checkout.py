@@ -192,15 +192,20 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
         frappe.throw("Sales Order not found.")
 
     # ══════════════════════════════════════════════
-    # SECURITY: Verify ownership — elak IDOR/payment hijacking
+    # SECURITY: Verify ownership — elak IDOR/payment hijacking.
+    # Skip untuk source="wizard" (booking baru oleh Guest) — SO baru
+    # dicipta oleh confirm_booking dalam request yang sama, ownership
+    # implicit. check ni hanya untuk portal (customer login bayar SO
+    # sedia ada).
     # ══════════════════════════════════════════════
-    from travel_booking.api._helpers import get_customer_by_email
-    session_customer = get_customer_by_email(frappe.session.user)
-    if session_customer and session_customer != so.customer:
-        frappe.throw(
-            _("You do not have permission to make payments for this order."),
-            title="Permission Denied"
-        )
+    if source != "wizard":
+        from travel_booking.api._helpers import get_customer_by_email
+        session_customer = get_customer_by_email(frappe.session.user)
+        if session_customer and session_customer != so.customer:
+            frappe.throw(
+                _("You do not have permission to make payments for this order."),
+                title="Permission Denied"
+            )
 
     amount = float(amount)
     if amount <= 0:

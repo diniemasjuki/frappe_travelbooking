@@ -283,8 +283,8 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
 
     # Sales Order — insert & submit sebagai Administrator (elak isu permission
     # customer terhadap Link field dalaman seperti Account semasa validate SO).
-    _original_user = frappe.session.user
-    frappe.set_user("Administrator")
+    _original_user = frappe.local.session.user
+    frappe.local.session.user = "Administrator"
     try:
         so_payload = {
             "doctype":            "Sales Order",
@@ -382,7 +382,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
 
         del frappe.message_log[_msg_log_len_before:]
     finally:
-        frappe.set_user(_original_user)
+        frappe.local.session.user = _original_user
 
     # Guna grand_total SEBENAR dari SO (selepas additional discount, jika ada)
     # supaya deposit/full-payment dikira dari jumlah yang betul-betul perlu

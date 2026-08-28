@@ -420,8 +420,8 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
     if not so:
         return None
 
-    original_user = frappe.session.user
-    frappe.set_user("Administrator")
+    original_user = frappe.local.session.user
+    frappe.local.session.user = "Administrator"
     try:
         company = so.company or frappe.db.get_single_value("Global Defaults", "default_company")
         paid_to = None
@@ -492,7 +492,7 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
         )
     
     finally:
-        frappe.set_user(original_user)
+        frappe.local.session.user = original_user
 
 
 def _create_payment_url(customer_name, so_name, amount, booking_number):
