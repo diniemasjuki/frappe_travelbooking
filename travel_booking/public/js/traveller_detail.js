@@ -157,25 +157,28 @@
     html += '</span>';
     html += '</div>';
 
-    // ── BLOCK 1: ✈ Departure & Arrival (selalu ditunjuk) ──
-    html += '<div class="tv-sec">✈ Departure &amp; Arrival</div>';
-    html += '<div class="tv-hero-grid">';
-    html += '<div class="tv-hero-cell"><div class="tv-hero-label">Departure Date</div><div class="tv-hero-value">' + (depDate || '—') + '</div></div>';
-    html += '<div class="tv-hero-cell"><div class="tv-hero-label">Return Date</div><div class="tv-hero-value">' + (retDate || '—') + '</div></div>';
-    // Fly From: Airport Code (bold) + Airport Name (small muted)
-    var flyFromHtml = '<span style="color:var(--text-muted);">—</span>';
-    if (!cruiseOnly && packageType !== 'Ground Only' && (airportCode || airportCity)) {
-      flyFromHtml = '';
-      if (airportCode) {
-        flyFromHtml += '<div style="font-size:16px;font-weight:700;color:var(--text-primary);">' + _esc(airportCode) + '</div>';
+    // ── BLOCK 1: ✈ Departure & Arrival (disembunyikan untuk Cruise Only;
+    //              tarikh relevan cruise ada dlm blok Cruise & Sailing) ──
+    if (!cruiseOnly) {
+      html += '<div class="tv-sec">✈ Departure &amp; Arrival</div>';
+      html += '<div class="tv-hero-grid">';
+      html += '<div class="tv-hero-cell"><div class="tv-hero-label">Departure Date</div><div class="tv-hero-value">' + (depDate || '—') + '</div></div>';
+      html += '<div class="tv-hero-cell"><div class="tv-hero-label">Return Date</div><div class="tv-hero-value">' + (retDate || '—') + '</div></div>';
+      // Fly From: Airport Code (bold) + Airport Name (small muted)
+      var flyFromHtml = '<span style="color:var(--text-muted);">—</span>';
+      if (packageType !== 'Ground Only' && (airportCode || airportCity)) {
+        flyFromHtml = '';
+        if (airportCode) {
+          flyFromHtml += '<div style="font-size:16px;font-weight:700;color:var(--text-primary);">' + _esc(airportCode) + '</div>';
+        }
+        if (airportName) {
+          flyFromHtml += '<div style="font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px;">' + _esc(airportName) + '</div>';
+        }
+        if (!flyFromHtml) flyFromHtml = '<span style="color:var(--text-muted);">—</span>';
       }
-      if (airportName) {
-        flyFromHtml += '<div style="font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px;">' + _esc(airportName) + '</div>';
-      }
-      if (!flyFromHtml) flyFromHtml = '<span style="color:var(--text-muted);">—</span>';
+      html += '<div class="tv-hero-cell"><div class="tv-hero-label">Fly From</div><div class="tv-hero-value">' + flyFromHtml + '</div></div>';
+      html += '</div>'; // grid Block 1
     }
-    html += '<div class="tv-hero-cell"><div class="tv-hero-label">Fly From</div><div class="tv-hero-value">' + flyFromHtml + '</div></div>';
-    html += '</div>'; // grid Block 1
 
     // ── BLOCK 2: ⚓ Cruise & Sailing (cruise sahaja) ──
     if (isCruise) {
