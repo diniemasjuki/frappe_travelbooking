@@ -548,6 +548,75 @@ def mark_checkout_timeout(pr: str):
     return {"status": "ok"}
 
 
+@frappe.whitelist(allow_guest=True)
+def cancel_checkout_payment(pr: str):
+    """Batalkan Payment Request + Stripe PaymentIntent bila customer tekan
+    "Back" di checkout.html (tukar kaedah bayar / cuba semula dari booknow).
+    Dipanggil SEBELUM redirect kembali ke booknow/portal.
+
+    Idempotent: kalau PR dah Paid/cancelled atau PaymentIntent dah selesai,
+    tak buat apa-apa berbahaya — cuma pastikan PR lokal dibatalkan supaya
+    SO bebas untuk Payment Request baharu bila customer cuba bayar semula.
+    """
+    # Rate limiting per-IP — endpoint allow_guest=True, PR name sequential
+    # (boleh diteka). Had 10/minit/IP cukup untuk customer sebenar tapi block
+    # enumerate/grief cancel PR orang lain. Corak sama dgn endpoint sebelah.
+    if not _rate_limit("checkout_cancel", max_requests=10, window_sec=60):
+        frappe.throw("Too many requests. Please try again shortly.")
+
+    if not pr or not frappe.db.exists("Payment Request", pr):
+        return {"status": "not_found"}
+
+    pr_doc = frappe.get_doc("Payment Request", pr)
+
+    # Guard: kalau dah Paid, JANGAN batalkan — bayaran dah berjaya, webhook dah
+    # jalan. UI sembunyikan butang Back bila dah Paid, tapi ni defense-in-depth.
+    if pr_doc.status == "Paid" or pr_doc.docstatus != 1:
+        return {"status": "not_cancelled", "reason": pr_doc.status}
+
+    # Cancel Stripe PaymentIntent dulu — elak customer selesaikan bayaran lama
+    # selepas tekan Back. Intent ID di cache (sumber kebenaran, rujuk
+    # get_checkout_context). Kalau tak boleh cancel (succeeded/processing),
+    # abaikan — PR lokal tetap dibatalkan di bawah.
+    try:
+        if pr_doc.currency:
+            ss, _ = _get_stripe_settings(pr_doc.currency)
+        else:
+            ss, _ = _get_stripe_settings()
+        stripe.api_key = ss.get_password("secret_key")
+        cached_intent_id = frappe.cache().get_value("checkout_intent_" + pr)
+        if cached_intent_id:
+            try:
+                pi = stripe.PaymentIntent.retrieve(cached_intent_id)
+                if pi.status not in ("succeeded", "processing", "canceled"):
+                    stripe.PaymentIntent.cancel(
+                        cached_intent_id,
+                        cancellation_reason="requested_by_customer",
+                    )
+            except Exception:
+                pass  # intent dah expired/berubah status — tak apa
+        frappe.cache().delete_value("checkout_intent_" + pr)
+    except Exception:
+        # Stripe failure (settings tak resolve dll) JANGAN halang cancel PR lokal
+        frappe.log_error(
+            "Stripe cancel failed for PR " + str(pr),
+            "Checkout Back Cancel Warning"
+        )
+
+    # Cancel Payment Request ERPNext (docstatus 1 -> 2 cancelled) supaya SO
+    # bebas untuk Payment Request baharu bila customer cuba bayar semula.
+    try:
+        pr_doc.cancel()
+    except Exception as e:
+        frappe.log_error(
+            "Failed to cancel Payment Request " + str(pr) + ": " + str(e),
+            "Checkout Back Cancel Error"
+        )
+
+    frappe.db.commit()
+    return {"status": "cancelled"}
+
+
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def stripe_webhook():
     """Endpoint webhook Stripe — SUMBER KEBENARAN status bayaran.

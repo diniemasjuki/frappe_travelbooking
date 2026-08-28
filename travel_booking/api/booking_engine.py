@@ -58,7 +58,8 @@ from travel_booking.api.voucher import (
 def confirm_booking(trip_group_date: str, selections: str, billing: str,
                     payment_type: str = "Full Payment", payment_method: str = "Online Payment",
                     receipt: str = None, voucher_code: str = "", affiliate_code: str = "", amount_paid: float = None,
-                    trip_package: str = None, sales_persons: str = None, bank_transfer_ref: str = None):
+                    trip_package: str = None, sales_persons: str = None, bank_transfer_ref: str = None,
+                    booking_number: str = None):
     if isinstance(selections, str):
         selections = json.loads(selections)
     if isinstance(billing, str):
@@ -104,6 +105,26 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
             "Your email verification session has expired (30 minutes). "
             "Please request a new OTP code and verify again to continue your booking."
         )
+
+    # ════════════════════════════════════════════════════════════
+    # CANCEL BOOKING LAMA (re-confirm selepas "Back" dari checkout)
+    # ════════════════════════════════════════════════════════════
+    # booking_number datang dari wizard state yang di-restored — customer
+    # tekan "Back" di checkout.html, kembali ke wizard, tukar kaedah
+    # bayaran, dan re-confirm. Cancel booking lama (Pending, tiada bayaran)
+    # supaya tidak berlaku duplicate booking. Hanya cancel jika status
+    # masih "Pending" (belum dibayar) — booking yang dah dibayar perlukan
+    # refund manual oleh admin, tidak boleh di-auto-cancel.
+    if booking_number and frappe.db.exists("Booking", booking_number):
+        _old_status = frappe.db.get_value("Booking", booking_number, "status")
+        if _old_status == "Pending":
+            _old_doc = frappe.get_doc("Booking", booking_number)
+            _old_doc.status = "Cancelled"
+            _old_doc.save(ignore_permissions=True)
+            frappe.db.commit()
+        # Jika booking lama bukan Pending (cth dah dibayar di tab lain),
+        # biarkan sahaja — booking baharu akan dicipta, overbooking check
+        # di bawah akan tangkap konflik jika ada.
 
     customer_name = existing_customer or _create_customer(billing)
 

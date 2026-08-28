@@ -179,6 +179,30 @@
     font-size: 14px;
   }
 
+  /* Back button — batalkan Payment Request & kembali ke booknow/portal */
+  .co-back {
+    background: none;
+    border: 1px solid var(--co-border);
+    color: var(--co-text-muted);
+    font-family: 'Jost', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 6px 14px;
+    border-radius: var(--co-radius-sm);
+    margin-bottom: 20px;
+    transition: color .2s, border-color .2s, background .2s;
+  }
+  .co-back:hover {
+    color: var(--co-dark);
+    border-color: var(--co-gold);
+    background: var(--co-gold-light);
+  }
+  .co-back:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+
   /* States */
   .co-loading, .co-paid, .co-pending {
     text-align: center;
@@ -282,7 +306,13 @@ if ('serviceWorker' in navigator) {
 </script>
 
 <div class="co-header">
-  <div class="co-header-brand">Rare<span>cation</span></div>
+  <div class="co-header-brand">
+    <a href="/trips">
+      <img src="/assets/travel_booking/img/logo-horizontal.png" alt="Rarecation" style="max-height:36px;width:auto;"
+           onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+      <span class="rc-logo-fallback" style="display:none;">rare<em>cation</em></span>
+    </a>
+  </div>
 </div>
 
 <main class="co-main">
@@ -311,6 +341,7 @@ if ('serviceWorker' in navigator) {
     </script>
     {% else %}
     <div class="co-card">
+      <button type="button" id="co-back-btn" class="co-back">&larr; Back</button>
       <div class="co-amount-section">
         <div class="co-amount-label">Amount to Pay</div>
         <div class="co-amount-value">{{ currency }} {{ "%.2f"|format(amount) }}</div>

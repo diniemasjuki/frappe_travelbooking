@@ -277,6 +277,11 @@ function saveState() {
       // dan confirm_booking hantar affiliate_code kosong.
       affiliate_code:   (typeof state_affiliate_code !== "undefined") ? state_affiliate_code : "",
       referral_percent: (typeof state_referral_percent !== "undefined") ? state_referral_percent : 0,
+      // booking_number disimpan SELEPAS confirm_booking berjaya (Online Payment
+      // redirect ke checkout). Bila customer tekan "Back" & kembali ke /booknow,
+      // restoreWizard() pulihkan nilai ni supaya re-confirm tahu untuk cancel
+      // booking lama (elak duplicate) sebelum cipta booking baharu.
+      booking_number:   (state.booking && state.booking.booking_number) || "",
     };
     sessionStorage.setItem("bnw_booking_wizard", JSON.stringify(snap));
   } catch (e) {}
@@ -462,6 +467,15 @@ function restoreWizard() {
 
   if (snap.billing) state.billing = snap.billing;
   state.otp_verified = !!snap.otp_verified;
+
+  // Pulihkan booking_number dari sesi sebelum ni (booking yang dicipta sebelum
+  // redirect ke checkout). Bila customer tekan "Back" & kembali ke wizard,
+  // nilai ni ada supaya re-confirm boleh hantar booking_number ke backend
+  // untuk cancel booking lama (elak duplicate).
+  if (snap.booking_number) {
+    state.booking = state.booking || {};
+    state.booking.booking_number = snap.booking_number;
+  }
 
   // Affiliate code dipulihkan ke state sahaja di sini — re-apply UI (validate
   // + lock input) dilakukan oleh prefillAffiliateCodeFromUrl() di hujung init
@@ -3329,10 +3343,14 @@ function updatePaymentUI() {
   // Guard: label elements (Step 3) mungkin belum wujud
   var labelOnlineEl = document.getElementById("bnwLabelOnline");
   var labelManualEl = document.getElementById("bnwLabelManual");
-  if (labelOnlineEl) labelOnlineEl.classList.toggle("selected", state_payment_method === "Online Payment");
-  if (labelManualEl) labelManualEl.classList.toggle("selected", state_payment_method === "Manual Transfer");
+  // Toggle class "bnw-radio-selected" (BUKAN "selected") — itulah kelas CSS
+  // yang beri highlight gold (booknow.css:.bnw-radio-selected). Sebelum ni
+  // JS toggle "selected" (tiada CSS) + HTML hardcode "bnw-radio-selected" pada
+  // Online → highlight terkatung pada Online, tak ikut pilihan customer.
+  if (labelOnlineEl) labelOnlineEl.classList.toggle("bnw-radio-selected", state_payment_method === "Online Payment");
+  if (labelManualEl) labelManualEl.classList.toggle("bnw-radio-selected", state_payment_method === "Manual Transfer");
   var labelPayLaterEl = document.getElementById("bnwLabelPayLater");
-  if (labelPayLaterEl) labelPayLaterEl.classList.toggle("selected", isPayLater);
+  if (labelPayLaterEl) labelPayLaterEl.classList.toggle("bnw-radio-selected", isPayLater);
 
   var isManual = state_payment_method === "Manual Transfer";
   var manualCardEl = document.getElementById("bnwManualTransferCard");
@@ -3660,6 +3678,11 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
         receipt:        state_receipt_data || "",
         bank_transfer_ref: bankTransferRef,
         sales_persons:  JSON.stringify(selectedSalesPersons),
+        // booking_number dari wizard state yang di-restored (jika customer
+        // kembali dari checkout "Back" untuk tukar kaedah bayaran). Backend
+        // guna ini untuk cancel booking lama (elak duplicate) sebelum cipta
+        // booking baharu. Kosong untuk booking pertama.
+        booking_number: (state.booking && state.booking.booking_number) || "",
       },
       false  // POST
     );
@@ -3670,10 +3693,15 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
 
     state.booking = result;
 
-    clearWizardState();
-
-    // Online Payment → redirect ke Stripe checkout
+    // Online Payment → redirect ke Stripe checkout.
+    // JANGAN clearWizardState() di sini — customer mungkin tekan "Back" di
+    // checkout untuk tukar kaedah bayaran. Wizard state tersimpan supaya
+    // restoreWizard() boleh pulihkan Step 3 (payment step). booking_number
+    // juga disimpan (via saveState) supaya re-confirm tahu untuk cancel
+    // booking lama (elak duplicate) sebelum cipta booking baharu.
     if (result.payment_url) {
+      saveState();
+
       // SAVE confirmation snapshot sebelum redirect — data ni hilang
       // selepas full-page redirect ke Stripe, jadi kita simpan dalam
       // sessionStorage supaya boleh restore bila user balik ke /booknow
@@ -3707,6 +3735,10 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
       window.location.href = result.payment_url;
       return;
     }
+
+    // Untuk Manual Transfer / Pay Later / payment_setup_failed — booking
+    // adalah muktamad (tiada pulangan ke wizard), clear state.
+    clearWizardState();
 
     // Payment setup failed — booking dicipta tapi URL bayaran gagal.
     // JANGAN tunjuk "berjaya" — tunjuk amaran jelas supaya customer tahu

@@ -102,6 +102,50 @@
     timeoutHandle = setTimeout(showPendingState, TIMEOUT_SECONDS * 1000);
   }
 
+  // ── Back button — batalkan Payment Request & kembali ke booknow/portal ──
+  // Dipasang AWAL (di luar init() async) supaya berfungsi walaupun Stripe
+  // Payment Element gagal dimuat. Klik → cancel PR di server, kemudian
+  // redirect balik ke booknow (wizard) atau portal (ret).
+  //
+  // Wizard state (bnw_booking_wizard) TIDAK dibuang — ia tersimpan di
+  // sessionStorage sebelum redirect ke checkout. Bila customer kembali ke
+  // /booknow, restoreWizard() pulihkan Step 3 (payment step) supaya
+  // customer boleh tukar kaedah bayaran (cth Online → Manual Transfer)
+  // dan re-confirm. Backend cancel booking lama (elak duplicate) bila
+  // booking_number dihantar semula.
+  var backBtn = document.getElementById("co-back-btn");
+  if (backBtn) {
+    backBtn.addEventListener("click", function() {
+      // Kalau bayaran dah settle (succeeded/already_paid), tak perlu cancel —
+      // just kembali ke halaman sebelumnya.
+      if (paymentSettled) {
+        window.history.back();
+        return;
+      }
+      backBtn.disabled = true;
+      backBtn.textContent = "Cancelling...";
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+
+      fetch("/api/method/travel_booking.api.stripe_checkout.cancel_checkout_payment?pr=" + encodeURIComponent(PR_NAME))
+        .then(function() { /* hasil tak penting — redirect tetap jalan */ })
+        .catch(function() { /* senyap — redirect tetap jalan walau gagal */ })
+        .then(function() {
+          var base = window.location.origin;
+          // Portal flow — honori laluan asal customer (ret).
+          if (RET && RET.indexOf("//") !== 0 &&
+              (RET.indexOf("/traveller_portal/") === 0 || RET.indexOf("/traveller/") === 0)) {
+            window.location.href = base + RET;
+            return;
+          }
+          // Wizard flow — kembali ke /booknow (plain, tanpa step=confirm)
+          // supaya restoreWizard() jalan & pulihkan Step 3. Customer boleh
+          // tukar kaedah bayaran & re-confirm. booking_number tersimpan dalam
+          // wizard state supaya backend tahu untuk cancel booking lama.
+          window.location.href = base + "/booknow";
+        });
+    });
+  }
+
   async function init() {
     var errBox = document.getElementById("co-error");
     try {
@@ -127,7 +171,9 @@
           borderRadius: '8px'
         }
       }});
-      var paymentElement = elements.create("payment");
+      // paymentMethodOrder: "card" (online payment gateway) dahulukan supaya
+      // ia menjadi pilihan default terpilih dalam Stripe Payment Element.
+      var paymentElement = elements.create("payment", { paymentMethodOrder: ["card"] });
       paymentElement.mount("#payment-element");
 
       document.getElementById("loading-state").style.display = "none";

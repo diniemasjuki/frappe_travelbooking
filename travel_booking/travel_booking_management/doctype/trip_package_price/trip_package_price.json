@@ -9,6 +9,7 @@
  "field_order": [
   "column_break_dwuz",
   "pricing_for_class",
+  "cabin_available",
   "price_rating",
   "price_category",
   "column_break_fqjq",
@@ -31,13 +32,12 @@
   },
   {
    "default": "0",
-   "description": "(Age 12+ years old) — SEMUA harga dalam COMPANY CURRENCY",
+   "description": "(Age 12+ years old) \u2014 SEMUA harga dalam COMPANY CURRENCY",
    "fieldname": "price_adult",
    "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Price Adult",
    "non_negative": 1,
-   "options": "",
    "precision": "2"
   },
   {
@@ -48,7 +48,6 @@
    "in_list_view": 1,
    "label": "Price Children",
    "non_negative": 1,
-   "options": "",
    "precision": "2"
   },
   {
@@ -59,7 +58,6 @@
    "in_list_view": 1,
    "label": "Price Infant",
    "non_negative": 1,
-   "options": "",
    "precision": "2"
   },
   {
@@ -70,7 +68,6 @@
    "in_list_view": 1,
    "label": "Price Toddler",
    "non_negative": 1,
-   "options": "",
    "precision": "2"
   },
   {
@@ -112,7 +109,6 @@
    "in_list_view": 1,
    "label": "Price Adult Single",
    "non_negative": 1,
-   "options": "",
    "precision": "2"
   },
   {
@@ -123,15 +119,21 @@
    "in_list_view": 1,
    "label": "Price Upper Berth",
    "non_negative": 1,
-   "options": "",
    "precision": "2"
+  },
+  {
+   "default": "0",
+   "fieldname": "cabin_available",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Cabin Available"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-08-05 01:49:09.000159",
+ "modified": "2026-08-28 12:33:42.301964",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Package Price",

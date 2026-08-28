@@ -14,6 +14,7 @@ class TripPackagePrice(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
+		cabin_available: DF.Int
 		parent: DF.Data
 		parentfield: DF.Data
 		parenttype: DF.Data
