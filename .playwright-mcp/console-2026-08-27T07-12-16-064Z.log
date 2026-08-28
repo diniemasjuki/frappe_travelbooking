@@ -1,1 +1,0 @@
-[     237ms] [ERROR] Failed to load resource: the server responded with a status of 400 (BAD REQUEST) @ https://test.rpwp.my/api/method/travel_booking.api.portal_auth.check_session:0

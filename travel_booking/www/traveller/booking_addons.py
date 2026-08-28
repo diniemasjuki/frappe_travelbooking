@@ -81,7 +81,7 @@ def get_context(context):
         frappe.flags.ignore_permissions = True
         available_addons = get_available_addons(booking_ref)
     except Exception as e:
-        print(f"Warning: Could not load addons: {e}")
+        frappe.log_error(title="booking_addons: load addons failed", message=e)
         available_addons = []
     
     context.page_data = {

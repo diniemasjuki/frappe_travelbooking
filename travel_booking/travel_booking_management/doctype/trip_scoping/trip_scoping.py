@@ -9,6 +9,26 @@ from frappe.model.document import Document
 
 
 class TripScoping(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		group_date: DF.Link | None
+		group_date_name: DF.Data | None
+		name: DF.Int | None
+		package_title: DF.Data | None
+		parent: DF.Data
+		parentfield: DF.Data
+		parenttype: DF.Data
+		trip: DF.Link | None
+		trip_name: DF.Data | None
+		trip_package: DF.Link | None
+	# end: auto-generated types
+
 	def validate(self):
 		# At least one scoping field must be filled
 		if not self.trip and not self.group_date and not self.trip_package:

@@ -95,6 +95,9 @@
     var balance = grandTotal - advancePaid;
     var payPct = grandTotal > 0 ? Math.round((advancePaid / grandTotal) * 100) : 0;
     var isPaid = balance <= 0;
+    // No payment made yet (and there's an amount to pay) → lock the
+    // Traveller Summary & Add-ons panels and prompt the customer to pay.
+    var noPayment = (advancePaid <= 0 && grandTotal > 0);
 
     // Traveller stats
     var totalSlots = parseInt(b.total_slots) || slots.length;
@@ -239,7 +242,7 @@
     html += '<div class="tv-collapse-header" data-toggle="payment-summary" style="cursor:pointer;">';
     html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
     html += '<h3 class="tv-card__title">💰 Payment Summary</h3>';
-    html += '<button type="button" class="tv-btn tv-btn--ghost tv-btn--sm tv-collapse-toggle" style="flex-shrink:0;">Open</button>';
+    html += '<button type="button" class="tv-btn tv-btn--ghost tv-btn--sm tv-collapse-toggle" style="flex-shrink:0;">' + (noPayment ? 'Hide' : 'Open') + '</button>';
     html += '</div>';
     // Summary line (replaces stats grid) — always visible, left aligned
     html += '<div style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-top:8px;">Total Billed: ' + fmtDual(grandTotal) + ' · Balance Due: ' + fmtDual(balance) + '</div>';
@@ -254,7 +257,7 @@
     html += '</div>'; // header
 
     // Body (collapsible): bill orders list
-    html += '<div class="tv-collapse-body" id="payment-summary-body" style="display:none;padding-top:16px;">';
+    html += '<div class="tv-collapse-body" id="payment-summary-body" style="display:' + (noPayment ? 'block' : 'none') + ';padding-top:16px;">';
 
     // Bill Orders list
     var soList = (data.payment && data.payment.so_list) || [];
@@ -292,6 +295,25 @@
     html += '</div>'; // collapse body
 
     html += '</div>'; // payment card
+
+    if (noPayment) {
+      /* ══════════════════════════════════════
+         PAYMENT REQUIRED — Traveller Summary & Add-ons are locked
+         until the customer makes a payment. Prompt them to billing.
+         ══════════════════════════════════════ */
+      html += '<div class="tv-card tv-animate-in" style="border:1px solid var(--c-warning);background:var(--c-warning-bg);">';
+      html += '<div style="display:flex;align-items:flex-start;gap:12px;">';
+      html += '<div style="font-size:22px;line-height:1.2;">🔒</div>';
+      html += '<div style="flex:1;min-width:0;">';
+      html += '<h3 class="tv-card__title" style="margin:0 0 6px 0;color:var(--c-warning-text);">Payment Required</h3>';
+      html += '<p style="font-size:13px;color:var(--text-secondary);margin:0 0 14px 0;line-height:1.6;">Make a payment for this booking to start managing your travellers, add-ons &amp; extras.</p>';
+      var payUrl = '/traveller/billing?ref=' + encodeURIComponent(ref);
+      if (b.sales_order) payUrl += '&bill=' + encodeURIComponent(b.sales_order);
+      html += '<a href="' + payUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;">Pay Now →</a>';
+      html += '</div>';
+      html += '</div>';
+      html += '</div>'; // payment-required card
+    } else {
 
     /* ══════════════════════════════════════
        SECTION C: TRAVELLER SUMMARY (compact)
@@ -347,6 +369,7 @@
     html += '</a>';
     html += '</div>'; // header row
     html += '</div>'; // addons card
+    } // end if (!noPayment)
 
     /* Page nav: Back (bottom) */
     html += '<div style="margin-top:24px;">';

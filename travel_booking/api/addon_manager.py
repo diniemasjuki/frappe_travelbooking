@@ -67,7 +67,7 @@ def get_available_addons(booking_number: str):
 
     rows = frappe.db.sql("""
         SELECT DISTINCT
-            ap.name, ap.addon, ap.addon_title, ap.addon_package_name, ap.plan_type,
+            ap.name, ap.addon, ap.addon_title, ap.addon_package_name,
             ap.currency, ap.unit_price,
             ap.sales_cutoff_enabled, ap.sales_cutoff_days_before_departure,
             ap.max_qty_per_booking, ap.max_total_qty, ap.current_qty_sold,
@@ -76,7 +76,7 @@ def get_available_addons(booking_number: str):
         FROM `tabTrip Addon Package` ap
         JOIN `tabTrip Addon` a ON a.name = ap.addon
         WHERE ap.status = 'Active' AND a.disable = 0
-        ORDER BY a.addon_type, a.addon_title, ap.plan_type
+        ORDER BY a.addon_type, a.addon_title, ap.addon_package_name
     """, as_dict=True)
 
     today = frappe.utils.getdate()
@@ -117,7 +117,6 @@ def get_available_addons(booking_number: str):
         pkg = {
             "addon_package":      r.name,
             "addon_package_name": r.addon_package_name or "",
-            "plan_type":           r.plan_type or "",
             "scope":               r.scope,
             "applicable_to":       r.applicable_to,
             "currency":            r.currency,

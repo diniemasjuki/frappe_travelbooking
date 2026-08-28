@@ -1,2 +1,0 @@
-[    1512ms] [ERROR] Failed to load resource: the server responded with a status of 401 (UNAUTHORIZED) @ https://dev.rpwp.my/api/method/login:0
-[    2238ms] [ERROR] Failed to load resource: the server responded with a status of 400 (BAD REQUEST) @ https://dev.rpwp.my/:0

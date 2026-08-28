@@ -1,7 +1,0 @@
-- main [ref=f39e4]:
-  - generic [ref=f39e7]:
-    - heading "Not Permitted" [level=4] [ref=f39e8]
-    - generic [ref=f39e9]:
-      - paragraph [ref=f39e10]: You are not permitted to access this page.
-      - link "Home" [active] [ref=f39e12] [cursor=pointer]:
-        - /url: /desk
