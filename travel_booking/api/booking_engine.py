@@ -510,9 +510,10 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     #   (b) checkout.html punya timeout 5 minit (customer tak siapkan bayaran)
     # — kedua-dua di stripe_checkout.py, guna _send_status_email() yang sama.
     payment_url = ""
+    payment_error = None
     if payment_method == "Online Payment":
         pay_amount = deposit_amount if payment_type == "Deposit" else grand_total
-        payment_url = _create_payment_url(
+        payment_url, payment_error = _create_payment_url(
             customer_name = customer_name,
             so_name       = so.name,
             amount        = pay_amount,
@@ -565,6 +566,8 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         "payment_type":   payment_type,
         "payment_method": payment_method,
         "payment_url":    payment_url,
+        "payment_setup_failed": bool(payment_error),
+        "payment_error":  payment_error,
         "cashback_percent": cashback_percent,
         "cashback_amount":  round(so.discount_amount, 2) if cashback_percent > 0 else 0,
         "voucher_discount":  round(voucher_discount, 2),

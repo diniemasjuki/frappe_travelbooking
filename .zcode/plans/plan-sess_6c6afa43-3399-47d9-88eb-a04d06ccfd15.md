@@ -1,38 +1,88 @@
-## Punca Error
+## Guard Tiga Lapisan: Halang "False Success" Bila Payment URL Gagal
 
-`stripe_checkout.py` guna `_(...)` (fungsi terjemahan Frappe) di 3 tempat dalam `create_payment_intent()` — baris 200, 241, 257 — tetapi **tiada `from frappe import _`** di atas fail. Bila salah satu cabang `frappe.throw(_(...))` sampai, Python `NameError: name '_' is not defined`.
+### Fail 1: `travel_booking/api/so_helpers.py` — `_create_payment_url` (baris 498-515)
 
-Error ni ditangkap oleh `except Exception` luas dalam `_create_payment_url()` (`so_helpers.py:512`), dilog, dan pulangkan `""`. Customer nampak halaman confirmation (booking "berjaya") tapi tak dibawa ke Stripe — bayaran hilang senyap.
+Tukar return type dari `str` ke `tuple (url, error)`:
 
-## Bug pendam yang sama (4 fail total tiada import `_`)
+- **Berjaya:** pulangkan `(checkout_url, None)`
+- **ValidationError** (cth "Minimum payment 20%"): log + pulangkan `("", str(e))` — mesej sebenar supaya customer tahu kenapa
+- **Exception lain** (Stripe API, network): log + pulangkan `("", "Payment setup failed. Please complete your payment from the portal or contact support.")`
 
-| Fail | Baris | Laluan |
-|------|-------|--------|
-| `stripe_checkout.py` | 200, 241, 257 | Online Payment checkout ← **error sekarang** |
-| `so_helpers.py` | 489 | Manual Transfer payment receipt |
-| `price_labels.py` | 12 | Deprecated endpoint |
-| `voucher.py` | 289, 297 | Voucher usage limits |
+Booking TETAP dicommit (tidak di-rollback) — emel "set password" sudah dihantar, dan customer patut ada rekod booking untuk bayar lewat di portal.
 
-## Pelan Pembaikan
+### Fail 2: `travel_booking/api/booking_engine.py` — `confirm_booking`
 
-**Langkah 1 — Tambah `from frappe import _` ke 4 fail:**
+**Baris 512-520** — kemas kini caller untuk tangkap tuple:
+```python
+payment_url = ""
+payment_error = None
+if payment_method == "Online Payment":
+    pay_amount = deposit_amount if payment_type == "Deposit" else grand_total
+    payment_url, payment_error = _create_payment_url(
+        customer_name=customer_name, so_name=so.name,
+        amount=pay_amount, booking_number=booking.booking_number,
+    )
+```
 
-1. `travel_booking/api/stripe_checkout.py` — tambah selepas `import frappe` (baris 11)
-2. `travel_booking/api/so_helpers.py` — tambah selepas `import frappe` (baris 10)
-3. `travel_booking/api/price_labels.py` — tambah selepas `import frappe`
-4. `travel_booking/api/voucher.py` — tambah selepas `import frappe`
+**Baris 554-569** — tambah dua field baru dalam return dict:
+```python
+"payment_setup_failed": bool(payment_error),
+"payment_error":  payment_error,
+```
+`payment_error` ialah `None` untuk non-Online-Payment (jadi `payment_setup_failed` = False secara default).
 
-Ini 100% fix error sekarang. Bila import dah ada, cabang `frappe.throw(_(...))` akan raise `ValidationError` dengan mesej sebenar (bukan `NameError`), atau kalau validation lulus, Stripe checkout URL akan dicipta dengan betul.
+### Fail 3: `travel_booking/www/booknow.html` — Step 4 confirmation card (baris 510)
 
-**Langkah 2 — Verify via HTTP curl** (bukan console, ikut memory `bench-log-permission-trap`):
-- Buat test checkout dengan Online Payment dan sahkan `payment_url` dikembalikan bukan kosong
-- Jika masih kosong, baca Error Log (`tabError Log` title "Payment URL Error") — mesej validation sebenar akan tunjuk sama ada ada isu konfigurasi Travel Settings (cth `online_payment_min_amount` terlalu tinggi, atau `default_deposit_percent` mismatch)
+Tambah elemen kosong untuk amaran, selepas `bnwConfirmStatusBadge`:
+```html
+<div id="bnwConfirmStatusBadge" style="margin:8px 0 4px"></div>
+<div id="bnwPaymentWarning"></div>
+<div class="bnw-confirm-details" id="bnwConfirmDetails"></div>
+```
 
-## Nota: Kenapa cabang validation mungkin trigger walaupun flow normal
+### Fail 4: `travel_booking/public/js/booknow.js` — response handler (baris 3676-3713)
 
-Berdasaskan analisa kod, untuk flow checkout biasa (Deposit = std_deposit, Full = grand_total), cabang validation di `create_payment_intent` **patutnya tak trigger** kerana `booking_engine.py` sudah kira deposit dengan betul dan angkat ke `online_min` kalau perlu. Punca kemungkinan:
+**Tambah guard selepas `if (result.payment_url)` block:**
+```javascript
+// Payment setup failed — booking dicipta tapi URL bayaran gagal.
+if (result.payment_setup_failed) {
+  showConfirmation(result);
+  showStep(4);
+  renderPaymentWarning(result.payment_error);
+  return;
+}
+```
 
-1. **`frappe.set_user` session corruption** (rujuk memory `frappe-set-user-corrupts-sessions`) — selepas `frappe.set_user("Administrator")` lalu `frappe.set_user("Guest")` di booking_engine.py:287/385, `frappe.session.user` mungkin tak kembali ke "Guest". Kalau jadi "Administrator", `get_customer_by_email("Administrator")` mungkin pulangkan customer lain → ownership check (baris 198) trigger → `_()` NameError. Ini persoalan berasingan — fix import `_` dulu, kalau error masih berulang selepas import ditambah, siasat `set_user` ini.
-2. **Mismatch Travel Settings** — `online_payment_min_amount` atau `default_deposit_percent` tidak selaras dengan kiraan deposit.
+**Tambah fungsi baru `renderPaymentWarning(errorMsg)`:**
+- Tukar icon confirmation dari check hijau ke alert oren (`ti-alert-circle`, background `#d97706→#f59e0b`)
+- Isi `#bnwPaymentWarning` dengan banner amaran kuning (background `#FEF3C7`, border `#F59E0B`) yang papar mesej ralat sebenar
+- Override `#bnwConfirmEmail` dengan mesej: "Your booking has been created, but online payment could not be set up. Please log in to your portal to complete payment."
 
-Fix import `_` adalah langkah pertama yang wajib. Selepas itu, kalau masalah berterusan, Error Log akan tunjuk mesej validation sebenar yang membolehkan diagnosis lanjut.
+**Tambah reset di awal `showConfirmation()`** — kosongkan `#bnwPaymentWarning` dan reset icon ke default (check hijau), supaya amaran tak lekat kalau customer retry tanpa reload page.
+
+### Aliran selepas fix
+
+```
+confirm_booking()
+  ├─ Cipta Booking + SO + hantar emel set-password
+  ├─ _create_payment_url() → (url, error)
+  │    ├─ Berjaya: ("https://checkout.stripe.com/...", None)
+  │    └─ Gagal: ("", "Minimum payment is 20%...")
+  ├─ frappe.db.commit()
+  └─ return { success: True, payment_url, payment_setup_failed, payment_error }
+
+booknow.js
+  ├─ if (result.payment_url) → redirect Stripe ✓
+  ├─ if (result.payment_setup_failed) → showConfirmation + renderPaymentWarning
+  │    Customer nampak: amaran oren "Online Payment Setup Failed" + mesej sebenar
+  │    + arahan "log in ke portal untuk bayar"
+  └─ else → showConfirmation (Manual Transfer / Pay Later) ✓
+```
+
+### Fail yang diubah (4)
+1. `so_helpers.py` — return tuple + split ValidationError/Exception
+2. `booking_engine.py` — tangkap tuple + tambah 2 field response
+3. `www/booknow.html` — tambah `<div id="bnwPaymentWarning">`
+4. `public/js/booknow.js` — guard + `renderPaymentWarning()` + reset di `showConfirmation()`
+
+Semua boih balik (reversible). Selepas implement, reload gunicorn (HUP) dan verify via curl.

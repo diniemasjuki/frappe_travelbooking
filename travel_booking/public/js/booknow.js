@@ -3708,6 +3708,16 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
       return;
     }
 
+    // Payment setup failed — booking dicipta tapi URL bayaran gagal.
+    // JANGAN tunjuk "berjaya" — tunjuk amaran jelas supaya customer tahu
+    // perlu selesaikan bayaran secara berasingan di portal.
+    if (result.payment_setup_failed) {
+      showConfirmation(result);
+      showStep(4);
+      renderPaymentWarning(result.payment_error);
+      return;
+    }
+
     // Manual Transfer → terus ke halaman confirmation
     showConfirmation(result);
     showStep(4);
@@ -3720,6 +3730,15 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
 // ─── STEP 4: CONFIRMATION ─────────────────────────────────
 function showConfirmation(booking) {
   document.getElementById("bnwConfirmRef").textContent = booking.booking_number;
+
+  // Reset amaran payment (kalau ada dari render sebelum ni) dan icon ke default
+  var pwEl = document.getElementById("bnwPaymentWarning");
+  if (pwEl) pwEl.innerHTML = "";
+  var iconEl = document.querySelector(".bnw-confirm-icon");
+  if (iconEl) {
+    iconEl.style.background = "";
+    iconEl.innerHTML = '<i class="ti ti-check"></i>';
+  }
 
   var bookingStatus = booking.booking_status || "Accepted";
   renderConfirmStatusBadge(bookingStatus);
@@ -3856,6 +3875,40 @@ function showConfirmation(booking) {
     : 'Confirmation sent to <strong>' + state.billing.email + '</strong>.<br>' +
       'We\'ll notify you by email once your payment is verified — traveller details can be completed after that.';
   document.getElementById("bnwConfirmEmail").innerHTML = confirmMsg;
+}
+
+// ─── PAYMENT SETUP FAILED WARNING ──────────────────────────
+// Bila _create_payment_url gagal (validation/Stripe error), booking tetap
+// dicipta & dicommit, tapi customer tak dibawa ke Stripe. Tunjuk amaran
+// jelas — JANGAN biar customer fikir "berjaya" tanpa bayar.
+function renderPaymentWarning(errorMsg) {
+  // Tukar check icon hijau ke alert icon oren
+  var iconEl = document.querySelector(".bnw-confirm-icon");
+  if (iconEl) {
+    iconEl.style.background = "linear-gradient(135deg, #d97706, #f59e0b)";
+    iconEl.innerHTML = '<i class="ti ti-alert-circle" style="font-size:40px;color:#fff"></i>';
+  }
+
+  // Amaran banner di antara status badge dan details
+  var warnEl = document.getElementById("bnwPaymentWarning");
+  if (warnEl) {
+    warnEl.innerHTML =
+      '<div style="background:#FEF3C7;border:1px solid #F59E0B;border-radius:8px;' +
+      'padding:16px 20px;margin:16px 0;text-align:left">' +
+      '<strong style="color:#92400E;display:block;margin-bottom:6px">' +
+      '⚠ Online Payment Setup Failed</strong>' +
+      '<span style="color:#78350F;font-size:14px">' +
+      (errorMsg || "Payment setup failed unexpectedly.") +
+      '</span></div>';
+  }
+
+  // Override mesej emel — arah customer ke portal untuk bayar
+  var emailEl = document.getElementById("bnwConfirmEmail");
+  if (emailEl) {
+    emailEl.innerHTML =
+      'Your booking has been created, but online payment could not be set up.<br>' +
+      '<strong>Please log in to your portal to complete payment for this booking.</strong>';
+  }
 }
 
 // ─── DISPLAY CURRENCY CONVERTER ───────────────────────────

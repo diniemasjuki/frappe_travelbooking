@@ -500,6 +500,10 @@ def _create_payment_url(customer_name, so_name, amount, booking_number):
     Redirect selepas bayar dikawal oleh checkout.html -> balik ke wizard step Confirm.
     Status bayaran sebenar ditentukan oleh webhook (stripe_checkout.stripe_webhook),
     bukan redirect ini.
+
+    Pulangkan tuple (checkout_url, error_message). error_message ialah None bila
+    berjaya. Booking TIDAK di-rollback bila gagal — caller (confirm_booking)
+    tetap commit supaya customer ada rekod booking dan boleh bayar lewat di portal.
     """
     try:
         from travel_booking.api.stripe_checkout import create_payment_intent
@@ -509,10 +513,13 @@ def _create_payment_url(customer_name, so_name, amount, booking_number):
             source="wizard",
             booking_number=booking_number,
         )
-        return result.get("checkout_url", "")
+        return result.get("checkout_url", ""), None
+    except frappe.ValidationError as e:
+        frappe.log_error("Payment checkout creation failed: " + str(e), "Payment URL Error")
+        return "", str(e)
     except Exception as e:
         frappe.log_error("Payment checkout creation failed: " + str(e), "Payment URL Error")
-        return ""
+        return "", "Payment setup failed. Please complete your payment from the portal or contact support."
 
 
 # ══════════════════════════════════════════════
