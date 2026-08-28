@@ -4,6 +4,7 @@
 
 {% block head_extra %}
 <link rel="stylesheet" href="/assets/travel_booking/css/tour.css?v={{ asset_v('css/tour.css') }}"/>
+<link rel="stylesheet" href="/assets/travel_booking/css/trip_card.css?v={{ asset_v('css/trip_card.css') }}"/>
 {% endblock %}
 
 {% block page_content %}
@@ -28,16 +29,16 @@
     {# Search Widget #}
     <form class="rc-hero-search" action="/tours" method="get">
       <input type="hidden" name="cruise" value="0"/>
+      <script type="application/json" id="rcSearchDestinations">{{ options.destinations | tojson }}</script>
       <div class="rc-search-grid">
-        <label class="rc-search-field">
+        <div class="rc-search-field rc-autocomplete" data-rc-autocomplete>
           <i class="ti ti-map-pin"></i>
-          <select name="destination">
-            <option value="">Where to?</option>
-            {% for d in options.destinations %}
-            <option value="{{ d.name }}">{{ d.destination_name }}{% if d.destination_country %}, {{ d.destination_country }}{% endif %}</option>
-            {% endfor %}
-          </select>
-        </label>
+          <input type="text" class="rc-ac-input" placeholder="Where to?"
+                 autocomplete="off" aria-label="Destination"
+                 aria-autocomplete="list" aria-expanded="false"/>
+          <input type="hidden" name="destination" value=""/>
+          <ul class="rc-ac-list" role="listbox" hidden></ul>
+        </div>
         <label class="rc-search-field">
           <i class="ti ti-calendar-event"></i>
           <input type="date" name="date_from" placeholder="Departure"/>
@@ -69,34 +70,11 @@
     </div>
 
     {% if featured_tours %}
-    <div class="rc-tour-grid">
+    <div class="rc-trip-grid">
       {% for tour in featured_tours %}
-      <article class="rc-tour-card">
-        <a class="rc-tour-img" href="/{{ tour.route }}">
-          <img src="{{ tour.trip_image }}" alt="{{ tour.trip_name }}" loading="lazy"
-               onerror="this.src='/assets/travel_booking/img/defaultaroya.jpg'"/>
-          <span class="rc-tour-badge">{{ tour.days_nights }}</span>
-          {% if tour.is_hot_sale %}
-          <span class="rc-tour-hot">🔥 Hot Deal</span>
-          {% endif %}
-        </a>
-        <div class="rc-tour-body">
-          <div class="rc-tour-meta">
-            <span><i class="ti ti-map-2"></i> {{ tour.route_name }}</span>
-            {% if tour.organizer %}<span><i class="ti ti-user"></i> {{ tour.organizer }}</span>{% endif %}
-          </div>
-          <h3 class="rc-tour-title"><a href="/{{ tour.route }}">{{ tour.trip_name }}</a></h3>
-          <p class="rc-tour-desc">{{ tour.short_description }}</p>
-          <div class="rc-tour-foot">
-            <div class="rc-tour-price">
-              <span class="rc-price-from">From</span>
-              <strong>{{ get_company_symbol() }}{{ "{:,.0f}".format(tour.starting_from_price) }}</strong>
-              <span class="rc-price-per">/pax</span>
-            </div>
-            <a href="/{{ tour.route }}" class="rc-btn-view">View Details</a>
-          </div>
-        </div>
-      </article>
+      {% with t = tour, gds = trip_group_dates.get(tour.name, []) %}
+      {% include "templates/includes/trip_card.html" %}
+      {% endwith %}
       {% endfor %}
     </div>
     {% else %}
@@ -147,7 +125,7 @@
     {% if popular_destinations %}
     <div class="rc-dest-grid">
       {% for dest in popular_destinations %}
-      <a href="/trips?cruise=0&destination={{ dest.name | urlencode }}" class="rc-dest-card">
+      <a href="/tours?cruise=0&destination={{ dest.name | urlencode }}" class="rc-dest-card">
         <div class="rc-dest-img" style="background-image:url('{{ dest.image or '/assets/travel_booking/img/defaultaroya.jpg' }}')">
           <div class="rc-dest-overlay">
             <h3>{{ dest.destination_name }}</h3>
@@ -210,5 +188,6 @@
 {% endblock %}
 
 {% block footer_extra %}
+<script src="/assets/travel_booking/js/destination_search.js?v={{ asset_v('js/destination_search.js') }}"></script>
 <script src="/assets/travel_booking/js/tour.js?v={{ asset_v('js/tour.js') }}"></script>
 {% endblock %}

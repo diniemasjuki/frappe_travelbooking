@@ -21,7 +21,12 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>{% block title %}{{ site_name or 'Rarecation' }}{% endblock %}</title>
-  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  {# Favicon dinamik: tour homepage/site guna tour_favicon, selainnya
+     cruise_favicon. Fallback ke faviconportal.png lalai jika kosong. Mengikut
+     corak header logo (active_nav == 'tour'). #}
+  {% set _wc = get_website_config() %}
+  {% set _rc_hp = _wc.tour if active_nav == 'tour' else _wc.cruise %}
+  <link rel="icon" href="{{ _rc_hp.favicon or '/assets/travel_booking/img/faviconportal.png' }}"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet"/>

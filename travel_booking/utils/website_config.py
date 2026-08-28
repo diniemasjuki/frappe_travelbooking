@@ -112,6 +112,7 @@ def _homepage_block(doc, prefix: str) -> dict:
 
     return {
         "logo": page_logo,
+        "favicon": doc.get(f"{prefix}_favicon") or "",
         "nav_cta": {
             "label": doc.get(f"{prefix}_nav_cta_label") or "Manage Booking",
             "url": doc.get(f"{prefix}_nav_cta_url") or "/traveller_portal",

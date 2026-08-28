@@ -869,3 +869,30 @@ select option { background: var(--bg-primary); }
 
 /* dinie custom */
 .nav-sub{display:none;}
+
+/* ============================================================
+   Destination autocomplete — hero search (cruise + tour + trips)
+   Dipasang oleh destination_search.js pada [data-rc-autocomplete].
+   Input mewarisi gaya .rc-search-field input (icon + border + focus).
+   ============================================================ */
+.rc-autocomplete { position: relative; }
+.rc-ac-list {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 30;
+  max-height: 280px; overflow-y: auto;
+  background: #fff; border: 1px solid #E8E5DF; border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(30,28,24,.14);
+  margin: 0; padding: 6px; list-style: none; font-family: 'Jost', sans-serif;
+}
+.rc-ac-list[hidden] { display: none; }
+.rc-ac-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px;
+  color: #1E1C18; transition: background .12s;
+}
+.rc-ac-item.active, .rc-ac-item:hover { background: rgba(201,168,76,.14); }
+.rc-ac-name { font-weight: 500; }
+.rc-ac-country { font-size: 12px; color: #7D7A70; white-space: nowrap; }
+.rc-ac-empty { padding: 12px; font-size: 14px; color: #9C9789; text-align: center; }
+@media (max-width: 768px) {
+  .rc-ac-list { position: static; box-shadow: none; border-color: #E8E5DF; }
+}

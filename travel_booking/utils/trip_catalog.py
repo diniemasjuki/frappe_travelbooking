@@ -193,7 +193,7 @@ def _enrich_trips(trips: list) -> None:
 	by_trip = {m.name: m for m in meta}
 	for t in trips:
 		m = by_trip.get(t.name, {})
-		t["trip_image"] = m.get("trip_image") or "/assets/travel_booking/img/defaultaroyo.jpg"
+		t["trip_image"] = m.get("trip_image") or "/assets/travel_booking/img/defaultaroya.jpg"
 		t["trip_categories"] = m.get("trip_categories") or ""
 		t["route"] = m.get("route") or ""
 		t["trip_organizer"] = m.get("trip_organizer") or ""
@@ -379,22 +379,46 @@ def get_catalog_trips(filters: dict | None = None) -> dict:
 	}
 
 
-def get_filter_options() -> dict:
+def get_filter_options(cruise: int | None = None) -> dict:
 	"""Pilihan dropdown untuk bar penapis katalog: destinasi (master) +
 	item group (yang dipakai oleh Trip) + senarai negara. Data kecil,
-	dipanggil sekali setiap render /trips."""
-	destinations = frappe.db.sql(
-		"""
-		SELECT DISTINCT dp.name, dp.destination_name, dp.destination_country
-		FROM `tabTrip Destination Point` dp
-		WHERE EXISTS (
-		    SELECT 1 FROM `tabTrip Destination Point Select` sel
-		    WHERE sel.select_destination_point = dp.name
+	dipanggil sekali setiap render /trips.
+
+	cruise: 1 = destinasi yang dipakai trip cruise aktif sahaja (homepage
+	        /cruise); 0 = destinasi tour/bukan-cruise aktif (homepage /tour);
+	        None (default) = semua destinasi mana-mana trip (gunaan /trips).
+	"""
+	if cruise is None:
+		destinations = frappe.db.sql(
+			"""
+			SELECT DISTINCT dp.name, dp.destination_name, dp.destination_country
+			FROM `tabTrip Destination Point` dp
+			WHERE EXISTS (
+			    SELECT 1 FROM `tabTrip Destination Point Select` sel
+			    WHERE sel.select_destination_point = dp.name
+			)
+			ORDER BY dp.destination_name
+			""",
+			as_dict=True,
 		)
-		ORDER BY dp.destination_name
-		""",
-		as_dict=True,
-	)
+	else:
+		destinations = frappe.db.sql(
+			"""
+			SELECT DISTINCT dp.name, dp.destination_name, dp.destination_country
+			FROM `tabTrip Destination Point` dp
+			WHERE EXISTS (
+			    SELECT 1
+			    FROM `tabTrip Destination Point Select` sel
+			    JOIN `tabTrip` t ON t.name = sel.parent
+			    WHERE sel.select_destination_point = dp.name
+			      AND t.status = 'Active'
+			      AND t.is_a_cruise_trip = %(cruise)s
+			)
+			ORDER BY dp.destination_name
+			""",
+			{"cruise": cruise},
+			as_dict=True,
+		)
 	item_groups = frappe.db.sql(
 		"""
 		SELECT DISTINCT t.trip_categories AS name

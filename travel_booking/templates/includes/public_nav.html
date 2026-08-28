@@ -19,7 +19,7 @@
 {% set header_logo = organizer_logo or (wc['tour'].logo if active_nav == 'tour' else wc['cruise'].logo) or wc.website_logo %}
 <nav class="rc-public-nav">
   <div class="rc-nav-logo">
-    <a href="/trips">
+    <a href="/">
       <img src="{{ header_logo or '/assets/travel_booking/img/logo-horizontal.png' }}"
            alt="Rarecation"
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>

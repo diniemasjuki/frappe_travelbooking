@@ -73,14 +73,6 @@
       minimumFractionDigits: 0, maximumFractionDigits: 0,
     });
   }
-  function addDaysLabel(iso, n) {
-    if (!iso) return "";
-    var d = new Date(iso + "T00:00:00");
-    if (isNaN(d.getTime())) return "";
-    d.setDate(d.getDate() + n);
-    return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-  }
-
   // ── Selected package state ──
   // group_date datang dari API response (package's trip_group_date),
   // BUKAN dari date radio — ini memastikan data consistency.
@@ -90,10 +82,6 @@
   function getSelectedDateValue() {
     var checked = gdSel.querySelector("input[name='rc_group_date']:checked");
     return checked ? checked.value : "";
-  }
-  function getSelectedGroupDateBase() {
-    var checked = gdSel.querySelector("input[name='rc_group_date']:checked");
-    return checked ? checked.getAttribute("data-base") : "";
   }
   function getSelectedGroupDateId() {
     var checked = gdSel.querySelector("input[name='rc_group_date']:checked");
@@ -158,7 +146,6 @@
       radio.id = radioId;
       radio.value = dateValue;
       radio.setAttribute("data-gd-id", gdData.name);
-      radio.setAttribute("data-base", startDate);
       radio.className = "rc-date-radio";
       if (_wishGd && gdData.name === _wishGd) radio.checked = true;
       else if (!_wishGd && idx === 0) radio.checked = true;
@@ -206,7 +193,6 @@
 
     // Auto-select first date → AJAX fetch packages
     populatePackages();
-    refreshItineraryDates();
   }
 
   // ════ STEP 3: Load packages for selected date ════
@@ -547,16 +533,6 @@
     var bnwUrl = "/booknow";
     if (_sp) bnwUrl += "?sp=" + encodeURIComponent(_sp);
     window.location.href = bnwUrl;
-  }
-
-  function refreshItineraryDates() {
-    var base = getSelectedGroupDateBase();
-    Array.prototype.forEach.call(document.querySelectorAll(".rc-itin-day"), function (li) {
-      var day = parseInt(li.getAttribute("data-day"), 10) || 1;
-      var mk = li.querySelector(".rc-itin-marker span");
-      if (!mk) return;
-      mk.textContent = base ? ("Day " + day + " · " + addDaysLabel(base, day - 1)) : ("Day " + day);
-    });
   }
 
   // ════ Init: Load labels first, then populate dates ════

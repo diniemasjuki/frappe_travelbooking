@@ -82,12 +82,18 @@ class Trip(Document):
 		context.starting_from_price = d["starting_from_price"]
 		context.destinations = d["destinations"]
 		context.is_cruise = d["is_cruise"]
+		# Breadcrumb "Trips" dinamik mengikut jenis produk ini: cruise →
+		# Cruises (/cruises); tour → Tours (/tours).
+		context.trips_crumb = (
+			{"label": "Cruises", "url": "/cruises"} if is_cruise
+			else {"label": "Tours", "url": "/tours"}
+		)
 		# JSON untuk widget keberangkatan di JS (select group date -> package
 		# -> pricing.get_booking_details). company currency/symbol via kaedah
 		# jinja ({{ get_company_symbol() }}) di template.
 		context.group_dates_json = json.dumps(context.group_dates)
 		context.trip_packages_json = json.dumps(d["trip_packages"])
-		context.trip_image = self.trip_image or "/assets/travel_booking/img/defaultaroyo.jpg"
+		context.trip_image = self.trip_image or "/assets/travel_booking/img/defaultaroya.jpg"
 		# Organizer (Link -> Trip Organizer): papar nama + logo, bukan ID.
 		context.organizer_name = (
 			frappe.db.get_value("Trip Organizer", self.trip_organizer, "org_name")
@@ -201,9 +207,11 @@ class Trip(Document):
 		"""Return list of related trip dicts with complete card data."""
 		# FIXED: guna getattr — field trip_categories mungkin tiada dalam schema lama
 		cat = getattr(self, 'trip_categories', None)
+		# Saring ikut jenis trip — cruise cuma cadang cruise, tour cuma cadang tour.
+		cruise = 1 if self.is_a_cruise_trip else 0
 		rows: list = []
 
-		# 1. Main query - same category
+		# 1. Main query - same category + same cruise type
 		if cat:
 			rows = frappe.db.sql(
 				"""
@@ -212,14 +220,15 @@ class Trip(Document):
 				FROM `tabTrip` t
 				WHERE t.name != %(me)s AND t.status='Active' AND t.published=1
 				  AND t.trip_categories = %(cat)s
+				  AND t.is_a_cruise_trip = %(cruise)s
 				ORDER BY t.trip_name
 				LIMIT {lim}
 				""".format(lim=int(limit)),
-				{"me": self.name, "cat": cat},
+				{"me": self.name, "cat": cat, "cruise": cruise},
 				as_dict=True,
 			)
 
-		# 2. Fill up if less than limit
+		# 2. Fill up if less than limit (same cruise type only)
 		if len(rows) < limit:
 			excl = [r.name for r in rows] + [self.name]
 			rest = limit - len(rows)
@@ -229,10 +238,11 @@ class Trip(Document):
 				       t.trip_categories
 				FROM `tabTrip` t
 				WHERE t.name NOT IN %(ex)s AND t.status='Active' AND t.published=1
+				  AND t.is_a_cruise_trip = %(cruise)s
 				ORDER BY t.trip_name
 				LIMIT {lim}
 				""".format(lim=int(rest)),
-				{"ex": excl},
+				{"ex": excl, "cruise": cruise},
 				as_dict=True,
 			)
 			rows += more
@@ -290,7 +300,7 @@ class Trip(Document):
 
 				# 5. Assemble final dict
 				for r in rows:
-					r["trip_image"] = r.trip_image or "/assets/travel_booking/img/defaultaroyo.jpg"
+					r["trip_image"] = r.trip_image or "/assets/travel_booking/img/defaultaroya.jpg"
 					r["starting_from_price"] = (
 						float(price_map[r.name]) if r.name in price_map and price_map[r.name] else None
 					)

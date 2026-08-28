@@ -19,7 +19,11 @@
     <div class="rc-banner-content">
       <nav class="rc-crumb">
         <a href="/">Home</a><i class="ti ti-chevron-right"></i>
-        <a href="/trips">Trips</a><i class="ti ti-chevron-right"></i>
+        {# Level dinamik mengikut jenis produk ini: cruise → Cruises (/cruises),
+           tour → Tours (/tours). Fallback "Trips" selamat sebelum konteks
+           tersedia (selepas reload gunicorn). #}
+        {% set crumb = trips_crumb if trips_crumb is defined else {"label": "Trips", "url": "/trips"} %}
+        <a href="{{ crumb.url }}">{{ crumb.label }}</a><i class="ti ti-chevron-right"></i>
       </nav>
       <h1 class="rc-trip-title-main" style="color:white; font-weight:300; " >{{ trip_name }}</h1>
     </div>
@@ -193,7 +197,7 @@
       {% if itinerary %}
       <section class="rc-trip-section">
         <h2 class="rc-section-h">Itinerary</h2>
-        <p class="rc-section-sub">Day-by-day plan. Select a departure in the booking panel to see exact dates.</p>
+        <p class="rc-section-sub">Day-by-day plan.</p>
         <ol class="rc-itinerary">
           {% for row in itinerary %}
           <li class="rc-itin-day" data-day="{{ row.day }}">

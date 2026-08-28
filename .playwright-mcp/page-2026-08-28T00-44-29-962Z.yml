@@ -1,0 +1,129 @@
+- generic [active] [ref=f1e1]:
+  - navigation [ref=f1e2]:
+    - link [ref=f1e4] [cursor=pointer]:
+      - /url: /
+      - img "Rarecation" [ref=f1e5]
+    - generic [ref=f1e6]:
+      - link "Home" [ref=f1e7] [cursor=pointer]:
+        - /url: /
+      - link "All Cruise" [ref=f1e8] [cursor=pointer]:
+        - /url: /cruises
+      - link "Cabin" [ref=f1e9] [cursor=pointer]:
+        - /url: https://aroya.com/en/cabins
+    - link "Manage Booking" [ref=f1e10] [cursor=pointer]:
+      - /url: /traveller
+  - main [ref=f1e11]:
+    - generic [ref=f1e12]:
+      - generic [ref=f1e13]:
+        - heading "Explore Cruises" [level=1] [ref=f1e14]
+        - paragraph [ref=f1e15]: Luxury voyages to the world's most breathtaking destinations.
+      - generic [ref=f1e16]:
+        - generic [ref=f1e17]:
+          - generic [ref=f1e18]:
+            - generic [ref=f1e19]: 
+            - textbox "" [ref=f1e20]:
+              - /placeholder: Search cruises…
+          - generic [ref=f1e21]:
+            - generic [ref=f1e22]: Destination
+            - combobox "Destination" [ref=f1e23]:
+              - option "All destinations"
+              - option "Agra — India"
+              - option "Bodrum — Türkiye" [selected]
+              - option "Delhi — India"
+              - option "Dubrovnik — Croatia"
+              - option "Geneva — Switzerland"
+              - option "Hanoi — Vietnam"
+              - option "Interlaken — Switzerland"
+              - option "Istanbul — Türkiye"
+              - option "Jeddah — Saudi Arabia"
+              - option "Marmaris — Türkiye"
+              - option "Mostar — Bosnia and Herzegovina"
+              - option "Sarajevo — Bosnia and Herzegovina"
+              - option "Sharm El Sheikh — Egypt"
+              - option "Split — Croatia"
+              - option "Suez Canal — Egypt"
+              - option "Zermatt — Switzerland"
+          - generic [ref=f1e24]:
+            - generic [ref=f1e25]: Item group
+            - combobox "Item group" [ref=f1e26]:
+              - option "All groups" [selected]
+        - generic [ref=f1e27]:
+          - generic [ref=f1e28]:
+            - generic [ref=f1e29]: From
+            - textbox "From" [ref=f1e30]
+          - generic [ref=f1e31]:
+            - generic [ref=f1e32]: To
+            - textbox "To" [ref=f1e33]
+          - generic [ref=f1e34]:
+            - generic [ref=f1e35]: Sort by
+            - combobox "Sort by" [ref=f1e36]:
+              - option "Departure date" [selected]
+              - option "Price (low to high)"
+              - option "Duration (longest)"
+          - generic [ref=f1e37]:
+            - button " Search" [ref=f1e38] [cursor=pointer]:
+              - generic [ref=f1e39]: 
+              - text: Search
+            - link "Reset" [ref=f1e40] [cursor=pointer]:
+              - /url: /cruises
+      - generic [ref=f1e41]: 1 cruise found
+      - article [ref=f1e44]:
+        - link "Percubaan Trip Cruise " [ref=f1e45] [cursor=pointer]:
+          - /url: /trip/percubaan-trip-cruise
+          - img "Percubaan Trip Cruise" [ref=f1e46]
+          - generic [ref=f1e47]: 
+        - generic [ref=f1e49]:
+          - heading [level=3] [ref=f1e50]:
+            - link "Percubaan Trip Cruise" [ref=f1e51] [cursor=pointer]:
+              - /url: /trip/percubaan-trip-cruise
+          - paragraph [ref=f1e52]:
+            - generic [ref=f1e53]: 
+            - text: Zermatt, Bodrum, Delhi, Istanbul, Hanoi
+          - generic [ref=f1e54]:
+            - generic [ref=f1e55]:
+              - generic [ref=f1e56]: 
+              - text: 10D / 9N
+            - generic [ref=f1e57]:
+              - generic [ref=f1e58]: 
+              - text: Sail 2026-09-14
+            - generic [ref=f1e59]:
+              - generic [ref=f1e60]: 
+              - text: Open pax
+          - generic [ref=f1e61]:
+            - generic [ref=f1e62]:
+              - generic [ref=f1e63]: From
+              - generic [ref=f1e64]: RM5
+            - link "View Details" [ref=f1e65] [cursor=pointer]:
+              - /url: /trip/percubaan-trip-cruise
+  - contentinfo [ref=f1e66]:
+    - generic [ref=f1e67]:
+      - generic [ref=f1e68]:
+        - img "Rarecation" [ref=f1e69]
+        - paragraph
+        - paragraph [ref=f1e71]: Rarecation is an exlusive extension of your trusted
+        - paragraph
+      - generic [ref=f1e72]:
+        - paragraph [ref=f1e73]: Info
+        - link "Privacy Policy" [ref=f1e74] [cursor=pointer]:
+          - /url: "#"
+        - link "Refund Policy" [ref=f1e75] [cursor=pointer]:
+          - /url: "#"
+        - link "Terms of Service" [ref=f1e76] [cursor=pointer]:
+          - /url: "#"
+        - link "Cancelation Policy" [ref=f1e77] [cursor=pointer]:
+          - /url: "#"
+      - generic [ref=f1e78]:
+        - paragraph [ref=f1e79]: Explore
+        - link "All Trips" [ref=f1e80] [cursor=pointer]:
+          - /url: /trips
+        - link "Cruises" [ref=f1e81] [cursor=pointer]:
+          - /url: /cruises
+        - link "Tours" [ref=f1e82] [cursor=pointer]:
+          - /url: /tours
+        - link "My Bookings" [ref=f1e83] [cursor=pointer]:
+          - /url: /traveller_portal
+      - generic [ref=f1e84]:
+        - paragraph [ref=f1e85]: Need help?
+        - link "contact@rarecation.com" [ref=f1e86] [cursor=pointer]:
+          - /url: mailto:contact@rarecation.com
+    - generic [ref=f1e87]: © 2026 Rarecation. All rights reserved.

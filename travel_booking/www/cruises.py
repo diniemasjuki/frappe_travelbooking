@@ -25,7 +25,7 @@ def get_context(context):
             filters[k] = v
 
     data = get_catalog_trips(filters)
-    options = get_filter_options()
+    options = get_filter_options(cruise=1)
 
     context.trips = data["trips"]
     context.trip_group_dates = data["trip_group_dates"]

@@ -37,10 +37,10 @@
     <img src="{{ t.trip_image }}"
          alt="{{ t.trip_name }}"
          loading="lazy"
-         onerror="this.src='/assets/travel_booking/img/defaultaroyo.jpg'"/>
+         onerror="this.src='/assets/travel_booking/img/defaultaroya.jpg'"/>
 
     {# Type icon: Cruise Ship / Tour Route — bottom-right position #}
-    <span class="rc-card-icon rc-card-icon-{% if t.is_a_cruise_trip %}cruise{% else %}tour{% endif %}">
+    <span class="rc-card-icon ">
       {% if t.is_a_cruise_trip %}<i class="ti ti-anchor"></i>{% else %}<i class="ti ti-route"></i>{% endif %}
     </span>
 

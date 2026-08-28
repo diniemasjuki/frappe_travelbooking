@@ -15,7 +15,7 @@ class TripFAQTemplate(Document):
 		from frappe.types import DF
 
 		answer: DF.TextEditor | None
-		question: DF.Data | None
+		question: DF.SmallText | None
 		topic: DF.Data | None
 	# end: auto-generated types
 

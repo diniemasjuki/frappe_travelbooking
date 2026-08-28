@@ -4,6 +4,7 @@
 
 {% block head_extra %}
 <link rel="stylesheet" href="/assets/travel_booking/css/cruise.css?v={{ asset_v('css/cruise.css') }}"/>
+<link rel="stylesheet" href="/assets/travel_booking/css/trip_card.css?v={{ asset_v('css/trip_card.css') }}"/>
 {% endblock %}
 
 {% block page_content %}
@@ -29,16 +30,16 @@
     {# Search Widget #}
     <form class="rc-hero-search" action="/cruises" method="get">
       <input type="hidden" name="cruise" value="1"/>
+      <script type="application/json" id="rcSearchDestinations">{{ options.destinations | tojson }}</script>
       <div class="rc-search-grid">
-        <label class="rc-search-field">
+        <div class="rc-search-field rc-autocomplete" data-rc-autocomplete>
           <i class="ti ti-map-pin"></i>
-          <select name="destination">
-            <option value="">Where to?</option>
-            {% for d in options.destinations %}
-            <option value="{{ d.name }}">{{ d.destination_name }}{% if d.destination_country %}, {{ d.destination_country }}{% endif %}</option>
-            {% endfor %}
-          </select>
-        </label>
+          <input type="text" class="rc-ac-input" placeholder="Where to?"
+                 autocomplete="off" aria-label="Destination"
+                 aria-autocomplete="list" aria-expanded="false"/>
+          <input type="hidden" name="destination" value=""/>
+          <ul class="rc-ac-list" role="listbox" hidden></ul>
+        </div>
         <label class="rc-search-field">
           <i class="ti ti-calendar-event"></i>
           <input type="date" name="date_from" placeholder="Departure"/>
@@ -70,34 +71,11 @@
     </div>
 
     {% if featured_cruises %}
-    <div class="rc-cruise-grid">
+    <div class="rc-trip-grid">
       {% for cruise in featured_cruises %}
-      <article class="rc-cruise-card">
-        <a class="rc-cruise-img" href="/{{ cruise.route }}">
-          <img src="{{ cruise.trip_image }}" alt="{{ cruise.trip_name }}" loading="lazy"
-               onerror="this.src='/assets/travel_booking/img/defaultaroyo.jpg'"/>
-          <span class="rc-cruise-badge">{{ cruise.days_nights }}</span>
-          {% if cruise.is_hot_sale %}
-          <span class="rc-cruise-hot">🔥 Hot Deal</span>
-          {% endif %}
-        </a>
-        <div class="rc-cruise-body">
-          <div class="rc-cruise-meta">
-            <span><i class="ti ti-route"></i> {{ cruise.route_name }}</span>
-            <span><i class="ti ti-ship"></i> {{ cruise.ship_name }}</span>
-          </div>
-          <h3 class="rc-cruise-title"><a href="/{{ cruise.route }}">{{ cruise.trip_name }}</a></h3>
-          <p class="rc-cruise-desc">{{ cruise.short_description }}</p>
-          <div class="rc-cruise-foot">
-            <div class="rc-cruise-price">
-              <span class="rc-price-from">From</span>
-              <strong>{{ get_company_symbol() }}{{ "{:,.0f}".format(cruise.starting_from_price) }}</strong>
-              <span class="rc-price-per">/pax</span>
-            </div>
-            <a href="/{{ cruise.route }}" class="rc-btn-view">View Details</a>
-          </div>
-        </div>
-      </article>
+      {% with t = cruise, gds = trip_group_dates.get(cruise.name, []) %}
+      {% include "templates/includes/trip_card.html" %}
+      {% endwith %}
       {% endfor %}
     </div>
     {% else %}
@@ -148,8 +126,8 @@
     {% if popular_destinations %}
     <div class="rc-dest-grid">
       {% for dest in popular_destinations %}
-      <a href="/trips?cruise=1&destination={{ dest.name | urlencode }}" class="rc-dest-card">
-        <div class="rc-dest-img" style="background-image:url('{{ dest.image or '/assets/travel_booking/img/defaultaroyo.jpg' }}')">
+      <a href="/cruises?destination={{ dest.name | urlencode }}" class="rc-dest-card">
+        <div class="rc-dest-img" style="background-image:url('{{ dest.image or '/assets/travel_booking/img/defaultaroya.jpg' }}')">
           <div class="rc-dest-overlay">
             <h3>{{ dest.destination_name }}</h3>
             <span>{{ dest.cruise_count or '' }} Cruises</span>
@@ -211,5 +189,6 @@
 {% endblock %}
 
 {% block footer_extra %}
+<script src="/assets/travel_booking/js/destination_search.js?v={{ asset_v('js/destination_search.js') }}"></script>
 <script src="/assets/travel_booking/js/cruise.js?v={{ asset_v('js/cruise.js') }}"></script>
 {% endblock %}

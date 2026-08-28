@@ -29,12 +29,14 @@ def get_context(context):
     featured_cruises = _enrich_cruise_cards(all_cruises[:6], trip_group_dates)
 
     # 2. Popular destinations — hanya destinasi yang ada trip cruise aktif,
-    # disusun ikut bilangan cruise. (options masih dipakai utk hero search.)
-    options = get_filter_options()
+    # disusun ikut bilangan cruise. options.destinations juga tertapis ke
+    # cruise (untuk hero search autocomplete).
+    options = get_filter_options(cruise=1)
     popular_destinations = _get_popular_destinations()
 
     # 3. Pass to template
     context.featured_cruises = featured_cruises
+    context.trip_group_dates = trip_group_dates  # untuk trip_card.html (gds)
     context.popular_destinations = popular_destinations
     context.options = options
     context.active_nav = "cruise"  # highlight nav if needed
