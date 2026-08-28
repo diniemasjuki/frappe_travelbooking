@@ -14,11 +14,9 @@
   "column_break_skiv",
   "disable",
   "cover_image",
-  "currency",
-  "base_price",
+  "youtube_video_url",
   "section_break_vigu",
   "addon_gallery",
-  "youtube_video_url",
   "section_break_khju",
   "description"
  ],
@@ -53,32 +51,14 @@
   },
   {
    "fieldname": "section_break_khju",
-   "fieldtype": "Section Break"
-  },
-  {
-   "description": "Normal Rate Per Person",
-   "fieldname": "base_price",
-   "fieldtype": "Currency",
-   "hidden": 1,
-   "in_list_view": 1,
-   "label": "Base Price",
-   "non_negative": 1,
-   "options": "currency.currency",
-   "precision": "2"
+   "fieldtype": "Section Break",
+   "label": "Description"
   },
   {
    "default": "0",
    "fieldname": "disable",
    "fieldtype": "Check",
    "label": "Disable"
-  },
-  {
-   "default": "MYR",
-   "fieldname": "currency",
-   "fieldtype": "Link",
-   "hidden": 1,
-   "label": "Currency",
-   "options": "Currency"
   },
   {
    "fieldname": "column_break_skiv",
@@ -96,12 +76,14 @@
    "make_attachment_public": 1
   },
   {
+   "default": "https://www.youtube.com/watch?v=kAEcKSItsZY",
    "description": "YouTube video URL or video ID (e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ or just dQw4w9WgXcQ)",
    "fieldname": "youtube_video_url",
    "fieldtype": "Data",
    "label": "YouTube Video URL"
   },
   {
+   "default": "/assets/travel_booking/img/defaultaroya.jpg",
    "fieldname": "cover_image",
    "fieldtype": "Attach Image",
    "label": "Cover Image",
@@ -125,7 +107,7 @@
    "link_fieldname": "addon"
   }
  ],
- "modified": "2026-08-27 11:42:09.065110",
+ "modified": "2026-08-28 13:54:28.540152",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Addon",
