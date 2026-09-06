@@ -84,6 +84,9 @@
   "column_break_rrot",
   "cruise_cta_secondary_label",
   "cruise_cta_secondary_url",
+  "cruise_ga_section",
+  "cruise_ga_enabled",
+  "cruise_ga_measurement_id",
   "tab_tour",
   "tour_menu_section",
   "tour_menu",
@@ -140,7 +143,10 @@
   "tour_cta_primary_url",
   "column_break_tden",
   "tour_cta_secondary_label",
-  "tour_cta_secondary_url"
+  "tour_cta_secondary_url",
+  "tour_ga_section",
+  "tour_ga_enabled",
+  "tour_ga_measurement_id"
  ],
  "fields": [
   {
@@ -485,6 +491,26 @@
    "label": "Secondary Button URL"
   },
   {
+   "fieldname": "cruise_ga_section",
+   "fieldtype": "Section Break",
+   "label": "Google Analytics (GA4)"
+  },
+  {
+   "default": "0",
+   "description": "Enable GA4 e-commerce tracking (view_item_list, view_item, add_to_cart, begin_checkout, add_payment_info, purchase) for the Cruise site pages.",
+   "fieldname": "cruise_ga_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Google Analytics"
+  },
+  {
+   "depends_on": "cruise_ga_enabled",
+   "description": "GA4 Measurement ID for the Cruise site (format G-XXXXXXXXXX). Leave empty to disable tracking.",
+   "fieldname": "cruise_ga_measurement_id",
+   "fieldtype": "Data",
+   "label": "GA4 Measurement ID",
+   "placeholder": "G-XXXXXXXXXX"
+  },
+  {
    "fieldname": "tab_tour",
    "fieldtype": "Tab Break",
    "label": "Tour Homepage"
@@ -727,6 +753,26 @@
    "label": "Secondary Button URL"
   },
   {
+   "fieldname": "tour_ga_section",
+   "fieldtype": "Section Break",
+   "label": "Google Analytics (GA4)"
+  },
+  {
+   "default": "0",
+   "description": "Enable GA4 e-commerce tracking (view_item_list, view_item, add_to_cart, begin_checkout, add_payment_info, purchase) for the Tour site pages.",
+   "fieldname": "tour_ga_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Google Analytics"
+  },
+  {
+   "depends_on": "tour_ga_enabled",
+   "description": "GA4 Measurement ID for the Tour site (format G-XXXXXXXXXX). Leave empty to disable tracking.",
+   "fieldname": "tour_ga_measurement_id",
+   "fieldtype": "Data",
+   "label": "GA4 Measurement ID",
+   "placeholder": "G-XXXXXXXXXX"
+  },
+  {
    "fieldname": "column_break_kaot",
    "fieldtype": "Column Break"
   },
@@ -841,7 +887,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-09-05 09:30:00.000000",
+ "modified": "2026-09-07 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Website",

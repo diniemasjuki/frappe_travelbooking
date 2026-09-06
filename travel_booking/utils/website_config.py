@@ -239,6 +239,12 @@ def _homepage_block(doc, prefix: str) -> dict:
             "secondary_label": doc.get(f"{prefix}_cta_secondary_label") or "",
             "secondary_url": doc.get(f"{prefix}_cta_secondary_url") or "",
         },
+        # Google Analytics (GA4) per-site — dibaca oleh templates/base_travel.html
+        # (rcGaConfig) & dipilih client-side oleh public/js/analytics.js.
+        "ga": {
+            "enabled": bool(doc.get(f"{prefix}_ga_enabled")),
+            "measurement_id": (doc.get(f"{prefix}_ga_measurement_id") or "").strip(),
+        },
     }
 
 
@@ -273,6 +279,7 @@ def _empty_config() -> dict:
             "primary_label": "", "primary_url": "",
             "secondary_label": "", "secondary_url": "",
         },
+        "ga": {"enabled": False, "measurement_id": ""},
     }
     return {
         "website_logo": "",

@@ -1,0 +1,26 @@
+{# ============================================================
+   templates/includes/ga_item_list.html
+   Data senarai item (#rcItemListData JSON) untuk event GA4
+   view_item_list — dibaca AUTO oleh public/js/analytics.js semasa
+   page load (per-site, Travel Website → Google Analytics).
+
+   PENTING: include ni mesti berada dalam block page_content BUKAN
+   footer_extra — analytics.js berjalan SEBELUM block footer_extra.
+
+   Variable yang dijangka oleh include ni:
+     ga_list_id    — id senarai (cth "tours_catalog")
+     ga_list_name  — nama paparan (cth "Tours Catalog")
+     ga_trips      — list dict trip: name, trip_name, is_a_cruise_trip,
+                     starting_from_price (null → item tanpa price)
+   ============================================================ #}
+{% set ga_payload = {"list_id": ga_list_id, "list_name": ga_list_name, "items": []} %}
+{% for t in ga_trips %}
+  {% set ga_item = {
+    "item_id": t.name,
+    "item_name": t.trip_name,
+    "item_category": "Cruise" if t.is_a_cruise_trip else "Tour",
+    "price": t.starting_from_price
+  } %}
+  {% set _ = ga_payload["items"].append(ga_item) %}
+{% endfor %}
+<script id="rcItemListData" type="application/json">{{ ga_payload|tojson }}</script>

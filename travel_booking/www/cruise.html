@@ -186,6 +186,12 @@
     </div>
   </div>
 </section>
+
+{# Data item untuk event GA4 view_item_list (analytics.js) — featured
+   cruises yang dipaparkan di page ni. #}
+{% with ga_list_id = "cruise_homepage_featured", ga_list_name = "Featured Cruises", ga_trips = featured_cruises %}
+  {% include "templates/includes/ga_item_list.html" %}
+{% endwith %}
 {% endblock %}
 
 {% block footer_extra %}

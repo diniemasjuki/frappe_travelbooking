@@ -40,6 +40,8 @@ class TravelWebsite(Document):
         cruise_featured_subtitle: DF.SmallText | None
         cruise_featured_tag: DF.Data | None
         cruise_featured_title: DF.SmallText | None
+        cruise_ga_enabled: DF.Check
+        cruise_ga_measurement_id: DF.Data | None
         cruise_hero_background: DF.AttachImage | None
         cruise_hero_intro: DF.SmallText | None
         cruise_hero_search_label: DF.Data | None
@@ -81,6 +83,8 @@ class TravelWebsite(Document):
         tour_featured_subtitle: DF.SmallText | None
         tour_featured_tag: DF.Data | None
         tour_featured_title: DF.SmallText | None
+        tour_ga_enabled: DF.Check
+        tour_ga_measurement_id: DF.Data | None
         tour_hero_background: DF.AttachImage | None
         tour_hero_intro: DF.SmallText | None
         tour_hero_search_label: DF.Data | None

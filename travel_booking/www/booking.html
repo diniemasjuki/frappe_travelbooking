@@ -505,6 +505,12 @@ if ('serviceWorker' in navigator) {
 {"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_cruise_flags": {{ trip_cruise_flags }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "csrf_token": "{{ csrf_token }}", "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}", "user": {{ user | tojson if user else 'null' }}}
 </script>
 
+{# GA4 e-commerce per-site — konfigurasi dari Travel Website (sama format
+   dengan base_travel.html). Page ni standalone; site (tour/cruise) hanya
+   pasti selepas customer pilih trip — booking.js panggil RCGA.setSite(). #}
+<script id="rcGaConfig" type="application/json">{"cruise": {"enabled": {{ 'true' if get_website_config().cruise.ga.enabled else 'false' }}, "id": {{ get_website_config().cruise.ga.measurement_id | tojson }}}, "tour": {"enabled": {{ 'true' if get_website_config().tour.ga.enabled else 'false' }}, "id": {{ get_website_config().tour.ga.measurement_id | tojson }}}}</script>
+<script id="rcCurrencyData" type="application/json">{"company_currency": "{{ company_currency }}"}</script>
+
 <!-- intl-tel-input — dial-code + bendera negara, SAMA library dengan fieldtype
      "Phone" di Frappe Desk. Gantikan prefix "+60" hardcode (readonly) yang
      sebelum ni menghalang customer antarabangsa dari isi nombor negara lain. -->
@@ -513,6 +519,9 @@ if ('serviceWorker' in navigator) {
      booking diteruskan dengan nombor telefon customer yang tak sah. -->
 <script src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1.11.20/bundle/libphonenumber-max.js"></script>
 
+{# GA4 e-commerce (window.RCGA) — dimuat SEBELUM booking.js supaya
+   RCGA.setSite() tersedia bila trip dipilih. #}
+<script src="/assets/travel_booking/js/analytics.js?v={{ asset_v('js/analytics.js') if asset_v is defined else '1' }}"></script>
 <script src="/assets/travel_booking/js/booking.js?v={{ asset_v('js/booking.js') if asset_v is defined else '1' }}"></script>
 <!-- Capture kod affiliate (?sp=) → cookie rc_aff 30 hari — attribution
      sehingga ke checkout. Page ni standalone (tak extend base_travel). -->

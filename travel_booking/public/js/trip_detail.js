@@ -696,6 +696,23 @@
       sessionStorage.setItem("bnw_referrer", window.location.href);
     } catch (err) {}
 
+    // Event GA4 add_to_cart — sebelum redirect ke wizard. Per-site (GA
+    // aktif ikut Travel Website); gagal hantar TIDAK halang aliran tempahan.
+    try {
+      if (window.RCGA && RCGA.enabled()) {
+        var _gaItem = RCGA.item(
+          cart.is_cruise ? "cruise" : "tour",
+          cart.trip_master,
+          cart.trip_name
+        );
+        _gaItem.item_variant = package_variant;  // "TP260817:RC2621"
+        RCGA.event("add_to_cart", {
+          currency: RCGA.currency(),
+          items: [_gaItem],
+        });
+      }
+    } catch (_gaErr) { /* analytics tak boleh ganggu tempahan */ }
+
     // Append ?sp= ke /booknow supaya prefillAffiliateCodeFromUrl() di wizard
     // terus apply kod affiliate — bnw_cart.affiliate_code ialah fallback.
     var bnwUrl = "/booknow";

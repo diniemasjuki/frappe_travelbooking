@@ -95,6 +95,11 @@
   </div>
   {% endif %}
 </section>
+
+{# Data item untuk event GA4 view_item_list (analytics.js) #}
+{% with ga_list_id = "trips_catalog", ga_list_name = "Trips Catalog", ga_trips = trips %}
+  {% include "templates/includes/ga_item_list.html" %}
+{% endwith %}
 {% endblock %}
 
 {% block footer_extra %}

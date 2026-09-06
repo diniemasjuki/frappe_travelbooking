@@ -778,6 +778,29 @@ function renderStripeReturnConfirmation(bookingNumber, result, isSettled) {
   renderConfirmStatusBadge(bookingStatus);
   renderConfirmActions(bookingStatus, bookingNumber);
 
+  // Event GA4 purchase — pulangan dari Stripe (online payment). Booking
+  // sudah dicipta sebelum redirect; ni laluan KEDUA selain showConfirmation
+  // (manual transfer). Dedupe ikut booking_number dalam RCGA.purchase
+  // meliputi kedua-dua laluan + re-render poll di bawah. Skip jika booking
+  // dibatalkan (Back → re-confirm menghasilkan nombor booking baharu).
+  try {
+    if (
+      window.RCGA && RCGA.enabled() && result && bookingNumber &&
+      bookingStatus !== "Cancelled"
+    ) {
+      RCGA.purchase({
+        transaction_id: bookingNumber,
+        value: Number(result.grand_total) || 0,
+        payment_type: result.payment_type || "",
+        items: [RCGA.item(
+          result.is_cruise_trip ? "cruise" : "tour",
+          result.trip_master || "",
+          result.trip_name || ""
+        )],
+      });
+    }
+  } catch (_gaErr) { /* analytics tak boleh ganggu confirmation */ }
+
   // === POPULATE STEP 4 BLACK TRIP BANNER FROM BACKEND DATA ===
   // Client-side state is lost after Stripe redirect, so we must fill
   // the banner entirely from the backend API response (result object).
@@ -1094,6 +1117,24 @@ if (!_restored) {
     if (_td) {
       state.group_name = _td.trip_group_name || (fmtDate(_td.departure_date) + ' – ' + fmtDate(_td.return_date));
     }
+
+    // Event GA4 begin_checkout — wizard bermula dengan cart dari page trip
+    // (entry segar selepas add_to_cart; restore Back dari checkout tak
+    // melalui laluan ni). Per-site, no-op bila GA off.
+    try {
+      if (window.RCGA && RCGA.enabled()) {
+        var _gaBcItem = RCGA.item(
+          state.is_cruise_trip ? "cruise" : "tour",
+          state.trip_master,
+          state.trip_name
+        );
+        if (state.package_label) _gaBcItem.item_variant = state.package_label;
+        RCGA.event("begin_checkout", {
+          currency: RCGA.currency(),
+          items: [_gaBcItem],
+        });
+      }
+    } catch (_gaErr) { /* analytics tak boleh ganggu wizard */ }
 
     if (typeof renderPaymentSettingsUI === "function") renderPaymentSettingsUI();
     // booknow starts at Step 1 (Rooms) — no Step 0 (date selection removed)
@@ -4069,6 +4110,23 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
 
     state.booking = result;
 
+    // Event GA4 add_payment_info — booking dicipta & maklumat bayaran
+    // dihantar (sebelum redirect Stripe / papar confirmation). Per-site.
+    try {
+      if (window.RCGA && RCGA.enabled()) {
+        RCGA.event("add_payment_info", {
+          currency: RCGA.currency(),
+          value: Number(result.grand_total) || 0,
+          payment_type: payment_type,
+          items: [RCGA.item(
+            state.is_cruise_trip ? "cruise" : "tour",
+            state.trip_master,
+            state.trip_name
+          )],
+        });
+      }
+    } catch (_gaErr) { /* analytics tak boleh ganggu aliran bayaran */ }
+
     // Online Payment → redirect ke Stripe checkout.
     // JANGAN clearWizardState() di sini — customer mungkin tekan "Back" di
     // checkout untuk tukar kaedah bayaran. Wizard state tersimpan supaya
@@ -4090,7 +4148,9 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
         }
         var _confirmSnapshot = {
           booking_number:  result.booking_number || "",
+          trip_master:     state.trip_master || "",
           trip_name:       state.trip_name || "",
+          payment_type:    payment_type || "",
           group_name:      state.group_name || "",
           package_label:   state.package_label || (selectedPackage && selectedPackage.package_type) || "",
           departure_date:  (_snapTgd && _snapTgd.departure_date) || "",
@@ -4138,6 +4198,24 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
 // ─── STEP 4: CONFIRMATION ─────────────────────────────────
 function showConfirmation(booking) {
   document.getElementById("bnwConfirmRef").textContent = booking.booking_number;
+
+  // Event GA4 purchase — booking BERJAYA DICIPTA (syarat rekod revenue:
+  // tak kira status bayaran — Manual Transfer/Pay Later pun dikira).
+  // Dedupe ikut booking_number dalam RCGA.purchase (sessionStorage).
+  try {
+    if (window.RCGA && RCGA.enabled() && booking.booking_number) {
+      RCGA.purchase({
+        transaction_id: booking.booking_number,
+        value: Number(booking.grand_total) || 0,
+        payment_type: booking.payment_type || "",
+        items: [RCGA.item(
+          state.is_cruise_trip ? "cruise" : "tour",
+          state.trip_master,
+          state.trip_name
+        )],
+      });
+    }
+  } catch (_gaErr) { /* analytics tak boleh ganggu confirmation */ }
 
   // Reset amaran payment (kalau ada dari render sebelum ni) dan icon ke default
   var pwEl = document.getElementById("bnwPaymentWarning");

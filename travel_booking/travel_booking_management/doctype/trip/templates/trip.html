@@ -322,6 +322,11 @@
   "gallery_count": {{ gallery|length }}
 }</script>
 
+{# Harga "from" (MIN price_adult semua package Active) untuk event GA4
+   view_item — dibaca oleh public/js/analytics.js. Null → item tanpa
+   price (GA terima). #}
+<script id="rcItemPriceData" type="application/json">{"price": {{ starting_from_price|tojson }}}</script>
+
 {# Widget logic hidup dalam /assets/travel_booking/js/trip_detail.js (single source of truth).
    JANGAN inline salinan script di sini — duplicate IIFE berlawan atas DOM sama
    (butang package dirender dua kali, race render cabins). #}

@@ -812,6 +812,26 @@ function renderStripeReturnConfirmation(bookingNumber, result, isSettled) {
   renderConfirmStatusBadge(bookingStatus);
   renderConfirmActions(bookingStatus, bookingNumber);
 
+  // Event GA4 purchase — pulangan dari Stripe. Dedupe ikut booking_number
+  // (RCGA.purchase) meliputi laluan showConfirmation + re-render poll.
+  try {
+    if (
+      window.RCGA && RCGA.enabled() && result && bookingNumber &&
+      bookingStatus !== "Cancelled"
+    ) {
+      RCGA.purchase({
+        transaction_id: bookingNumber,
+        value: Number(result.grand_total) || 0,
+        payment_type: result.payment_type || "",
+        items: [RCGA.item(
+          state.is_cruise_trip ? "cruise" : "tour",
+          state.trip_master || "",
+          state.trip_name || ""
+        )],
+      });
+    }
+  } catch (_gaErr) { /* analytics tak boleh ganggu confirmation */ }
+
   if (result) {
     // "Amount Paid" dipapar untuk SEMUA status settled (Paid & Partially
     // Paid) — bukan Partially Paid sahaja macam sebelum ni (bila customer
@@ -1085,6 +1105,12 @@ async function loadCabins() {
     // is_cruise_trip: penentu model harga/kapasiti — cruise=slot (Main Guest/
     // Extra Bed/Infant), non-cruise=umur (Adult/Children/Infant).
     state.is_cruise_trip = !!(data.trip && data.trip.is_a_cruise_trip);
+    // GA4 per-site: page ni baru tahu site SELEPAS trip dipilih — beritahu
+    // analytics.js sebelum sebarang event funnel dihantar. setSite() no-op
+    // selamat jika GA dah aktif (loadCabins dipanggil semula oleh restore).
+    try {
+      if (window.RCGA) RCGA.setSite(state.is_cruise_trip ? "cruise" : "tour");
+    } catch (_gaErr) { /* analytics tak boleh ganggu wizard */ }
     // Sync baki kapasiti trip (seats_left) untuk limiter groupCapFor() di
     // stage 2 — null = unlimited (max_participants = 0). Dipanggil di sini
     // (loadCabins) supaya kedua-dua flow — step0Next & restoreWizard — dapat
@@ -2894,6 +2920,23 @@ document.getElementById("payNowBtn").addEventListener("click", async function() 
 // ─── STEP 4: CONFIRMATION ─────────────────────────────────
 function showConfirmation(booking) {
   document.getElementById("confirmRef").textContent = booking.booking_number;
+
+  // Event GA4 purchase — booking BERJAYA DICIPTA (rekod revenue tak kira
+  // status bayaran). Dedupe ikut booking_number dalam RCGA.purchase.
+  try {
+    if (window.RCGA && RCGA.enabled() && booking.booking_number) {
+      RCGA.purchase({
+        transaction_id: booking.booking_number,
+        value: Number(booking.grand_total) || 0,
+        payment_type: booking.payment_type || "",
+        items: [RCGA.item(
+          state.is_cruise_trip ? "cruise" : "tour",
+          state.trip_master,
+          state.trip_name
+        )],
+      });
+    }
+  } catch (_gaErr) { /* analytics tak boleh ganggu confirmation */ }
 
   var bookingStatus = booking.booking_status || "Accepted";
   renderConfirmStatusBadge(bookingStatus);
