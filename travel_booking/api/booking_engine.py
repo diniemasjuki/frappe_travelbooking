@@ -115,10 +115,26 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # supaya tidak berlaku duplicate booking. Hanya cancel jika status
     # masih "Pending" (belum dibayar) — booking yang dah dibayar perlukan
     # refund manual oleh admin, tidak boleh di-auto-cancel.
-    if booking_number and frappe.db.exists("Booking", booking_number):
-        _old_status = frappe.db.get_value("Booking", booking_number, "status")
+    # PENTING: `booking_number` ialah FIELD berasingan (cth "RTEOU462609"),
+    # BUKAN docname Booking (dijana naming_series cth "BK-xxx"). Lookup
+    # mesti guna field booking_number — frappe.db.exists("Booking", bn)
+    # semak docname sahaja dan sentiasa return False (bug lama: seluruh
+    # cancel-on-re-confirm path tak pernah berjalan, menyebabkan redundant
+    # booking bertinduk bila customer Back dari checkout & tukar kaedah).
+    _old_booking_name = None
+    if booking_number:
+        _old_booking_name = frappe.db.get_value(
+            "Booking", {"booking_number": booking_number}, "name"
+        )
+    if _old_booking_name:
+        _old_status = frappe.db.get_value("Booking", _old_booking_name, "status")
         if _old_status == "Pending":
-            _old_doc = frappe.get_doc("Booking", booking_number)
+            # Cancel Payment Request Stripe dahulu untuk SETIAP SO booking
+            # lama — PR yang masih "Requested" (customer Back dari checkout)
+            # perlu dibersihkan supaya SO baharu tidak tersekat oleh PR yatim.
+            for _old_so in _get_all_booking_sales_orders(_old_booking_name):
+                _cancel_payment_requests_for_so(_old_so)
+            _old_doc = frappe.get_doc("Booking", _old_booking_name)
             _old_doc.status = "Cancelled"
             _old_doc.save(ignore_permissions=True)
             frappe.db.commit()
@@ -721,6 +737,11 @@ def _cancel_booking_cascade(booking_doc):
     bayaran sedia ada, payment_status ditukar ke "Request Refund" supaya
     admin nampak booking ni perlukan proses refund (Pending Refund/Refunded
     ditetapkan admin secara manual selepas refund diproses melalui bank/Stripe).
+
+    Payment Request Stripe juga di-cancel untuk setiap SO — tanpa ni,
+    PR "Requested" yang ditinggalkan customer (Back dari checkout) kekal
+    aktif dan boleh menghalang PR baharu untuk SO yang sama (ERPNext
+    validate_payment_request_amount mengumpul SEMUA PR submitted).
     """
     for r in frappe.get_all("Booking Reservation",
                             filters={"booking": booking_doc.name, "status": "Confirmed"},
@@ -739,6 +760,10 @@ def _cancel_booking_cascade(booking_doc):
             continue
         total_paid += so.advance_paid or 0
         if (so.advance_paid or 0) <= 0 and so.docstatus == 1:
+            # Cancel Payment Request Stripe untuk SO ni dahulu —
+            # PR yang masih aktif menghalang pembatalan SO di ERPNext
+            # (atau meninggalkan PR yatim yang mengganggu PR baharu).
+            _cancel_payment_requests_for_so(so_name)
             try:
                 so_doc = frappe.get_doc("Sales Order", so_name)
                 so_doc.flags.ignore_permissions = True
@@ -753,6 +778,37 @@ def _cancel_booking_cascade(booking_doc):
 
     if total_paid > 0:
         frappe.db.set_value("Booking", booking_doc.name, "payment_status", "Request Refund")
+
+
+def _cancel_payment_requests_for_so(so_name: str) -> None:
+    """Cancel semua Payment Request (docstatus=1, belum Paid) untuk satu SO.
+
+    Dipanggil oleh _cancel_booking_cascade sebelum SO di-cancel — PR Stripe
+    yang ditinggalkan customer (Back dari checkout) perlu dibersihkan
+    supaya: (a) tidak menghalang pembatalan SO, dan (b) tidak mengumpul
+    jumlah yang menyebabkan validate_payment_request_amount() throw
+    untuk PR baharu pada SO yang sama.
+    """
+    old_prs = frappe.get_all(
+        "Payment Request",
+        filters={
+            "reference_doctype": "Sales Order",
+            "reference_name":    so_name,
+            "docstatus":         1,
+            "status":            ["not in", ["Paid", "Cancelled"]],
+        },
+        pluck="name",
+    )
+    for pr_name in old_prs:
+        try:
+            pr = frappe.get_doc("Payment Request", pr_name)
+            pr.flags.ignore_permissions = True
+            pr.cancel()
+        except Exception as e:
+            frappe.log_error(
+                "Failed to cancel Payment Request " + pr_name + " for " + so_name + ": " + str(e),
+                "Booking Cancel - PR Cleanup Error",
+            )
 
 
 # ══════════════════════════════════════════════

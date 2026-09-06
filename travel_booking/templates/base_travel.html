@@ -34,6 +34,15 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css"/>
   <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') }}"/>
   {% block head_extra %}{% endblock %}
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-NZ2WLPC597"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-NZ2WLPC597');
+  </script>
 </head>
 <body style="margin:0;font-family:'Archivo',system-ui,sans-serif;color:#1E1C18;background:#F7F5F0;display:flex;flex-direction:column;min-height:100vh;">
   {% include "templates/includes/public_nav.html" %}
@@ -44,9 +53,18 @@
 
   {% include "templates/includes/public_footer.html" %}
 
+  {# Floating chat button + mini contact form (Travel Inquiry) —
+     dikawal oleh Travel Website → Floating Chat Button. #}
+  {% include "templates/includes/chat_widget.html" %}
+
   {# Data syarikat utk helper JS (currency converter dll). SEMUA amaun
      dicaj company currency; currency lain cuma paparan. #}
   <script id="rcCurrencyData" type="application/json">{"company_currency": "{{ get_company_currency() }}", "company_symbol": "{{ get_company_symbol() }}"}</script>
+  {# Format tarikh pusat (Travel Website) untuk helper JS fmtDate. #}
+  <script>window.RC_DATE_FORMAT = {{ get_website_config().date_format | tojson }};</script>
+  {# Capture kod affiliate (?sp=) → cookie rc_aff 30 hari — attribution
+     sehingga ke checkout. Dimuat di semua page awam, tak kira status widget. #}
+  <script src="/assets/travel_booking/js/affiliate_capture.js?v={{ asset_v('js/affiliate_capture.js') }}"></script>
   {% block footer_extra %}{% endblock %}
 </body>
 </html>

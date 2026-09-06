@@ -13,8 +13,11 @@
 #   {{ wc.cruise.hero.title }}
 #   {% for item in get_nav_menu(active_nav) %} ... {% endfor %}
 #   {{ wc.footer.tagline }}
+#   {{ wc.chat.enabled }}  (floating chat button — rujuk
+#   templates/includes/chat_widget.html)
 
 import frappe
+import frappe.sessions  # noqa: F401 — perlu supaya frappe.sessions.* accessible (rujuk www/booking.py)
 
 _CACHE_KEY = "travel_website_config"
 
@@ -33,6 +36,70 @@ def get_website_config() -> dict:
     config = _build_config()
     cache.set_value(_CACHE_KEY, config)
     return config
+
+
+def web_csrf_token() -> str:
+    """CSRF token untuk template page awam — session authenticated sahaja.
+
+    Diperlukan sebagai kaedah Jinja (hooks jinja.methods) kerana sandbox
+    Jinja Frappe TIDAK mendedahkan modul 'frappe.sessions' — akses terus
+    dari template menyebabkan UndefinedError untuk user logged-in.
+
+    Guest: pulangkan '' — Frappe tidak menguatkuasakan CSRF untuk Guest,
+    dan menjana token untuk guest akan menyebabkan POST guest mula
+    memerlukan token (rujuk pattern sama dalam www/booking.py).
+    """
+    if frappe.session.user == "Guest":
+        return ""
+    return frappe.sessions.get_csrf_token()
+
+
+
+
+# Peta token format paparan → arahan strftime Python.
+_DATE_STRFTIME = {
+    "dd MMM yyyy": "%d %b %Y",
+    "dd/mm/yyyy": "%d/%m/%Y",
+    "dd-mm-yyyy": "%d-%m-%Y",
+    "dd MMMM yyyy": "%d %B %Y",
+    "yyyy-mm-dd": "%Y-%m-%d",
+}
+
+
+def get_date_format() -> str:
+    """Format tarikh paparan dari Travel Website (default 'dd MMM yyyy')."""
+    return get_website_config().get("date_format") or "dd MMM yyyy"
+
+
+def web_date(value) -> str:
+    """Format tarikh untuk paparan HTML ikut konfigurasi Travel Website.
+
+    Didedahkan sebagai kaedah Jinja (hooks jinja.methods) — gunaan di
+    template:
+        {{ web_date('2026-10-03') }}          → 03 Oct 2026
+        {{ web_date(group.departure_date) }}  → ikut format di-settings
+
+    Terima date/datetime Python atau string (ISO / pelbagai); nilai tak
+    boleh diparse dipulangkan seadanya (fail-safe).
+    """
+    import datetime as _dt
+
+    from frappe.utils import getdate
+
+    if value in (None, ""):
+        return ""
+    d = value
+    if isinstance(d, str):
+        try:
+            d = getdate(d)
+        except Exception:
+            return value
+    if isinstance(d, _dt.datetime):
+        d = d.date()
+    if not isinstance(d, _dt.date):
+        return str(value)
+    fmt = _DATE_STRFTIME.get(get_date_format(), "%d %b %Y")
+    return d.strftime(fmt)
 
 
 def get_nav_menu(active_nav: str = "") -> list:
@@ -70,6 +137,15 @@ def _build_config() -> dict:
 
     return {
         "website_logo": doc.get("website_logo") or "",
+        "date_format": doc.get("date_display_format") or "dd MMM yyyy",
+        "chat": {
+            "enabled": bool(doc.get("enable_chat_widget")),
+            "title": doc.get("chat_widget_title") or "Chat with us",
+            "subtitle": doc.get("chat_widget_subtitle")
+            or "Have a question? Leave your details and our team will get back to you.",
+            "success_message": doc.get("chat_widget_success_message")
+            or "Thank you! Your question has been sent. Our team will contact you soon.",
+        },
         "multi_domain": {
             "enabled": bool(multi_domain_enabled),
             "mappings": domain_mappings,
@@ -200,6 +276,13 @@ def _empty_config() -> dict:
     }
     return {
         "website_logo": "",
+        "date_format": "dd MMM yyyy",
+        "chat": {
+            "enabled": False,
+            "title": "",
+            "subtitle": "",
+            "success_message": "",
+        },
         "multi_domain": {
             "enabled": False,
             "mappings": [],

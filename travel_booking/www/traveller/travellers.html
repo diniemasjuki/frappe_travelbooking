@@ -82,24 +82,51 @@
         <div id="wiz-msg" class="tv-msg" style="display:none;margin-bottom:16px;" role="alert"></div>
 
         <div id="wiz-upload-area"
-             onclick="triggerWizardPassportUpload()"
-             style="border:2px dashed var(--border-default);border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--bg-secondary);">
-          <div style="font-size:48px;margin-bottom:8px;">📷</div>
-          <div id="wiz-upload-txt" style="font-size:14px;font-weight:600;color:var(--text-primary);">Upload passport copy</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">JPG or PNG, max 5MB • We'll check image quality automatically</div>
+             style="border:2px dashed var(--border-default);border-radius:12px;padding:32px 20px;text-align:center;transition:border-color .2s;background:var(--bg-secondary);">
+          <div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;">
+            {# Kamera terus (peranti sentuh sahaja) — capture=environment buka
+               kamera belakang untuk snap halaman passport. NOTA: JANGAN letak
+               inline display:none pada butang — inline style mengatasi media
+               query di bawah (bug 2026-09-05: butang tak muncul di phone). #}
+            <button type="button" id="wiz-cam-btn" class="tv-btn"
+                    onclick="triggerWizardPassportUpload(true)">
+              📷 Take Photo
+            </button>
+            <button type="button" class="tv-btn"
+                    onclick="triggerWizardPassportUpload(false)">
+              ⬆ Upload Image
+            </button>
+          </div>
+          <div id="wiz-upload-txt" style="font-size:14px;font-weight:600;color:var(--text-primary);margin-top:12px;">Upload passport copy</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">JPG or PNG, max 5MB • Scan starts automatically after upload</div>
+          {# Badge enjin scan — AI atau OCR (dipaparkan oleh JS ikut konfigurasi). #}
+          <div id="wiz-engine-badge" style="display:none;margin-top:10px;font-size:11px;font-weight:600;letter-spacing:.02em;"></div>
+        </div>
+        <style>
+          /* Butang kamera hanya relevan di peranti sentuh — sama corak dengan
+             wizard booking (booknow). Keadaan lalai dikawal DI SINI sahaja
+             (bukan inline style — inline mengatasi media query). */
+          #wiz-cam-btn { display: none; }
+          @media (hover: none) and (pointer: coarse) {
+            #wiz-cam-btn { display: inline-flex; }
+          }
+        </style>
+
+        {# Fallback: scan hanyalah bantuan pre-fill — user sentiasa boleh
+           teruskan pengisian manual tanpa scan (cth gambar tak dapat
+           diverifikasi). #}
+        <div style="margin-top:12px;text-align:center;font-size:13px;">
+          <a href="#" onclick="wizardManualEntry(); return false;" style="color:var(--c-gold-dark);text-decoration:underline;font-weight:500;">
+            Skip scan — fill in manually
+          </a>
         </div>
 
-        <!-- Checking state (shown while OCR processing) -->
+        <!-- Checking state (shown while scan processing) — subtext dikemaskini
+             oleh JS ikut enjin (AI / OCR). -->
         <div id="wiz-checking-state" style="display:none;padding:32px 20px;text-align:center;">
           <div style="font-size:36px;margin-bottom:12px;animation:spin 1s linear infinite;">⏳</div>
-          <div style="font-size:14px;font-weight:600;color:var(--c-gold-dark);">Scanning passport...</div>
+          <div id="wiz-checking-title" style="font-size:14px;font-weight:600;color:var(--c-gold-dark);">Scanning passport...</div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Extracting your details automatically</div>
-        </div>
-
-        <div style="margin-top:16px;text-align:center;">
-          <button id="wiz-btn" type="button" class="tv-btn tv-btn--primary" style="display:none;" onclick="checkWizardPassport()">
-            Check passport →
-          </button>
         </div>
       </div>
 
@@ -226,6 +253,8 @@
               <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">JPG or PNG, max 5MB • We'll extract details automatically</div>
             </div>
             <div id="passport-upload-err" class="f-err" style="display:none;margin-top:4px;"></div>
+            {# Hasil imbasan AI/OCR — auto-scan setiap kali gambar diupload/diganti. #}
+            <div id="passport-scan-result" style="display:none;margin-top:10px;padding:10px 14px;border-radius:10px;font-size:12.5px;line-height:1.6;"></div>
           </div>
 
           <div style="margin-top:20px;"><button type="button" class="tv-btn tv-btn--primary tv-btn--sm" onclick="saveTraveller('passport', this)">Save Passport</button></div>

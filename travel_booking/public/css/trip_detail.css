@@ -587,7 +587,7 @@
 }
 .rc-price-label {
   display:block;
-  width:49%;
+  /* width:49%; */
   font-size: 15px;
   color: #5a5247;
   font-weight: 500;

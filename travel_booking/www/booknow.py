@@ -39,3 +39,10 @@ def get_context(context):
     context.csrf_token = (
         frappe.sessions.get_csrf_token() if frappe.session.user != "Guest" else ""
     )
+
+    # Email user semasa (untuk auto-verified email di wizard) — dikira
+    # server-side supaya client TIDAK perlu panggil frappe.auth.get_logged_user
+    # (endpoint tu tidak allow_guest — Guest dapat 403 di console).
+    context.current_user = (
+        frappe.session.user if frappe.session.user != "Guest" else ""
+    )

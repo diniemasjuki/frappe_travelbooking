@@ -14,6 +14,8 @@
 # mula, tarikh seterusnya — untuk card katalog).
 
 import frappe
+
+from travel_booking.utils.website_config import web_date
 from travel_booking.api._helpers import get_company_currency
 
 
@@ -205,6 +207,9 @@ def _enrich_trips(trips: list) -> None:
 	# Destinasi per-trip: join child destination_list -> master Trip
 	# Destination Point (nama + negara). Cruise turut sertakan port
 	# start/end dari Trip Cruise Schedule aktif trip tu.
+	# ORDER BY sel.idx — destinasi pada trip card mesti ikut urutan
+	# susunan yang admin tetapkan dalam child table Trip (sama seperti
+	# page detail /trip/<slug>). Tanpa ni, urutan MySQL tak menentu.
 	dest_rows = frappe.db.sql(
 		"""
 		SELECT sel.parent AS trip, dp.name AS dest_name,
@@ -212,6 +217,7 @@ def _enrich_trips(trips: list) -> None:
 		FROM `tabTrip Destination Point Select` sel
 		JOIN `tabTrip Destination Point` dp ON dp.name = sel.select_destination_point
 		WHERE sel.parent IN %(names)s AND sel.parenttype = 'Trip'
+		ORDER BY sel.parent, sel.idx
 		""",
 		{"names": names},
 		as_dict=True,
@@ -264,9 +270,10 @@ def _add_next_departure(trips: list, trip_group_dates: dict) -> None:
 		# Cruise papar sailing_start; lain-lain departure_date.
 		base = g.get("sailing_start") or g.get("departure_date")
 		t["next_departure"] = base or ""
-		# label: sailing utk cruise, departure utk bukan.
+		# label: sailing utk cruise, departure utk bukan. Tarikh diformat
+		# ikut konfigurasi Travel Website (web_date) — bukan ISO mentah.
 		t["next_departure_label"] = (
-			("Sail " if t.get("is_a_cruise_trip") else "Departs ") + (base or "")
+			("Sail " if t.get("is_a_cruise_trip") else "Departs ") + web_date(base)
 		)
 
 
@@ -350,7 +357,7 @@ def get_catalog_trips(filters: dict | None = None) -> dict:
 			base = g.get("sailing_start") or g.get("departure_date")
 			t["next_departure"] = base or ""
 			t["next_departure_label"] = (
-				("Sail " if t.get("is_a_cruise_trip") else "Departs ") + (base or "")
+				("Sail " if t.get("is_a_cruise_trip") else "Departs ") + web_date(base)
 			)
 		keep.append(t)
 	trips = keep
@@ -465,7 +472,9 @@ def get_trip_detail(trip_name: str) -> dict:
 	if not trip:
 		return {
 			"group_dates": [],
+			"group_date_groups": [],
 			"trip_packages": {},
+			"sailing_tgds": {},
 			"starting_from_price": None,
 			"destinations": [],
 			"is_cruise": False,
@@ -478,7 +487,7 @@ def get_trip_detail(trip_name: str) -> dict:
 		SELECT td.name, td.trip, td.trip_group_name, td.trip_group_code,
 		       td.departure_date, td.return_date, td.total_days, td.total_nights,
 		       td.sailing_start, td.sailing_end, td.cruise_schedule,
-		       td.max_participants
+		       td.max_participants, td.is_cruise_only
 		FROM `tabTrip Group Date` td
 		WHERE td.trip = %(t)s
 		  AND td.status = 'Active'
@@ -565,22 +574,18 @@ def get_trip_detail(trip_name: str) -> dict:
 	# Cruise disusun ikut sailing_start (sepadan get_ready_bundle).
 	# Initialize merge tracker di sini supaya wujud scope function (untuk
 	# code merge yang jalankan selepas ini, di luar if block).
-	cruise_dedup_merge: dict = {}  # {kept_name: [removed_names...]}
 	if is_cruise and group_dates:
 		group_dates.sort(key=lambda g: g["sailing_start"] or g["departure_date"])
 
-		# ── Cruise dedup: gabung group_dates yang sama sailing_start ──
-		# Fly Cruise (RC2616) + Cruise Only (RC2618) yang sama sailing_start=2026-09-14
-		# digabung jadi SATU option sahaja. Packages dari yang dibuang akan dimerge.
+		# ── Cruise dedup: papar SATU option tarikh sahaja per sailing_start ──
+		# (Fly Cruise + Cruise Only yang sama sailing jadi satu radio.) Pakej
+		# TIDAK dimerge lagi — trip_packages kekal dikey ikut TGD sebenar dan
+		# sailing_tgds bawah memberi peta lengkap sailing → TGD untuk frontend.
 		_seen_sail: set = set()
 		_deduped: list = []
 		for gd in group_dates:
 			sail_key = gd.get("sailing_start") or ""
 			if sail_key and sail_key in _seen_sail:
-				# Duplicate — simpan untuk merge packages nanti
-				kept = _deduped[-1] if _deduped else None
-				if kept:
-					cruise_dedup_merge.setdefault(kept["name"], []).append(gd["name"])
 				continue
 			if sail_key:
 				_seen_sail.add(sail_key)
@@ -608,19 +613,27 @@ def get_trip_detail(trip_name: str) -> dict:
 			grp["dates"].append(g)
 
 	# --- packages per group date (trip ni sahaja) ---
+	# PENTING: trip_packages dikey ikut TGD SEBENAR pautan pakej (sel.trip_group_date)
+	# — JANGAN overwrite ke TGD yang disimpan semasa dedupe sailing. Overwrite
+	# silam menyebabkan package Cruise Only (RTRC2604) dibawa bersama TGD Fly
+	# Cruise (RTRC2605) ke /booknow → wizard papar trip_group_date salah.
+	# Frontend (trip_detail.js) yang union-kan pakej ikut sailing date yang
+	# dipilih melalui peta sailing_tgds di bawah.
 	trip_packages: dict = {}
 	if dates:
 		pkgs = frappe.db.sql(
 			"""
 			SELECT tp.name, sel.trip_group_date, tp.package_title, tp.package_type,
-			       tp.airport_form, ap.airport_name, tp.currency, cur.symbol AS currency_symbol
+			       tp.airport_form, ap.airport_name, tp.currency, cur.symbol AS currency_symbol,
+			       td.departure_date, td.sailing_start, td.is_cruise_only
 			FROM `tabTrip Package` tp
 			JOIN `tabTrip Package Group Date Select` sel ON sel.parent = tp.name
+			JOIN `tabTrip Group Date` td ON td.name = sel.trip_group_date
 			LEFT JOIN `tabFlight Airport` ap ON ap.name = tp.airport_form
 			LEFT JOIN `tabCurrency` cur ON cur.name = tp.currency
 			WHERE sel.trip_group_date IN %(ds)s
 			  AND tp.status = 'Active'
-			ORDER BY tp.package_type ASC, tp.package_title ASC
+			ORDER BY td.departure_date ASC, tp.package_type ASC, tp.package_title ASC
 			""",
 			{"ds": [d.name for d in dates]},
 			as_dict=True,
@@ -637,26 +650,34 @@ def get_trip_detail(trip_name: str) -> dict:
 					"flight_label": flight_label,
 					"currency": p.currency or "MYR",
 					"currency_symbol": p.currency_symbol or (p.currency or "MYR"),
+					# Info TGD sebenar pakej — untuk nota "Departs" pada butang
+					# pakej bukan-cruise-only dan resolusi TGD di /booknow.
+					"departure_date": str(p.departure_date) if p.departure_date else "",
+					"sailing_start": str(p.sailing_start) if p.sailing_start else "",
+					"is_cruise_only": bool(p.is_cruise_only),
 				}
 				)
 
-	# ── Merge packages dari group dates yang dibuang (cruise dedup) ──
-	if cruise_dedup_merge and trip_packages:
-		for _kept_name, _removed_names in cruise_dedup_merge.items():
-			_kept_pkgs = trip_packages.get(_kept_name, [])
-			_seen_pkg: set = {p["name"] for p in _kept_pkgs}
-			for _rm_name in _removed_names:
-				_rm_pkgs = trip_packages.get(_rm_name, [])
-				for _p in _rm_pkgs:
-						if _p["name"] not in _seen_pkg:
-							# Update trip_group_date supaya konsisten dengan key baru
-							_p["trip_group_date"] = _kept_name
-							_kept_pkgs.append(_p)
-							_seen_pkg.add(_p["name"])
-			# Buang entry untuk group date yang dah dibuang
-				trip_packages.pop(_rm_name, None)
+	# ── Peta sailing → SEMUA group date (SEBELUM dedupe) ──
+	# Frontend guna ni untuk (a) union pakej bagi sailing yang dipilih di page
+	# trip, dan (b) tentukan kandidat TGD ikut (pakej + sailing) semasa klik
+	# [Book Now] — termasuk popup bila ada lebih dari satu departure date.
+	sailing_tgds: dict = {}
+	if is_cruise:
+		for d in dates:
+			sail = str(d.sailing_start) if d.sailing_start else ""
+			if not sail:
+				continue
+			sailing_tgds.setdefault(sail, []).append(
+				{
+					"name": d.name,
+					"departure_date": str(d.departure_date) if d.departure_date else "",
+					"trip_group_name": d.trip_group_name or "",
+					"is_cruise_only": bool(d.is_cruise_only),
+				}
+			)
 
-			# --- starting_from_price: MIN price_adult merentasi package Active trip ni ---
+		# --- starting_from_price: MIN price_adult merentasi package Active trip ni ---
 	sp = frappe.db.sql(
 		"""
 		SELECT MIN(pr.price_adult) AS mn
@@ -693,6 +714,7 @@ def get_trip_detail(trip_name: str) -> dict:
 		"group_dates": group_dates,
 		"group_date_groups": group_date_groups,
 		"trip_packages": trip_packages,
+		"sailing_tgds": sailing_tgds,
 		"starting_from_price": starting_from_price,
 		"destinations": destinations,
 		"is_cruise": is_cruise,

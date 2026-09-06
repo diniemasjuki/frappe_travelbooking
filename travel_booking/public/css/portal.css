@@ -85,7 +85,7 @@ input, select, textarea {
   font-size: 14px;
   font-family: var(--font-body);
   outline: none;
-  width: 100%;
+  /* width: 100%; */
   transition: var(--transition);
 }
 input::placeholder { color: var(--text-muted); }

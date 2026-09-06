@@ -19,6 +19,9 @@ class TravelWebsite(Document):
         from travel_booking.travel_booking_management.doctype.website_stat.website_stat import WebsiteStat
         from travel_booking.travel_booking_management.doctype.website_testimonial.website_testimonial import WebsiteTestimonial
 
+        chat_widget_success_message: DF.SmallText | None
+        chat_widget_subtitle: DF.SmallText | None
+        chat_widget_title: DF.Data | None
         copyright_text: DF.Data | None
         cruise_benefits: DF.Table[WebsiteBenefitCard]
         cruise_cta_body: DF.SmallText | None
@@ -54,6 +57,7 @@ class TravelWebsite(Document):
         cruise_whyus_subtitle: DF.SmallText | None
         cruise_whyus_tag: DF.Data | None
         cruise_whyus_title: DF.SmallText | None
+        enable_chat_widget: DF.Check
         footer_links: DF.Table[WebsiteFooterLink]
         footer_tagline: DF.TextEditor | None
         social_facebook: DF.Data | None

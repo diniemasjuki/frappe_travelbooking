@@ -221,7 +221,6 @@
    "label": "Trip Group Code",
    "no_copy": 1,
    "read_only": 1,
-   "set_only_once": 1,
    "unique": 1
   },
   {
@@ -424,7 +423,7 @@
  "grid_page_length": 50,
  "is_calendar_and_gantt": 1,
  "links": [],
- "modified": "2026-08-27 07:33:34.432764",
+ "modified": "2026-09-04 22:38:47.897536",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Group Date",

@@ -43,6 +43,7 @@
   "section_break_mhpl",
   "column_break_lfil",
   "trip_name",
+  "trip_title",
   "trip_date",
   "trip_package",
   "column_break_ckkw",
@@ -468,6 +469,14 @@
   {
    "fieldname": "column_break_ruru",
    "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip_name.title",
+   "fieldname": "trip_title",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Trip Title",
+   "options": "Trip"
   }
  ],
  "grid_page_length": 50,
@@ -485,7 +494,7 @@
    "link_fieldname": "booking"
   }
  ],
- "modified": "2026-08-28 03:40:51.862958",
+ "modified": "2026-09-04 16:32:11.750396",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking",

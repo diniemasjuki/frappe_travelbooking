@@ -24,3 +24,12 @@ def get_context(context):
     # cookie csrftoken untuk Guest juga; get_csrf_token() pulangkan & menjananya.
     context.csrf_token = frappe.sessions.get_csrf_token()
     context.token = get_query_param("token")
+
+    # Badge enjin scan wizard (AI vs OCR) — dari konfigurasi AI OCR
+    # (Travel Settings), dikongsi dengan page travellers & resit booking.
+    try:
+        from travel_booking.api.receipt_ocr import _get_settings
+
+        context.ai_scan_enabled = bool(_get_settings().get("enabled"))
+    except Exception:
+        context.ai_scan_enabled = False

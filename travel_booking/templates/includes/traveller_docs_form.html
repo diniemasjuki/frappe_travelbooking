@@ -27,19 +27,48 @@
     <div id="wiz-input-card">
       <div id="wiz-msg" role="alert" style="display:none;padding:10px 13px;border-radius:6px;margin-bottom:14px;font-size:12px;"></div>
       <div class="g2" style="grid-template-columns:1fr 1fr;">
-        <button type="button" id="wiz-upload-area" class="upload-area" onclick="triggerWizardPassportUpload()" style="width:100%;text-align:left;font:inherit;cursor:pointer;" aria-label="Upload passport copy">
-          <div class="upload-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <div>
+          {# Kamera terus (peranti sentuh sahaja) — JANGAN letak inline
+             display:none pada butang (inline style mengatasi media query —
+             bug yang pernah berlaku di page travellers 2026-09-05). #}
+          <button type="button" id="wiz-cam-btn" class="btn btn-g" onclick="triggerWizardPassportUpload(true)" style="width:100%;margin-bottom:10px;">
+            📷 Take Photo
+          </button>
+          <button type="button" id="wiz-upload-area" class="upload-area" onclick="triggerWizardPassportUpload(false)" style="width:100%;text-align:left;font:inherit;cursor:pointer;" aria-label="Upload passport copy">
+            <div class="upload-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="upload-txt" id="wiz-upload-txt">Upload passport copy</div>
+            <div class="upload-sub">JPG or PNG · Max 5MB · Scan starts automatically</div>
+          </button>
+          {# Badge enjin scan — AI / OCR (dipaparkan oleh JS ikut konfigurasi). #}
+          <div id="wiz-engine-badge" style="display:none;margin-top:10px;font-size:11px;font-weight:600;letter-spacing:.02em;"></div>
+          {# Scan hanyalah bantuan pre-fill — sentiasa boleh terus ke borang manual. #}
+          <div style="margin-top:10px;text-align:center;font-size:13px;">
+            <a href="#" onclick="skipScanToForm(); return false;" style="color:#B0862A;text-decoration:underline;font-weight:500;">Skip scan — fill in manually</a>
           </div>
-          <div class="upload-txt" id="wiz-upload-txt">Upload passport copy</div>
-          <div class="upload-sub">JPG or PNG · Max 5MB</div>
-        </button>
+        </div>
         <div style="text-align:center;">
           <img src="/assets/travel_booking/img/example_passport.jpg" alt="Example of a valid passport photo page" style="max-width:100%;border-radius:10px;border:1px solid #E8E5DF;"/>
           <div style="font-size:11px;color:#B0AC9F;margin-top:6px;">Photo page · All corners visible</div>
         </div>
       </div>
-      <button class="btn btn-p btn-full" id="wiz-btn" onclick="checkWizardPassport()" style="margin-top:16px;display:none;">Check passport →</button>
+      <style>
+        /* Butang kamera hanya di peranti sentuh — kawalan lalai DI SINI
+           sahaja, bukan inline style. */
+        #wiz-cam-btn { display: none; }
+        @media (hover: none) and (pointer: coarse) {
+          #wiz-cam-btn { display: block; }
+        }
+      </style>
+    </div>
+
+    {# Keadaan mengimai — dipaparkan oleh JS semasa imbasan automatik. #}
+    <div id="wiz-checking-state" style="display:none;padding:32px 20px;text-align:center;">
+      <div style="font-size:34px;margin-bottom:12px;animation:rcwSpin 1s linear infinite;display:inline-block;">⏳</div>
+      <div id="wiz-checking-title" style="font-size:14px;font-weight:600;color:#B0862A;">Scanning passport...</div>
+      <div style="font-size:12px;color:#7D7A70;margin-top:4px;">Extracting details automatically</div>
+      <style>@keyframes rcwSpin { to { transform: rotate(360deg); } }</style>
     </div>
 
     <div id="wiz-result-card" style="display:none;">

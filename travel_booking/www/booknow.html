@@ -20,6 +20,12 @@
   .rc-public-nav, .rc-public-footer { display: none !important; }
   body { background: #F7F5F0 !important; }
   .rc-public-main { padding-top: 0 !important; }
+  /* Butang "Take Photo" (kamera terus) — hanya relevan di peranti sentuh;
+     di desktop atribut capture diabaikan browser dan akan mengelirukan. */
+  #bnwReceiptCamBtn { display: none; }
+  @media (hover: none) and (pointer: coarse) {
+    #bnwReceiptCamBtn { display: inline-flex; }
+  }
 </style>
 
 {# ── Service Worker Cleanup (sama seperti /booking) ── #}
@@ -51,7 +57,7 @@ if ('serviceWorker' in navigator) {
         <li class="bnw-step-line"></li>
         <li class="bnw-step" data-step="2">
           <span class="bnw-step-num">2</span>
-          <span class="bnw-step-label">Details</span>
+          <span class="bnw-step-label">Billing Info</span>
         </li>
         <li class="bnw-step-line"></li>
         <li class="bnw-step" data-step="3">
@@ -182,8 +188,29 @@ if ('serviceWorker' in navigator) {
 
       <div class="bnw-card bnw-card--narrow">
 
+        {# Pilihan 1: social login (Google) — email dari akaun Google,
+           AUTOMATIC verified (tiada OTP). Kembali semula ke /booknow
+           selepas OAuth; wizard state survive via sessionStorage. #}
+        <div class="bnw-field" id="bnwSocialLoginField">
+          <button type="button" class="bnw-btn bnw-btn-ghost bnw-btn-sm" id="bnwGoogleBtn"
+                  style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px; padding:20px; background: #fefafe; margin-bottom:30px;">
+            <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+            Continue with Google
+          </button>
+          <div style="display:flex;align-items:center;gap:10px;margin:10px 0 2px;">
+            <span style="flex:1;height:1px;background:#D8D3C6;"></span>
+            <span style="font-size:11px;color:#6E6A5F;">or fill in manually</span>
+            <span style="flex:1;height:1px;background:#D8D3C6;"></span>
+          </div>
+        </div>
+
         <div class="bnw-field">
-          <label class="bnw-label">Email Address <span class="bnw-required">*</span></label>
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">
+            <label class="bnw-label">Email Address <span class="bnw-required">*</span></label>
+            {# Muncul hanya bila email dah verified — buka semula field untuk
+               tukar email lain secara manual (verified status dibatalkan). #}
+            <a href="#" id="bnwEmailChangeBtn" style="display:none;font-size:12px;font-weight:500;color:#B0862A;text-decoration:underline;">Change email</a>
+          </div>
           <div class="bnw-input-status-wrap">
             <input type="email" class="bnw-input" id="bnwBillingEmail"
                    placeholder="your@email.com" autocomplete="email"/>
@@ -365,17 +392,20 @@ if ('serviceWorker' in navigator) {
               <div class="bnw-bank-row"><span>Account No</span><strong id="bnwBankAccountNumberDisplay">1234 5678 9012</strong></div>
             </div>
             <div class="bnw-field" style="margin-top:16px">
-              <label class="bnw-label">Bank Transfer Reference No. <span class="bnw-required">*</span></label>
-              <input type="text" class="bnw-input" id="bnwBankTransferRefInput" placeholder="FPX1234567"/>
-            </div>
-            <div class="bnw-field" style="margin-top:16px">
               <label class="bnw-label">Upload Payment Receipt <span class="bnw-required">*</span></label>
               <div class="bnw-file-upload" id="bnwReceiptUploadArea">
                 <input type="file" id="bnwReceiptFile" accept="image/*,.pdf" style="display:none" onchange="onReceiptSelected(this)"/>
-                <div class="bnw-file-upload-inner" onclick="document.getElementById('bnwReceiptFile').click()">
-                  <i class="ti ti-upload"></i>
-                  <p>Click to upload receipt</p>
-                  <small>JPG, PNG or PDF — max 5MB</small>
+                {# Kamera terus (peranti sentuh) — capture=environment buka camera
+                   belakang; onchange sama dengan upload biasa. #}
+                <input type="file" id="bnwReceiptCamera" accept="image/*" capture="environment" style="display:none" onchange="onReceiptSelected(this)"/>
+                <div class="bnw-file-upload-inner" style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;">
+                  <button type="button" id="bnwReceiptCamBtn" class="bnw-btn bnw-btn-ghost bnw-btn-sm" onclick="document.getElementById('bnwReceiptCamera').click()">
+                    <i class="ti ti-camera"></i> Take Photo
+                  </button>
+                  <button type="button" class="bnw-btn bnw-btn-ghost bnw-btn-sm" onclick="document.getElementById('bnwReceiptFile').click()">
+                    <i class="ti ti-upload"></i> Upload Receipt
+                  </button>
+                  <small style="width:100%;text-align:center;">JPG, PNG or PDF — images auto-compressed, PDF max 5MB</small>
                 </div>
               </div>
               <div id="bnwReceiptFileName" style="display:none;margin-top:8px;font-size:12px;color:#2e7d32">
@@ -388,10 +418,19 @@ if ('serviceWorker' in navigator) {
                 <div id="bnwReceiptOCRResult" style="display:none;margin-top:8px;padding:12px 14px;border-radius:var(--bnw-radius-sm,8px);background:var(--bnw-cream,#F7F5F0);border:1px solid var(--bnw-border,#E8E5DF);font-size:12px;line-height:1.6;"></div>
               </div>
             </div>
-            <div class="bnw-notice bnw-notice-info" style="margin-top:12px">
-              <i class="ti ti-clock"></i>
-              <span>Your booking will be confirmed within 1-2 business days after payment verification.</span>
+
+            {# Reference No dipindah KE BAWAH upload resit (2026-09-04) —
+               selepas OCR auto-isi, customer nampak nilai terus di field
+               yang berada tepat di bawah hasil OCR. #}
+            <div class="bnw-field" style="margin-top:16px">
+              <label class="bnw-label">Bank Transfer Reference No. <span class="bnw-required">*</span></label>
+              <input type="text" class="bnw-input" id="bnwBankTransferRefInput" placeholder="FPX1234567"/>
             </div>
+            {# Notis lama "confirmed within 1-2 business days" dibuang 2026-09-04 —
+               hardcoded dan bercanggah dengan nota radio Manual Transfer
+               ("verification time might be longer, 3-5 working days"). Tiada
+               settings untuk tempoh verifikasi; nota radio kekal sebagai
+               rujukan tunggal. #}
           </div>
 
         </div>{# /.bnw-pay-col #}
@@ -432,13 +471,20 @@ if ('serviceWorker' in navigator) {
               </div>
               <div id="bnwVoucherMsg" style="display:none;margin-bottom:12px;font-size:12px"></div>
 
-              <p class="bnw-card-title-sm">Affiliate Referral Code</p>
-              <div class="bnw-voucher-row">
+              <p class="bnw-card-title-sm" style="line-height: 1.2; margin-top: 30px;">Affiliate Referral Code</p>
+              <div class="bnw-voucher-row" id="bnwAffiliateInputRow">
                 <input type="text" class="bnw-input bnw-input-voucher" id="bnwAffiliateInput"
                        placeholder="Enter referral code" autocomplete="off"
                        onkeydown="if(event.key==='Enter') onAffiliateBtnClick()"
                        oninput="this.value=this.value.toUpperCase()"/>
                 <button class="bnw-btn bnw-btn-ghost bnw-btn-sm" onclick="onAffiliateBtnClick()" id="bnwAffiliateBtn">Apply</button>
+              </div>
+              {# Kod aktif: input disembunyikan sepenuhnya (customer tak boleh
+                 buang kod affiliate dari booking mereka) — kod semasa
+                 dipaparkan sebagai teks sahaja. #}
+              <div id="bnwAffiliateAppliedBox" style="display:none;margin-top:2px;font-size:13px;color:#1B7A43;">
+                <i class="ti ti-circle-check" style="font-size:15px;vertical-align:-2px"></i>
+                Referral code applied: <strong id="bnwAffiliateAppliedCode"></strong>
               </div>
               <div id="bnwAffiliateMsg" style="display:none;margin-top:8px;font-size:12px"></div>
             </div>
@@ -534,7 +580,7 @@ if ('serviceWorker' in navigator) {
 
 {# ── Page Data JSON (dari Frappe context) ── #}
 <script id="pageData" type="application/json">
-{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_cruise_flags": {{ trip_cruise_flags }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "csrf_token": "{{ csrf_token }}", "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}"}
+{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_cruise_flags": {{ trip_cruise_flags }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "csrf_token": "{{ csrf_token }}", "current_user": "{{ current_user }}", "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}"}
 </script>
 
 {% endblock %}

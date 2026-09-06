@@ -78,4 +78,6 @@
   </div>
 </nav>
 
-
+{# Format tarikh pusat (Travel Website) untuk fmtDate traveller_common.js —
+   include ini dimuat oleh semua page portal traveller. #}
+<script>window.RC_DATE_FORMAT = {{ get_website_config().date_format | tojson }};</script>

@@ -605,7 +605,12 @@ def cancel_checkout_payment(pr: str):
 
     # Cancel Payment Request ERPNext (docstatus 1 -> 2 cancelled) supaya SO
     # bebas untuk Payment Request baharu bila customer cuba bayar semula.
+    # PENTING: ignore_permissions — user portal (Customer) TIDAK ada role
+    # permission "cancel" pada Payment Request. Tanpa ni, pr_doc.cancel()
+    # throw PermissionError dan PR kekal "Requested" (bug: PR tidak
+    # dibatalkan bila customer tekan Back dari checkout).
     try:
+        pr_doc.flags.ignore_permissions = True
         pr_doc.cancel()
     except Exception as e:
         frappe.log_error(

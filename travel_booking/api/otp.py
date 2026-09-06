@@ -47,7 +47,13 @@ def send_otp(email: str):
     ip_rate_key = "send_otp_ip_" + client_ip
     ip_count = frappe.cache().get_value(ip_rate_key)
     if ip_count and int(ip_count) >= 30:
-        frappe.throw("Too many requests. Please try again shortly.")
+        # Respons normal — bot spam tak berapa peduli console, tapi customer
+        # sebenar tak perlu nampak HTTP error di browser.
+        return {
+            "verified": False,
+            "status":   "ip_rate_limited",
+            "message":  "Too many requests. Please try again shortly.",
+        }
     frappe.cache().set_value(ip_rate_key, str(int(ip_count or 0) + 1), expires_in_sec=60)
 
     # PENTING: check kewujudan "User" (akaun portal login), BUKAN
@@ -72,9 +78,20 @@ def send_otp(email: str):
     # ── Rate limiting — elak spam/abuse hantar OTP berulang-ulang ──
     # Lapisan 1: cooldown 60 saat antara setiap request (elak klik
     # "Resend" berturut-turut serta-merta).
+    #
+    # PENTING: cooldown dipulangkan sebagai respons NORMAL (bukan throw)
+    # kerana ini keadaan yang dijangkau — user blur email lebih dari
+    # sekali dalam 60 saat (klik masuk-keluar field, atau blur kedua
+    # selepas auto-fill). Kalau throw, browser log HTTP 417 di console
+    # untuk setiap kali — menjengkelkan walaupun form berfungsi normal.
+    # Client semak `status === "cooldown"` dan tunjuk mesej sahaja.
     cooldown_key = "booking_otp_cooldown_" + email
     if frappe.cache().get_value(cooldown_key):
-        frappe.throw("Please wait a moment before requesting the OTP again.")
+        return {
+            "verified": False,
+            "status":   "cooldown",
+            "message":  "Please wait a moment before requesting the OTP again.",
+        }
 
     # Lapisan 2: had maksimum 5 request sejam per email. Simpan timestamp
     # permintaan PERTAMA dalam tetingkap semasa (bukan cuma counter) —
@@ -94,7 +111,13 @@ def send_otp(email: str):
             # Tetingkap 1 jam dah tamat — mula semula dari permintaan ni.
             first_ts, count, remaining = now_ts, 0, 3600
         elif count >= 5:
-            frappe.throw("Too many OTP requests for this email. Please try again after 1 hour.")
+            # Respons normal (bukan throw) — elak HTTP 417 + console noise.
+            # Client semak status === "hourly_limit" dan papar popup modal.
+            return {
+                "verified": False,
+                "status":   "hourly_limit",
+                "message":  "Too many OTP requests for this email. Please try again after 1 hour.",
+            }
     else:
         first_ts, count, remaining = now_ts, 0, 3600
 
@@ -157,8 +180,19 @@ def verify_otp(email: str, otp: str):
     cache_key = "booking_otp_" + email
     stored    = frappe.cache().get_value(cache_key)
 
+    # PENTING: Semua kegagalan verify OTP (expired / lock out / salah kod)
+    # dipulangkan sebagai respons NORMAL — BUKAN frappe.throw(). Ini adalah
+    # kesilapan pengguna yang dijangkau, bukan error sistem:
+    #   - frappe.throw() → HTTP 417 → browser console error + Error Log
+    #   - return normal → HTTP 200 → tiada console noise, tiada Error Log
+    # Client semak `success === false` dan paparkan mesej di UI sahaja.
+
     if not stored:
-        frappe.throw("OTP has expired. Please request a new one.")
+        return {
+            "success": False,
+            "status":  "expired",
+            "message": "OTP has expired. Please request a new one.",
+        }
 
     # ══════════════════════════════════════════════
     # SECURITY FIX (v2): Rate limit verify attempts
@@ -170,18 +204,23 @@ def verify_otp(email: str, otp: str):
     if attempts >= MAX_ATTEMPTS:
         # Padam OTP — lock out after max attempts
         frappe.cache().delete_value(cache_key)
-        frappe.throw(
-            "Too many failed attempts. Please request a new OTP.",
-            title="OTP Locked"
-        )
+        return {
+            "success": False,
+            "status":  "locked",
+            "message": "Too many failed attempts. Please request a new OTP.",
+        }
 
     # SECURITY: guna hmac.compare_digest (constant-time), bukan != (timing attack)
     if not hmac.compare_digest(stored.encode(), otp.strip().encode()):
         # Increment failed attempt counter
         frappe.cache().set_value(attempt_key, str(attempts + 1), expires_in_sec=600)  # 10 min lock
-        frappe.throw("Invalid OTP. Please try again. ({0} of {1} attempts remaining)".format(
-            MAX_ATTEMPTS - attempts - 1, MAX_ATTEMPTS
-        ))
+        return {
+            "success": False,
+            "status":  "invalid",
+            "message": "Invalid OTP. Please try again. ({0} of {1} attempts remaining)".format(
+                MAX_ATTEMPTS - attempts - 1, MAX_ATTEMPTS
+            ),
+        }
 
     # Success — padam attempt counter & OTP
     frappe.cache().delete_value(attempt_key)

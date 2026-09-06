@@ -43,6 +43,9 @@ function showTravellerView(id) {
     const el = document.getElementById(v);
     if (el) el.style.display = (v === id) ? '' : 'none';
   });
+  // Badge enjin scan (AI/OCR) dipaparkan setiap kali wizard dibuka — cover
+  // semua laluan masuk (guest init, customer slot kosong, reset "Not me").
+  if (id === 'V-wizard') renderEngineBadge();
   const loading = document.getElementById('tvl-docs-loading');
   if (loading) loading.style.display = 'none';
   window.scrollTo(0, 0);
@@ -283,32 +286,97 @@ function _resetWizard() {
   document.getElementById('wiz-result-card').style.display = 'none';
   document.getElementById('wiz-new-card').style.display = 'none';
   document.getElementById('wiz-input-card').style.display = 'block';
+  document.getElementById('wiz-checking-state').style.display = 'none';
   document.getElementById('wiz-upload-txt').textContent = 'Upload passport copy';
   document.getElementById('wiz-upload-area').style.borderColor = '';
-  const btn = document.getElementById('wiz-btn');
-  if (btn) { btn.disabled = false; btn.style.display = 'none'; btn.textContent = 'Check passport →'; }
+  renderEngineBadge();
 }
 
-function triggerWizardPassportUpload() {
+/* ── Badge enjin scan (AI vs OCR) — dari konfigurasi server (pageData). ── */
+function renderEngineBadge() {
+  const badge = document.getElementById('wiz-engine-badge');
+  if (!badge) return;
+  if (typeof _pageData !== 'undefined' && _pageData && _pageData.ai_scan_enabled) {
+    badge.textContent = '🤖 AI-powered scanning';
+    badge.style.color = '#0F6E56';
+    badge.style.background = '#EBF7F1';
+  } else {
+    badge.textContent = 'OCR (MRZ) scanning';
+    badge.style.color = '#633806';
+    badge.style.background = '#FAEEDA';
+  }
+  badge.style.display = 'inline-block';
+  badge.style.padding = '4px 12px';
+  badge.style.borderRadius = '12px';
+}
+
+/* Label enjin ikut respons server ("ai" / "ocr"). */
+function _engineLabel(engine) {
+  return engine === 'ai' ? '🤖 Scanned with AI' : 'Scanned with OCR (MRZ)';
+}
+
+function triggerWizardPassportUpload(useCamera) {
   _pickImage(file => {
     _wizardFile = file;
     document.getElementById('wiz-upload-txt').textContent = '✓ ' + file.name;
     document.getElementById('wiz-upload-area').style.borderColor = '#0F6E56';
     document.getElementById('wiz-result-card').style.display = 'none';
     document.getElementById('wiz-new-card').style.display = 'none';
-    document.getElementById('wiz-btn').style.display = 'block';
     const msg = document.getElementById('wiz-msg');
     if (msg) msg.style.display = 'none';
-  }, 'wiz-msg');
+    // AUTO-SCAN: imbasan bermula serta-merta selepas gambar dipilih /
+    // dicapture — butang "Check passport" telah dibuang (2026-09-05).
+    checkWizardPassport();
+  }, 'wiz-msg', { capture: !!useCamera });
+}
+
+/* Fallback manual: scan hanyalah BANTUAN pre-fill — terus ke borang kosong. */
+function skipScanToForm() {
+  _wizardFile = null;
+  _wizardResult = null;
+  _wizardExtracted = null;
+  showTravellerView('V-form');
+}
+
+
+/* ── Blocking scan progress modal — menghalang user daripada mengganggu
+   proses AI/OCR scan passport. ── */
+function _showPassportScanProgress(engineLabel) {
+  _hidePassportScanProgress();
+  var overlay = document.createElement('div');
+  overlay.id = 'rc-passport-scan-progress';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(30,28,24,.6);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;';
+  overlay.innerHTML =
+    '<div style="background:#fff;border-radius:14px;padding:36px 28px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(30,28,24,.35);text-align:center;font-family:inherit;">' +
+      '<div style="font-size:42px;margin-bottom:14px;animation:rcPassSpin2 1s linear infinite;display:inline-block;">⏳</div>' +
+      '<div style="font-size:15px;font-weight:700;color:#1E1C18;margin-bottom:6px;">' + _esc(engineLabel || 'Scanning passport with AI...') + '</div>' +
+      '<div style="font-size:12.5px;color:#6E6A5F;line-height:1.5;">Please wait while we read your passport. Do not close or refresh this page.</div>' +
+    '</div>' +
+    '<style>@keyframes rcPassSpin2 { to { transform: rotate(360deg); } }</style>';
+  document.body.appendChild(overlay);
+}
+
+function _hidePassportScanProgress() {
+  var el = document.getElementById('rc-passport-scan-progress');
+  if (el) el.remove();
 }
 
 async function checkWizardPassport() {
   if (!_wizardFile) return;
-  const btn = document.getElementById('wiz-btn');
   const msgEl = document.getElementById('wiz-msg');
-  btn.disabled = true;
-  btn.textContent = 'Checking...';
+  const checkingState = document.getElementById('wiz-checking-state');
+  const checkingTitle = document.getElementById('wiz-checking-title');
+  const aiEnabled = typeof _pageData !== 'undefined' && _pageData && _pageData.ai_scan_enabled;
+
+  document.getElementById('wiz-input-card').style.display = 'none';
+  if (checkingState) checkingState.style.display = 'block';
+  // Hint enjin seawal scanning — respons sebenar boleh berbeza jika AI
+  // gagal (fallback OCR); tag pada card hasil guna nilai respons.
+  if (checkingTitle) {
+    checkingTitle.textContent = aiEnabled ? 'Scanning passport with AI...' : 'Scanning passport (OCR)...';
+  }
   if (msgEl) msgEl.style.display = 'none';
+  _showPassportScanProgress(aiEnabled ? 'Scanning passport with AI...' : 'Scanning passport (OCR)...');
 
   try {
     const readFile = f => new Promise(res => {
@@ -321,8 +389,8 @@ async function checkWizardPassport() {
     const payload = { filedata: filedata };
     if (_GUEST_MODE) payload.guest_token = _GUEST_TOKEN;
     const res = await API_TV('check_traveller_passport', payload);
-    btn.disabled = false;
-    btn.textContent = 'Check passport →';
+    _hidePassportScanProgress();
+    if (checkingState) checkingState.style.display = 'none';
 
     // Imej tak dapat dibaca (bukan halaman foto passport / terlalu kabur)
     // — kekal di Langkah 1, minta upload semula. Jangan buka borang lagi.
@@ -362,14 +430,16 @@ async function checkWizardPassport() {
         readEl.style.display = 'block';
         readEl.innerHTML =
           '✓ Read from passport:<br>' +
+          '<span style="display:inline-block;margin-top:2px;font-weight:600;">' +
+          _engineLabel(res.engine) + '</span><br>' +
           '<span style="display:inline-block;margin-top:4px;">' +
           readRows.map(r => '• ' + _esc(r)).join('<br>') + '</span>';
       }
       document.getElementById('wiz-new-card').style.display = 'block';
     }
   } catch (e) {
-    btn.disabled = false;
-    btn.textContent = 'Check passport →';
+    _hidePassportScanProgress();
+    if (checkingState) checkingState.style.display = 'none';
     _wizMsg(e.message || 'Something went wrong. Please try again.', 'error');
     document.getElementById('wiz-input-card').style.display = 'block';
   }
@@ -618,10 +688,13 @@ function checkPassportValidity() {
    UPLOADS (keyboard-accessible button; inline error ganti alert)
    ══════════════════════════════════════════════ */
 
-function _pickImage(onPicked, errBoxId) {
+function _pickImage(onPicked, errBoxId, opts) {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/jpeg,image/png,.jpg,.jpeg,.png';
+  // capture=environment (peranti sentuh) — buka kamera belakang terus
+  // untuk snap dokumen; di desktop atribut ini diabaikan browser.
+  if (opts && opts.capture) input.setAttribute('capture', 'environment');
   input.onchange = e => {
     const file = e.target.files[0];
     if (!file) return;

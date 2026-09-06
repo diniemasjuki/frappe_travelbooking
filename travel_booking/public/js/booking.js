@@ -94,13 +94,23 @@ function updateGroupCapacityHint(pax) {
 }
 
 // ─── HELPERS ──────────────────────────────────────────────
+const _MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const _MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 function fmtDate(iso) {
-  if (!iso) return "";
-  var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  // var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  var parts = String(iso).split("-");
-  if (parts.length !== 3) return iso;
-  return parseInt(parts[2],10) + " " + (months[parseInt(parts[1],10)-1] || "") + " " + parts[0];
+  if (!iso) return '';
+  var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(iso);
+  var y = m[1], mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
+  // Format pusat dari Travel Website (window.RC_DATE_FORMAT), fallback lalai.
+  var fmt = window.RC_DATE_FORMAT || 'dd MMM yyyy';
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  var out = fmt;
+  out = out.replace('MMMM', _MONTHS_FULL[mo - 1] || '');
+  out = out.replace('MMM', _MONTHS[mo - 1] || '');
+  out = out.replace('yyyy', y);
+  out = out.replace('mm', pad(mo));
+  out = out.replace('dd', pad(d));
+  return out;
 }
 
 function fmt(n) {
@@ -2538,6 +2548,11 @@ function removeAffiliateCode() {
   state_affiliate_code   = "";
   state_referral_percent = 0;
 
+  // Buang juga cookie rc_aff — customer yang sengaja membuang kod tidak
+  // mahu kod itu di-apply semula (prefill / inquiry) pada kunjungan
+  // akan datang.
+  document.cookie = "rc_aff=; path=/; max-age=0; SameSite=Lax";
+
   document.getElementById("affiliateDiscountRow").style.display = "none";
   document.getElementById("affiliateMsg").style.display = "none";
 
@@ -2562,8 +2577,11 @@ function prefillAffiliateCodeFromUrl() {
   // affiliate (dua maksud berlainan berkongsi satu nama parameter). 'sp'
   // parameter baharu yang tak bertembung dengan mana-mana penggunaan lain.
   //
-  // Priority: URL ?sp= → restored wizard snapshot. Kedua-dua jaminan kod
-  // affiliate tak hilang: deep-link baharu dan refresh selepas taip manual.
+  // Priority: URL ?sp= → restored wizard snapshot → cookie rc_aff.
+  // Ketiga-tiga jaminan kod affiliate tak hilang: deep-link baharu,
+  // refresh selepas taip manual, dan kembali BERHARI-HARI kemudian
+  // melalui cookie (disediakan oleh affiliate_capture.js bila customer
+  // mula-mula mendarat dari link affiliate di mana-mana page).
   var params = new URLSearchParams(window.location.search);
 
   // Skip pada screen confirmation pasca-Stripe — booking dah dibuat, kod
@@ -2572,6 +2590,10 @@ function prefillAffiliateCodeFromUrl() {
 
   var code = (params.get("sp") || "").trim().toUpperCase();
   if (!code) code = (state_affiliate_code || "").trim().toUpperCase();
+  if (!code) {
+    var _ck = document.cookie.match(/(?:^|;\s*)rc_aff=([^;]+)/);
+    if (_ck) code = decodeURIComponent(_ck[1]).trim().toUpperCase();
+  }
   if (!code) return;
 
   var input = document.getElementById("affiliateInput");

@@ -31,10 +31,19 @@ def get_context(context):
     context.slot_res = slot_res if slot_res else None
 
     # pageData mesti dict yang boleh JSON-serialize
+    # ai_scan_enabled: badge wizard tunjuk kaedah scan (AI vs OCR) seawal
+    # sebelum upload — dari konfigurasi AI OCR (Travel Settings).
+    try:
+        from travel_booking.api.receipt_ocr import _get_settings
+        ai_scan_enabled = bool(_get_settings().get("enabled"))
+    except Exception:
+        ai_scan_enabled = False
+
     context.page_data = {
         "csrf_token": ctx.get("csrf_token", ""),
         "booking_ref": context.booking_ref or "",
-        "slot_res": context.slot_res or ""
+        "slot_res": context.slot_res or "",
+        "ai_scan_enabled": ai_scan_enabled,
     }
 
     return context

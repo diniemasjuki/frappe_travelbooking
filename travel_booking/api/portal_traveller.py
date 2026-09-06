@@ -4,10 +4,102 @@
 
 import base64
 import io
+import re
 
 import frappe
 import qrcode
 from travel_booking.api.portal_booking import _get_customer
+
+
+def _ai_extract_passport(content: bytes) -> dict | None:
+    """Ekstrak maklumat passport guna AI vision (OpenAI-compatible).
+
+    Guna konfigurasi yang SAMA dengan AI Receipt OCR (Travel Settings →
+    AI OCR). Dipanggil SEBELUM Tesseract MRZ — AI baca keseluruhan halaman
+    foto passport (MRZ + visual zone) jadi medan yang diekstrak lebih
+    lengkap (nama, IC/national ID, tarikh, jantina, nationality, tempat
+    lahir).
+
+    Pulangkan dict medan berjaya diekstrak, atau None jika AI tidak
+    dikonfigur / gagal (caller fallback ke Tesseract MRZ sahaja).
+    """
+    try:
+        from travel_booking.api.receipt_ocr import _get_settings, _parse_ai_json
+    except Exception:
+        return None
+
+    settings = _get_settings()
+    if not settings.get("enabled"):
+        return None
+
+    prompt = (
+        "You are given a photo of a passport bio-data page (the page with "
+        "the holder's photo, personal details, and the MRZ zone at the "
+        "bottom). Extract these fields:\n"
+        "- first_name: given names as written\n"
+        "- last_name: surname\n"
+        "- ic_number: national ID / IC / MyKad number IF visible on the "
+        "page (Malaysian IC is 12 digits). Empty if not present.\n"
+        "- gender: 'Male' or 'Female'\n"
+        "- date_of_birth: YYYY-MM-DD\n"
+        "- passport_no: passport number\n"
+        "- passport_expiry: YYYY-MM-DD\n"
+        "- nationality_code: ISO 3166 alpha-3 country code of nationality "
+        "(from MRZ, e.g. 'MYS' for Malaysia)\n"
+        "- place_of_birth: if visible\n"
+        "- issue_date: YYYY-MM-DD if visible\n"
+        "Respond with ONLY a JSON object, no other text. Use empty string "
+        '"" for fields you cannot read.'
+    )
+
+    data_url = "data:image/jpeg;base64," + base64.b64encode(content).decode()
+
+    from openai import OpenAI
+
+    # max_retries=0 + timeout ringkas — AI di sini adalah NILAI TAMBAH di
+    # atas fallback Tesseract; jika API perlahan/rate-limit, gagal-pantas
+    # supaya customer tidak tergantung lama di "Scanning passport...".
+    client = OpenAI(api_key=settings["api_key"], base_url=settings["base_url"],
+                    timeout=45, max_retries=0)
+    response = client.chat.completions.create(
+        model=settings["model"],
+        temperature=0,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ],
+            }
+        ],
+    )
+
+    raw = (response.choices[0].message.content or "").strip() if response.choices else ""
+    parsed = _parse_ai_json(raw)
+    if not isinstance(parsed, dict):
+        return None
+
+    out = {}
+    for k in ("first_name", "last_name", "ic_number", "gender",
+              "date_of_birth", "passport_no", "passport_expiry",
+              "nationality_code", "place_of_birth", "issue_date"):
+        v = str(parsed.get(k) or "").strip()
+        if not v or v.upper().startswith("YYYY") or v.upper() == "N/A":
+            continue
+        out[k] = v
+
+    if out.get("gender"):
+        g = str(out["gender"]).upper()
+        out["gender"] = "Male" if g.startswith("M") else ("Female" if g.startswith("F") else out["gender"])
+
+    for dk in ("date_of_birth", "passport_expiry", "issue_date"):
+        v = out.get(dk)
+        if v:
+            m = re.match(r"^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$", str(v))
+            if m:
+                out[dk] = "%s-%02d-%02d" % (m.group(3), int(m.group(2)), int(m.group(1)))
+    return out or None
 
 
 # ══════════════════════════════════════════════
@@ -971,7 +1063,17 @@ def _ocr_passport(content: bytes) -> dict:
                 (full_path,    "4",  [],      "FULL-gray-PSM4"),
             ]
             
+            # Deadline keseluruhan (60s) — tesseract boleh lambat bila
+            # beban sistem tinggi (diukur 151s untuk 10 passes penuh);
+            # tanpa ni request web worker mati pada timeout 120s dan
+            # client tergantung. Bantu fallback sahaja — bukan jalan utama
+            # (AI didahulukan di check_traveller_passport).
+            import time as _t
+            _ocr_deadline = _t.monotonic() + 60
+
             for path, psm, cfg, desc in passes:
+                if _t.monotonic() > _ocr_deadline:
+                    break
                 try:
                     proc = subprocess.run(
                         ["tesseract", path, "stdout", "-l", "eng", "--psm", psm] + cfg,
@@ -987,7 +1089,11 @@ def _ocr_passport(content: bytes) -> dict:
                     result = _extract_mrz(text)
                     if result and result.get("passport_no"):
                         extracted.update(result)
-                        frappe.logger.debug(f"✓ Passport OCR success via {desc}")
+                        # frappe.logger ialah FUNGSI (bukan modul logging) —
+                        # bug lama 'frappe.logger.debug' menyebabkan crash
+                        # pada setiap success path & tersalah log sebagai
+                        # "Passport OCR failed".
+                        frappe.logger("passport").debug("Passport OCR success via %s", desc)
 
         # Final attempt: extract from accumulated full text
         if not extracted.get("passport_no"):
@@ -1004,9 +1110,9 @@ def _ocr_passport(content: bytes) -> dict:
             
         # Log hasil
         if extracted:
-            frappe.logger.info(f"Passport OCR extracted: {list(extracted.keys())}")
+            frappe.logger("passport").info("Passport OCR extracted: %s", list(extracted.keys()))
         else:
-            frappe.logger.warning(f"Passport OCR failed. Text length: {len(full_text)}")
+            frappe.logger("passport").warning("Passport OCR failed. Text length: %s", len(full_text))
 
     except Exception:
         frappe.log_error(title="Passport OCR failed",
@@ -1059,12 +1165,34 @@ def check_traveller_passport(filedata: str, guest_token: str = ""):
 
     exact_hash = hashlib.sha256(content).hexdigest()
 
-    # OCR/MRZ — ekstrak nama, nombor passport, DOB, gender, (IC jika jumpa)
-    # daripada imej. Semua ID dinormalisasi ke [A-Z0-9] sebelum matching.
+    # ── Ekstraksi maklumat passport: AI DULU, Tesseract MRZ fallback ──
+    # AI vision baca keseluruhan halaman (MRZ + visual zone) — medan lebih
+    # lengkap & tepat. Tesseract MRZ kekal sebagai fallback offline bila AI
+    # tidak dikonfigur / gagal. Nilai AI mengatasi Tesseract untuk medan
+    # yang kedua-duanya baca; Tesseract mengisi kekosongan AI.
+    # AI DULU (pantas ~2-30s); Tesseract HANYA fallback bila AI gagal /
+    # tidak dikonfigur. PENTING: jangan jalan Tesseract bersama AI —
+    # tesseract boleh ambil BERMINIT (diukur 151s pada imej ujian semasa
+    # beban sistem tinggi) dan request web worker mati pada timeout 120s
+    # → client tergantung pada "Scanning...". AI vision baca keseluruhan
+    # halaman (MRZ + visual zone) — medan lebih lengkap daripada MRZ
+    # sahaja; Tesseract MRZ kekal sebagai fallback offline.
+    ai_extracted = None
+    try:
+        ai_extracted = _ai_extract_passport(content)
+    except Exception:
+        ai_extracted = None
+
+    if ai_extracted:
+        extracted = ai_extracted
+    else:
+        extracted = _ocr_passport(content)
+    _engine = "ai" if ai_extracted else "ocr"
+
+    # Semua ID dinormalisasi ke [A-Z0-9] sebelum matching.
     # Padanan #1: nombor passport. #2: IC number. #3 (fallback terakhir):
     # padanan imej (sha256 exact / dhash perceptual) untuk rekod lama yang
     # ID-nya tidak dapat dibaca daripada passport.
-    extracted = _ocr_passport(content)
 
     # Nationality MRZ (alpha-3) → nama Country Frappe supaya select
     # Nationality pada form boleh di-set terus.
@@ -1096,7 +1224,7 @@ def check_traveller_passport(filedata: str, guest_token: str = ""):
         traveller_name = _find_traveller_by_normalized(match_field, match_value)
         if traveller_name and traveller_name in owned:
             tvl = frappe.get_doc("Traveller", traveller_name)
-            return {"status": "found", "data": _traveller_payload(tvl), "extracted": extracted}
+            return {"status": "found", "data": _traveller_payload(tvl), "extracted": extracted, "engine": _engine}
 
     travellers = (
         frappe.get_all(
@@ -1134,16 +1262,16 @@ def check_traveller_passport(filedata: str, guest_token: str = ""):
                 continue
 
         if matched:
-            return {"status": "found", "data": _traveller_payload(tvl), "extracted": extracted}
+            return {"status": "found", "data": _traveller_payload(tvl), "extracted": extracted, "engine": _engine}
 
     # Tiada padanan rekod DAN OCR gagal baca apa-apa medan utama → imej
     # berkemungkinan bukan halaman foto passport / terlalu kabur. Minta
     # customer upload semula (frontend tunjuk mesej, kekal di Langkah 1).
     if not any(extracted.get(k) for k in
                ("passport_no", "ic_number", "first_name", "full_name")):
-        return {"status": "unreadable", "extracted": extracted}
+        return {"status": "unreadable", "extracted": extracted, "engine": _engine}
 
-    return {"status": "new", "extracted": extracted}
+    return {"status": "new", "extracted": extracted, "engine": _engine}
 
 
 # ══════════════════════════════════════════════

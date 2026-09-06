@@ -227,12 +227,16 @@
     var paymentCard = renderPaymentFormCard(so);
     if (paymentCard) {
       // Only show 2-col layout if payment card has content (not cancelled)
+      // SWAP: Payment form di KIRI (utama — customer aksi), Transactions di
+      // KANAN (rujukan). Desktop: flex 1:2 (payment lebih sempit). Mobile
+      // (media query .tv-billing-grid): column + reverse supaya payment kekal
+      // di atas (aksi utama lebih penting dari sejarah transaksi).
       html += '<div class="tv-billing-grid" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;">';
-      html += '<div style="flex:2;min-width:0;">'; // Transactions — 2/3 width
-      html += renderTransactionsCard(so);
-      html += '</div>';
-      html += '<div style="flex:1;min-width:280px;">'; // Payment — 1/3 width
+      html += '<div class="tv-billing-payment" style="flex:1;min-width:280px;">'; // Payment — kiri
       html += paymentCard;
+      html += '</div>';
+      html += '<div class="tv-billing-transactions" style="flex:2;min-width:0;">'; // Transactions — kanan
+      html += renderTransactionsCard(so);
       html += '</div>';
       html += '</div>'; // grid wrapper
     } else {
@@ -291,7 +295,7 @@
     html += '</div>'; // grid
 
     // Additional info row
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding-top:12px;font-size:13px;color:var(--text-muted);">';
+    html += '<div class="tv-billing-info-row" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding-top:12px;font-size:13px;color:var(--text-muted);">';
     // Status badge
     if (!isSettled || isCancelled) {
       html += '<span>Status: <span class="tv-badge tv-badge--' + statusCls + '">' + statusLabel + '</span></span>';
@@ -325,6 +329,7 @@
     html += '<div class="tv-sec">📦 Items</div>';
 
     if (items.length > 0) {
+      html += '<div class="tv-items-scroll">';
       html += '<table class="tv-table">';
       html += '<thead><tr><th>Description</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>';
       items.forEach(function (item) {
@@ -350,6 +355,7 @@
       html += '<td style="font-weight:700;">' + fmtDual(grandTotal) + '</td>';
       html += '</tr>';
       html += '</tbody></table>';
+      html += '</div>'; // .tv-items-scroll
     } else {
       html += '<p style="font-size:13px;color:var(--text-muted);padding:12px 0;">No items found.</p>';
     }
@@ -521,34 +527,43 @@
     html += '</table>';
     html += '</div>';
 
-    // File upload (moved before date/ref)
+    // File upload + direct camera capture (peranti sentuh) — corak sama
+    // dengan booknow Step 3. Scan bermula AUTOMATIK selepas pilih/capture.
     html += '<div class="tv-form-group">';
     html += '<label class="tv-label">Upload Proof of Payment</label>';
     html += '<div class="tv-file-upload" id="file-upload-' + _esc(soName) + '">';
-    html += '<div class="tv-file-upload__icon">📎</div>';
-    html += '<div class="tv-file-upload__text">Click or drag file here</div>';
-    html += '<div class="tv-file-upload__hint">JPG, PNG, PDF · Max 5MB</div>';
+    html += '<div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;">';
+    html += '<button type="button" class="tv-btn tv-btn--ghost tv-btn--sm pay-cam-btn" style="display:none;">📷 Take Photo</button>';
+    html += '<button type="button" class="tv-btn tv-btn--ghost tv-btn--sm pay-up-btn">⬆ Upload Image</button>';
+    html += '</div>';
+    html += '<div class="tv-file-upload__text pay-file-name" style="margin-top:8px;">Click or drag file here</div>';
+    html += '<div class="tv-file-upload__hint pay-file-hint">JPG, PNG, PDF · Max 5MB · Scan starts automatically</div>';
     html += '<input type="file" accept=".jpg,.jpeg,.png,.pdf" class="pay-file-input" style="display:none;"/>';
+    html += '<input type="file" accept="image/*" capture="environment" class="pay-camera-input" style="display:none;"/>';
+    html += '<style>';
+    html += '.pay-cam-btn { display: none; }';
+    html += '@media (hover: none) and (pointer: coarse) { .pay-cam-btn { display: inline-flex; } }';
+    html += '</style>';
     html += '</div>';
     html += '</div>';
 
-    // Transfer Date — full width
+    // Scan result — auto-isi bila disahkan melalui popup
+    html += '<div class="tv-form-group pay-scan-result" style="display:none;background:var(--bg-secondary);border:1px solid var(--border-light);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.6;"></div>';
+
+    // Transfer Date — auto-isi dari resit yang diimbas
     html += '<div class="tv-form-group">';
     html += '<label class="tv-label">Transfer Date</label>';
     html += '<input type="date" class="tv-input pay-date"/>';
     html += '</div>';
 
-    // Reference No. — full width
+    // Reference No. — auto-isi dari resit yang diimbas
     html += '<div class="tv-form-group">';
     html += '<label class="tv-label">Reference No.</label>';
     html += '<input type="text" class="tv-input pay-ref-no" placeholder="Bank transaction reference"/>';
     html += '</div>';
 
-    // Notes
-    html += '<div class="tv-form-group">';
-    html += '<label class="tv-label">Notes (optional)</label>';
-    html += '<textarea class="tv-input pay-notes" rows="2" placeholder="Any additional notes..."></textarea>';
-    html += '</div>';
+    // Cashback note — hanya papar bila dikonfigur (dimuat selepas API)
+    html += '<div class="tv-form-group pay-cashback-note" style="display:none;background:var(--c-gold-light);border:1px solid var(--c-gold-dark);border-radius:8px;padding:10px 14px;font-size:12.5px;color:var(--c-gold-dark);"></div>';
 
     html += '<button type="submit" class="tv-btn tv-btn--primary" style="width:100%;margin-top:12px;" data-act="pay-manual">Submit Payment Proof</button>';
     html += '</div>'; // manual panel
@@ -558,85 +573,77 @@
   }
 
   /* ══════════════════════════════════════════════════
-     RECEIPT OCR — Extract text from uploaded bank slip
-     Auto-fill: Reference No, Transfer Date, Notes field
+     RECEIPT SCAN — AI DULU (endpoint receipt_ocr, sama seperti
+     booknow Step 3), Tesseract.js hanya fallback. Selepas scan,
+     POPUP pengesahan menunjukkan hasil & minta confirm sebelum
+     auto-fill Transfer Date + Reference No.
      ══════════════════════════════════════════════════ */
 
-  var _ocrWorker = null; // Tesseract worker (lazy init)
+  var _ocrWorker = null; // Tesseract worker (fallback sahaja)
 
-  /* Lazy-initialize Tesseract worker */
   async function initReceiptOCR() {
     if (_ocrWorker) return _ocrWorker;
-    if (typeof Tesseract === 'undefined') {
-      console.warn('Tesseract.js not loaded — OCR unavailable');
-      return null;
-    }
+    if (typeof Tesseract === 'undefined') return null;
     try {
       _ocrWorker = await Tesseract.createWorker('eng', 1, {
         logger: function (m) {
           if (m.status === 'recognizing text') {
             var pct = Math.round(m.progress * 100);
-            var el = document.querySelector('.tv-file-upload__hint');
-            if (el) el.textContent = 'Reading receipt... ' + pct + '%';
+            var el = document.querySelector('.pay-file-hint');
+            if (el) el.textContent = 'Reading receipt (OCR fallback)... ' + pct + '%';
           }
         }
       });
     } catch (e) {
-      console.warn('Failed to init Tesseract:', e);
       _ocrWorker = null;
     }
     return _ocrWorker;
   }
 
-  /* Parse Malaysian bank slip text for date & reference number */
+  /* Parse Malaysian bank slip text (fallback Tesseract) — date/ref/amount */
   function parseBankSlip(text) {
-    if (!text) return { date: null, reference: null, rawText: '' };
+    if (!text) return { date: null, reference: null, amount: null };
     var clean = text.replace(/\s+/g, ' ').trim();
     var date = null, reference = null;
 
-    // Date patterns — DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY (European), D MMM YYYY
     var datePatterns = [
-      /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/,                    // 23/08/2026
-      /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})/,                      // 23/08/26 → assume 20xx
-      /(\d{1,2})\.(\d{1,2})\.(\d{4})/,                              // 23.08.2026 (European)
-      /(\d{1,2})\.(\d{1,2})\.(\d{2})/,                                // 23.08.26 (European)
-      /(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})/i  // 23 Aug 2026
+      /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/,
+      /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})/,
+      /(\d{1,2})\.(\d{1,2})\.(\d{4})/,
+      /(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})/i
     ];
     var months = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',
                  jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
-
     for (var i = 0; i < datePatterns.length; i++) {
       var m = clean.match(datePatterns[i]);
       if (m) {
-        if (m[2].length === 3) {
-          date = m[3] + '-' + months[m[2].toLowerCase()] + '-' + m[1].padStart(2,'0');
-        } else if (m[3].length === 2) {
-          date = '20' + m[3] + '-' + m[2].padStart(2,'0') + '-' + m[1].padStart(2,'0');
-        } else {
-          date = m[3] + '-' + m[2].padStart(2,'0') + '-' + m[1].padStart(2,'0');
+        if (m[2] && m[2].length === 3) {
+          date = m[3] + '-' + months[m[2].toLowerCase()] + '-' + m[1].padStart(2, '0');
+        } else if (m[3] && m[3].length === 2) {
+          date = '20' + m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+        } else if (m[3]) {
+          date = m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
         }
         break;
       }
     }
 
-    // Reference number patterns — MY bank slip formats
     var refPatterns = [
       /(?:Ref(?:erence)?|No\.?|Transaction\s*(?:ID|No\.?)?)\s*[:\.\-\s]*([A-Z0-9]{6,20})/i,
-      /M2U\s*([A-Z0-9]{10,15})/i,           // Maybank2u
-      /(FPX\d{7})/i,                         // FPX payment
-      /(?:CIMB|RHB|PBB?|HLB)\s*([A-Z0-9]{8,16})/i,  // Bank prefix
-      /\b([A-Z]{2,5}\d{8,12})\b/i           // Generic bank format
+      /M2U\s*([A-Z0-9]{10,15})/i,
+      /(FPX\d{7})/i,
+      /(?:CIMB|RHB|PBB?|HLB)\s*([A-Z0-9]{8,16})/i,
+      /\b([A-Z]{2,5}\d{8,12})\b/i
     ];
     for (var j = 0; j < refPatterns.length; j++) {
       var rm = clean.match(refPatterns[j]);
       if (rm) { reference = rm[1]; break; }
     }
 
-    // Amount extraction — RM/MYR formats
     var amount = null;
     var amtPatterns = [
-      /(?:RM\s*|MYR\s*)?(?:\$?\s*)([\d,]+\.?\d{0,2})\s*(?:RM|MYR)?/i,  // RM 1,234.56 or 1,234.56
-      /(?:Total|Amount|Paid)\s*[:\.]*\s*\$?\s*([\d,]+\.?\d{0,2})/i   // "Total: 123.45"
+      /(?:RM\s*|MYR\s*)?(?:\$?\s*)([\d,]+\.?\d{0,2})\s*(?:RM|MYR)?/i,
+      /(?:Total|Amount|Paid)\s*[:\.]*\s*\$?\s*([\d,]+\.?\d{0,2})/i
     ];
     for (var k = 0; k < amtPatterns.length; k++) {
       var am = clean.match(amtPatterns[k]);
@@ -647,106 +654,218 @@
       }
     }
 
-    return { date: date, reference: reference, amount: amount, rawText: clean };
+    return { date: date, reference: reference, amount: amount };
   }
 
-  /* Main orchestrator — run OCR on file and auto-fill form fields */
+  /* Pemampatan imej (kamera 3-8MB → ~300KB) — sama corak booknow. */
+  function compressReceiptImage(file, cb) {
+    var needsSize = file.size > 1.5 * 1024 * 1024;
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function () {
+      URL.revokeObjectURL(url);
+      var longest = Math.max(img.width, img.height);
+      if (!needsSize && longest <= 2000) { cb(null); return; }
+      var scale = Math.min(1, 1600 / longest);
+      var canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(function (blob) {
+        cb(blob && blob.size < file.size ? blob : null);
+      }, 'image/jpeg', 0.85);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); cb(null); };
+    img.src = url;
+  }
+
+  function _scanHint(form, html) {
+    var el = form.querySelector('.pay-file-hint');
+    if (el) el.innerHTML = html;
+  }
+
+
+  /* ── Blocking scan progress modal — menghalang user dari mengganggu
+     proses AI/OCR. Tiada butang tutup; overlay click tidak buat apa-apa.
+     Ditutup hanya oleh _hideScanProgress() apabila scan tamat. ── */
+  function _showScanProgress(engineLabel) {
+    _hideScanProgress(); // safety — buang sisa jika ada
+    var overlay = document.createElement('div');
+    overlay.id = 'rc-scan-progress';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(30,28,24,.6);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;';
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:14px;padding:36px 28px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(30,28,24,.35);text-align:center;font-family:inherit;">' +
+        '<div style="font-size:42px;margin-bottom:14px;animation:rcScanSpin 1s linear infinite;display:inline-block;">⏳</div>' +
+        '<div style="font-size:15px;font-weight:700;color:#1E1C18;margin-bottom:6px;">' + _esc(engineLabel || 'Scanning receipt with AI...') + '</div>' +
+        '<div style="font-size:12.5px;color:#6E6A5F;line-height:1.5;">Please wait while we read your receipt. Do not close or refresh this page.</div>' +
+      '</div>' +
+      '<style>@keyframes rcScanSpin { to { transform: rotate(360deg); } }</style>';
+    document.body.appendChild(overlay);
+  }
+
+  function _hideScanProgress() {
+    var el = document.getElementById('rc-scan-progress');
+    if (el) el.remove();
+  }
+
+  /* Scan resit: AI dahulu → fallback Tesseract → popup pengesahan. */
   async function autoFillFromReceipt(form, file) {
-    if (!file || !file.type.startsWith('image/')) return false;
+    if (!file) return false;
 
-    var uploadZone = form.querySelector('.tv-file-upload');
-    var hintEl = uploadZone ? uploadZone.querySelector('.tv-file-upload__hint') : null;
+    var hintEl = form.querySelector('.pay-file-hint');
+    var nameEl = form.querySelector('.pay-file-name');
+    if (nameEl) nameEl.textContent = '✓ ' + file.name;
+    _scanHint(form, '⏳ Scanning receipt with AI...');
+    // Blocking modal — halang user daripada mengganggu semasa proses.
+    _showScanProgress('Scanning receipt with AI...');
 
+    var scanned = null;   // {date, reference, amount, engine}
+
+    // ── 1) AI (endpoint sama dengan booknow — allow_guest tak menghalang
+    //        session customer) ──
     try {
-      var worker = await initReceiptOCR();
-      if (!worker) return false;
+      var readFile = function (f) {
+        return new Promise(function (res) {
+          var r = new FileReader();
+          r.onload = function (e) { res(e.target.result); };
+          r.readAsDataURL(f);
+        });
+      };
 
-      if (hintEl) hintEl.textContent = 'Reading receipt...';
-
-      var result = await worker.recognize(file);
-      var parsed = parseBankSlip(result.data.text);
-
-      // Auto-fill Reference No. (always overwrite)
-      if (parsed.reference) {
-        var refInput = form.querySelector('.pay-ref-no');
-        if (refInput) {
-          refInput.value = parsed.reference;
-          refInput.style.borderColor = 'var(--c-success)';
-          setTimeout(function () { refInput.style.borderColor = ''; }, 2000);
-        }
+      var filedata = await readFile(file);
+      if (file.size > 20 * 1024 * 1024) {
+        _hideScanProgress();
+        _scanHint(form, 'File too large (max 20MB for images).');
+        return false;
       }
 
-      // Auto-fill Transfer Date (always overwrite)
-      if (parsed.date) {
-        var dateInput = form.querySelector('.pay-date');
-        if (dateInput) {
-          dateInput.value = parsed.date;
-          dateInput.style.borderColor = 'var(--c-success)';
-          setTimeout(function () { dateInput.style.borderColor = ''; }, 2000);
-        }
+      // Pemampatan untuk imej besar (kamera) sebelum hantar
+      if (file.type && file.type.startsWith('image/')) {
+        await new Promise(function (resolve) {
+          compressReceiptImage(file, function (blob) {
+            if (blob) {
+              file = blob;
+              readFile(blob).then(function (d) { filedata = d; resolve(); });
+            } else { resolve(); }
+          });
+        });
       }
 
-      // Build Notes content — raw OCR + amount verification memo
-      var declaredAmount = round2(form.querySelector('.pay-amount-input')?.value);
-      var notesContent = parsed.rawText || '';
+      var res = await fetch('/api/method/travel_booking.api.receipt_ocr.analyze_receipt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-Frappe-CSRF-Token': _csrfToken(),
+          'Accept': 'application/json'
+        },
+        credentials: 'include',
+        body: 'filedata=' + encodeURIComponent(filedata) + '&filename=' + encodeURIComponent(file.name || 'receipt')
+      }).then(function (r) { return r.json(); });
 
-      // Add amount comparison memo BEFORE raw text (so it's visible at top)
-      if (parsed.amount && parsed.amount > 0 && declaredAmount > 0) {
-        var diff = Math.abs(parsed.amount - declaredAmount);
-        var matchThreshold = 0.5; // Allow 50 sen tolerance for rounding
-        var isMatch = diff <= matchThreshold;
+      var msg = res && res.message;
+      if (msg && msg.ok) {
+        scanned = {
+          date: msg.date || null,  // tarikh transaksi (YYYY-MM-DD) dari AI
+          reference: msg.reference_no || '',
+          amount: msg.amount,
+          engine: 'ai'
+        };
+      }
+    } catch (e) {
+      scanned = null;
+    }
 
-        var memo = '--- Amount Verification ---\n';
-        memo += 'Document amount: RM ' + parsed.amount.toFixed(2) + '\n';
-        memo += 'Declared amount: RM ' + declaredAmount.toFixed(2) + '\n';
-        if (isMatch) {
-          memo += 'Status: ✓ Amounts match\n';
-          hintEl.innerHTML = '<span style="color:var(--c-success);">✓ Extracted · Amount matches</span>';
-        } else {
-          memo += 'Status: ⚠ Amount differs by RM ' + diff.toFixed(2) + '\n';
-          hintEl.innerHTML = '<span style="color:var(--c-warning-text);font-weight:600;">⚠ Amount differs</span>';
-          // Flash warning on amount input
-          var amtInput = form.querySelector('.pay-amount-input');
-          if (amtInput) {
-            amtInput.style.borderColor = 'var(--c-warning)';
-            setTimeout(function () { amtInput.style.borderColor = ''; }, 4000);
+    // ── 2) Fallback: Tesseract client-side ──
+    if (!scanned && file.type && file.type.startsWith('image/')) {
+      _scanHint(form, '⏳ Reading receipt (OCR fallback)...');
+      _showScanProgress('Reading receipt (OCR fallback)...');
+      try {
+        var worker = await initReceiptOCR();
+        if (worker) {
+          var result = await worker.recognize(file);
+          var parsed = parseBankSlip(result.data.text);
+          if (parsed.reference || parsed.date || parsed.amount) {
+            scanned = {
+              date: parsed.date,
+              reference: parsed.reference || '',
+              amount: parsed.amount,
+              engine: 'ocr'
+            };
           }
         }
-
-        // Prepend memo before raw OCR text
-        notesContent = memo + '\n' + notesContent;
-
-        // Show soft info popup if amounts differ
-        if (!isMatch) {
-          setTimeout(function () {
-            showModal({
-              type: 'info',
-              title: 'ℹ️ Receipt Amount Notice',
-              message: 'The receipt shows <strong>RM ' + parsed.amount.toFixed(2) + '</strong> while your entered amount is <strong>RM ' + declaredAmount.toFixed(2) + '</strong>.<br><br>Difference: <strong>RM ' + diff.toFixed(2) + '</strong><br><br>This is normal for partial payments or different reference points. You may proceed — our team will verify manually.',
-              button: 'I Understand'
-            });
-          }, 800);
-        }
-      } else if (parsed.amount === null && declaredAmount > 0) {
-        // Could not extract amount from document
-        notesContent += '\n\n--- Note: Could not auto-verify amount from this document ---';
-        hintEl.innerHTML = '<span style="color:var(--c-gold-dark);">✓ Extracted (amount not detected)</span>';
+      } catch (e) {
+        scanned = null;
       }
+    }
 
-      // Set Notes field
-      if (notesContent) {
-        var notesInput = form.querySelector('.pay-notes');
-        if (notesInput) {
-          notesInput.value = notesContent;
-        }
-      }
+    _hideScanProgress();
 
-      return true;
-    } catch (e) {
-      console.warn('OCR failed:', e);
-      if (hintEl) hintEl.textContent = 'JPG, PNG, PDF · Max 5MB';
+    if (!scanned) {
+      _scanHint(form, 'Could not read this receipt. Please fill in the details manually.');
       return false;
     }
+
+    // ── 3) Popup pengesahan hasil scan sebelum auto-fill ──
+    showScanConfirmPopup(form, scanned);
+    return true;
+  }
+
+  /* Popup hasil scan — pengesahan sebelum auto-fill borang. */
+  function showScanConfirmPopup(form, scanned) {
+    var engineTag = scanned.engine === 'ai' ? '🤖 Scanned with AI' : 'Scanned with OCR';
+    var rows = '';
+    if (scanned.reference) rows += '<div><strong>Reference No:</strong> ' + _esc(scanned.reference) + '</div>';
+    if (scanned.date) rows += '<div><strong>Transfer Date:</strong> ' + _esc(fmtDate(scanned.date)) + '</div>';
+    if (scanned.amount != null) rows += '<div><strong>Amount:</strong> ' + fmtDual(scanned.amount) + '</div>';
+
+    var declared = round2(form.querySelector('.pay-amount-input')?.value);
+    var amtNote = '';
+    if (scanned.amount != null && declared > 0) {
+      var diff = Math.abs(scanned.amount - declared);
+      if (diff <= 0.5) {
+        amtNote = '<div style="margin-top:10px;color:var(--c-success);font-weight:600;">✓ Amount matches your entered amount (' + fmtDual(declared) + ')</div>';
+      } else {
+        amtNote = '<div style="margin-top:10px;color:var(--c-warning-text);font-weight:600;">⚠ Document amount (' + fmtDual(scanned.amount) + ') differs from your entered amount (' + fmtDual(declared) + ') by ' + fmtDual(diff) + '. This is normal for partial payments — our team will verify.</div>';
+      }
+    }
+
+    showModal({
+      type: 'info',
+      title: engineTag,
+      message: (rows || '<div>No readable details found on this receipt.</div>') + amtNote +
+        '<br><br>Fill in the form with these details?',
+      buttons: [
+        { label: 'Fill in manually', cls: 'ghost', onClick: function () {
+          _scanHint(form, 'JPG, PNG, PDF · Max 5MB — fill in details manually');
+        } },
+        { label: 'Yes, fill in', cls: 'primary', onClick: function () {
+          if (scanned.reference) {
+            var refInput = form.querySelector('.pay-ref-no');
+            if (refInput) {
+              refInput.value = scanned.reference;
+              refInput.style.borderColor = 'var(--c-success)';
+              setTimeout(function () { refInput.style.borderColor = ''; }, 2000);
+            }
+          }
+          if (scanned.date) {
+            var dateInput = form.querySelector('.pay-date');
+            if (dateInput) {
+              dateInput.value = scanned.date;
+              dateInput.style.borderColor = 'var(--c-success)';
+              setTimeout(function () { dateInput.style.borderColor = ''; }, 2000);
+            }
+          }
+          _scanHint(form, '<span style="color:var(--c-success);">✓ ' + engineTag + ' — details filled in. Please review before submitting.</span>');
+          var resBox = form.querySelector('.pay-scan-result');
+          if (resBox) {
+            resBox.style.display = 'block';
+            resBox.innerHTML = '<strong>' + engineTag + '</strong><br>' + rows +
+              (amtNote ? amtNote : '') +
+              '<div style="margin-top:4px;color:var(--text-muted);">Please review the details above before submitting.</div>';
+          }
+        } }
+      ]
+    });
   }
 
   /* ── Fetch a document PDF from get_document_pdf.
@@ -876,22 +995,53 @@
       });
     });
 
-    // File upload click
+    // Upload / camera buttons — scan bermula AUTOMATIK selepas pilih.
     document.querySelectorAll('.tv-file-upload').forEach(function (zone) {
-      zone.addEventListener('click', function () {
-        this.querySelector('.pay-file-input').click();
+      var form = zone.closest('form');
+      var upBtn = zone.querySelector('.pay-up-btn');
+      var camBtn = zone.querySelector('.pay-cam-btn');
+      var fileInput = zone.querySelector('.pay-file-input');
+      var camInput = zone.querySelector('.pay-camera-input');
+
+      if (upBtn) upBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        fileInput && fileInput.click();
+      });
+      if (camBtn) camBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        camInput && camInput.click();
+      });
+      // Klik kawasan (drag hint) juga buka picker biasa
+      zone.addEventListener('click', function (e) {
+        if (e.target.closest('button')) return;
+        fileInput && fileInput.click();
+      });
+
+      [fileInput, camInput].forEach(function (input) {
+        if (!input) return;
+        input.addEventListener('change', async function () {
+          var file = this.files[0];
+          this.value = ''; // benarkan pilih fail sama semula
+          if (!file) return;
+          if (form) autoFillFromReceipt(form, file);
+        });
       });
     });
 
-    // File change — trigger OCR for image files
-    document.querySelectorAll('.pay-file-input').forEach(function (input) {
-      input.addEventListener('change', async function () {
-        var file = this.files[0];
-        if (!file) return;
-        var form = this.closest('form');
-        if (form) autoFillFromReceipt(form, file);
-      });
-    });
+    // Cashback note — dimuat dari konfigurasi Travel Settings (API sama
+    // dengan booknow). Hanya papar bila cashback diaktifkan.
+    (async function loadCashbackNotes() {
+      try {
+        var s = await _post('/api/method/travel_booking.api.pricing.get_payment_settings', {});
+        var enabled = s && s.cashback_enabled;
+        var pct = s && s.cashback_percent;
+        if (!enabled || !pct) return;
+        document.querySelectorAll('.pay-cashback-note').forEach(function (el) {
+          el.textContent = '💰 Get ' + pct + '% cashback when you pay via bank transfer';
+          el.style.display = 'block';
+        });
+      } catch (e) { /* cashback info bersifat pilihan */ }
+    })();
 
     // Form submissions
     document.querySelectorAll('#billing-content form').forEach(function (form) {
@@ -1007,7 +1157,6 @@
     var title = options.title || '';
     var message = options.message || '';
     var icon = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' }[type] || 'ℹ️';
-    var btnText = options.button || 'OK';
     var onConfirm = options.onConfirm || null;
 
     // Remove existing modal
@@ -1018,28 +1167,51 @@
     overlay.id = 'tv-modal-overlay';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
 
-    var color = { success: 'var(--c-success)', error: 'var(--c-danger-text)', info: 'var(--c-gold-dark)', warning: 'var(--c-warning)' }[type] || '#333';
+    // Butang: options.buttons[] (pelbagai, label+cls+onClick) ATAU options.button
+    // tunggal lama (onConfirm). cls 'ghost' = kelabu, 'primary' = emas.
+    var buttons = [];
+    if (Array.isArray(options.buttons) && options.buttons.length) {
+      options.buttons.forEach(function (b) {
+        buttons.push(b);
+      });
+    } else {
+      buttons.push({ label: options.button || 'OK', cls: 'primary', onClick: onConfirm });
+    }
+
+    var btnHtml = '<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">';
+    buttons.forEach(function (b, i) {
+      var cls = b.cls === 'ghost'
+        ? 'background:#fff;border:1px solid #D8D3C6;color:#1E1C18;'
+        : 'background:var(--c-gold);border:1px solid var(--c-gold);color:#1E1C18;font-weight:600;';
+      btnHtml += '<button type="button" data-btn-idx="' + i + '" class="tv-btn tv-btn--sm" style="' + cls + 'padding:9px 18px;border-radius:8px;min-width:110px;cursor:pointer;font-size:13px;">' + _esc(b.label) + '</button>';
+    });
+    btnHtml += '</div>';
 
     overlay.innerHTML =
-      '<div style="background:#fff;border-radius:12px;padding:28px 24px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center;">' +
+      '<div style="background:#fff;border-radius:12px;padding:28px 24px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center;">' +
         '<div style="font-size:40px;margin-bottom:12px;">' + icon + '</div>' +
         (title ? '<h3 style="margin:0 0 8px;font-size:18px;color:#1E1C18;">' + _esc(title) + '</h3>' : '') +
-        '<p style="margin:0 0 20px;font-size:14px;color:var(--text-secondary);line-height:1.5;">' + message + '</p>' +
-        '<button id="tv-modal-btn" class="tv-btn tv-btn--primary" style="width:100%;">' + _esc(btnText) + '</button>' +
+        '<div style="margin:0 0 20px;font-size:14px;color:var(--text-secondary);line-height:1.6;text-align:left;">' + message + '</div>' +
+        btnHtml +
       '</div>';
 
     document.body.appendChild(overlay);
 
-    // Close on button click or overlay click
-    var btn = document.getElementById('tv-modal-btn');
-    btn.addEventListener('click', function () {
-      overlay.remove();
-      if (onConfirm) onConfirm();
+    // Wire button clicks
+    overlay.querySelectorAll('[data-btn-idx]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var b = buttons[parseInt(this.dataset.btnIdx, 10)];
+        overlay.remove();
+        if (b && b.onClick) b.onClick();
+      });
     });
+
+    // Overlay click = butang pertama (default lama)
     overlay.addEventListener('click', function (e) {
       if (e.target === overlay) {
         overlay.remove();
-        if (onConfirm) onConfirm();
+        var b = buttons[0];
+        if (b && b.onClick) b.onClick();
       }
     });
 
@@ -1052,7 +1224,6 @@
     var amountInput = form.querySelector('.pay-amount-input');
     var dateInput = form.querySelector('.pay-date');
     var refInput = form.querySelector('.pay-ref-no');
-    var notesInput = form.querySelector('.pay-notes');
     var fileInput = form.querySelector('.pay-file-input');
 
     var amount = round2(amountInput?.value);
@@ -1103,7 +1274,6 @@
         amount: amount,
         reference_no: refNo,
         payment_date: dateInput?.value || '',
-        notes: notesInput?.value || '',
         filedata: fileData || '',
         filename: fileInput?.files[0]?.name || ''
       });

@@ -346,7 +346,7 @@ def create_payment_request(booking_number: str = None, amount: float = None,
 
 @frappe.whitelist()
 def submit_manual_payment(amount: float, payment_date: str,
-                          reference_no: str, notes: str, filedata: str, filename: str,
+                          reference_no: str, notes: str = "", filedata: str = "", filename: str = "",
                           sales_order: str = None, booking_number: str = None):
     """Manual transfer — cipta Payment Entry DRAFT + attach bukti.
 

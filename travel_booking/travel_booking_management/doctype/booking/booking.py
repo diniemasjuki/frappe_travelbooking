@@ -48,6 +48,7 @@ class Booking(Document):
 		trip_package: DF.Link | None
 		trip_package_status: DF.ReadOnly | None
 		trip_status: DF.ReadOnly | None
+		trip_title: DF.Data | None
 		voucher: DF.Link | None
 	# end: auto-generated types
 

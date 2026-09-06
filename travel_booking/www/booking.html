@@ -499,6 +499,8 @@ if ('serviceWorker' in navigator) {
 </div>
 
 <!-- Page data dari Frappe — elak Jinja syntax dalam JS -->
+{# Format tarikh pusat utk fmtDate booking.js #}
+<script>window.RC_DATE_FORMAT = {{ get_website_config().date_format | tojson }};</script>
 <script id="pageData" type="application/json">
 {"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_cruise_flags": {{ trip_cruise_flags }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "csrf_token": "{{ csrf_token }}", "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}", "user": {{ user | tojson if user else 'null' }}}
 </script>
@@ -512,6 +514,13 @@ if ('serviceWorker' in navigator) {
 <script src="https://cdn.jsdelivr.net/npm/libphonenumber-js@1.11.20/bundle/libphonenumber-max.js"></script>
 
 <script src="/assets/travel_booking/js/booking.js?v={{ asset_v('js/booking.js') if asset_v is defined else '1' }}"></script>
+<!-- Capture kod affiliate (?sp=) → cookie rc_aff 30 hari — attribution
+     sehingga ke checkout. Page ni standalone (tak extend base_travel). -->
+<script src="/assets/travel_booking/js/affiliate_capture.js?v={{ asset_v('js/affiliate_capture.js') if asset_v is defined else '1' }}"></script>
+
+<!-- Floating chat button + mini contact form (Travel Inquiry) —
+     dikawal oleh Travel Website → Floating Chat Button. -->
+{% include "templates/includes/chat_widget.html" %}
 
 </body>
 </html>

@@ -30,6 +30,12 @@
   "default_referral_discount_percent",
   "price_category_section",
   "price_category_labels",
+  "ai_receipt_ocr_section",
+  "enable_ai_receipt_ocr",
+  "column_break_aiocr",
+  "ai_ocr_base_url",
+  "ai_ocr_model",
+  "ai_ocr_api_key",
   "tab_information",
   "data_flow_information_section",
   "column_break_hpzn",
@@ -166,6 +172,44 @@
    "options": "Price Category Label"
   },
   {
+   "fieldname": "ai_receipt_ocr_section",
+   "fieldtype": "Section Break",
+   "label": "AI OCR (Receipt & Passport)"
+  },
+  {
+   "default": "0",
+   "description": "Gunakan AI (OpenAI-compatible vision API) untuk: (1) baca resit pindahan manual di wizard booking \u2014 auto-isi Reference No + semak jumlah (alert sahaja); (2) ekstrak maklumat passport di wizard traveller \u2014 pre-fill borang. Jika gagal, sistem fallback ke OCR tempatan (Tesseract).",
+   "fieldname": "enable_ai_receipt_ocr",
+   "fieldtype": "Check",
+   "label": "Enable AI OCR"
+  },
+  {
+   "fieldname": "column_break_aiocr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "https://api.openai.com/v1",
+   "description": "Base URL sahaja, cth https://api.openai.com/v1 \u2014 JANGAN masukkan kaedah HTTP (POST) atau path /chat/completions (sistem tambah sendiri). Servis serasi lain (Groq, OpenRouter) juga diterima.",
+   "fieldname": "ai_ocr_base_url",
+   "fieldtype": "Data",
+   "label": "API Base URL",
+   "length": 200
+  },
+  {
+   "default": "gpt-4o-mini",
+   "description": "Nama model yang sah di perkhidmatan anda, cth gpt-4o-mini, gpt-4.1-mini.",
+   "fieldname": "ai_ocr_model",
+   "fieldtype": "Data",
+   "label": "Model",
+   "length": 80
+  },
+  {
+   "description": "API key disimpan server-side \u2014 tidak pernah dihantar ke browser customer.",
+   "fieldname": "ai_ocr_api_key",
+   "fieldtype": "Data",
+   "label": "API Key"
+  },
+  {
    "fieldname": "column_break_acfc",
    "fieldtype": "Column Break"
   },
@@ -235,7 +279,7 @@
  "grid_page_length": 50,
  "issingle": 1,
  "links": [],
- "modified": "2026-08-27 10:54:52.232582",
+ "modified": "2026-09-05 00:15:00.000000",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Settings",

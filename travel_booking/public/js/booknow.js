@@ -190,13 +190,23 @@ function getPriceNote(priceKey) {
 }
 
 // ─── HELPERS ──────────────────────────────────────────────
+const _MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const _MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 function fmtDate(iso) {
-  if (!iso) return "";
-  var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  // var months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-  var parts = String(iso).split("-");
-  if (parts.length !== 3) return iso;
-  return parseInt(parts[2],10) + " " + (months[parseInt(parts[1],10)-1] || "") + " " + parts[0];
+  if (!iso) return '';
+  var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return String(iso);
+  var y = m[1], mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
+  // Format pusat dari Travel Website (window.RC_DATE_FORMAT), fallback lalai.
+  var fmt = window.RC_DATE_FORMAT || 'dd MMM yyyy';
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  var out = fmt;
+  out = out.replace('MMMM', _MONTHS_FULL[mo - 1] || '');
+  out = out.replace('MMM', _MONTHS[mo - 1] || '');
+  out = out.replace('yyyy', y);
+  out = out.replace('mm', pad(mo));
+  out = out.replace('dd', pad(d));
+  return out;
 }
 
 function fmt(n) {
@@ -228,11 +238,51 @@ function fmt(n) {
   return coSym + " " + num;
 }
 
+// Escape HTML — booknow.js standalone (tidak meload traveller_common.js
+// yang ada _esc). Diperlukan untuk bnwPopup() supaya mesej dari server
+// selamat dimasukkan tanpa XSS.
+function _esc(s) {
+  var d = document.createElement("div");
+  d.textContent = s == null ? "" : String(s);
+  return d.innerHTML;
+}
+
 function showLoading(msg) {
   var overlay = document.getElementById("bnwLoadingOverlay");
   if (overlay) overlay.style.display = "flex";
   var msgEl = document.getElementById("bnwLoadingMsg");
   if (msgEl) msgEl.textContent = msg || "Processing...";
+}
+
+
+// ── Modal popup untuk mesej user-facing (cth OTP salah) — styling konsisten
+// dengan wizard (gold/dark/cream). Boleh dismiss dengan klik overlay. ──
+function bnwPopup(title, message, icon, onClose) {
+  var old = document.getElementById("bnwPopupOverlay");
+  if (old) old.remove();
+
+  var overlay = document.createElement("div");
+  overlay.id = "bnwPopupOverlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(30,28,24,.6);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;";
+  overlay.innerHTML =
+    '<div style="background:#fff;border-radius:14px;padding:28px 24px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(30,28,24,.35);text-align:center;font-family:Archivo,system-ui,sans-serif;">' +
+      '<div style="font-size:42px;margin-bottom:12px;line-height:1;">' + (icon || "⚠️") + '</div>' +
+      '<div style="font-size:16px;font-weight:700;color:#1E1C18;margin-bottom:8px;">' + title + '</div>' +
+      '<div style="font-size:13.5px;color:#6E6A5F;line-height:1.5;margin-bottom:18px;">' + message + '</div>' +
+      '<button type="button" id="bnwPopupBtn" style="background:#C9A84C;color:#1E1C18;border:none;border-radius:8px;padding:10px 28px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;">OK</button>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  function close() {
+    overlay.remove();
+    if (onClose) onClose();
+  }
+  overlay.querySelector("#bnwPopupBtn").addEventListener("click", close);
+  overlay.addEventListener("click", function (e) {
+    if (e.target === overlay) close();
+  });
+  // Focus butang supaya Enter pun boleh tutup
+  overlay.querySelector("#bnwPopupBtn").focus();
 }
 
 function hideLoading() {
@@ -527,6 +577,9 @@ function restoreWizard() {
     }
     if (target === 3) { buildOrderSummary(); updatePaymentUI(); }
     showStep(target);
+    // Email session (jika logged in) hanya di-apply SELEPAS restore billing
+    // selesai — elak race mengunci field sebelum email manual dipulihkan.
+    if (typeof maybeApplySessionEmail === "function") maybeApplySessionEmail();
   }).catch(function() {});
 
   return true;
@@ -578,7 +631,7 @@ function renderConfirmActions(bookingStatus, bookingNumber) {
 // — cara paling selamat untuk pastikan SEMUA state kosong.
 function startNewBooking() {
   clearWizardState();
-  window.location.href = "/trips";
+  window.location.href = "/";
 }
 
 // ─── STRIPE REDIRECT RETURN ────────────────────────────────
@@ -930,15 +983,25 @@ var _stripeReturn = checkStripeReturn();
 var _restored = _stripeReturn ? true : restoreWizard();
 window.addEventListener("beforeunload", saveState);
 
+// URL trip detail: /trip#### (route = Trip.name.lower(), cth /trip2622).
+// Format lama /trip/xxx dah tak diguna. Jangan terima /trips (listing) —
+// Back button mesti balik ke page TRIP yang asal, bukan listing.
+function _isTripPageUrl(url) {
+  if (!url || url.indexOf(window.location.origin) !== 0) return false;
+  var path = url.slice(window.location.origin.length).split("?")[0].split("#")[0];
+  return /^\/trip(?!s)[a-z0-9-]*$/i.test(path);
+}
 
 if (!_restored) {
   // ── Simpan referrer untuk Back button ──
-  // User datang dari trip detail (/trip/xxx), simpan URL supaya
-  // Back button boleh kembali ke page asal, bukan tetap /trips.
+  // Sumber utama: trip_detail.js simpan bnw_referrer semasa klik
+  // [Book Now] (lebih reliable dari document.referrer yang boleh kosong
+  // ikut referrer policy browser). Block ni cuma fallback untuk laluan
+  // lain yang sampai ke /booknow terus dari page trip.
   try {
     var _ref = document.referrer || "";
     // Hanya simpan kalau referrer adalah trip detail page kita sendiri
-    if (_ref && _ref.indexOf("/trip/") !== -1 && _ref.indexOf(window.location.origin) === 0) {
+    if (_isTripPageUrl(_ref)) {
       sessionStorage.setItem("bnw_referrer", _ref);
     }
   } catch (_e) {}
@@ -960,6 +1023,37 @@ if (!_restored) {
     state.trip_group_date = _cart.group_date;
     state.trip_name     = _cart.trip_name || "";
     state.is_cruise_trip = !!_cart.is_cruise;
+
+    // ── REVERSE TRACE (cruise): tentukan TGD SEBENAR dari (pakej + sailing) ──
+    // Radio tarikh di page trip mewakili SAILING date; TGD yang tepat
+    // ditentukan semula di sini daripada pautan pakej sebenar. Ini juga
+    // menyembuhkan cart lama (pra-fix) yang membawa TGD salah akibat
+    // merge dedupe sailing yang menulis semula pautan pakej.
+    if (state.is_cruise_trip && _cart.package_name) {
+      var _tdsAll = (typeof trip_group_dateS !== "undefined" && trip_group_dateS)
+        ? (trip_group_dateS[state.trip_master] || []) : [];
+      var _sailKey = _cart.sailing_start || "";
+      if (!_sailKey) {
+        // Cart lama tanpa sailing_start — terbitkan dari TGD cart (jika sah).
+        var _cartTd = _tdsAll.find(function (g) { return g.name === state.trip_group_date; });
+        _sailKey = (_cartTd && _cartTd.sailing_start) || "";
+      }
+      if (_sailKey) {
+        var _cands = _tdsAll.filter(function (g) {
+          return g.sailing_start === _sailKey
+            && ((typeof TRIP_PACKAGES !== "undefined" && TRIP_PACKAGES[g.name]) || [])
+              .some(function (p) { return p.name === _cart.package_name; });
+        });
+        if (_cands.length === 1) {
+          state.trip_group_date = _cands[0].name;
+        } else if (_cands.length > 1) {
+          // Pilihan departure date (popup di page trip) dihormati selagi
+          // masih salah satu kandidat; jika tidak, gunakan yang terawal.
+          var _stillValid = _cands.some(function (g) { return g.name === state.trip_group_date; });
+          if (!_stillValid) state.trip_group_date = _cands[0].name;
+        }
+      }
+    }
 
     // Resolve selectedPackage dari TRIP_PACKAGES (diperlukan oleh loadCabins
     // dan fungsi lain seperti banner type display)
@@ -1003,7 +1097,7 @@ if (!_restored) {
 
     if (typeof renderPaymentSettingsUI === "function") renderPaymentSettingsUI();
     // booknow starts at Step 1 (Rooms) — no Step 0 (date selection removed)
-    loadCabins().then(function() { showStep(1); });
+    loadCabins().then(function() { showStep(1); maybeApplySessionEmail(); });
   } else {
     // Tiada cart — redirect ke trips listing
     window.location.href = "/trips";
@@ -1990,10 +2084,10 @@ function buildStep1Summary() {
     lines.innerHTML +=
       '<div class="bnw-order-cabin">' +
         '<div class="bnw-order-cabin-title">' + c.room_category + ' (' + (idx + 1) + ')</div>' +
-        '<div class="bnw-order-line bnw-order-line-fare"><span>Cabin Fare:</span><span>' + fmt(cabinFare) + '</span></div>' +
         guestLines.map(function(g) {
-          return '<div class="bnw-order-line bnw-order-line-guest"><span>' + g[0] + '</span><span>' + fmt(g[1]) + '</span></div>';
+          return '<div class="bnw-order-line bnw-order-line-guest"><span> + ' + g[0] + '</span><span>' + fmt(g[1]) + '</span></div>';
         }).join("") +
+        // '<div class="bnw-order-line bnw-order-line-fare"><span>Subtotal ' + c.room_category + ' (' + (idx + 1) + ') :</span><span>' + fmt(cabinFare) + '</span></div>' +
       '</div>';
   });
 
@@ -2017,14 +2111,15 @@ if (step1BackEl) step1BackEl.addEventListener("click", function() {
     sessionStorage.removeItem("bnw_booking_wizard"); // Clear wizard state
   } catch(e) {}
 
-  // Cuba guna referrer yang disimpan (trip detail page asal)
+  // URL trip detail yang disimpan oleh trip_detail.js semasa klik
+  // [Book Now] (atau fallback referrer semasa page ni load).
   var _backUrl = "/trips"; // default fallback
   try {
     var _savedRef = sessionStorage.getItem("bnw_referrer");
-    if (_savedRef && _savedRef.indexOf("/trip/") !== -1) {
+    if (_isTripPageUrl(_savedRef)) {
       _backUrl = _savedRef;
-      sessionStorage.removeItem("bnw_referrer"); // buang selepas diguna
     }
+    sessionStorage.removeItem("bnw_referrer"); // buang selepas diguna
   } catch (_e) {}
   window.location.href = _backUrl;
 });
@@ -2097,12 +2192,47 @@ if (step1NextEl) step1NextEl.addEventListener("click", function() {
 // idea asal: kalau field tak boleh diedit langsung selepas verified,
 // keseluruhan kelas bug "state.otp_verified lama terpakai untuk email
 // baharu yang tak disahkan" jadi MUSTAHIL berlaku, sebab kandungan field
-// tu sendiri tak boleh berubah. Kekal locked selama-lamanya sekali
-// verified — tiada mekanisme unlock (customer refresh/mula semula
-// wizard kalau perlu tukar email).
+// tu sendiri tak boleh berubah TANPA reset verification yang eksplisit.
+//
+// Unlock kini DIBENARKAN melalui pautan "Change email" (keputusan produk
+// 2026-09-04) — unlock sentiasa melalui unlockEmailForChange() yang
+// turut reset otp_verified, jadi kelas bug atas tetap mustahil berlaku
+// secara semula jadi (taipan biasa pada field locked tak mungkin).
 function lockEmailField() {
   emailInput.readOnly = true;
+  var changeBtn = document.getElementById("bnwEmailChangeBtn");
+  if (changeBtn) changeBtn.style.display = "inline";
+  // Email dah verified — pilihan social login tak relevan lagi, sembunyi.
+  var socialField = document.getElementById("bnwSocialLoginField");
+  if (socialField) socialField.style.display = "none";
 }
+
+// Batal verified + buka semula field untuk tukar email lain secara manual.
+// Email baharu akan melalui flow biasa semula (user sedia ada → auto
+// verified; email baharu → OTP) — pilihan social login dipaparkan semula.
+function unlockEmailForChange() {
+  state.otp_verified = false;
+  emailInput.readOnly = false;
+  emailInput.value = "";
+  var changeBtn = document.getElementById("bnwEmailChangeBtn");
+  if (changeBtn) changeBtn.style.display = "none";
+  var socialField = document.getElementById("bnwSocialLoginField");
+  if (socialField) socialField.style.display = "block";
+  if (otpInline) otpInline.style.display = "none";
+  setEmailStatus("", "");
+  checkStep2Ready();
+  try { emailInput.focus(); } catch (e) {}
+}
+
+// Pautan "Change email"
+(function initEmailChangeBtn() {
+  var changeBtn = document.getElementById("bnwEmailChangeBtn");
+  if (!changeBtn) return;
+  changeBtn.addEventListener("click", function (e) {
+    e.preventDefault();
+    unlockEmailForChange();
+  });
+})();
 
 // Gmail recommendation hint — show when user focuses email field
 // and hide once they type @gmail.com or a different domain
@@ -2147,6 +2277,8 @@ if (emailInput) {
   emailInput.addEventListener("input", function() {
     state.otp_verified      = false;
     if (otpInline) otpInline.style.display = "none";
+    var _cb = document.getElementById("bnwEmailChangeBtn");
+    if (_cb) _cb.style.display = "none";
     setEmailStatus("", "");
     checkStep2Ready();
   });
@@ -2168,37 +2300,45 @@ if (emailInput) {
     );
 
     if (result.verified) {
-      // Email ada dalam sistem — verified terus
+      // Email ada dalam sistem — verified terus. Full Name & Phone Number
+      // TIDAK di-auto-isi — customer sentiasa mengisi sendiri (keputusan
+      // produk 2026-09-04; server juga tidak lagi memulangkan PII
+      // nama/telefon dari endpoint ni).
       state.otp_verified      = true;
       otpInline.style.display = "none";
       lockEmailField();
       setEmailStatus("verified", '<i class="ti ti-circle-check"></i> Verified');
-
-      // Auto-fill + lock Full Name & Phone Number sekali — customer
-      // sedia ada tak perlu taip semula maklumat yang sistem SEBENARNYA
-      // dah ada untuk mereka. Cuma auto-fill + lock field yang MEMANG
-      // ada data (jangan overwrite dengan kosong/lock field yang
-      // customer masih perlu isi sendiri, cth Contact tak lengkap).
-      var nameInput = document.getElementById("bnwBillingName");
-      if (result.full_name && nameInput) {
-        nameInput.value    = result.full_name.toUpperCase();
-        nameInput.readOnly = true;
-      }
-      if (result.phone) {
-        if (_itiBillingPhone) {
-          _itiBillingPhone.setNumber(result.phone);
-        } else {
-          var phoneInputEl = document.getElementById("bnwBillingPhone");
-          if (phoneInputEl) phoneInputEl.value = result.phone;
-        }
-        var phoneInput = document.getElementById("bnwBillingPhone");
-        if (phoneInput) phoneInput.readOnly = true;
-      }
       checkStep2Ready();
-    } else {
-      // Email baru — tunjuk OTP field
+    } else if (result.status === "cooldown") {
+      // Cooldown 60s — respons NORMAL dari server. OTP sebelum ini mungkin
+      // masih sampai — tunjuk OTP field + lock email; user guna OTP yang
+      // dah dihantar ATAU tekan resend selepas 60s.
       state.otp_verified      = false;
       otpInline.style.display = "block";
+      lockEmailField(); // LOCK — elak blur berulang yang trigger rate limit
+      document.getElementById("bnwOtpNoticeText").textContent =
+        "A verification code was already sent to " + email +
+        ". Please check your inbox — or wait a moment to resend.";
+      setEmailStatus("pending", '<i class="ti ti-mail"></i> OTP sent — check inbox');
+    } else if (result.status === "hourly_limit" || result.status === "ip_rate_limited") {
+      // Rate limit ketat (5/jam atau 30/min IP) — respons NORMAL dari
+      // server. POPUP MODAL supaya user jelas; email di-lock supaya tak
+      // terus spam resend.
+      state.otp_verified      = false;
+      lockEmailField();
+      setEmailStatus("error", '<i class="ti ti-alert-circle"></i> Too many requests');
+      document.getElementById("bnwOtpNoticeText").textContent = result.message;
+      bnwPopup("Too Many Requests", _esc(result.message), "⏳", function () {
+        // Kunci — user perlu guna "Change email" untuk cuba email lain
+        // atau tunggu 1 jam untuk email yang sama.
+      });
+    } else {
+      // Email baru — OTP dihantar, LOCK email field supaya blur berulang
+      // (klik masuk-keluar field) tidak trigger rate limit. Gunakan
+      // "Change email" untuk tukar.
+      state.otp_verified      = false;
+      otpInline.style.display = "block";
+      lockEmailField(); // LOCK selepas OTP dihantar
       document.getElementById("bnwOtpNoticeText").textContent =
         "A verification code has been sent to " + email + ". Please check your inbox.";
       setEmailStatus("pending", '<i class="ti ti-mail"></i> OTP sent');
@@ -2218,6 +2358,66 @@ if (emailInput) {
 });
 } // end if (emailInput)
 
+// ── Email dari SESSION LOGIN (cth Google social login) — automatic verified ──
+// Customer yang sudah sign in (butang "Continue with Google" di atas, atau
+// dari portal) tidak perlu OTP: email session telah disahkan oleh Frappe.
+// Hanya EMAIL di-auto-isi + dikunci; Full Name & Phone Number kekal untuk
+// customer isi sendiri.
+//
+// PENTING (race fix): apply DITANGGUHKAN sehingga init/restore wizard tamat
+// (kedua-duanya melalui loadCabins().then) — jika tidak, fetch session boleh
+// resolve lebih awal daripada restore billing dan mengunci field kosong,
+// kemudian restore menulis email manual ke atas field yang terkunci.
+// Email user semasa dari pageData (server-side render — tiada API call,
+// tiada 403 utk Guest seperti frappe.auth.get_logged_user yang tidak
+// allow_guest). Kosong untuk Guest. Variable _data ialah parse pageData
+// yang dibuat di atas fail ini (bukan _pageData).
+var _sessionUserEmail = (_data && _data.current_user)
+  ? String(_data.current_user).trim() || null
+  : null;
+
+function maybeApplySessionEmail() {
+  if (_sessionUserEmail === undefined) {
+    // Fetch session masih berjalan — cuba lagi tidak lama lagi.
+    setTimeout(maybeApplySessionEmail, 300);
+    return;
+  }
+  if (!_sessionUserEmail || !emailInput) return;
+  // Hormati pilihan manual customer: email LAIN yang sudah diisi (cth hasil
+  // "Change email" atau restore snapshot) tidak di-override.
+  var current = (emailInput.value || "").trim().toLowerCase();
+  if (current && current !== _sessionUserEmail.toLowerCase()) return;
+  state.otp_verified = true;
+  emailInput.value = _sessionUserEmail;
+  lockEmailField();
+  if (otpInline) otpInline.style.display = "none";
+  setEmailStatus("verified", '<i class="ti ti-circle-check"></i> Verified (signed in)');
+  checkStep2Ready();
+}
+
+// ── Butang "Continue with Google" — OAuth via Social Login Key Frappe ──
+// URL authorize dijana server-side (get_google_login_url, portal_auth) —
+// sama Social Login Key Google yang portal guna. redirect_to=/booknow
+// bawa customer balik ke wizard selepas sign-in.
+(function initGoogleBtn() {
+  var gBtn = document.getElementById("bnwGoogleBtn");
+  if (!gBtn) return;
+  gBtn.addEventListener("click", async function () {
+    gBtn.disabled = true;
+    try {
+      var authUrl = await apiCall(
+        "travel_booking.api.portal_auth.get_google_login_url",
+        { redirect_to: "/booknow" },
+        true  // GET — tiada side-effect, jana URL authorize sahaja
+      );
+      window.location.href = authUrl;
+    } catch (e) {
+      alert("Could not start Google sign-in. Please fill in your email manually.");
+      gBtn.disabled = false;
+    }
+  });
+})();
+
 // Auto verify bila 6 digit OTP diisi
 if (otpInput) {
   otpInput.addEventListener("input", async function() {
@@ -2225,24 +2425,41 @@ if (otpInput) {
 
   showLoading("Verifying OTP...");
   try {
-    await apiCall(
+    var result = await apiCall(
       "travel_booking.api.booking.verify_otp",
       { email: emailInput.value.trim(), otp: this.value },
       false  // POST
     );
+    // Server memulangkan respons NORMAL (HTTP 200) untuk semua kegagalan
+    // OTP — semak success flag, bukan bergantung pada catch.
+    if (result && result.success === false) {
+      // Kegagalan OTP — POPUP MODAL supaya user jelas nampak. Status line
+      // turut dikemas kini supaya mesej kekal selepas popup ditutup.
+      this.value = "";
+      var _icon = result.status === "locked" ? "🔒" : (result.status === "expired" ? "⏰" : "❌");
+      var _title = result.status === "locked" ? "OTP Locked" : (result.status === "expired" ? "OTP Expired" : "Invalid OTP");
+      setEmailStatus("error", '<i class="ti ti-alert-circle"></i> ' + _title);
+      document.getElementById("bnwOtpNoticeText").textContent = result.message || _title;
+      hideLoading();
+      bnwPopup(_title, _esc(result.message || _title), _icon, function () {
+        otpInput.focus();
+      });
+      return;
+    }
     state.otp_verified  = true;
     otpInline.innerHTML =
-      '<div class="bnw-field" ><div class="bnw-notice bnw-notice-success">' +
         '<i class="ti ti-circle-check"></i>' +
-        '<span>Email verified successfully!</span>' +
-      '</div></div>';
+        '<span>Email verified successfully!</span>';
     lockEmailField();
     setEmailStatus("verified", '<i class="ti ti-circle-check"></i> Verified');
     checkStep2Ready();
   } catch(e) {
+    // Hanya error SISTEM sebenar (network, server down) sampai sini —
+    // semua kesilapan user (salah OTP, expired, lock) ditangani di atas.
     this.value = "";
-    setEmailStatus("error", '<i class="ti ti-alert-circle"></i> Invalid OTP');
-    document.getElementById("bnwOtpNoticeText").textContent = "Invalid OTP. Please try again or resend.";
+    setEmailStatus("error", '<i class="ti ti-alert-circle"></i> ' + ((e && e.message) || "Error"));
+    document.getElementById("bnwOtpNoticeText").textContent =
+      (e && e.message) ? e.message : "Failed to verify OTP. Please try again.";
   }
   hideLoading();
 	});
@@ -2253,14 +2470,29 @@ var resendOtpEl = document.getElementById("bnwResendOtp");
 if (resendOtpEl) resendOtpEl.addEventListener("click", async function() {
   showLoading("Resending OTP...");
   try {
-    await apiCall(
+    var result = await apiCall(
       "travel_booking.api.booking.send_otp",
       { email: emailInput.value.trim() },
       false  // POST — sama sebab macam blur handler di atas
     );
-    setEmailStatus("pending", '<i class="ti ti-mail"></i> OTP resent');
-    document.getElementById("bnwOtpNoticeText").textContent =
-      "A new code has been sent to " + emailInput.value.trim();
+    if (result && result.status === "cooldown") {
+      // Cooldown aktif — OTP sebelum ini mungkin masih sah. Mesej status
+      // sahaja (bukan popup) — ini perkara normal yang user sendiri boleh
+      // elak dengan sabar menunggu 60 saat.
+      setEmailStatus("pending", '<i class="ti ti-mail"></i> OTP already sent');
+      document.getElementById("bnwOtpNoticeText").textContent =
+        "A code was already sent recently. Please check your inbox — or wait a moment to resend.";
+    } else if (result && (result.status === "hourly_limit" || result.status === "ip_rate_limited")) {
+      // Rate limit ketat — POPUP MODAL supaya user jelas ia limit,
+      // bukan system error. Tiada console noise (server return normal).
+      setEmailStatus("error", '<i class="ti ti-alert-circle"></i> Too many requests');
+      document.getElementById("bnwOtpNoticeText").textContent = result.message;
+      bnwPopup("Too Many Requests", _esc(result.message), "⏳");
+    } else {
+      setEmailStatus("pending", '<i class="ti ti-mail"></i> OTP resent');
+      document.getElementById("bnwOtpNoticeText").textContent =
+        "A new code has been sent to " + emailInput.value.trim();
+    }
   } catch(e) {
     setEmailStatus("error", '<i class="ti ti-alert-circle"></i> Failed to resend');
     document.getElementById("bnwOtpNoticeText").textContent =
@@ -2469,12 +2701,12 @@ function buildOrderSummary() {
     lines.innerHTML +=
       '<div class="bnw-order-cabin">' +
         '<div class="bnw-order-cabin-title">' + cabinDisplayName + ' (' + (idx + 1) + ')</div>' +
-        '<div class="bnw-order-line bnw-order-line-fare"><span>Cabin Fare:</span><span>' + fmt(cabinFare) + '</span></div>' +
         '<div class="bnw-order-guests">' +
           guestLines.map(function(g) {
-            return '<div class="bnw-order-guest-detail"><span>' + g[0] + '</span> : <span>' + fmt(g[1]) + '</span></div>';
+            return '<div class="bnw-order-guest-detail"><span> + ' + g[0] + '</span> : <span>' + fmt(g[1]) + '</span></div>';
           }).join("") +
         '</div>' +
+        // '<div class="bnw-order-line bnw-order-line-fare"><span>Cabin Fare:</span><span>' + fmt(cabinFare) + '</span></div>' +
       '</div>';
   });
 
@@ -2631,9 +2863,9 @@ function buildBookingSummary() {
       cabinDiv.className = "bnw-order-cabin";
       cabinDiv.innerHTML =
         '<div class="bnw-order-cabin-title">' + (c.room_name || c.room_category || "Cabin") + ' (' + (idx + 1) + ')</div>' +
-        '<div class="bnw-order-line bnw-order-line-fare"><span>Cabin Fare:</span><span>' + fmt(cabinFare) + '</span></div>' +
+        // '<div class="bnw-order-line bnw-order-line-fare"><span>Cabin Fare:</span><span>' + fmt(cabinFare) + '</span></div>' +
         guestLines.map(function(g) {
-          return '<div class="bnw-order-line bnw-order-line-guest"><span>' + g[0] + '</span><span>' + fmt(g[1]) + '</span></div>';
+          return '<div class="bnw-order-line bnw-order-line-guest"><span> + ' + g[0] + '</span><span>' + fmt(g[1]) + '</span></div>';
         }).join("");
       linesEl.appendChild(cabinDiv);
     });
@@ -3034,14 +3266,20 @@ async function applyAffiliateCode() {
         document.getElementById("bnwAffiliateDiscountRow").style.display = "none";
       }
 
-      // Kunci input (elak edit kod yang dah aktif) — butang sendiri TAK
-      // dikunci, sebaliknya bertukar fungsi jadi "✕" (buang kod, rujuk
-      // onAffiliateBtnClick() — satu butang, dua peranan ikut state).
-      document.getElementById("bnwAffiliateInput").disabled = true;
-      btn.textContent = "\u2715";
-      btn.classList.add("bnw-btn-voucher-applied");
+      // Kod dah aktif — SEMBUNYIKAN input + butang Apply sepenuhnya supaya
+      // customer TIDAK boleh membuang kod affiliate dari booking mereka
+      // (attribution kekal sehingga confirm_booking). Kod yang diguna
+      // dipaparkan sebagai teks sahaja (bnwAffiliateAppliedBox). Mesej
+      // success tambahan TIDAK diperlukan lagi — applied box + discount
+      // row (jika ada) sudah cukup; bnwAffiliateMsg kekal untuk error
+      // sahaja (kod tak sah / validasi gagal).
+      document.getElementById("bnwAffiliateInputRow").style.display = "none";
+      document.getElementById("bnwAffiliateAppliedBox").style.display = "block";
+      document.getElementById("bnwAffiliateAppliedCode").textContent = code;
+      // Buang mesej error stale (cth "Invalid referral code." dari percubaan
+      // sebelumnya) — tanpa ni ia terus melekat di bawah applied box.
+      document.getElementById("bnwAffiliateMsg").style.display = "none";
 
-      showAffiliateMsg("success", "✓ " + result.message);
       updatePaymentUI();
     } else {
       state_affiliate_code   = "";
@@ -3063,8 +3301,19 @@ function removeAffiliateCode() {
   state_affiliate_code   = "";
   state_referral_percent = 0;
 
+  // Buang juga cookie rc_aff — customer yang sengaja membuang kod tidak
+  // mahu kod itu di-apply semula (prefill / inquiry) pada kunjungan
+  // akan datang.
+  document.cookie = "rc_aff=; path=/; max-age=0; SameSite=Lax";
+
   document.getElementById("bnwAffiliateDiscountRow").style.display = "none";
   document.getElementById("bnwAffiliateMsg").style.display = "none";
+
+  // Pulihkan kedua-dua keadaan UI. NOTA: bila kod aktif, input row
+  // disembunyikan sepenuhnya — jadi fungsi ni kini TIDAK lagi dicapai
+  // dari UI (tiada butang ✕); kekal untuk kes programatik sahaja.
+  document.getElementById("bnwAffiliateInputRow").style.display = "";
+  document.getElementById("bnwAffiliateAppliedBox").style.display = "none";
 
   var input = document.getElementById("bnwAffiliateInput");
   input.disabled = false;
@@ -3087,9 +3336,12 @@ function prefillAffiliateCodeFromUrl() {
   // affiliate (dua maksud berlainan berkongsi satu nama parameter). 'sp'
   // parameter baharu yang tak bertembung dengan mana-mana penggunaan lain.
   //
-  // Priority: URL ?sp= → restored wizard snapshot → bnw_cart. Tiga-tiga
-  // jaminan kod affiliate tak hilang: deep-link baharu dari trip-detail,
-  // refresh selepas taip manual, dan handoff dari trip-detail via cart.
+  // Priority: URL ?sp= → restored wizard snapshot → bnw_cart → cookie
+  // rc_aff. Keempat-empat jaminan kod affiliate tak hilang: deep-link
+  // baharu dari trip-detail, refresh selepas taip manual, handoff dari
+  // trip-detail via cart, dan KEMBALI BERHARI-HARI KEMUDIAN melalui
+  // cookie (disediakan oleh affiliate_capture.js bila customer mula-mula
+  // mendarat dari link affiliate di mana-mana page).
   var params = new URLSearchParams(window.location.search);
 
   // Skip pada screen confirmation pasca-Stripe — booking dah dibuat, kod
@@ -3103,6 +3355,10 @@ function prefillAffiliateCodeFromUrl() {
       var _c = sessionStorage.getItem("bnw_cart");
       if (_c) code = (JSON.parse(_c).affiliate_code || "").trim().toUpperCase();
     } catch (_e) {}
+  }
+  if (!code) {
+    var _ck = document.cookie.match(/(?:^|;\s*)rc_aff=([^;]+)/);
+    if (_ck) code = decodeURIComponent(_ck[1]).trim().toUpperCase();
   }
   if (!code) return;
 
@@ -3418,30 +3674,78 @@ function calcDiscountedTotal() {
   return afterReferral;
 }
 
+/* Pemampatan imej resit (client-side) — kritikal untuk foto kamera
+   (3-8MB) yang jika tidak akan melebihi cap 5MB endpoint AI OCR dan
+   lembap untuk dihantar/di-OCR. Canvas resize ke maks 1600px sisi
+   terpanjang + JPEG 0.85 → biasanya ~200-500KB. Hanya dilakukan bila
+   perlu (imej besar); gambar kecil dihantar asal. Callback(blob|null). */
+function compressReceiptImage(file, cb) {
+  var needsSize = file.size > 1.5 * 1024 * 1024;
+  var img = new Image();
+  var url = URL.createObjectURL(file);
+  img.onload = function() {
+    URL.revokeObjectURL(url);
+    var longest = Math.max(img.width, img.height);
+    if (!needsSize && longest <= 2000) { cb(null); return; }
+    var scale = Math.min(1, 1600 / longest);
+    var canvas = document.createElement("canvas");
+    canvas.width  = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(function(blob) {
+      cb(blob && blob.size < file.size ? blob : null);
+    }, "image/jpeg", 0.85);
+  };
+  img.onerror = function() { URL.revokeObjectURL(url); cb(null); };
+  img.src = url;
+}
+
+/* Dipanggil dari input upload (bnwReceiptFile) DAN input kamera
+   (bnwReceiptCamera — capture=environment, peranti sentuh). */
 function onReceiptSelected(input) {
   if (!input.files || !input.files[0]) return;
   var file = input.files[0];
-  if (file.size > 5 * 1024 * 1024) {
-    alert("File too large. Maximum 5MB.");
-    input.value = "";
-    return;
-  }
-  // Simpan File asal untuk OCR + baca base64 untuk submission
-  state_receipt_file = file;
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    state_receipt_data = e.target.result; // base64
-    document.getElementById("bnwReceiptFileName").style.display = "block";
-    document.getElementById("bnwReceiptFileNameText").textContent = file.name;
-    // Auto-analyze resit guna OCR (gambar sahaja — PDF tak boleh di-OCR client-side)
-    if (file.type && file.type.startsWith("image/")) {
-      analyzeReceipt(file);
-    } else {
+  // Reset input awal supaya fail yang SAMA boleh dipilih semula.
+  input.value = "";
+
+  var nameEl  = document.getElementById("bnwReceiptFileName");
+  var nameTxt = document.getElementById("bnwReceiptFileNameText");
+
+  if (file.type && file.type.startsWith("image/")) {
+    // Imej: had input 20MB (foto kamera besar) — akan dimampatkan dahulu.
+    if (file.size > 20 * 1024 * 1024) {
+      alert("Image too large. Maximum 20MB.");
+      return;
+    }
+    compressReceiptImage(file, function(blob) {
+      var finalFile = blob || file;
+      state_receipt_file = finalFile;
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        state_receipt_data = e.target.result; // base64
+        if (nameEl) nameEl.style.display = "block";
+        if (nameTxt) nameTxt.textContent = file.name;
+        analyzeReceipt(finalFile);
+      };
+      reader.readAsDataURL(finalFile);
+    });
+  } else {
+    // PDF — tiada pemampatan client-side, kekal cap 5MB.
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File too large. Maximum 5MB for PDF.");
+      return;
+    }
+    state_receipt_file = file;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      state_receipt_data = e.target.result; // base64
+      if (nameEl) nameEl.style.display = "block";
+      if (nameTxt) nameTxt.textContent = file.name;
       var ocrBox = document.getElementById("bnwReceiptOCR");
       if (ocrBox) ocrBox.style.display = "none";
-    }
-  };
-  reader.readAsDataURL(file);
+    };
+    reader.readAsDataURL(file);
+  }
 }
 
 /* ══════════════════════════════════════════════════
@@ -3537,81 +3841,153 @@ function parseBankSlip(text) {
   return { date: date, reference: reference, amount: amount, rawText: clean };
 }
 
-/* Main orchestrator — jalankan OCR pada fail resit & auto-isi medan */
+/* Papar hasil pembacaan resit (AI atau OCR tempatan) — auto-isi medan +
+   alert perbandingan jumlah (ALERT sahaja, tak block submit). */
+function renderReceiptOCRResult(parsed, statusEl, resultEl) {
+  // Auto-isi Bank Transfer Reference No.
+  if (parsed.reference) {
+    var refInput = document.getElementById('bnwBankTransferRefInput');
+    if (refInput) {
+      refInput.value = parsed.reference;
+      refInput.style.borderColor = 'var(--bnw-success,#2e7d32)';
+      setTimeout(function () { refInput.style.borderColor = ''; }, 2000);
+    }
+  }
+
+  // Banding jumlah resit vs jumlah diisytiharkan (state_payment_amount) —
+  // alert sahaja: bezanya hanya dipapar, submission tidak disekat.
+  var declared = parseFloat(state_payment_amount) || 0;
+  var amtStatus, amtColor, amtDetail = '';
+  if (parsed.amount && parsed.amount > 0 && declared > 0) {
+    var diff = Math.abs(parsed.amount - declared);
+    var isMatch = diff <= 0.5; // 50 sen tolerance
+    if (isMatch) {
+      amtStatus = '✓ Amounts match';
+      amtColor = 'var(--bnw-success,#2e7d32)';
+    } else {
+      amtStatus = '⚠ Amount differs by ' + fmt(diff);
+      amtColor = 'var(--bnw-error,#c62828)';
+      var amtInput = document.getElementById('bnwPayAmountInput');
+      if (amtInput) {
+        amtInput.style.borderColor = 'var(--bnw-error,#c62828)';
+        setTimeout(function () { amtInput.style.borderColor = ''; }, 4000);
+      }
+    }
+    amtDetail = 'Document: ' + fmt(parsed.amount) + ' · Declared: ' + fmt(declared);
+  } else if (parsed.amount === null && declared > 0) {
+    amtStatus = '✓ Extracted (amount not detected)';
+    amtColor = 'var(--bnw-gold,#C9A84C)';
+  } else {
+    amtStatus = '✓ Receipt read';
+    amtColor = 'var(--bnw-success,#2e7d32)';
+  }
+
+  var srcTag = parsed.source === 'ai' ? ' (AI)' : ' (OCR)';
+
+  // Bina result card
+  var html = '<div style="font-weight:600;color:' + amtColor + ';margin-bottom:6px;">' + amtStatus + srcTag + '</div>';
+  if (amtDetail) html += '<div style="color:var(--bnw-text-muted,#6E6A5F);margin-bottom:4px;">' + amtDetail + '</div>';
+  if (parsed.reference) html += '<div style="color:var(--bnw-text-muted,#6E6A5F);">Reference: <strong style="color:var(--bnw-text,#1E1C18);">' + parsed.reference + '</strong> → auto-filled</div>';
+  if (parsed.date) html += '<div style="color:var(--bnw-text-muted,#6E6A5F);">Date: ' + parsed.date + '</div>';
+  if (!parsed.reference && !parsed.date && !parsed.amount) {
+    html = '<div style="color:var(--bnw-gold,#C9A84C);">⚠ Could not extract details. Please fill reference manually.</div>';
+  }
+  if (resultEl) {
+    resultEl.innerHTML = html;
+    resultEl.style.display = 'block';
+  }
+  if (statusEl) statusEl.textContent = '';
+}
+
+/* Main orchestrator — baca resit & auto-isi medan.
+   1) AI OCR dahulu (server-side, OpenAI-compatible — Travel Settings →
+      AI Receipt OCR). Menyokong gambar DAN PDF.
+   2) Fallback: Tesseract.js tempatan (gambar sahaja). */
+
+/* ── Blocking scan progress modal — menghalang user daripada mengganggu
+   proses AI/OCR scan resit. Tiada butang tutup; overlay click tidak
+   melakukan apa-apa. Ditutup hanya oleh _hideReceiptScanProgress(). ── */
+function _showReceiptScanProgress(engineLabel) {
+  _hideReceiptScanProgress();
+  var overlay = document.createElement('div');
+  overlay.id = 'rcw-scan-progress';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(30,28,24,.6);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;';
+  overlay.innerHTML =
+    '<div style="background:#fff;border-radius:14px;padding:36px 28px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(30,28,24,.35);text-align:center;font-family:Archivo,system-ui,sans-serif;">' +
+      '<div style="font-size:42px;margin-bottom:14px;animation:rcwScanSpin 1s linear infinite;display:inline-block;">⏳</div>' +
+      '<div style="font-size:15px;font-weight:700;color:#1E1C18;margin-bottom:6px;">' + (engineLabel || 'Scanning receipt with AI...') + '</div>' +
+      '<div style="font-size:12.5px;color:#6E6A5F;line-height:1.5;">Please wait while we read your receipt. Do not close or refresh this page.</div>' +
+    '</div>' +
+    '<style>@keyframes rcwScanSpin { to { transform: rotate(360deg); } }</style>';
+  document.body.appendChild(overlay);
+}
+
+function _hideReceiptScanProgress() {
+  var el = document.getElementById('rcw-scan-progress');
+  if (el) el.remove();
+}
+
 async function analyzeReceipt(file) {
-  if (!file || !file.type.startsWith('image/')) return false;
+  if (!file) return false;
 
   var ocrBox = document.getElementById('bnwReceiptOCR');
   var statusEl = document.getElementById('bnwReceiptOCRStatus');
   var resultEl = document.getElementById('bnwReceiptOCRResult');
   if (ocrBox) ocrBox.style.display = 'block';
   if (resultEl) resultEl.style.display = 'none';
+  _showReceiptScanProgress('Scanning receipt with AI...');
+
+  // ── 1) AI OCR (server-side) ──
+  if (state_receipt_data) {
+    if (statusEl) statusEl.textContent = 'Analyzing receipt with AI...';
+    var ai = null;
+    try {
+      ai = await apiCall(
+        'travel_booking.api.receipt_ocr.analyze_receipt',
+        { filedata: state_receipt_data, filename: file.name },
+        false  // POST
+      );
+    } catch (e) { ai = null; }
+    if (ai && ai.ok) {
+      _hideReceiptScanProgress();
+      renderReceiptOCRResult({
+        reference: ai.reference_no || null,
+        amount: (ai.amount !== null && ai.amount !== undefined) ? ai.amount : null,
+        date: null,
+        source: 'ai'
+      }, statusEl, resultEl);
+      return true;
+    }
+    // AI tak configured / gagal — teruskan ke fallback di bawah tanpa
+    // mengganggu customer (tiada mesej error AI didedahkan).
+  }
+
+  // ── 2) Fallback: Tesseract.js (gambar sahaja) ──
+  if (!file.type.startsWith('image/')) {
+    _hideReceiptScanProgress();
+    if (statusEl) statusEl.textContent = 'PDF receipt — AI unavailable, please fill reference manually.';
+    return false;
+  }
+  _showReceiptScanProgress('Reading receipt (OCR)...');
   if (statusEl) statusEl.textContent = 'Reading receipt...';
 
   try {
     var worker = await initReceiptOCR();
     if (!worker) {
+      _hideReceiptScanProgress();
       if (statusEl) statusEl.textContent = 'OCR unavailable — please fill reference manually.';
       return false;
     }
 
     var result = await worker.recognize(file);
     var parsed = parseBankSlip(result.data.text);
-
-    // Auto-isi Bank Transfer Reference No.
-    if (parsed.reference) {
-      var refInput = document.getElementById('bnwBankTransferRefInput');
-      if (refInput) {
-        refInput.value = parsed.reference;
-        refInput.style.borderColor = 'var(--bnw-success,#2e7d32)';
-        setTimeout(function () { refInput.style.borderColor = ''; }, 2000);
-      }
-    }
-
-    // Banding jumlah resit vs jumlah diisytiharkan (state_payment_amount)
-    var declared = parseFloat(state_payment_amount) || 0;
-    var amtStatus, amtColor, amtDetail = '';
-    if (parsed.amount && parsed.amount > 0 && declared > 0) {
-      var diff = Math.abs(parsed.amount - declared);
-      var isMatch = diff <= 0.5; // 50 sen tolerance
-      if (isMatch) {
-        amtStatus = '✓ Amounts match';
-        amtColor = 'var(--bnw-success,#2e7d32)';
-      } else {
-        amtStatus = '⚠ Amount differs by ' + fmt(diff);
-        amtColor = 'var(--bnw-error,#c62828)';
-        var amtInput = document.getElementById('bnwPayAmountInput');
-        if (amtInput) {
-          amtInput.style.borderColor = 'var(--bnw-error,#c62828)';
-          setTimeout(function () { amtInput.style.borderColor = ''; }, 4000);
-        }
-      }
-      amtDetail = 'Document: ' + fmt(parsed.amount) + ' · Declared: ' + fmt(declared);
-    } else if (parsed.amount === null && declared > 0) {
-      amtStatus = '✓ Extracted (amount not detected)';
-      amtColor = 'var(--bnw-gold,#C9A84C)';
-    } else {
-      amtStatus = '✓ Receipt read';
-      amtColor = 'var(--bnw-success,#2e7d32)';
-    }
-
-    // Bina result card
-    var html = '<div style="font-weight:600;color:' + amtColor + ';margin-bottom:6px;">' + amtStatus + '</div>';
-    if (amtDetail) html += '<div style="color:var(--bnw-text-muted,#6E6A5F);margin-bottom:4px;">' + amtDetail + '</div>';
-    if (parsed.reference) html += '<div style="color:var(--bnw-text-muted,#6E6A5F);">Reference: <strong style="color:var(--bnw-text,#1E1C18);">' + parsed.reference + '</strong> → auto-filled</div>';
-    if (parsed.date) html += '<div style="color:var(--bnw-text-muted,#6E6A5F);">Date: ' + parsed.date + '</div>';
-    if (!parsed.reference && !parsed.date && !parsed.amount) {
-      html = '<div style="color:var(--bnw-gold,#C9A84C);">⚠ Could not extract details. Please fill reference manually.</div>';
-    }
-    if (resultEl) {
-      resultEl.innerHTML = html;
-      resultEl.style.display = 'block';
-    }
-    if (statusEl) statusEl.textContent = '';
-
+    parsed.source = 'ocr';
+    _hideReceiptScanProgress();
+    renderReceiptOCRResult(parsed, statusEl, resultEl);
     return true;
   } catch (e) {
     console.warn('OCR failed:', e);
+    _hideReceiptScanProgress();
     if (statusEl) statusEl.textContent = 'OCR failed — please fill reference manually.';
     return false;
   }

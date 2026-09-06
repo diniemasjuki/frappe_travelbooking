@@ -52,6 +52,66 @@ def _get_owned_booking(booking_number):
 # ══════════════════════════════════════════════
 
 @frappe.whitelist()
+def _booking_trip_context(booking: frappe._dict) -> tuple:
+    """Terbitkan konteks trip booking: (trip_name, departure_date).
+
+    trip_name diperlukan untuk padanan scoping peringkat TRIP (addon yang
+    di-scope "trip sahaja"). Booking tiada field trip terus — diterbitkan
+    daripada Trip Group Date (utama) atau Trip Package (fallback).
+    """
+    trip_name = None
+    departure_date = None
+    if booking.trip_date:
+        tgd = frappe.db.get_value(
+            "Trip Group Date", booking.trip_date, ["trip", "departure_date"], as_dict=True
+        )
+        if tgd:
+            trip_name = tgd.trip
+            departure_date = tgd.departure_date
+    if not trip_name and booking.trip_package:
+        trip_name = frappe.db.get_value("Trip Package", booking.trip_package, "trip_link")
+    return trip_name, departure_date
+
+
+def _scoping_is_applicable(
+    applicable_to: str | None,
+    scopings: list,
+    trip_package_name: str | None,
+    group_date_name: str | None,
+    trip_name: str | None,
+) -> bool:
+    """Logik padanan scoping addon package — konsisten dengan
+    Trip Addon Package.is_applicable_for_trip_package (rujuk situ untuk
+    semantik row scoping). Dipisah di sini supaya get_available_addons boleh
+    guna scoping yang di-bulk-load (elak N+1 get_doc per package).
+    """
+    if applicable_to == "All Trips" or not applicable_to:
+        return True
+
+    for s in scopings:
+        # Row trip+package (group date KOSONG): addon sah untuk package
+        # tertentu PADA TRIP tersebut sahaja — merangkumi SEMUA tarikh
+        # group date yang package itu sah. Bila row nyatakan trip, booking
+        # juga mesti dari trip sama (guard data tak konsisten).
+        if s.trip_package and trip_package_name and s.trip_package == trip_package_name:
+            if not s.trip or not trip_name or s.trip == trip_name:
+                return True
+        if s.group_date and group_date_name and s.group_date == group_date_name:
+            return True
+        if (
+            s.trip
+            and not s.group_date
+            and not s.trip_package
+            and trip_name
+            and s.trip == trip_name
+        ):
+            return True
+
+    if not trip_package_name and not group_date_name and not trip_name:
+        return any(s.trip for s in scopings)
+    return False
+
+
 def get_available_addons(booking_number: str):
     """Senarai Trip Addon (produk) dengan Trip Addon Package sebagai variant.
     Setiap addon boleh ada beberapa package (plan type, pricing, scoping berbeza).
@@ -61,9 +121,7 @@ def get_available_addons(booking_number: str):
     """
     booking = _get_owned_booking(booking_number)
 
-    departure_date = None
-    if booking.trip_date:
-        departure_date = frappe.db.get_value("Trip Group Date", booking.trip_date, "departure_date")
+    trip_name, departure_date = _booking_trip_context(booking)
 
     rows = frappe.db.sql("""
         SELECT DISTINCT
@@ -81,25 +139,30 @@ def get_available_addons(booking_number: str):
 
     today = frappe.utils.getdate()
 
+    # Bulk-load SEMUA row scoping sekali — elak get_doc penuh per package
+    # (N+1; katalog addon boleh ada puluhan package, setiap paparan page
+    # booking_addons memuatkan kesemuanya).
+    scoping_map = {}
+    for s in frappe.get_all(
+        "Trip Scoping", {}, ["parent", "trip", "group_date", "trip_package"]
+    ):
+        scoping_map.setdefault(s.parent, []).append(s)
+
     # Build package dicts, grouped by parent Trip Addon
     addon_map = {}   # {addon_name: {addon-level fields, packages: [...]}}
 
     for r in rows:
-        # Check scoping
-        is_applicable = False
-        try:
-            ap_doc = frappe.get_doc("Trip Addon Package", r.name)
-            is_applicable = ap_doc.is_applicable_for_trip_package(
-                trip_package_name=booking.trip_package,
-                group_date_name=booking.trip_date
-            )
-        except Exception:
-            if r.applicable_to == "All Trips" or not r.applicable_to:
-                is_applicable = True
-            else:
-                scopings = frappe.get_all("Trip Scoping", {"parent": r.name}, ["trip_package"], limit=1)
-                if scopings:
-                    is_applicable = True
+        # Padanan scoping: trip_package / group_date / trip (booking).
+        # Fallback konservatif: hanya "All Trips" dianggap applicable bila
+        # data scoping gagal dibaca — JANGAN bolong scoping dengan
+        # "sebarang row wujud → True" (fallback lama).
+        is_applicable = _scoping_is_applicable(
+            r.applicable_to,
+            scoping_map.get(r.name, []),
+            booking.trip_package,
+            booking.trip_date,
+            trip_name,
+        )
 
         if not is_applicable:
             continue
@@ -192,9 +255,7 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
         frappe.throw("Please select at least one item.")
 
     validated_lines = []
-    departure_date = None
-    if booking.trip_date:
-        departure_date = frappe.db.get_value("Trip Group Date", booking.trip_date, "departure_date")
+    trip_name, departure_date = _booking_trip_context(booking)
     today = frappe.utils.getdate()
 
     for line in lines:
@@ -225,21 +286,15 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
             if qty <= 0:
                 continue
 
-        # Scoping check (same pattern as get_available_addons)
-        is_applicable = False
-        try:
-            ap_doc = frappe.get_doc("Trip Addon Package", ap.name)
-            is_applicable = ap_doc.is_applicable_for_trip_package(
-                trip_package_name=booking.trip_package,
-                group_date_name=booking.trip_date
-            )
-        except Exception:
-            if ap.applicable_to == "All Trips" or not ap.applicable_to:
-                is_applicable = True
-            else:
-                scopings = frappe.get_all("Trip Scoping", {"parent": ap.name}, ["trip_package"], limit=1)
-                if scopings:
-                    is_applicable = True
+        # Scoping check (logik sama dengan get_available_addons — trip-level
+        # match kini disokong; fallback konservatif hanya "All Trips").
+        scopings = frappe.get_all(
+            "Trip Scoping", {"parent": ap.name}, ["trip", "group_date", "trip_package"]
+        )
+        is_applicable = _scoping_is_applicable(
+            ap.applicable_to, scopings,
+            booking.trip_package, booking.trip_date, trip_name,
+        )
         if not is_applicable:
             frappe.throw("One of the selected items is not valid for this booking.")
 
@@ -499,3 +554,70 @@ def get_booking_addons(booking_number: str):
             l["addon_package_name"] = pkg_name_map.get(l.get("addon_package"), "")
 
     return orders
+
+@frappe.whitelist()
+def search_trip_packages_by_group_date(
+    doctype: str,
+    txt: str,
+    searchfield: str,
+    start: int,
+    page_len: int,
+    filters: dict | str | None = None,
+) -> list:
+    """Link-search Trip Package yang sah untuk satu Trip Group Date.
+
+    Digunakan oleh filter dependent child table Trip Scoping (Trip Addon
+    Package di Desk): pilih trip → group date difilter ikut trip → pakej
+    difilter ikut group date. Hubungan Package↔Group Date many-to-many
+    (child table Trip Package Group Date Select) — tak boleh link filter
+    biasa, jadi query join di sini.
+
+    Fallback: tiada group_date dalam filters tapi ada trip → pulangkan
+    semua pakej Active trip tersebut.
+    """
+    # Link-query Frappe menghantar filters sebagai dict, tetapi panggilan
+    # API terus (GET) membawa JSON string — terima kedua-dua bentuk.
+    if isinstance(filters, str):
+        try:
+            import json as _json
+
+            filters = _json.loads(filters)
+        except Exception:
+            filters = {}
+    filters = filters or {}
+    gd = filters.get("group_date") or ""
+    trip = filters.get("trip") or ""
+    txt = (txt or "").strip()
+    like = "%" + txt + "%"
+
+    if gd:
+        return frappe.db.sql(
+            """
+            SELECT DISTINCT tp.name, tp.package_title
+            FROM `tabTrip Package` tp
+            JOIN `tabTrip Package Group Date Select` sel ON sel.parent = tp.name
+            WHERE sel.trip_group_date = %(gd)s
+              AND tp.status = 'Active'
+              AND (tp.name LIKE %(like)s OR IFNULL(tp.package_title, '') LIKE %(like)s)
+            ORDER BY tp.name
+            LIMIT %(limit)s OFFSET %(start)s
+            """,
+            {"gd": gd, "like": like, "limit": page_len, "start": start},
+            as_list=True,
+        )
+
+    if trip:
+        return frappe.db.sql(
+            """
+            SELECT tp.name, tp.package_title
+            FROM `tabTrip Package` tp
+            WHERE tp.trip_link = %(trip)s AND tp.status = 'Active'
+              AND (tp.name LIKE %(like)s OR IFNULL(tp.package_title, '') LIKE %(like)s)
+            ORDER BY tp.name
+            LIMIT %(limit)s OFFSET %(start)s
+            """,
+            {"trip": trip, "like": like, "limit": page_len, "start": start},
+            as_list=True,
+        )
+
+    return []

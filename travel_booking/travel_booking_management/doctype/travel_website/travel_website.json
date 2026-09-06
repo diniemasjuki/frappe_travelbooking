@@ -19,6 +19,13 @@
   "social_instagram",
   "column_break_tkpj",
   "social_whatsapp",
+  "chat_widget_section",
+  "enable_chat_widget",
+  "chat_widget_cb",
+  "chat_widget_title",
+  "chat_widget_subtitle",
+  "chat_widget_success_message",
+  "date_display_format",
   "tab_cruise",
   "cruise_menu_section",
   "cruise_menu",
@@ -196,6 +203,49 @@
    "label": "WhatsApp URL"
   },
   {
+   "fieldname": "chat_widget_section",
+   "fieldtype": "Section Break",
+   "label": "Floating Chat Button (Contact Form)"
+  },
+  {
+   "default": "1",
+   "description": "Tunjukkan butang chat floating (mini contact form) pada semua page awam cruise/tour — homepage, senarai trip, product page dan booking wizard. Submission disimpan sebagai Travel Inquiry.",
+   "fieldname": "enable_chat_widget",
+   "fieldtype": "Check",
+   "label": "Enable Floating Chat Button"
+  },
+  {
+   "fieldname": "chat_widget_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Chat with us",
+   "fieldname": "chat_widget_title",
+   "fieldtype": "Data",
+   "label": "Chat Panel Title",
+   "length": 80
+  },
+  {
+   "default": "Have a question? Leave your details and our team will get back to you.",
+   "fieldname": "chat_widget_subtitle",
+   "fieldtype": "Small Text",
+   "label": "Chat Panel Intro Text"
+  },
+  {
+   "default": "Thank you! Your question has been sent. Our team will contact you soon.",
+   "fieldname": "chat_widget_success_message",
+   "fieldtype": "Small Text",
+   "label": "Success Message"
+  },
+  {
+   "default": "dd MMM yyyy",
+   "description": "Format paparan tarikh untuk SEMUA page awam & portal (trip card, detail trip, booknow, portal traveller). Pilihan: dd MMM yyyy (cth 03 Oct 2026), dd/mm/yyyy, dd-mm-yyyy, dd MMMM yyyy, yyyy-mm-dd.",
+   "fieldname": "date_display_format",
+   "fieldtype": "Select",
+   "label": "Date Display Format",
+   "options": "dd MMM yyyy\ndd/mm/yyyy\ndd-mm-yyyy\ndd MMMM yyyy\nyyyy-mm-dd"
+  },
+  {
    "fieldname": "tab_cruise",
    "fieldtype": "Tab Break",
    "label": "Cruise Homepage"
@@ -278,7 +328,7 @@
   {
    "fieldname": "cruise_featured_section",
    "fieldtype": "Section Break",
-   "label": "Featured Cruises \u2014 Section Header"
+   "label": "Featured Cruises — Section Header"
   },
   {
    "fieldname": "cruise_featured_tag",
@@ -520,7 +570,7 @@
   {
    "fieldname": "tour_featured_section",
    "fieldtype": "Section Break",
-   "label": "Featured Tours \u2014 Section Header"
+   "label": "Featured Tours — Section Header"
   },
   {
    "fieldname": "tour_featured_tag",
@@ -791,7 +841,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-24 22:22:38.038025",
+ "modified": "2026-09-05 09:30:00.000000",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Website",

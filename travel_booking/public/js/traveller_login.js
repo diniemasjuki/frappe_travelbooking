@@ -17,8 +17,7 @@
   }
 
   function hideAllMsgs() {
-    ['login-error', 'magic-error', 'magic-success', 'forgot-error', 'forgot-success',
-     'signup-error', 'signup-success'].forEach(
+    ['login-error', 'magic-error', 'magic-success'].forEach(
       function (id) { hideInlineError(id); }
     );
   }
@@ -184,61 +183,6 @@
     });
   }
 
-  /* ── Forgot Password Toggle & Submit ── */
-  var forgotLink = document.getElementById('link-forgot');
-  if (forgotLink) {
-    forgotLink.addEventListener('click', function (e) {
-      e.preventDefault();
-      hideAllMsgs();
-      showView('V-forgot');
-
-      var emailInput = document.getElementById('forgot-email');
-      if (emailInput) {
-        var loginEmail = document.getElementById('login-email');
-        if (loginEmail && loginEmail.value.trim()) {
-          emailInput.value = loginEmail.value.trim();
-        }
-        emailInput.focus();
-      }
-    });
-  }
-
-  var forgotForm = document.getElementById('forgot-form');
-  if (forgotForm) {
-    forgotForm.addEventListener('submit', async function (e) {
-      e.preventDefault();
-      hideAllMsgs();
-
-      var email = document.getElementById('forgot-email').value.trim();
-      var btn = document.getElementById('btn-forgot-send');
-
-      if (!email) {
-        showInlineError('forgot-error', 'Please enter your email address.');
-        return;
-      }
-
-      btn.disabled = true;
-      btn.textContent = 'Sending...';
-
-      try {
-        var result = await API('forgot_password', { email: email });
-        showInlineError('forgot-success', result.message ||
-          'If this email is registered, a reset link will be sent shortly.');
-        btn.textContent = 'Sent!';
-        btn.disabled = true;
-
-        setTimeout(function () {
-          showView('V-login');
-        }, 3500);
-
-      } catch (err) {
-        showInlineError('forgot-error', err.message || 'Failed to send reset link. Please try again.');
-        btn.disabled = false;
-        btn.textContent = 'Send Reset Link';
-      }
-    });
-  }
-
   /* ── Back to Login Links ── */
   var backToLogin = document.getElementById('link-back-login');
   if (backToLogin) {
@@ -249,113 +193,6 @@
     });
   }
 
-  var backFromForgot = document.getElementById('link-back-from-forgot');
-  if (backFromForgot) {
-    backFromForgot.addEventListener('click', function (e) {
-      e.preventDefault();
-      hideAllMsgs();
-      showView('V-login');
-    });
-  }
-
-  /* ── Sign Up Toggle & Submit ── */
-  var signupLink = document.getElementById('link-signup');
-  if (signupLink) {
-    signupLink.addEventListener('click', function (e) {
-      e.preventDefault();
-      hideAllMsgs();
-      showView('V-signup');
-      var nameInput = document.getElementById('signup-name');
-      if (nameInput) nameInput.focus();
-    });
-  }
-
-  var backFromSignup = document.getElementById('link-back-from-signup');
-  if (backFromSignup) {
-    backFromSignup.addEventListener('click', function (e) {
-      e.preventDefault();
-      hideAllMsgs();
-      showView('V-login');
-    });
-  }
-
-  var signupForm = document.getElementById('signup-form');
-  if (signupForm) {
-    signupForm.addEventListener('submit', async function (e) {
-      e.preventDefault();
-      hideAllMsgs();
-
-      var full_name = document.getElementById('signup-name').value.trim();
-      var email = document.getElementById('signup-email').value.trim();
-      var pwd = document.getElementById('signup-password').value;
-      var confirm = document.getElementById('signup-confirm').value;
-      var btn = document.getElementById('btn-signup');
-
-      if (!full_name || !email || !pwd || !confirm) {
-        showInlineError('signup-error', 'Please fill in all fields.');
-        return;
-      }
-      if (pwd.length < 8) {
-        showInlineError('signup-error', 'Password must be at least 8 characters.');
-        return;
-      }
-      if (pwd !== confirm) {
-        showInlineError('signup-error', 'Passwords do not match.');
-        return;
-      }
-
-      btn.disabled = true;
-      btn.textContent = 'Creating...';
-
-      try {
-        var result = await API('signup', {
-          full_name: full_name,
-          email: email,
-          password: pwd
-        });
-
-        /* Auto-login: call Frappe login with the new credentials. */
-        var r = await fetch('/api/method/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Frappe-CSRF-Token': _csrfToken()
-          },
-          credentials: 'include',
-          body: JSON.stringify({ usr: email, pwd: pwd })
-        });
-
-        if (r.ok) {
-          if (result.role_assigned) {
-            /* Booking found → Traveller role assigned → go to bookings. */
-            showInlineError('signup-success',
-              result.message || 'Account created! Redirecting...');
-            window.location.href = '/traveller/bookings';
-          } else {
-            /* No booking → under review → login page shows V-issue view. */
-            showInlineError('signup-success',
-              result.message || 'Your account is under review.');
-            setTimeout(function () {
-              window.location.href = '/traveller';
-            }, 1500);
-          }
-          return;
-        }
-
-        /* Login gagal tukar-hash (jarang) — fallback ke login page. */
-        showInlineError('signup-success',
-          'Account created! Please sign in with your new credentials.');
-        setTimeout(function () { showView('V-login'); }, 2000);
-
-      } catch (err) {
-        showInlineError('signup-error',
-          err.message || 'Failed to create account. Please try again.');
-      }
-
-      btn.disabled = false;
-      btn.textContent = 'Create Account';
-    });
-  }
 
   /* ── Check for session expired flag ── */
   try {

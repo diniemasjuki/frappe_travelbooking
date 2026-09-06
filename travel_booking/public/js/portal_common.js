@@ -146,14 +146,25 @@ function _portalCurrencyRefresh() {
 }
 
 const _MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const _MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 /* ISO date "2026-09-03" → "3 Sep 2026" (selamat untuk timezone — parse
    komponen, bukan new Date(string) yang boleh geser sehari ikut TZ). */
 function fmtDate(iso) {
   if (!iso) return '';
-  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return String(iso);
-  return parseInt(m[3], 10) + ' ' + _MONTHS[parseInt(m[2], 10) - 1] + ' ' + m[1];
+  var y = m[1], mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
+  // Format pusat dari Travel Website (window.RC_DATE_FORMAT), fallback lalai.
+  var fmt = window.RC_DATE_FORMAT || 'dd MMM yyyy';
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  var out = fmt;
+  out = out.replace('MMMM', _MONTHS_FULL[mo - 1] || '');
+  out = out.replace('MMM', _MONTHS[mo - 1] || '');
+  out = out.replace('yyyy', y);
+  out = out.replace('mm', pad(mo));
+  out = out.replace('dd', pad(d));
+  return out;
 }
 
 /* ── SessionStorage cache (profil sahaja — data booking/payment sentiasa fresh) ── */

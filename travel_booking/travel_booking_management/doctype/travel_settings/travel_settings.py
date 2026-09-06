@@ -18,15 +18,20 @@ class TravelSettings(Document):
 
 		account_name: DF.Data | None
 		account_number: DF.Data | None
+		ai_ocr_api_key: DF.Data | None
+		ai_ocr_base_url: DF.Data | None
+		ai_ocr_model: DF.Data | None
 		bank_name: DF.Link | None
 		cashback_discount_account: DF.Link | None
 		currency_accounts: DF.Table[TravelCurrencyAccount]
 		default_deposit_percent: DF.Percent
 		default_referral_discount_percent: DF.Percent
 		email_verified_session_minutes: DF.Int
+		enable_ai_receipt_ocr: DF.Check
 		manual_transfer_cashback_enabled: DF.Check
 		manual_transfer_cashback_percent: DF.Percent
 		manual_transfer_paid_to_account: DF.Link | None
+		online_payment_min_amount: DF.Float
 		otp_expiry_minutes: DF.Int
 		payment_gateway: DF.Link | None
 		price_category_labels: DF.Table[PriceCategoryLabel]

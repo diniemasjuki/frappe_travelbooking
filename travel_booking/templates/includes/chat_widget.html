@@ -1,0 +1,356 @@
+{# ============================================================
+   travel_booking/templates/includes/chat_widget.html
+   Floating chat button + mini contact form untuk SEMUA page awam
+   (homepage cruise/tour, senarai trip, product page, booking wizard).
+
+   Gaya visual: butang chat floating → panel popup berplagin gaya
+   chat-window, tapi KANDUNGAN terus contact form (bukan chat box):
+     - Name (wajib)
+     - Phone (wajib)
+     - Email (opsyenal)
+     - Question (opsyenal)
+     - hidden: URL page semasa (source_page) + honeypot anti-bot
+
+   Submission → travel_booking.api.inquiry.create_inquiry → rekod
+   Travel Inquiry.
+
+   Konfigurasi: Travel Website → "Floating Chat Button (Contact Form)"
+   (enable/disable, tajuk panel, intro, mesej jaya). Widget tidak
+   render langsung jika disabled.
+   ============================================================ #}
+{% set rcw_cfg = get_website_config().chat %}
+{% if rcw_cfg.enabled %}
+{# CSRF token inline HANYA untuk session authenticated (repeat customer /
+   staff yang buka page awam) — melalui helper web_csrf_token() dalam
+   website_config.py, kerana sandbox Jinja Frappe tidak mendedahkan
+   'frappe.sessions' terus kepada template. Guest di-skip oleh Frappe. #}
+{% set rcw_csrf = web_csrf_token() %}
+<div id="rcwRoot" data-csrf="{{ rcw_csrf }}">
+  <style>
+    #rcwRoot .rcw-fab{position:fixed;right:22px;bottom:22px;z-index:9990;width:170px;height:50px;border-radius:30px;border:none;background:#C9A84C;color:#1E1C18;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(30,28,24,.35);transition:transform .15s ease,box-shadow .15s ease,background .15s ease}
+    #rcwRoot .rcw-fab:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(30,28,24,.42)}
+    #rcwRoot .rcw-fab.rcw-open{background:#1E1C18;color:#C9A84C}
+    #rcwRoot .rcw-fab .ti{font-size:27px}
+    #rcwRoot .rcw-panel{position:fixed;right:22px;bottom:92px;z-index:9991;width:min(340px,calc(100vw - 32px));background:#FFFFFF;border:1px solid #E5E0D5;border-radius:14px;box-shadow:0 18px 48px rgba(30,28,24,.28);overflow:hidden;font-family:'Archivo',system-ui,sans-serif;animation:rcwIn .18s ease}
+    @keyframes rcwIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+    #rcwRoot .rcw-head{display:flex;align-items:flex-start;gap:10px;background:#1E1C18;padding:14px}
+    #rcwRoot .rcw-avatar{width:36px;height:36px;border-radius:50%;background:#C9A84C;color:#1E1C18;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+    #rcwRoot .rcw-avatar .ti{font-size:20px}
+    #rcwRoot .rcw-htxt{flex:1;min-width:0}
+    #rcwRoot .rcw-htitle{margin:0;font-size:14px;font-weight:700;color:#C9A84C}
+    #rcwRoot .rcw-hsub{margin:2px 0 0;font-size:11.5px;color:#9C9789;line-height:1.35}
+    #rcwRoot .rcw-close{background:none;border:none;color:#9C9789;font-size:20px;line-height:1;cursor:pointer;padding:2px 4px;border-radius:6px}
+    #rcwRoot .rcw-close:hover{color:#FFFFFF}
+    #rcwRoot .rcw-body{padding:14px}
+    #rcwRoot .rcw-f{margin-bottom:10px}
+    #rcwRoot .rcw-f label{display:block;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#6E6A5F;margin-bottom:4px}
+    #rcwRoot .rcw-f input,#rcwRoot .rcw-f textarea{width:100%;box-sizing:border-box;border:1px solid #D8D3C6;border-radius:8px;padding:9px 10px;font-size:13px;font-family:inherit;color:#1E1C18;background:#FBFAF7}
+    #rcwRoot .rcw-f input:focus,#rcwRoot .rcw-f textarea:focus{outline:none;border-color:#C9A84C;box-shadow:0 0 0 2px rgba(201,168,76,.22)}
+    #rcwRoot .rcw-f textarea{resize:vertical;min-height:64px}
+    #rcwRoot .iti{width:100%}
+    #rcwRoot .rcw-req{color:#B42318}
+    #rcwRoot .rcw-hp{position:absolute;left:-5000px;top:-5000px;width:0;height:0;opacity:0;visibility:hidden}
+    #rcwRoot .rcw-err{background:#FEF3F2;border:1px solid #FDA29B;color:#B42318;border-radius:8px;padding:8px 10px;font-size:12px;margin:0 0 10px;line-height:1.45}
+    #rcwRoot .rcw-send{width:100%;border:none;border-radius:8px;background:#C9A84C;color:#1E1C18;font-weight:700;font-size:13.5px;padding:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit}
+    #rcwRoot .rcw-send:hover{background:#D8B962}
+    #rcwRoot .rcw-send[disabled]{opacity:.6;cursor:default}
+    #rcwRoot .rcw-done{text-align:center;padding:16px 6px 10px}
+    #rcwRoot .rcw-done .ti{font-size:34px;color:#1B7A43}
+    #rcwRoot .rcw-done p{font-size:13px;color:#1E1C18;line-height:1.5;margin:8px 0 14px}
+    #rcwRoot .rcw-again{background:none;border:1px solid #D8D3C6;border-radius:8px;padding:8px 14px;font-size:12px;cursor:pointer;color:#1E1C18;font-family:inherit}
+    #rcwRoot .rcw-again:hover{border-color:#C9A84C}
+    @media (max-width:640px){
+      #rcwRoot .rcw-fab{right:16px;bottom:16px}
+      #rcwRoot .rcw-panel{right:16px;bottom:84px}
+    }
+  </style>
+
+  <button type="button" class="rcw-fab" id="rcwFab" aria-haspopup="dialog" aria-expanded="false"
+          aria-label="{{ rcw_cfg.title or 'Chat with us' }}">
+    <i class="ti ti-message"></i>
+    &nbsp; Chat With Us &nbsp; 
+  </button>
+
+  <div class="rcw-panel" id="rcwPanel" role="dialog" aria-label="{{ rcw_cfg.title or 'Contact us' }}" hidden>
+    <div class="rcw-head">
+      <div class="rcw-avatar"><i class="ti ti-message"></i></div>
+      <div class="rcw-htxt">
+        <p class="rcw-htitle">{{ rcw_cfg.title or 'Chat with us' }}</p>
+        {% if rcw_cfg.subtitle %}<p class="rcw-hsub">{{ rcw_cfg.subtitle }}</p>{% endif %}
+      </div>
+      <button type="button" class="rcw-close" id="rcwClose" aria-label="Close">&times;</button>
+    </div>
+    <div class="rcw-body">
+      <form id="rcwForm" novalidate>
+        {# Honeypot — offscreen; bot yang auto-fill semua input akan mengisinya. #}
+        <input type="text" name="company_website" class="rcw-hp" tabindex="-1" autocomplete="off" aria-hidden="true"/>
+        <div class="rcw-f">
+          <label for="rcwName">Name <span class="rcw-req">*</span></label>
+          <input type="text" id="rcwName" name="prospect_name" maxlength="140" required placeholder="Your name"/>
+        </div>
+        <div class="rcw-f">
+          <label for="rcwPhone">Phone <span class="rcw-req">*</span></label>
+          <input type="tel" id="rcwPhone" name="phone" maxlength="20" required autocomplete="tel" placeholder="Your phone number"/>
+        </div>
+        <div class="rcw-f">
+          <label for="rcwEmail">Email</label>
+          <input type="email" id="rcwEmail" name="email" maxlength="140" placeholder="you@example.com (optional)"/>
+        </div>
+        <div class="rcw-f">
+          <label for="rcwMsg">Your question</label>
+          <textarea id="rcwMsg" name="message" rows="3" maxlength="5000" placeholder="Ask us anything (optional)"></textarea>
+        </div>
+        <div class="rcw-err" id="rcwErr" role="alert" hidden></div>
+        <button type="submit" class="rcw-send" id="rcwSend">Send <i class="ti ti-send"></i></button>
+      </form>
+      <div class="rcw-done" id="rcwDone" hidden>
+        <i class="ti ti-circle-check"></i>
+        <p id="rcwDoneMsg"></p>
+        <button type="button" class="rcw-again" id="rcwAgain">Send another question</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var root = document.getElementById('rcwRoot');
+    if (!root) return;
+
+    var fab      = document.getElementById('rcwFab');
+    var panel    = document.getElementById('rcwPanel');
+    var closeBtn = document.getElementById('rcwClose');
+    var form     = document.getElementById('rcwForm');
+    var errBox   = document.getElementById('rcwErr');
+    var doneBox  = document.getElementById('rcwDone');
+    var doneMsg  = document.getElementById('rcwDoneMsg');
+    var sendBtn  = document.getElementById('rcwSend');
+    var againBtn = document.getElementById('rcwAgain');
+    var els      = form.elements;
+
+    // ── Phone input: intl-tel-input (country picker) ──────
+    // SAMA library dengan fieldtype "Phone" di Frappe Desk dan wizard
+    // booking — prospect pilih negara (default Malaysia, boleh tukar ke
+    // mana-mana) dan nombor dihantar dalam format INTERNATIONAL E.164
+    // (cth +60123456789, +6581234567). Library di-lazy-load hanya bila
+    // panel dibuka supaya page load page awam tidak terbeban.
+    var _itiPhone = null;
+    var _itiLoading = false;
+
+    function initPhoneInput() {
+      if (_itiPhone || _itiLoading) return;
+      if (typeof window.intlTelInput !== 'undefined') {
+        _itiPhone = window.intlTelInput(els.phone, {
+          initialCountry: 'my',
+          separateDialCode: true
+        });
+        return;
+      }
+      _itiLoading = true;
+      var css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = 'https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/css/intlTelInput.min.css';
+      document.head.appendChild(css);
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/js/intlTelInputWithUtils.min.js';
+      s.onload = function () {
+        _itiPhone = window.intlTelInput(els.phone, {
+          initialCountry: 'my',
+          separateDialCode: true
+        });
+        _itiLoading = false;
+      };
+      document.head.appendChild(s);
+    }
+
+    // Nombor penuh format E.164 dari iti, dengan fallback ke nilai mentah
+    // (jika library belum siap load — server tetap memvalidasi).
+    function phoneNumber() {
+      if (_itiPhone) {
+        var full = (_itiPhone.getNumber() || '').trim();
+        if (full) return full;
+      }
+      return els.phone.value.trim();
+    }
+
+    function openPanel() {
+      errBox.hidden = true;
+      panel.hidden = false;
+      fab.classList.add('rcw-open');
+      fab.setAttribute('aria-expanded', 'true');
+      initPhoneInput();
+      setTimeout(function () { els.prospect_name.focus(); }, 60);
+    }
+    function closePanel() {
+      panel.hidden = true;
+      fab.classList.remove('rcw-open');
+      fab.setAttribute('aria-expanded', 'false');
+    }
+
+    fab.addEventListener('click', function () {
+      panel.hidden ? openPanel() : closePanel();
+    });
+    closeBtn.addEventListener('click', closePanel);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !panel.hidden) closePanel();
+    });
+    document.addEventListener('click', function (e) {
+      if (!panel.hidden && !root.contains(e.target)) closePanel();
+    });
+
+    function showError(msg) {
+      errBox.textContent = msg;
+      errBox.hidden = false;
+    }
+
+    // Token CSRF: inline (session authenticated sahaja — rujuk data-csrf
+    // di #rcwRoot) dengan fallback cookie 'csrftoken'. Guest tidak
+    // memerlukan token (di-skip oleh Frappe).
+    function csrfToken() {
+      var t = root.getAttribute('data-csrf') || '';
+      if (!t) {
+        var m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+        if (m) t = decodeURIComponent(m[1]);
+      }
+      return t;
+    }
+
+    // ── Affiliate attribution ──────────────────────────────
+    // Link affiliate guna param '?sp=<kod referral>' (konvensyen sama
+    // dengan booking wizard — BUKAN 'ref', yang dikhaskan untuk
+    // booking_number selepas redirect Stripe). Kod disimpan dalam cookie
+    // first-party `rc_aff` (30 hari) oleh affiliate_capture.js yang
+    // dimuatkan di semua page awam — widget ni cuma MEMBACA untuk
+    // attribution Travel Inquiry.
+    function affiliateCode() {
+      var m = window.location.search.match(/[?&]sp=([^&]+)/);
+      var code = m ? decodeURIComponent(m[1]) : '';
+      if (!code) {
+        var c = document.cookie.match(/(?:^|;\s*)rc_aff=([^;]+)/);
+        if (c) code = decodeURIComponent(c[1]);
+      }
+      return code.trim().toUpperCase();
+    }
+
+    // ── Trip selection dari session booknow ────────────────
+    // Ketika user berada dalam wizard /booknow (atau baru selesai),
+    // pilihan trip mereka tersimpan dalam sessionStorage. Utamakan
+    // snapshot wizard (pilihan TERKINI — user boleh tukar tarikh/pakej
+    // dalam wizard), fallback kepada add-to-cart dari page trip.
+    // Kekal dalam session tab sahaja — reset bila tab ditutup.
+    function booknowSelection() {
+      var out = { trip: '', trip_group_date: '', trip_package: '' };
+      try {
+        var snap = JSON.parse(sessionStorage.getItem('bnw_booking_wizard') || 'null');
+        if (snap && snap.trip_master) {
+          out.trip = snap.trip_master || '';
+          out.trip_group_date = snap.trip_group_date || '';
+          out.trip_package = snap.trip_package || '';
+        } else {
+          var cart = JSON.parse(sessionStorage.getItem('bnw_cart') || 'null');
+          if (cart && cart.trip_master) {
+            out.trip = cart.trip_master || '';
+            out.trip_group_date = cart.group_date || '';
+            out.trip_package = cart.package_name || '';
+          }
+        }
+      } catch (e) {}
+      return out;
+    }
+
+    // Ekstrak mesej ralat paling bermakna daripada respons Frappe.
+    // Susunan ikut booking.js: exc → exception → _server_messages.
+    function firstServerMsg(d) {
+      var msg = '';
+      if (d.exc) {
+        try {
+          var lines = JSON.parse(d.exc);
+          msg = String(lines[lines.length - 1] || '').trim().split('\n').pop();
+        } catch (e) { msg = String(d.exc); }
+      } else if (d.exception) {
+        msg = String(d.exception);
+      } else if (d._server_messages) {
+        try {
+          var sm = JSON.parse(d._server_messages);
+          msg = sm.map(function (x) {
+            try { return JSON.parse(x).message; } catch (e) { return x; }
+          }).join(' ');
+        } catch (e) { msg = String(d._server_messages); }
+      }
+      return msg;
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      errBox.hidden = true;
+
+      var name  = els.prospect_name.value.trim();
+      var phone = phoneNumber();
+      if (!name)  { showError('Please enter your name.'); els.prospect_name.focus(); return; }
+      if (!phone) { showError('Please enter your phone number.'); els.phone.focus(); return; }
+      // Semakan pantas format nombor ikut negara yang dipilih — validasi
+      // muktamad tetap di server (fieldtype Phone).
+      if (_itiPhone && !_itiPhone.isValidNumber()) {
+        showError('Please enter a valid phone number for the selected country.');
+        els.phone.focus();
+        return;
+      }
+
+      var body = new URLSearchParams();
+      body.set('prospect_name', name);
+      body.set('phone', phone);
+      body.set('email', els.email.value.trim());
+      body.set('message', els.message.value.trim());
+      // Sentiasa hantar URL semasa ketika submit (page "sumber" inquiry).
+      body.set('source_page', window.location.href);
+      // Attribution affiliate (jika datang dari link ?sp= referral).
+      body.set('affiliate_code', affiliateCode());
+      // Pilihan trip semasa dari session booknow (jika ada).
+      var sel = booknowSelection();
+      body.set('trip', sel.trip);
+      body.set('trip_group_date', sel.trip_group_date);
+      body.set('trip_package', sel.trip_package);
+      body.set('company_website', els.company_website.value || '');
+
+      var label = sendBtn.innerHTML;
+      sendBtn.disabled = true;
+      sendBtn.innerHTML = 'Sending&hellip;';
+
+      fetch('/api/method/travel_booking.api.inquiry.create_inquiry', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'X-Frappe-CSRF-Token': csrfToken(),
+          'Accept': 'application/json'
+        },
+        body: body.toString(),
+        credentials: 'same-origin'
+      }).then(function (res) {
+        return res.json().then(function (d) { return { ok: res.ok, data: d }; });
+      }).then(function (r) {
+        var d = r.data || {};
+        var m = d.message;
+        if (!r.ok || d.exc || d.exception || !m || !m.ok) {
+          showError(firstServerMsg(d) || 'Server error. Please try again.');
+          return;
+        }
+        form.reset();
+        doneMsg.textContent = m.message || 'Thank you!';
+        form.hidden = true;
+        doneBox.hidden = false;
+      }).catch(function () {
+        showError('Network error. Please try again.');
+      }).finally(function () {
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = label;
+      });
+    });
+
+    againBtn.addEventListener('click', function () {
+      doneBox.hidden = true;
+      form.hidden = false;
+      els.prospect_name.focus();
+    });
+  })();
+  </script>
+</div>
+{% endif %}

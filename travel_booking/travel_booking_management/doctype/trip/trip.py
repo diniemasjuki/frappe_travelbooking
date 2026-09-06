@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from travel_booking.utils.website_config import web_date
 from frappe.model.document import Document
 from frappe.model.naming import make_autoname
 
@@ -79,6 +80,10 @@ class Trip(Document):
 		context.group_dates = group_dates_raw
 		context.group_date_groups = d.get("group_date_groups") or []
 		context.trip_packages = d["trip_packages"]
+		# Peta sailing_start → SEMUA TGD (pré-dedupe) — untuk union pakej ikut
+		# sailing di trip_detail.js + resolusi TGD (pakej + sailing) semasa
+		# Book Now (termasuk popup bila ada >1 departure date).
+		context.sailing_tgds = d.get("sailing_tgds") or {}
 		context.starting_from_price = d["starting_from_price"]
 		context.destinations = d["destinations"]
 		context.is_cruise = d["is_cruise"]
@@ -93,6 +98,7 @@ class Trip(Document):
 		# jinja ({{ get_company_symbol() }}) di template.
 		context.group_dates_json = json.dumps(context.group_dates)
 		context.trip_packages_json = json.dumps(d["trip_packages"])
+		context.sailing_tgds_json = json.dumps(context.sailing_tgds)
 		context.trip_image = self.trip_image or "/assets/travel_booking/img/defaultaroya.jpg"
 		# Organizer (Link -> Trip Organizer): papar nama + logo, bukan ID.
 		context.organizer_name = (
@@ -312,8 +318,10 @@ class Trip(Document):
 						# Convert date to string for JSON output
 						base_str = str(base) if base else ""
 						r["next_departure"] = base_str
+						# Label tarikh diformat ikut konfigurasi Travel Website
+						# (web_date) — konsisten dengan kad katalog.
 						r["next_departure_label"] = (
-							("Sail" if r.get("is_a_cruise_trip") else "Departs") + " " + base_str
+							("Sail" if r.get("is_a_cruise_trip") else "Departs") + " " + web_date(base)
 						)
 					else:
 						r["next_departure"] = ""
@@ -331,7 +339,9 @@ class Trip(Document):
 	def before_save(self):
 		# jangan usik 
 		self.title = self.trip_name.upper()
-		self.route = self.domain + "/trip/" + self.trip_name.lower().replace(" ", "-").replace("//", "/")
+		self.route = self.name.lower()
+		# self.route = self.name.lower().replace(" ", "-").replace("//", "/").replace("--", "-")
+		# self.route = self.route.lower().replace("--", "-").replace("---", "-")
 		# jangan usik - end
 
 	def validate(self):

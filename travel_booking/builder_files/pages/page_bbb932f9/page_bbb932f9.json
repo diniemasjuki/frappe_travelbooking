@@ -1,0 +1,621 @@
+{
+ "app": "travel_booking",
+ "authenticated_access": 0,
+ "blocks": [
+  {
+   "baseStyles": {
+    "alignItems": "center",
+    "backgroundColor": "var(--rarecation-ivory)",
+    "display": "flex",
+    "flexDirection": "column",
+    "fontFamily": "var(--rarecation-body)",
+    "position": "static",
+    "width": "100%"
+   },
+   "blockId": "root",
+   "blockName": "body",
+   "children": [
+    {
+     "baseStyles": {
+      "alignItems": "center",
+      "backgroundColor": "#FFFFFF",
+      "boxShadow": "0 4px 20px rgba(44,26,0,0.07)",
+      "boxSizing": "border-box",
+      "display": "flex",
+      "justifyContent": "space-between",
+      "padding": "18px 60px",
+      "position": "sticky",
+      "top": "0px",
+      "width": "100%",
+      "zIndex": "100"
+     },
+     "blockId": "339fa5a0a",
+     "blockName": "navbar",
+     "children": [
+      {
+       "attributes": {
+        "aria-label": "Rarecation home",
+        "href": "/"
+       },
+       "baseStyles": {
+        "alignItems": "center",
+        "display": "flex",
+        "textDecoration": "none"
+       },
+       "blockId": "7a53ffd11",
+       "children": [
+        {
+         "attributes": {
+          "alt": "Rarecation",
+          "src": "/assets/travel_booking/builder_assets/RARECATION.png"
+         },
+         "baseStyles": {
+          "display": "block",
+          "height": "auto",
+          "width": "156px"
+         },
+         "blockId": "43e98ac2c",
+         "element": "img",
+         "mobileStyles": {
+          "width": "126px"
+         }
+        }
+       ],
+       "element": "a"
+      },
+      {
+       "attributes": {
+        "href": "/traveller"
+       },
+       "baseStyles": {
+        "border": "1px solid var(--rarecation-gold)",
+        "borderRadius": "50px",
+        "color": "var(--rarecation-gold-deep)",
+        "fontSize": "14px",
+        "fontWeight": "700",
+        "hover:backgroundColor": "var(--rarecation-gold)",
+        "hover:color": "#FFFFFF",
+        "padding": "11px 22px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap"
+       },
+       "blockId": "4fedee202",
+       "element": "a",
+       "innerHTML": "My Bookings",
+       "mobileStyles": {
+        "fontSize": "13px",
+        "padding": "10px 16px"
+       }
+      }
+     ],
+     "element": "section",
+     "mobileStyles": {
+      "padding": "14px 20px"
+     }
+    },
+    {
+     "baseStyles": {
+      "alignItems": "center",
+      "backgroundImage": "linear-gradient(135deg, #FFF8EC, #FFF3D6, #FDECC8)",
+      "boxSizing": "border-box",
+      "display": "flex",
+      "justifyContent": "center",
+      "minHeight": "430px",
+      "overflow": "hidden",
+      "padding": "84px 24px 76px",
+      "position": "relative",
+      "width": "100%"
+     },
+     "blockId": "081770fc6",
+     "blockName": "terms hero",
+     "children": [
+      {
+       "baseStyles": {
+        "backgroundImage": "radial-gradient(circle, rgba(200,151,58,0.22), rgba(200,151,58,0) 68%)",
+        "borderRadius": "50%",
+        "height": "480px",
+        "pointerEvents": "none",
+        "position": "absolute",
+        "right": "8%",
+        "top": "-235px",
+        "width": "480px"
+       },
+       "blockId": "ba136f154",
+       "blockName": "gold glow one",
+       "element": "div",
+       "mobileStyles": {
+        "height": "280px",
+        "right": "-100px",
+        "top": "-130px",
+        "width": "280px"
+       }
+      },
+      {
+       "baseStyles": {
+        "backgroundImage": "radial-gradient(circle, rgba(200,151,58,0.18), rgba(200,151,58,0) 70%)",
+        "borderRadius": "50%",
+        "bottom": "-210px",
+        "height": "360px",
+        "left": "8%",
+        "pointerEvents": "none",
+        "position": "absolute",
+        "width": "360px"
+       },
+       "blockId": "1bac8c299",
+       "blockName": "gold glow two",
+       "element": "div",
+       "mobileStyles": {
+        "bottom": "-145px",
+        "height": "230px",
+        "left": "-80px",
+        "width": "230px"
+       }
+      },
+      {
+       "baseStyles": {
+        "alignItems": "center",
+        "display": "flex",
+        "flexDirection": "column",
+        "maxWidth": "800px",
+        "position": "relative",
+        "textAlign": "center",
+        "zIndex": "2"
+       },
+       "blockId": "3ab92da54",
+       "children": [
+        {
+         "baseStyles": {
+          "color": "var(--rarecation-gold-deep)",
+          "fontSize": "11px",
+          "fontWeight": "700",
+          "letterSpacing": "2.5px",
+          "margin": "0 0 18px",
+          "textTransform": "uppercase"
+         },
+         "blockId": "b303818ce",
+         "element": "p",
+         "innerHTML": "RARECATION TRAVEL"
+        },
+        {
+         "baseStyles": {
+          "color": "var(--rarecation-espresso)",
+          "fontFamily": "var(--rarecation-display)",
+          "fontSize": "58px",
+          "fontWeight": "800",
+          "letterSpacing": "-0.03em",
+          "lineHeight": "1.05",
+          "margin": "0"
+         },
+         "blockId": "083f25e88",
+         "element": "h1",
+         "innerHTML": "Terms & Conditions",
+         "mobileStyles": {
+          "fontSize": "38px"
+         }
+        },
+        {
+         "baseStyles": {
+          "color": "rgba(44,26,0,0.68)",
+          "fontSize": "18px",
+          "lineHeight": "1.7",
+          "margin": "20px 0 0",
+          "maxWidth": "520px"
+         },
+         "blockId": "aa2e102e8",
+         "element": "p",
+         "innerHTML": "MALAYSIA-COMPLIANT REVISED VERSION",
+         "mobileStyles": {
+          "fontSize": "16px"
+         }
+        },
+        {
+         "baseStyles": {
+          "color": "rgba(44,26,0,0.48)",
+          "fontSize": "13px",
+          "lineHeight": "1.5",
+          "margin": "20px 0 0"
+         },
+         "blockId": "597831ba7",
+         "element": "p",
+         "innerHTML": "Last updated: 3 September 2026"
+        }
+       ],
+       "element": "div"
+      }
+     ],
+     "element": "section",
+     "mobileStyles": {
+      "minHeight": "auto",
+      "padding": "72px 24px"
+     }
+    },
+    {
+     "baseStyles": {
+      "backgroundColor": "var(--rarecation-ivory)",
+      "boxSizing": "border-box",
+      "padding": "80px 24px 88px",
+      "width": "100%"
+     },
+     "blockId": "876004e20",
+     "blockName": "terms legal document",
+     "children": [
+      {
+       "baseStyles": {
+        "backgroundColor": "#FFFFFF",
+        "borderRadius": "20px",
+        "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+        "boxSizing": "border-box",
+        "margin": "0 auto",
+        "maxWidth": "900px",
+        "padding": "56px 64px"
+       },
+       "blockId": "a215de2f2",
+       "children": [
+        {
+         "baseStyles": {
+          "backgroundColor": "var(--rarecation-gold)",
+          "borderRadius": "50px",
+          "height": "3px",
+          "margin": "0 0 28px",
+          "width": "54px"
+         },
+         "blockId": "004f5a3ba",
+         "element": "div"
+        },
+        {
+         "baseStyles": {
+          "color": "rgba(44,26,0,0.68)",
+          "fontSize": "17px",
+          "lineHeight": "1.7",
+          "margin": "0 0 42px",
+          "maxWidth": "65ch"
+         },
+         "blockId": "46181e9b7",
+         "element": "p",
+         "innerHTML": "<p>These Terms &amp; Conditions govern bookings for travel packages arranged or sold by Rarecation Travel (\"Rarecation Travel\", \"we\", \"us\" or \"our\"). By making a booking, paying any deposit or payment, or otherwise accepting a booking confirmation, each passenger (\"you\" or \"your\") agrees to these Terms &amp; Conditions, subject always to applicable mandatory laws and regulations in Malaysia.</p><p></p><p>IMPORTANT: Where the Tourism Industry Act 1992, the Tourism Industry (Tour Operating Business and Travel Agency Business) Regulations 1992, including the applicable Standard Terms and Conditions for Outbound Tour Packages, or any other mandatory Malaysian law applies, those mandatory requirements shall prevail over any inconsistent provision in these Terms &amp; Conditions.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>1. BOOKING, PACKAGE DOCUMENTS AND ORDER OF PRECEDENCE</strong></span></p><p></p><p>Your contract with Rarecation Travel comprises, where applicable: (a) the booking confirmation; (b) the itinerary and inclusions/exclusions; (c) the quotation or invoice; (d) the payment schedule; (e) any package-specific terms disclosed before or at booking; and (f) these Terms &amp; Conditions.</p><p></p><p>If there is any inconsistency, mandatory Malaysian law and regulatory requirements prevail first. Thereafter, the booking confirmation and package-specific written terms prevail to the extent of the specific booking, followed by the remaining documents. Nothing in this clause permits Rarecation Travel to reduce or avoid a right or remedy that cannot lawfully be excluded.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>2. FLIGHT SCHEDULES, AIRLINE CHANGES AND CONTRACT OF CARRIAGE</strong></span></p><p></p><p>Flight schedules, departure and arrival times, aircraft type, routes, seat assignments and other air-transport arrangements are determined by the relevant airline and may be changed, delayed, rescheduled, rerouted or cancelled in accordance with applicable law and the airline's conditions of carriage.</p><p></p><p>Where Rarecation Travel becomes aware of a material change affecting your booked package, we will use reasonable efforts to notify you and explain any reasonably available options. Rarecation Travel will provide reasonable assistance within the scope of its role as travel organiser or agent, as applicable.</p><p></p><p>Air carriage remains subject to the relevant airline's conditions of carriage and applicable aviation laws. Any airline-specific remedy, compensation or refund remains subject to those rules and laws. Rarecation Travel does not guarantee that a supplier will approve a claim, but will provide reasonable documentation or assistance where appropriate.</p><p></p><p>Passengers are encouraged to obtain comprehensive travel insurance, subject to the passenger's own assessment of suitability and policy terms.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>3. CRUISE OPERATIONS AND ITINERARY CHANGES</strong></span></p><p></p><p>The cruise component is operated by AROYA Cruises or another supplier expressly identified in your booking documents. For safety, operational, regulatory, weather, port or other legitimate reasons, the cruise operator may amend, reschedule, reroute, detour, substitute or cancel a sailing, port of call, embarkation or disembarkation point, itinerary or other cruise arrangement in accordance with its applicable conditions and law.</p><p></p><p>Rarecation Travel does not control the operation of the vessel. However, where Rarecation Travel is legally responsible as organiser of a package, or where a mandatory legal obligation applies, nothing in these Terms limits that responsibility.</p><p>Where we become aware of a material change, we will use reasonable efforts to communicate it promptly and, where required by law or reasonably practicable, explain the options available to affected passengers.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>4. PASSENGER CANCELLATION, AMENDMENT AND REFUND</strong></span></p><p></p><p>Cancellation and amendment requests must be submitted in writing to Rarecation Travel using the contact details stated in the booking confirmation or another written channel expressly accepted by us. The effective date is the date on which the written request is received, subject to proof of receipt.</p><p></p><p>Cancellation charges, amendment charges and refunds will be determined in accordance with: (a) mandatory Malaysian law and any applicable standard terms prescribed for outbound tour packages; (b) the package-specific cancellation schedule properly disclosed to you before or at booking; and (c) the applicable recoverable or non-recoverable charges of airlines, cruise operators, hotels and other suppliers, where lawfully chargeable to you.</p><p></p><p>Rarecation Travel will not apply a cancellation term that is inconsistent with mandatory Malaysian law or an applicable prescribed standard term. Any refund due will be processed within the period required by applicable law, or, where no statutory period applies, within a reasonable time after the relevant amount and supporting information are received from the supplier.</p><p></p><p>Upon reasonable request, Rarecation Travel will provide an explanation of material deductions and, where available and appropriate, supporting information regarding supplier charges. Administrative charges must be reasonable, proportionate and lawfully chargeable.</p><p></p><p>A voluntary no-show or unused service after travel has commenced may result in no refund where the service is non-refundable or no amount is recoverable. This does not affect any refund or remedy required by law.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>5. MATERIAL CHANGES, CANCELLATION BY SUPPLIER OR RARECATION TRAVEL, AND ALTERNATIVE ARRANGEMENTS</strong></span></p><p></p><p>If a supplier, including the cruise operator, makes a material change or cancellation that substantially affects the booked package, Rarecation Travel will assess the consequences for the package and communicate the reasonably available options. Depending on the circumstances, these may include an alternative arrangement, rebooking, supplier credit, refund of amounts due, or another remedy required by law.</p><p>If a confirmed flight remains unchanged but a cruise change makes the original overall arrangement materially incompatible with the booked travel dates, Rarecation Travel will use reasonable efforts to identify a practicable alternative programme or arrangement. Any replacement arrangement must be clearly described before acceptance, including any material differences in itinerary, services, timing and price.</p><p>A passenger is not required to accept a replacement arrangement merely because it is proposed. Where the passenger declines an alternative, any refund entitlement will be determined by applicable law, the applicable prescribed standard terms and the amounts lawfully recoverable or otherwise payable.</p><p></p><p>Travel insurance may provide additional protection depending on the policy. Rarecation Travel may assist with supporting documentation but does not determine or guarantee the outcome of an insurance claim.</p><p></p><p>Any accounting for refunds, credits, compensation or insurance proceeds will be carried out fairly and transparently. Rarecation Travel will not require a passenger to surrender a statutory or contractual right merely because insurance may also respond, except to the extent required to prevent unlawful double recovery for the same loss.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>6. THIRD-PARTY SERVICES AND SUPPLIER FINANCIAL FAILURE</strong></span></p><p></p><p>Flights, cruises, hotels, ground transport, attractions and excursions may be provided by independent suppliers subject to their own terms and operational rules. Rarecation Travel may arrange or facilitate those services as part of the booking.</p><p></p><p>Rarecation Travel is not the operator of an independent supplier merely because the supplier forms part of a package. However, this does not exclude or restrict any duty or liability that Rarecation Travel cannot lawfully exclude, including any responsibility arising from its own acts, omissions, misrepresentations, failures in arranging services, or obligations imposed on a package organiser under applicable law.</p><p></p><p>In the event of a supplier's financial distress, administration or insolvency, Rarecation Travel will provide reasonable assistance within the scope of its legal and contractual role. Any customer protection, insurance, security or statutory remedy that applies will remain unaffected by this clause.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>7. TRAVEL INSURANCE</strong></span></p><p></p><p>Passengers are strongly encouraged to obtain comprehensive travel insurance as soon as reasonably practicable after booking. Passengers should consider cover for cancellation, interruption, delays, medical expenses, baggage, cruise or itinerary disruption and other relevant risks.</p><p></p><p>Insurance cover is subject to the terms, exclusions, excesses and decisions of the relevant insurer. Rarecation Travel does not guarantee that a particular loss will be insured or paid.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>8. PAYMENTS, CABIN OR SERVICE CONFIRMATION AND PRICE CHANGES</strong></span></p><p></p><p>Payment deadlines may be imposed by Rarecation Travel or by suppliers. Failure to make payment by a clearly notified due date may result in the booking or a component being cancelled, subject to applicable law and the cancellation terms properly disclosed for the booking.</p><p>Unless expressly confirmed in writing as guaranteed, a requested cabin, airline seat, hotel room or other specific service remains subject to supplier availability and final confirmation.</p><p></p><p>The package price may be adjusted before departure only where the adjustment is permitted by applicable law and the basis, timing and method of calculation have been properly disclosed. Any increase attributable to taxes, levies, port charges, fuel surcharges, exchange-rate movements or supplier-imposed charges must be supported by a genuine cost change affecting the booking and must not be arbitrary.</p><p>Rarecation Travel will provide reasonable written notice of a material price change. If mandatory law or an applicable prescribed standard term gives the passenger a right to cancel or another remedy because of a price increase, that right remains unaffected.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>9. CIRCUMSTANCES BEYOND REASONABLE CONTROL</strong></span></p><p></p><p>Neither party will be responsible for a failure or delay caused by circumstances beyond its reasonable control where the consequences could not reasonably have been avoided. Such circumstances may include natural disasters, severe weather, war, civil unrest, government restrictions, border closures, epidemics or pandemics, and major supplier shutdowns.</p><p>Ordinary technical, operational or staffing problems of a supplier will not automatically constitute circumstances beyond reasonable control simply because they are described as a \"technical disruption\".</p><p>Where such circumstances affect the package, Rarecation Travel will communicate reasonably available options and any refund, credit or alternative arrangement in accordance with applicable law, the applicable prescribed standard terms and the amounts recoverable or otherwise payable.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>10. HEALTH, FITNESS AND SPECIAL REQUIREMENTS</strong></span></p><p></p><p>Passengers are responsible for assessing whether they are fit to undertake the journey and for obtaining appropriate medical advice where necessary. Passengers must disclose material special requirements relevant to the safe or practical provision of booked services, including mobility, accessibility, dietary or other requirements, as early as reasonably possible.</p><p></p><p>Rarecation Travel will use reasonable efforts to communicate disclosed requirements to relevant suppliers but cannot guarantee that every requirement can be accommodated. Supplier safety rules concerning pregnancy, infants, mobility assistance or medical conditions may apply.</p><p></p><p>A passenger will not lose a legal right merely because a requirement was not disclosed. However, where non-disclosure or late disclosure reasonably prevents Rarecation Travel or a supplier from safely or practicably providing a requested service, additional costs, limitations or denial of a service may result.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>11. PASSENGER RESPONSIBILITIES</strong></span></p><p></p><p>Passengers are responsible for holding and complying with the travel documents and entry requirements applicable to them, including valid passports, visas, permits, vaccination or health documentation and any transit requirements, unless Rarecation Travel has expressly agreed in writing to provide a particular visa or document service.</p><p>Information supplied by Rarecation Travel about entry or travel requirements is provided in good faith and may change. Passengers should independently verify current official requirements before travel.</p><p>Passengers must comply with reasonable reporting times, check-in, embarkation, immigration, safety and supplier requirements. Costs arising directly from a passenger's own failure to comply may be borne by that passenger, provided this does not exclude liability where Rarecation Travel or another party is legally responsible.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>12. LIMITATION OF LIABILITY</strong></span></p><p></p><p>To the maximum extent permitted by Malaysian law, Rarecation Travel's liability for losses arising from a claim will be determined having regard to the nature of the booking, the services contracted for, applicable law and the actual loss caused.</p><p>Any contractual limitation or exclusion of liability applies only to the extent that it is lawful, reasonable and enforceable. Nothing in these Terms excludes or restricts liability that cannot lawfully be excluded or restricted, including liability arising from fraud, fraudulent or negligent misrepresentation, death or personal injury where applicable law prohibits exclusion, negligence where exclusion is prohibited or unfair, or failure to provide rights or remedies mandated by law.</p><p></p><p>Rarecation Travel will not be liable for remote or indirect losses to the extent such exclusion is permitted by law and the loss was not reasonably foreseeable. This clause does not limit a statutory remedy or a remedy for loss that cannot lawfully be excluded.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>13. COMPLAINTS AND DISPUTE RESOLUTION</strong></span></p><p></p><p>If you have a complaint during travel, please notify Rarecation Travel or the relevant local representative as soon as reasonably practicable so that we have a fair opportunity to investigate and, where possible, remedy the problem.</p><p>Making a complaint during travel does not prevent you from pursuing any legal or statutory right. We encourage complaints to be submitted in writing after travel with relevant booking details and supporting documents.</p><p>Nothing in these Terms prevents a passenger from referring a dispute to a court, tribunal, regulator or other dispute-resolution body having jurisdiction under Malaysian law.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>14. GOVERNING LAW AND JURISDICTION</strong></span></p><p></p><p>These Terms are governed by the laws of Malaysia. Any dispute may be brought before the courts of Malaysia or another forum having jurisdiction under mandatory Malaysian law. Nothing in this clause restricts a consumer's right to access a tribunal, regulator or other forum where such access is provided by law.</p><p></p><p></p><p><span style=\"font-size: 11.5pt; line-height: 115%;\"><strong>15. ACCEPTANCE, SEVERABILITY AND NO WAIVER OF MANDATORY RIGHTS</strong></span></p><p></p><p>By making a booking or payment, or otherwise accepting the booking in writing or electronically, the passenger confirms that they have had a reasonable opportunity to read these Terms and the applicable booking documents.</p><p>If any provision is invalid, unlawful or unenforceable, it will be read down or severed only to the extent necessary, and the remaining provisions will continue to apply.</p><p>These Terms do not waive, exclude or reduce any right, remedy, protection or obligation that cannot lawfully be waived, excluded or reduced.</p>",
+         "mobileStyles": {
+          "fontSize": "16px"
+         }
+        },
+        {
+         "baseStyles": {
+          "borderTop": "1px solid rgba(200,151,58,0.25)",
+          "color": "var(--rarecation-gold-deep)",
+          "fontSize": "16px",
+          "fontWeight": "600",
+          "lineHeight": "1.7",
+          "margin": "36px 0 0",
+          "padding": "24px 0 0"
+         },
+         "blockId": "952ddd411",
+         "element": "p",
+         "innerHTML": "By confirming a booking, you acknowledge that you have read and accepted these Terms &amp; Conditions."
+        }
+       ],
+       "element": "div",
+       "mobileStyles": {
+        "padding": "32px 24px"
+       }
+      }
+     ],
+     "element": "section",
+     "mobileStyles": {
+      "padding": "48px 16px 64px"
+     }
+    },
+    {
+     "baseStyles": {
+      "backgroundColor": "#FDECC8",
+      "boxSizing": "border-box",
+      "padding": "62px 24px",
+      "width": "100%"
+     },
+     "blockId": "dfbbbc395",
+     "blockName": "booking assistance",
+     "children": [
+      {
+       "baseStyles": {
+        "alignItems": "center",
+        "display": "flex",
+        "gap": "32px",
+        "justifyContent": "space-between",
+        "margin": "0 auto",
+        "maxWidth": "900px"
+       },
+       "blockId": "8f876797a",
+       "children": [
+        {
+         "blockId": "588bfb50e",
+         "children": [
+          {
+           "baseStyles": {
+            "color": "var(--rarecation-espresso)",
+            "fontFamily": "var(--rarecation-display)",
+            "fontSize": "32px",
+            "fontWeight": "800",
+            "letterSpacing": "-0.02em",
+            "lineHeight": "1.12",
+            "margin": "0 0 10px"
+           },
+           "blockId": "4a0f05819",
+           "element": "h2",
+           "innerHTML": "Need help with a booking?",
+           "mobileStyles": {
+            "fontSize": "28px"
+           }
+          },
+          {
+           "baseStyles": {
+            "color": "rgba(44,26,0,0.65)",
+            "fontSize": "16px",
+            "lineHeight": "1.7",
+            "margin": "0",
+            "maxWidth": "560px"
+           },
+           "blockId": "e1f82d927",
+           "element": "p",
+           "innerHTML": "Our travel team is here to help you understand your itinerary and booking conditions."
+          }
+         ],
+         "element": "div"
+        },
+        {
+         "attributes": {
+          "href": "/traveller"
+         },
+         "baseStyles": {
+          "alignItems": "center",
+          "backgroundColor": "var(--rarecation-gold)",
+          "borderRadius": "50px",
+          "color": "#FFFFFF",
+          "display": "inline-flex",
+          "fontSize": "14px",
+          "fontWeight": "700",
+          "hover:backgroundColor": "var(--rarecation-gold-deep)",
+          "justifyContent": "center",
+          "padding": "14px 27px",
+          "textDecoration": "none",
+          "transition": "all 0.2s ease",
+          "whiteSpace": "nowrap"
+         },
+         "blockId": "33bf05c76",
+         "element": "a",
+         "innerHTML": "Manage My Trips"
+        }
+       ],
+       "element": "div",
+       "mobileStyles": {
+        "alignItems": "flex-start",
+        "flexDirection": "column",
+        "gap": "24px"
+       }
+      }
+     ],
+     "element": "section",
+     "mobileStyles": {
+      "padding": "52px 24px"
+     }
+    },
+    {
+     "baseStyles": {
+      "backgroundColor": "var(--rarecation-espresso)",
+      "boxSizing": "border-box",
+      "padding": "52px 60px 28px",
+      "width": "100%"
+     },
+     "blockId": "c57b9a539",
+     "blockName": "footer",
+     "children": [
+      {
+       "baseStyles": {
+        "alignItems": "center",
+        "borderBottom": "1px solid rgba(255,255,255,0.16)",
+        "display": "flex",
+        "flexWrap": "wrap",
+        "gap": "32px",
+        "justifyContent": "space-between",
+        "margin": "0 auto",
+        "maxWidth": "1100px",
+        "paddingBottom": "34px"
+       },
+       "blockId": "42a4be15f",
+       "children": [
+        {
+         "baseStyles": {
+          "alignItems": "flex-start",
+          "display": "flex",
+          "flexDirection": "column",
+          "gap": "14px"
+         },
+         "blockId": "a9f0fc703",
+         "children": [
+          {
+           "attributes": {
+            "aria-label": "Rarecation home",
+            "href": "/"
+           },
+           "baseStyles": {
+            "display": "flex",
+            "textDecoration": "none"
+           },
+           "blockId": "313a19e02",
+           "children": [
+            {
+             "attributes": {
+              "alt": "Rarecation",
+              "src": "/assets/travel_booking/builder_assets/RARECATION.png"
+             },
+             "baseStyles": {
+              "display": "block",
+              "filter": "brightness(0) invert(1)",
+              "height": "auto",
+              "width": "150px"
+             },
+             "blockId": "92201440b",
+             "element": "img"
+            }
+           ],
+           "element": "a"
+          },
+          {
+           "baseStyles": {
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "lineHeight": "1.5",
+            "margin": "0"
+           },
+           "blockId": "f0a5b9c4f",
+           "element": "p",
+           "innerHTML": "Luxury Travel, Crafted for You."
+          }
+         ],
+         "element": "div"
+        },
+        {
+         "baseStyles": {
+          "alignItems": "center",
+          "display": "flex",
+          "flexWrap": "wrap",
+          "gap": "18px 24px",
+          "justifyContent": "flex-end"
+         },
+         "blockId": "f97401c01",
+         "children": [
+          {
+           "attributes": {
+            "href": "/"
+           },
+           "baseStyles": {
+            "backgroundImage": "linear-gradient(currentColor, currentColor)",
+            "backgroundPosition": "left bottom",
+            "backgroundRepeat": "no-repeat",
+            "backgroundSize": "0% 1px",
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "hover:backgroundSize": "100% 1px",
+            "textDecoration": "none",
+            "transition": "all 0.2s ease"
+           },
+           "blockId": "de849f926",
+           "element": "a",
+           "innerHTML": "New Booking"
+          },
+          {
+           "attributes": {
+            "href": "/traveller_portal"
+           },
+           "baseStyles": {
+            "backgroundImage": "linear-gradient(currentColor, currentColor)",
+            "backgroundPosition": "left bottom",
+            "backgroundRepeat": "no-repeat",
+            "backgroundSize": "0% 1px",
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "hover:backgroundSize": "100% 1px",
+            "textDecoration": "none",
+            "transition": "all 0.2s ease"
+           },
+           "blockId": "aea856001",
+           "element": "a",
+           "innerHTML": "My Trips"
+          },
+          {
+           "attributes": {
+            "href": "/affiliate"
+           },
+           "baseStyles": {
+            "backgroundImage": "linear-gradient(currentColor, currentColor)",
+            "backgroundPosition": "left bottom",
+            "backgroundRepeat": "no-repeat",
+            "backgroundSize": "0% 1px",
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "hover:backgroundSize": "100% 1px",
+            "textDecoration": "none",
+            "transition": "all 0.2s ease"
+           },
+           "blockId": "bb88dd49d",
+           "element": "a",
+           "innerHTML": "Become our Affiliates"
+          }
+         ],
+         "element": "div",
+         "mobileStyles": {
+          "justifyContent": "flex-start"
+         }
+        }
+       ],
+       "element": "div",
+       "mobileStyles": {
+        "alignItems": "flex-start",
+        "flexDirection": "column",
+        "gap": "28px"
+       }
+      },
+      {
+       "baseStyles": {
+        "color": "rgba(255,255,255,0.42)",
+        "fontSize": "12px",
+        "lineHeight": "1.5",
+        "margin": "22px auto 0",
+        "maxWidth": "1100px"
+       },
+       "blockId": "bf9e79379",
+       "element": "p",
+       "innerHTML": "© 2025 Rarecation Team. All rights reserved."
+      }
+     ],
+     "element": "footer",
+     "mobileStyles": {
+      "padding": "44px 24px 24px"
+     }
+    },
+    {
+     "baseStyles": {
+      "fontSize": "16px",
+      "height": "fit-content",
+      "lineHeight": "1.4",
+      "minWidth": "10px",
+      "position": "static",
+      "width": "fit-content"
+     },
+     "blockId": "5dyivfczg",
+     "element": "p",
+     "innerHTML": "Text"
+    }
+   ],
+   "draggable": false,
+   "element": "div",
+   "originalElement": "body"
+  }
+ ],
+ "body_html": "",
+ "canonical_url": "",
+ "client_scripts": [],
+ "creation": "2026-09-03 19:49:21.085964",
+ "disable_indexing": 1,
+ "docstatus": 0,
+ "doctype": "Builder Page",
+ "draft_blocks": null,
+ "dynamic_route": 0,
+ "head_html": "",
+ "idx": 0,
+ "is_standard": 1,
+ "is_template": 0,
+ "language": "en",
+ "meta_description": "Read the terms and conditions for booking luxury cruise journeys with Rarecation.",
+ "meta_image": "",
+ "modified": "2026-09-04 23:11:01.920266",
+ "modified_by": "Administrator",
+ "name": "page-bbb932f9",
+ "owner": "Administrator",
+ "page_data_script": "data.clauses = [\n  {\"number\":\"01\",\"title\":\"BOOKING, PACKAGE DOCUMENTS AND ORDER OF PRECEDENCE\",\"body\":\"Your contract with Rarecation Travel comprises, where applicable: (a) the booking confirmation; (b) the itinerary and inclusions/exclusions; (c) the quotation or invoice; (d) the payment schedule; (e) any package-specific terms disclosed before or at booking; and (f) these Terms & Conditions.If there is any inconsistency, mandatory Malaysian law and regulatory requirements prevail first. Thereafter, the booking confirmation and package-specific written terms prevail to the extent of the specific booking, followed by the remaining documents. Nothing in this clause permits Rarecation Travel to reduce or avoid a right or remedy that cannot lawfully be excluded.\"},\n\n                 {\"number\":\"02\",\"title\":\"Pricing & Payments\",\"body\":\"Prices are quoted in the currency stated at the time of booking and may include taxes, fees, and supplier charges where specified. Payment dates and amounts will be shown in your booking confirmation. Late payment may affect your reservation.\"},{\"number\":\"03\",\"title\":\"Changes & Cancellations\",\"body\":\"Requests to change or cancel a booking must be made through Rarecation. Charges may apply depending on the fare, accommodation, cruise line, or other supplier conditions attached to your itinerary.\"},{\"number\":\"04\",\"title\":\"Travel Documents & Insurance\",\"body\":\"You are responsible for holding valid passports, visas, health documentation, and any other documents required for your journey. We strongly recommend travel insurance that covers cancellation, medical needs, and personal belongings.\"},{\"number\":\"05\",\"title\":\"Supplier Terms\",\"body\":\"Cruise lines, hotels, airlines, and other travel suppliers provide services under their own terms and conditions. Those terms may apply in addition to these Terms & Conditions and can affect changes, cancellations, and service delivery.\"},{\"number\":\"06\",\"title\":\"Liability\",\"body\":\"Rarecation acts as a travel arranger for services provided by independent suppliers. To the extent permitted by applicable law, Rarecation is not responsible for events outside its reasonable control or for the acts and omissions of suppliers.\"},{\"number\":\"07\",\"title\":\"Guest Conduct\",\"body\":\"Guests must comply with reasonable instructions from travel providers and respect local laws, safety requirements, and fellow travellers. Serious misconduct may result in services being withdrawn without refund.\"},{\"number\":\"08\",\"title\":\"Contact Us\",\"body\":\"If you have a question about your booking or these Terms & Conditions, please contact the Rarecation travel team through your traveller portal before you travel.\"}]",
+ "page_name": "page-bbb932f9",
+ "page_title": "Terms & Conditions | Rarecation",
+ "preview": "/files/page-bbb932f9-preview.webp?v=d6b27",
+ "project_folder": "travel_booking",
+ "published": 1,
+ "published_at": "2026-09-04 23:11:01.908487",
+ "route": "terms_conditions"
+}

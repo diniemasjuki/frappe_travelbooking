@@ -62,6 +62,25 @@
     _sp = (qs.get("sp") || "").trim().toUpperCase();
   } catch (_e) {}
 
+  // Format tarikh pusat (Travel Website → window.RC_DATE_FORMAT).
+  var _RC_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var _RC_MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  function _fmtWebDate(iso) {
+    if (!iso) return '';
+    var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return String(iso);
+    var y = m[1], mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
+    var fmt = window.RC_DATE_FORMAT || 'dd MMM yyyy';
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    var out = fmt;
+    out = out.replace('MMMM', _RC_MONTHS_FULL[mo - 1] || '');
+    out = out.replace('MMM', _RC_MONTHS[mo - 1] || '');
+    out = out.replace('yyyy', y);
+    out = out.replace('mm', pad(mo));
+    out = out.replace('dd', pad(d));
+    return out;
+  }
+
   function esc(s) {
     var d = document.createElement("div");
     d.textContent = s == null ? "" : String(s);
@@ -154,11 +173,13 @@
       label.htmlFor = radioId;
       label.className = "rc-date-radio-label";
 
-      var dateText = startDate;
+      // Tarikh diformat ikut konfigurasi Travel Website (window.RC_DATE_FORMAT
+      // dari base_travel.html) — bukan ISO mentah.
+      var dateText = _fmtWebDate(startDate);
       if (is_cruise && gdData.sailing_end) {
-        dateText += " → " + gdData.sailing_end;
+        dateText += " → " + _fmtWebDate(gdData.sailing_end);
       } else if (gdData.return_date) {
-        dateText += " → " + gdData.return_date;
+        dateText += " → " + _fmtWebDate(gdData.return_date);
       }
       var seatsHtml = "";
       if (gdData.seats_left != null) {
@@ -196,10 +217,12 @@
   }
 
   // ════ STEP 3: Load packages for selected date ════
-  // Preloaded from get_trip_detail (cruise-deduped) — avoids
-  // search_packages_by_date returning packages from deduped group
-  // dates with mismatched trip_group_date. Falls back to AJAX if
-  // preloaded data is missing for the selected group date.
+  // CRUISE: radio tarikh mewakili SAILING date (di-dedupe pelayan) — pakej
+  // di-union dari SEMUA TGD yang berkongsi sailing itu (peta DATA.sailing_tgds),
+  // dan setiap pakej kekal bawa trip_group_date SEBENAR pautannya. Ini
+  // memastikan pakej Cruise Only dibawa bersama TGD Cruise Only (bukan TGD
+  // Fly Cruise yang disimpan semasa dedupe).
+  // Non-cruise: pakej diambil terus dari TGD radio (tiada dedupe).
   function populatePackages() {
     pkgSel.innerHTML = '<p class="rc-muted">Loading packages…</p>';
     _selectedPkg = "";
@@ -216,7 +239,22 @@
 
     var gdId = getSelectedGroupDateId();
     var preloaded = DATA.trip_packages || {};
-    var pkgs = preloaded[gdId];
+
+    var pkgs = null;
+    if (is_cruise) {
+      // Union pakej semua TGD dengan sailing_start sama, dedupe ikut nama.
+      var sailStart = dateValue.split(":")[0];
+      var tgdList = (DATA.sailing_tgds || {})[sailStart] || [];
+      var seen = {};
+      pkgs = [];
+      tgdList.forEach(function (t) {
+        (preloaded[t.name] || []).forEach(function (p) {
+          if (!seen[p.name]) { seen[p.name] = 1; pkgs.push(p); }
+        });
+      });
+    } else {
+      pkgs = preloaded[gdId] || null;
+    }
 
     if (pkgs && pkgs.length) {
       renderPackageButtons(pkgs);
@@ -258,17 +296,28 @@
       btn.setAttribute("data-gd-id", p.trip_group_date);
       var pt = (p.package_type || "").toLowerCase();
       var flight = p.flight || "";
+      var labelHtml = "";
       if (pt === "cruise only") {
-        btn.innerHTML = "Cruise Only";
+        labelHtml = "Cruise Only";
       } else if (pt === "ground only") {
-        btn.innerHTML = "Ground Only";
+        labelHtml = "Ground Only";
       } else if ((pt === "fly cruise" || pt.indexOf("fly") >= 0) && flight) {
-        btn.innerHTML = "Fly Cruise from <b>" + esc(flight) + "</b>";
+        labelHtml = "Fly Cruise from <b>" + esc(flight) + "</b>";
       } else if ((pt === "fly package" || pt.indexOf("fly") >= 0) && flight) {
-        btn.innerHTML = "Fly Package from <b>" + esc(flight) + "</b>";
+        labelHtml = "Fly Package from <b>" + esc(flight) + "</b>";
       } else {
-        btn.innerHTML = esc(p.package_name || p.name);
+        labelHtml = esc(p.package_name || p.name);
       }
+      // Nota halus tarikh DEPARTURE untuk pakej yang BUKAN cruise-only —
+      // pelayaran sama boleh ada tarikh berlepas berbeza (cth fly cruise
+      // berlepas sehari awal). p.departure_date datang dari TGD sebenar pakej.
+      // Butang ialah flex row (::before radio + kandungan) — label dibalut
+      // wrapper supaya nota jadi BARIS KEDUA dalam wrapper, bukan sebaris.
+      var noteHtml = "";
+      if (pt !== "cruise only" && p.departure_date) {
+        noteHtml = '<small style="display:block;font-size:11px;font-weight:400;opacity:.62;margin-top:2px;">Departs ' + esc(_fmtWebDate(p.departure_date)) + '</small>';
+      }
+      btn.innerHTML = '<span style="flex:1;display:block;">' + labelHtml + noteHtml + '</span>';
       btn.addEventListener("click", function () { selectPackage(p.name, p.trip_group_date); });
       pkgSel.appendChild(btn);
     });
@@ -491,6 +540,95 @@
   }
 
   // ════ STEP 4: Book Now → save package_variant to session ════
+
+  // CRUISE: resolve kandidat TGD dari (pakej + sailing yang dipilih).
+  // Satu sailing date boleh dilayan oleh beberapa TGD — cth Fly Cruise
+  // (berlepas sehari awal) dan Cruise Only (berlepas hari pelayaran).
+  // Setiap pakej dipautkan ke TGD SEBENAR; fungsi ni senaraikan TGD
+  // yang (a) berkongsi sailing dipilih DAN (b) mempunyai pakej ini.
+  function resolveCruiseTgds(pkgName, sailStart) {
+    var out = [];
+    var tgdList = (DATA.sailing_tgds || {})[sailStart] || [];
+    var preloaded = DATA.trip_packages || {};
+    tgdList.forEach(function (t) {
+      var has = (preloaded[t.name] || []).some(function (p) { return p.name === pkgName; });
+      if (has) out.push(t);
+    });
+    return out;
+  }
+
+  // Popup pilihan departure date — dipaparkan bila pakej + sailing yang
+  // sama ada LEBIH DARI SATU departure date (cth dua fly cruise sama
+  // airport, berlepas tarikh berbeza). User pilih TGD yang tepat sebelum
+  // session diteruskan ke /booknow.
+  function showDepartureChoiceModal(candidates, onChoose) {
+    var old = document.getElementById("rcDepartModal");
+    if (old) old.remove();
+
+    var ov = document.createElement("div");
+    ov.id = "rcDepartModal";
+    ov.style.cssText = "position:fixed;inset:0;z-index:10000;background:rgba(30,28,24,.55);display:flex;align-items:center;justify-content:center;padding:20px;";
+
+    var box = document.createElement("div");
+    box.style.cssText = "background:#FFFFFF;border-radius:14px;max-width:430px;width:100%;padding:22px;box-shadow:0 18px 48px rgba(30,28,24,.3);font-family:'Archivo',system-ui,sans-serif;color:#1E1C18;";
+    var title = document.createElement("h3");
+    title.style.cssText = "margin:0 0 4px;font-size:17px;";
+    title.textContent = "Choose your departure date";
+    var sub = document.createElement("p");
+    sub.style.cssText = "margin:0 0 14px;font-size:12.5px;color:#6E6A5F;";
+    sub.textContent = "This package is available with more than one departure date for the same sailing. Please choose:";
+    box.appendChild(title);
+    box.appendChild(sub);
+
+    var list = document.createElement("div");
+    candidates.forEach(function (c, i) {
+      var lab = document.createElement("label");
+      lab.style.cssText = "display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid #D8D3C6;border-radius:10px;margin-bottom:8px;cursor:pointer;font-size:13.5px;";
+      var radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "rcDepartChoice";
+      radio.value = c.name;
+      radio.checked = i === 0;
+      radio.style.accentColor = "#C9A84C";
+      var txt = document.createElement("span");
+      var line = "Departs " + _fmtWebDate(c.departure_date) + (c.is_cruise_only ? " · Cruise Only" : "");
+      txt.innerHTML = "<strong>" + esc(line) + "</strong>";
+      if (c.trip_group_name) {
+        txt.innerHTML += '<br><small style="color:#6E6A5F;font-size:11.5px;">' + esc(c.trip_group_name) + "</small>";
+      }
+      lab.appendChild(radio);
+      lab.appendChild(txt);
+      list.appendChild(lab);
+    });
+    box.appendChild(list);
+
+    var btnRow = document.createElement("div");
+    btnRow.style.cssText = "display:flex;gap:10px;justify-content:flex-end;margin-top:6px;";
+    var cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = "Cancel";
+    cancel.style.cssText = "border:1px solid #D8D3C6;background:none;border-radius:8px;padding:9px 16px;font-size:13px;cursor:pointer;font-family:inherit;color:#1E1C18;";
+    cancel.addEventListener("click", function () { ov.remove(); });
+    var ok = document.createElement("button");
+    ok.type = "button";
+    ok.textContent = "Continue";
+    ok.style.cssText = "border:none;background:#C9A84C;color:#1E1C18;font-weight:700;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer;font-family:inherit;";
+    ok.addEventListener("click", function () {
+      var sel = ov.querySelector("input[name=rcDepartChoice]:checked");
+      if (!sel) return;
+      var chosen = sel.value;
+      ov.remove();
+      onChoose(chosen);
+    });
+    btnRow.appendChild(cancel);
+    btnRow.appendChild(ok);
+    box.appendChild(btnRow);
+
+    ov.appendChild(box);
+    ov.addEventListener("click", function (ev) { if (ev.target === ov) ov.remove(); });
+    document.body.appendChild(ov);
+  }
+
   function addToCart(e) {
     e.preventDefault();
     var gd = _selectedPkgGd;
@@ -501,6 +639,28 @@
       return;
     }
 
+    var sailingStart = "";
+    if (is_cruise) {
+      // CRUISE: yang dipilih user di page ni ialah SAILING date. TGD sebenar
+      // di-reverse-trace daripada (pakej + sailing):
+      //  - 1 kandidat   → terus guna TGD itu.
+      //  - >1 kandidat  → popup pilihan departure date (user tentukan).
+      sailingStart = (getSelectedDateValue() || "").split(":")[0];
+      var candidates = resolveCruiseTgds(pkg, sailingStart);
+      if (candidates.length > 1) {
+        showDepartureChoiceModal(candidates, function (chosenGd) {
+          proceedToBookNow(chosenGd, pkg, sailingStart);
+        });
+        return;
+      }
+      if (candidates.length === 1) gd = candidates[0].name;
+      // 0 kandidat → kekal gd dari pautan pakej (fallback data).
+    }
+
+    proceedToBookNow(gd, pkg, sailingStart);
+  }
+
+  function proceedToBookNow(gd, pkg, sailingStart) {
     // Cari package data dari button attributes untuk label/currency
     var pkgBtn = pkgSel.querySelector(".rc-pkg-btn[data-value='" + pkg + "']");
     var pkgLabel = pkgBtn ? pkgBtn.textContent : "";
@@ -515,6 +675,7 @@
       trip_type: TRIP_TYPE,
       package_variant: package_variant,                 // "TP260817:RC2621"
       group_date: gd,                                   // backward compat
+      sailing_start: sailingStart || "",                // cruise: sailing yang dipilih (untuk reverse-trace di /booknow)
       package_name: pkg,                                // backward compat
       package_label: pkgLabel,
       company_currency: DATA.company_symbol || "RM",
@@ -527,6 +688,13 @@
     } catch (err) {
       return;
     }
+
+    // Simpan URL page trip semasa supaya Back button di /booknow dapat
+    // kembali ke sini — lebih reliable dari document.referrer (boleh
+    // kosong ikut referrer policy browser).
+    try {
+      sessionStorage.setItem("bnw_referrer", window.location.href);
+    } catch (err) {}
 
     // Append ?sp= ke /booknow supaya prefillAffiliateCodeFromUrl() di wizard
     // terus apply kod affiliate — bnw_cart.affiliate_code ialah fallback.

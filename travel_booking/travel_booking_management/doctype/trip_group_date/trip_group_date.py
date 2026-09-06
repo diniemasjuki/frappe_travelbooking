@@ -110,18 +110,18 @@ class TripGroupDate(Document):
 
 		# this is for FLY CRUISE trip = group title use sailing date
 		if (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (not self.is_cruise_only or self.is_cruise_only == 0):
-			self.trip_group_name = str(self.departure_date) + (" : " + self.trip or "") + " : Fly Cruise"
-			self.trip_group_code = (str(self.departure_date) + ":" + self.trip + ":" + "FC").replace("-", "")
+			self.trip_group_name = str(self.departure_date.strftime("%d %b %Y")) + " - " + str(self.return_date.strftime("%d %b %Y")) + (" : " + self.trip or "") + " : Fly Cruise"
+			self.trip_group_code = (str(self.departure_date) + "-" + str(self.return_date) + ":" + self.trip + ":" + "FC").replace("-", "")
 
 		# this is for CRUISE ONLY trip
 		elif (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (self.is_cruise_only is True or self.is_cruise_only == 1):
-			self.trip_group_name = str(self.sailing_start) + (" : " + self.trip or "") + " : Cruise Only"
-			self.trip_group_code = (str(self.sailing_start) + ":" + self.trip + ":" + "CO").replace("-", "")
+			self.trip_group_name = str(self.sailing_start.strftime("%d %b %Y")) + " - " + str(self.sailing_end.strftime("%d %b %Y")) + (" : " + self.trip or "") + " : Cruise Only"
+			self.trip_group_code = (str(self.sailing_start) + "-" + str(self.sailing_end) + ":" + self.trip + ":" + "CO").replace("-", "")
 
 		# this is for RARECATION / NON-CRUISE trip
 		else:
-			self.trip_group_name = str(self.departure_date) + (" : " + self.trip or "") + (" : " + self.name or "")
-			self.trip_group_code = (str(self.departure_date) + ":" + self.trip + ":" + self.name).replace("-", "")
+			self.trip_group_name = str(self.departure_date.strftime("%d %b %Y")) + " - " + str(self.return_date.strftime("%d %b %Y")) + (" : " + self.trip or "") + (" : " + self.name or "")
+			self.trip_group_code = (str(self.departure_date) + "-" + str(self.return_date) + ":" + self.trip + ":" + self.name).replace("-", "")
 
 		"""
 		JANGAN USIK - TAMAT

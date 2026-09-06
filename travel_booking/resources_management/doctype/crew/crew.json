@@ -30,7 +30,6 @@
  ],
  "fields": [
   {
-   "fetch_from": "user.full_name",
    "fetch_if_empty": 1,
    "fieldname": "crew_name",
    "fieldtype": "Data",
@@ -133,7 +132,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-25 12:45:42.188774",
+ "modified": "2026-09-05 19:35:52.757318",
  "modified_by": "Administrator",
  "module": "Resources Management",
  "name": "Crew",

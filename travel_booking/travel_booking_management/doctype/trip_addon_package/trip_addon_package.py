@@ -89,12 +89,21 @@ class TripAddonPackage(Document):
 				"scoping is specified. Please add at least one entry in 'Trip & Date Scoping' table."
 			)
 
-	def is_applicable_for_trip_package(self, trip_package_name=None, group_date_name=None):
-		"""Check if this addon package is applicable for a given trip package or group date.
+	def is_applicable_for_trip_package(self, trip_package_name=None, group_date_name=None, trip_name=None):
+		"""Check if this addon package is applicable for a given trip / group date / package.
 
 		Returns True if:
 		- applicable_to = 'All Trips' (global, available for all bookings)
-		- OR scoping exists and matches the given trip_package/group_date
+		- OR scoping exists and matches the given trip_package/group_date/trip
+
+		Semantik row scoping (kepihakan lebih spesifik menang):
+		- row dengan trip_package → hanya booking dengan Trip Package sama
+		- row dengan group_date  → hanya booking dengan Trip Group Date sama
+		- row dengan trip SAHAJA (tiada date/package) → SEMUA booking bagi
+		  Trip tersebut. (Bug lama: padanan trip-level hanya berjalan bila
+		  booking TIADA package & group date — hampir mustahil untuk booking
+		  sebenar — menyebabkan addon scoped "trip sahaja" tak pernah muncul
+		  di page booking_addons.)
 		"""
 		scopings = frappe.get_all("Trip Scoping", {"parent": self.name}, ["trip_package", "group_date", "trip"])
 
@@ -102,11 +111,26 @@ class TripAddonPackage(Document):
 			return True
 
 		for scope in scopings:
-			if trip_package_name and scope.trip_package == trip_package_name:
+			# Row trip+package (tiada group date): sah untuk package tertentu
+			# pada TRIP tersebut sahaja — semua tarikh yang package itu sah.
+			# Row yang nyatakan trip mengkehendaki booking dari trip sama.
+			if scope.trip_package and trip_package_name and scope.trip_package == trip_package_name:
+				if not scope.trip or not trip_name or scope.trip == trip_name:
+					return True
+			if scope.group_date and group_date_name and scope.group_date == group_date_name:
 				return True
-			if group_date_name and scope.group_date == group_date_name:
+			if (
+				scope.trip
+				and not scope.group_date
+				and not scope.trip_package
+				and trip_name
+				and scope.trip == trip_name
+			):
 				return True
-			if scope.trip and not trip_package_name and not group_date_name:
-				return True
+
+		# Legacy: booking tanpa konteks langsung (tiada package/date/trip) —
+		# sebarang row scoping trip dianggap padanan.
+		if not trip_package_name and not group_date_name and not trip_name:
+			return any(s.trip for s in scopings)
 
 		return False

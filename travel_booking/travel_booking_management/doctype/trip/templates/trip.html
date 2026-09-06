@@ -242,7 +242,7 @@
     <aside class="rc-trip-sidebar">
       <div class="rc-booking-card">
         <h3 class="rc-booking-title">Reserve Your Activity</h3>
-        <p class="rc-booking-sub">Secure your spot for an unforgettable experience now!</p>
+        <p class="rc-booking-sub">Price is varies base on current flight price</p>
 
         {% if starting_from_price %}
         <p class="rc-trip-fromprice"><small>Start from</small> {{ get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }} <span class="rc-muted">/ person</span></p>
@@ -317,6 +317,7 @@
   "trip_type": {{ ("cruise" if is_cruise else "non_cruise")|tojson }},
   "group_dates": {{ group_dates_json }},
   "trip_packages": {{ trip_packages_json }},
+  "sailing_tgds": {{ sailing_tgds_json }},
   "company_symbol": {{ get_company_symbol()|tojson }},
   "gallery_count": {{ gallery|length }}
 }</script>
