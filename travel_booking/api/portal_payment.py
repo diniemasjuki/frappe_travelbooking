@@ -242,10 +242,10 @@ def create_payment_request(booking_number: str = None, amount: float = None,
     Open amount: min = deposit 20% kalau belum bayar apa-apa, selepas itu bebas; max = baki.
 
     'return_to' (opsyenal): laluan portal untuk Stripe hantar customer
-    BALIK selepas bayar (cth "/traveller_portal/booking_billing?ref=RC-X"
+    BALIK selepas bayar (cth "/traveller/booking_billing?ref=RC-X"
     — page asal customer datang). Disahkan dengan
     sanitize_portal_return_path(); kosong/tidak sah → fallback lalai
-    (/traveller_portal/transactions).
+    (/traveller/transactions).
 
     NOTA PENTING: fungsi ni SEBELUM ini guna pr.get_payment_url() (payment_
     gateway_account diisi terus pada Payment Request) — itu punca checkout

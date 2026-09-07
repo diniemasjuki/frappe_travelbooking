@@ -191,7 +191,7 @@ def _homepage_block(doc, prefix: str) -> dict:
         "favicon": doc.get(f"{prefix}_favicon") or "",
         "nav_cta": {
             "label": doc.get(f"{prefix}_nav_cta_label") or "Manage Booking",
-            "url": doc.get(f"{prefix}_nav_cta_url") or "/traveller_portal",
+            "url": doc.get(f"{prefix}_nav_cta_url") or "/traveller",
         },
         "menu": _active_rows(doc.get(f"{prefix}_menu"), has_active=True),
         "hero": {
@@ -267,7 +267,7 @@ def _empty_config() -> dict:
     """Fallback apabila singleton belum wujud (sebelum install/migrate)."""
     hp = {
         "logo": "",
-        "nav_cta": {"label": "Manage Booking", "url": "/traveller_portal"},
+        "nav_cta": {"label": "Manage Booking", "url": "/traveller"},
         "menu": [],
         "hero": {"tag": "", "title": "", "intro": "", "background": None, "search_label": "", "stats": []},
         "featured": {"tag": "", "title": "", "subtitle": "", "cta_label": "", "cta_url": ""},

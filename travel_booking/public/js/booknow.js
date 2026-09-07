@@ -2,7 +2,7 @@
 // Public Booking Wizard — logic penuh (dipindah keluar dari www/booking.html
 // untuk organisasi kod yang lebih kemas — markup & logic diasingkan, ikut
 // pattern yang sama dengan portal.js/portal_booking.js/dsb untuk
-// traveller_portal.html).
+// traveller.html).
 //
 // Data dari Frappe (trip_group_dates, trip_packages, trip_master,
 // trip_group_date) dibaca dari elemen <script id="pageData"> yang kekal
@@ -27,7 +27,7 @@ const INIT_DATE   = _data.trip_group_date;
 // Kosong untuk Guest (customer biasa, tak login) — cookie kosong dah
 // cukup selamat untuk endpoint allow_guest (rujuk apiCall()). Terisi
 // HANYA kalau session semasa authenticated (repeat customer baru login
-// /traveller_portal, atau admin/staff Desk) — rujuk www/booking.py.
+// /traveller, atau admin/staff Desk) — rujuk www/booking.py.
 const CSRF_TOKEN  = _data.csrf_token || "";
 
 // ─── SELECTED PACKAGE (resolved from cart or wizard) ──
@@ -385,7 +385,7 @@ async function apiCall(method, args, useGet) {
     //
     // Keutamaan token: CSRF_TOKEN (dari pageData, rujuk www/booking.py)
     // dulu — ini SATU-SATUNYA sumber yang boleh dipercayai bila session
-    // semasa authenticated (repeat customer baru login /traveller_portal
+    // semasa authenticated (repeat customer baru login /traveller
     // dalam tab/session sama, atau admin/staff Desk buka /booking terus).
     // Tanpa ni, request POST akan kena reject "invalid request" (403 CSRF)
     // walaupun customer/staff tu sah — sebab Frappe WAJIBKAN token padan
@@ -612,7 +612,7 @@ function renderConfirmStatusBadge(bookingStatus) {
 // payment_status. Customer boleh terus akses & isi traveller details
 // bila-bila masa selepas booking dicipta.
 //
-// "View Booking" terus ke /traveller_portal (login page — password yang
+// "View Booking" terus ke /traveller (login page — password yang
 // dihantar dalam emel, atau Magic Link). booking_view (akses guna PIN)
 // dah dibuang — satu sahaja "tempat" untuk customer lihat booking, elak
 // kelirukan customer dengan dua laluan berasingan.

@@ -69,7 +69,7 @@
           return;
         }
 
-        if (d.home_url || d.message === '/traveller/bookings' || d.message === '/traveller_portal/bookings') {
+        if (d.home_url || d.message === '/traveller/bookings' || d.message === '/traveller/bookings') {
           // Login successful — redirect to bookings
           window.location.href = '/traveller/bookings';
           return;

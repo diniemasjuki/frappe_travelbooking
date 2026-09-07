@@ -5,6 +5,23 @@ app_description = "Manage Traveller Booking Information"
 app_email = "contact@rpwp.my"
 app_license = "mit"
 
+# Apps (desktop) screen + dock rail (v17 UI).
+# add_to_apps_screen: tile di apps screen — tanpa ni app tak muncul langsung
+# di desktop (lihat frappe.boot.get_app_data). route = workspace "Travel Booking".
+# Icon dock pula datang dari dock/travel_booking/travel_booking.json (Dock
+# standard, di-import oleh migrate) — bukan lagi fixture Desktop Icon lama.
+app_home = "/desk/travel-booking"
+
+add_to_apps_screen = [
+	{
+		"name": "travel_booking",
+		"logo": "/assets/travel_booking/img/logo-icon.png",
+		"title": "Travel Booking",
+		"route": app_home,
+		"sequence_id": 3,
+	}
+]
+
 # Send non-GET requests for this app's endpoints as native `application/json`
 # bodies instead of form-encoded, per-key JSON-stringified values.
 use_json_request_body = True

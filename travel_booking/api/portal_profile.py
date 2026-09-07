@@ -1,7 +1,7 @@
 # travel_booking/api/portal_profile.py
 # Profile — Portal (multi-page)
 #
-# Page /traveller_portal/profile:
+# Page /traveller/profile:
 #   get_profile()        — maklumat asas (email read-only v1, nama, phone)
 #   update_phone()       — kemas kini nombor telefon Contact utama
 #   change_password()    — tukar password semasa LOGIN (verify password lama)

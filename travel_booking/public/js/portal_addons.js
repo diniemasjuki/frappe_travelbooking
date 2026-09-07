@@ -1,6 +1,6 @@
 /* ============================================================
    travel_booking/public/js/portal_addons.js
-   Page: /traveller_portal/booking_addons?ref=...
+   Page: /traveller/booking_addons?ref=...
 
    Susun atur halaman:
    1. Katalog Addon Package (API_ADDON.get_available_addons) — dikumpul

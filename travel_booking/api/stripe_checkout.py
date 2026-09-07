@@ -403,7 +403,7 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
 
     # 'ret' — laluan pulangan portal (sudah disahkan). checkout.js bawa
     # customer ke laluan ini selepas Stripe redirect balik; tanpa 'ret',
-    # fallback /traveller_portal/transactions (tingkah laku lama).
+    # fallback /traveller/transactions (tingkah laku lama).
     from urllib.parse import quote
     from travel_booking.api._helpers import sanitize_portal_return_path
     safe_return_to = sanitize_portal_return_path(return_to)

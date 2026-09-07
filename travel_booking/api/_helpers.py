@@ -73,19 +73,19 @@ def get_customer_phone(customer_name):
 def sanitize_portal_return_path(path):
     """Validasi laluan pulangan portal untuk URL balik Stripe checkout.
 
-    Hanya terima laluan relatif DALAM portal ("/traveller_portal/...")
+    Hanya terima laluan relatif DALAM portal ("/traveller/...")
     — tolak apa-apa yang boleh jadi open redirect (domain luar, scheme,
     protocol-relative "//", backslash). Pulangkan "" kalau tidak sah.
     Digunakan oleh create_payment_request() -> create_payment_intent()
     -> checkout.py supaya customer dibawa balik ke page asal dia
-    (cth /traveller_portal/booking_billing?ref=RC-XXXX) selepas bayar.
+    (cth /traveller/booking_billing?ref=RC-XXXX) selepas bayar.
     """
     if not path:
         return ""
     path = str(path).strip()
     if len(path) > 500:
         return ""
-    if not (path.startswith("/traveller_portal/") or path.startswith("/traveller/")):
+    if not (path.startswith("/traveller/") or path.startswith("/traveller/")):
         return ""
     if path.startswith("//") or "\\" in path or ":" in path:
         return ""

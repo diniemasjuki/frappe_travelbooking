@@ -120,14 +120,21 @@ def _create_customer(billing):
     # FIX: Check if Contact already exists for this email before creating
     # Prevents race condition/deadlock with Frappe's standard create_contact
     # background job which also tries to create Contact after User signup.
-    # Only create Contact here if one doesn't already exist for this email.
+    # PENTING: kalau Contact dah wujud (cth dijana automatik oleh Frappe
+    # semasa signup Google Social Login), JANGAN sekadar skip — Contact
+    # tu tiada link Customer, dan tanpa link get_customer_by_email()
+    # pulangkan None → customer TAK NAMPAK booking mereka dalam portal
+    # /traveller (_get_customer() throw PermissionError). Append link
+    # Customer ke Contact sedia ada.
     existing_contact = frappe.db.sql("""
         SELECT parent FROM `tabContact Email`
         WHERE email_id = %s AND parenttype = 'Contact'
         LIMIT 1
     """, email) if email else []
 
-    if not existing_contact:
+    if existing_contact:
+        _ensure_contact_customer_link(existing_contact[0][0], customer.name)
+    else:
         try:
             contact = frappe.get_doc({
                 "doctype":    "Contact",
@@ -137,12 +144,54 @@ def _create_customer(billing):
                 "links":      [{"link_doctype": "Customer", "link_name": customer.name}],
             })
             contact.insert(ignore_permissions=True)
-        except (frappe.QueryDeadlockError, frappe.db.InternalError) as e:
-            # Race with Frappe's create_contact BG job — let it handle this.
-            # Also catches raw MariaDB deadlock/timeout (errno 1213/1205/1020).
-            pass
+        except (frappe.QueryDeadlockError, frappe.db.InternalError):
+            # Race with Frappe's create_contact BG job — contact mungkin
+            # sah dah wujud sekarang (job tu menang race). Pastikan link
+            # Customer tetap terpasang pada contact yang wujud tu,
+            # jangan biarkan putus (contact tanpa link = portal booking
+            # list customer terus kosong).
+            raced = frappe.db.sql("""
+                SELECT parent FROM `tabContact Email`
+                WHERE email_id = %s AND parenttype = 'Contact'
+                LIMIT 1
+            """, email)
+            if raced:
+                _ensure_contact_customer_link(raced[0][0], customer.name)
 
     return customer.name
+
+
+def _ensure_contact_customer_link(contact_name, customer_name):
+    """Append Dynamic Link Contact→Customer kalau tiada (idempotent).
+
+    Contact yang dijana automatik oleh Frappe (signup Google / create_contact
+    BG job) tiada sebarang link Customer. Portal resolver
+    (get_customer_by_email → _get_customer) bergantung SEPENUHNYA pada link
+    ni untuk padankan User login → Customer → Booking. Fungsi ni jambatan
+    yang hilang: pastikan link wujud, tak kira siapa cipta Contact tu.
+    """
+    try:
+        contact = frappe.get_doc("Contact", contact_name)
+        already = any(
+            l.link_doctype == "Customer" and l.link_name == customer_name
+            for l in (contact.links or [])
+        )
+        if not already:
+            contact.append("links", {
+                "link_doctype": "Customer",
+                "link_name":    customer_name,
+            })
+            contact.flags.ignore_permissions = True
+            contact.save()
+    except Exception:
+        # Gagal memasang link TAK sepatutnya gagalkan penciptaan booking —
+        # tapi kalau berlaku, customer akan hilang dari portal. Log utk
+        # admin nampak & boleh patch manual (bukan senyap).
+        frappe.log_error(
+            "Failed to link Contact {0} -> Customer {1}".format(
+                contact_name, customer_name),
+            "Contact-Customer Link FAILED"
+        )
 
 
 def _ensure_customer_company_currency(customer_name):

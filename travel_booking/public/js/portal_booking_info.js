@@ -1,6 +1,6 @@
 /* ============================================================
    travel_booking/public/js/portal_booking_info.js
-   Page: /traveller_portal/booking_info?ref=... — ringkasan booking:
+   Page: /traveller/booking_info?ref=... — ringkasan booking:
    hero, info grid, cabins/stateroom/flight (read-only), payment summary.
    Semua nilai server di-escape guna _esc().
    ============================================================ */
@@ -98,6 +98,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('info-trip-name').textContent = 'Could not load booking';
     document.getElementById('booking-info-grid').innerHTML =
       '<div style="font-size:13px;color:#991B1B;">' + _esc(e.message || 'Failed to load booking.') + '</div>' +
-      '<a href="/traveller_portal/bookings" class="btn btn-g" style="text-decoration:none;display:inline-block;margin-top:12px;font-size:12px;">← Back to My Bookings</a>';
+      '<a href="/traveller/bookings" class="btn btn-g" style="text-decoration:none;display:inline-block;margin-top:12px;font-size:12px;">← Back to My Bookings</a>';
   }
 });

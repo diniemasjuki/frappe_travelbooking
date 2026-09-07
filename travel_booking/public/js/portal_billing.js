@@ -1,6 +1,6 @@
 /* ============================================================
    travel_booking/public/js/portal_billing.js
-   Page: /traveller_portal/booking_billing?ref=...
+   Page: /traveller/booking_billing?ref=...
 
    Susun atur halaman (atas → bawah):
    1. Ringkasan booking — progress bar bayaran + statistik

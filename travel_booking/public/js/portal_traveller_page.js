@@ -1,6 +1,6 @@
 /* ============================================================
    travel_booking/public/js/portal_traveller_page.js
-   Page: /traveller_portal/booking-traveller?ref=...
+   Page: /traveller/booking-traveller?ref=...
 
    Gabungan logic portal_wizard.js + portal_traveller.js (SPA lama),
    diadaptasikan untuk page berasingan + PENAMBAHAN:
@@ -29,12 +29,12 @@ let _GUEST_TOKEN = '';
 /* ── Navigasi antara 2 page: senarai slot (booking_traveller) dan
    aliran dokumen (booking_traveller/docs?ref=..&slot=..) ── */
 function tvlDocsUrl(slotName) {
-  return '/traveller_portal/booking_traveller/docs?ref=' + encodeURIComponent(BOOKING) +
+  return '/traveller/booking_traveller/docs?ref=' + encodeURIComponent(BOOKING) +
          '&slot=' + encodeURIComponent(slotName);
 }
 
 function tvlBackToList() {
-  window.location.href = '/traveller_portal/booking_traveller?ref=' + encodeURIComponent(BOOKING);
+  window.location.href = '/traveller/booking_traveller?ref=' + encodeURIComponent(BOOKING);
 }
 
 /* ── View switching dalam page docs (wizard / form) ── */
@@ -1242,7 +1242,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       listContainer.innerHTML =
         '<div class="card" style="text-align:center;padding:32px 20px;">' +
           '<div style="font-size:13px;color:#991B1B;margin-bottom:14px;">' + _esc(e.message || 'Failed to load travellers.') + '</div>' +
-          '<a href="/traveller_portal/bookings" class="btn btn-g" style="text-decoration:none;display:inline-block;font-size:12px;">← Back to My Bookings</a>' +
+          '<a href="/traveller/bookings" class="btn btn-g" style="text-decoration:none;display:inline-block;font-size:12px;">← Back to My Bookings</a>' +
         '</div>';
     }
   }

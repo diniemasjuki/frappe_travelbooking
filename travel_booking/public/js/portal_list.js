@@ -1,6 +1,6 @@
 /* ============================================================
    travel_booking/public/js/portal_list.js
-   Page: /traveller_portal/bookings — senarai booking dikelompokkan:
+   Page: /traveller/bookings — senarai booking dikelompokkan:
      Upcoming Trip (satu sahaja — paling hampir) / Future Trips /
      Past Trips (collapsed).
    Semua nilai server di-escape guna _esc() (portal_common) — fix XSS.
@@ -72,7 +72,7 @@ function bookingCard(b, opts = {}) {
     : '';
 
   return (
-    '<a href="' + (cancelled ? '#' : '/traveller_portal/booking_info?ref=' + encodeURIComponent(b.booking_number)) + '" ' +
+    '<a href="' + (cancelled ? '#' : '/traveller/booking_info?ref=' + encodeURIComponent(b.booking_number)) + '" ' +
        'class="bk-card" style="' + (cancelled ? 'cursor:default;opacity:.72;' : '') + 'display:block;text-decoration:none;' +
        (isUpcoming ? 'border-color:#C9A84C;box-shadow:0 0 0 3px rgba(201,168,76,.12);' : '') + '">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">' +

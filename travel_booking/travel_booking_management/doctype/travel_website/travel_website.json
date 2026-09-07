@@ -275,7 +275,7 @@
    "label": "Nav CTA Button Label"
   },
   {
-   "default": "/traveller_portal",
+   "default": "/traveller",
    "fieldname": "cruise_nav_cta_url",
    "fieldtype": "Data",
    "label": "Nav CTA Button URL"
@@ -538,7 +538,7 @@
    "label": "Nav CTA Button Label"
   },
   {
-   "default": "/traveller_portal",
+   "default": "/traveller",
    "fieldname": "tour_nav_cta_url",
    "fieldtype": "Data",
    "label": "Nav CTA Button URL"

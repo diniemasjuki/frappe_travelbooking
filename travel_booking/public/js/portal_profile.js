@@ -1,6 +1,6 @@
 /* ============================================================
    travel_booking/public/js/portal_profile.js
-   Page: /traveller_portal/profile — phone, password, PDPA requests.
+   Page: /traveller/profile — phone, password, PDPA requests.
    Semua feedback inline (role=alert/status) — tiada alert() chain.
    ============================================================ */
 

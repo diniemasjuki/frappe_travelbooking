@@ -9,7 +9,7 @@
 # Contoh:
 #   cruise.rarecation.com/  → Frappe process sebagai /cruise
 #   rarecation.com/        → Frappe process sebagai /tour
-#   traveller.rpwp.my/    → Frappe process sebagai /traveller_portal
+#   traveller.rpwp.my/    → Frappe process sebagai /traveller
 
 import frappe
 from travel_booking.utils.website_config import get_website_config

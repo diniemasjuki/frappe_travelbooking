@@ -12,12 +12,12 @@
  "doctype": "Workspace",
  "for_user": "",
  "hide_custom": 0,
- "icon": "folder-open",
+ "icon": "plane-takeoff",
  "idx": 0,
  "indicator_color": "green",
  "is_hidden": 0,
  "label": "Travel Booking",
- "link_type": "DocType",
+ "link_type": "Page",
  "links": [
   {
    "hidden": 0,
@@ -484,7 +484,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-09-07 08:59:58.528963",
+ "modified": "2026-09-07 09:38:18.185774",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Booking",
@@ -507,7 +507,7 @@
   }
  ],
  "owner": "Administrator",
- "parent_page": "",
+ "parent_page": "Home",
  "public": 1,
  "quick_lists": [],
  "roles": [
@@ -518,7 +518,7 @@
    "role": "Tour Operator"
   }
  ],
- "sequence_id": 39.0,
+ "sequence_id": 38.0,
  "shortcuts": [
   {
    "label": "Dashboard & Reports",

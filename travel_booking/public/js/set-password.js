@@ -101,7 +101,7 @@ async function doSetPassword() {
   try {
     await API('set_password', { key, email, new_password: pw });
     showSuccess();
-    setTimeout(() => { window.location.href = '/traveller_portal'; }, 2000);
+    setTimeout(() => { window.location.href = '/traveller'; }, 2000);
   } catch (e) {
     const msg = e.message || '';
     if (msg.includes('expired') || msg.includes('invalid') || msg.includes('Invalid')) {

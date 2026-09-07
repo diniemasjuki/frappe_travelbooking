@@ -503,7 +503,7 @@
           },
           {
            "attributes": {
-            "href": "/traveller_portal"
+            "href": "/traveller"
            },
            "baseStyles": {
             "backgroundImage": "linear-gradient(currentColor, currentColor)",

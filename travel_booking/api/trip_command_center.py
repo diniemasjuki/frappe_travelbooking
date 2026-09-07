@@ -335,7 +335,7 @@ def _build_website_settings() -> dict:
 		# Navigation
 		'cruise_menu': get_child_table('cruise_menu'),
 		'cruise_nav_cta_label': wc.cruise_nav_cta_label or 'Manage Booking',
-		'cruise_nav_cta_url': wc.cruise_nav_cta_url or '/traveller_portal',
+		'cruise_nav_cta_url': wc.cruise_nav_cta_url or '/traveller',
 
 		# Hero Section
 		'cruise_hero_tag': wc.cruise_hero_tag or '',
@@ -382,7 +382,7 @@ def _build_website_settings() -> dict:
 		# Navigation
 		'tour_menu': get_child_table('tour_menu'),
 		'tour_nav_cta_label': wc.tour_nav_cta_label or 'Manage Booking',
-		'tour_nav_cta_url': wc.tour_nav_cta_url or '/traveller_portal',
+		'tour_nav_cta_url': wc.tour_nav_cta_url or '/traveller',
 
 		# Hero Section
 		'tour_hero_tag': wc.tour_hero_tag or '',
@@ -445,7 +445,7 @@ def _empty_website_settings() -> dict:
 	empty_section = {
 		'menu': [],
 		'nav_cta_label': 'Manage Booking',
-		'nav_cta_url': '/traveller_portal',
+		'nav_cta_url': '/traveller',
 		'hero_tag': '',
 		'hero_title': '',
 		'hero_intro': '',

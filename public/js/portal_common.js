@@ -1,6 +1,6 @@
 /* ============================================================
    travel_booking/public/js/portal_common.js
-   Shared helpers untuk SEMUA page /traveller_portal/* (multi-page).
+   Shared helpers untuk SEMUA page /traveller/* (multi-page).
    - API fetch + CSRF + session-expiry handling
    - _esc()  — HTML escaping (FIX XSS: data server tak boleh terus
      interpolate ke innerHTML tanpa escape)
@@ -140,14 +140,14 @@ async function ensureSession() {
       return s;
     }
     if (s && s.status === 'no_customer_link') {
-      window.location.href = '/traveller_portal';
+      window.location.href = '/traveller';
       return null;
     }
   } catch (e) {
     const cached = _CACHE.get('session');
     if (cached && cached.status === 'ok') { SESSION = cached; return cached; }
   }
-  window.location.href = '/traveller_portal';
+  window.location.href = '/traveller';
   return null;
 }
 
@@ -175,7 +175,7 @@ async function doLogout() {
     });
   } catch {}
   _CACHE.clear();
-  window.location.href = '/traveller_portal';
+  window.location.href = '/traveller';
 }
 
 /* ── Utility: inline error box helper ──

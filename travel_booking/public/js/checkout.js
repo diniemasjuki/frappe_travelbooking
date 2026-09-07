@@ -75,12 +75,12 @@
       return base + "/booknow?ref=" + encodeURIComponent(REF) + "&step=confirm&pr=" + encodeURIComponent(PR_NAME);
     }
     // Pulangan portal — honori laluan asal customer
-    // (portal lama /traveller_portal/ + portal baharu /traveller/)
+    // (portal lama /traveller/ + portal baharu /traveller/)
     if (RET && RET.indexOf("//") !== 0 &&
-        (RET.indexOf("/traveller_portal/") === 0 || RET.indexOf("/traveller/") === 0)) {
+        (RET.indexOf("/traveller/") === 0 || RET.indexOf("/traveller/") === 0)) {
       return base + RET;
     }
-    return base + "/traveller_portal/transactions";
+    return base + "/traveller/transactions";
   }
 
   function showPendingState() {
@@ -90,7 +90,7 @@
         '<div class="co-pending-title">Booking Pending</div>' +
         'This checkout session has expired. Your booking is still saved — ' +
         'please log in to the portal to continue your payment.' +
-        '<br><a href="/traveller_portal">Go to Portal &rarr;</a>' +
+        '<br><a href="/traveller">Go to Portal &rarr;</a>' +
       '</div>';
 
     // Beritahu server supaya emel "Pending" dihantar (jika belum).
@@ -133,7 +133,7 @@
           var base = window.location.origin;
           // Portal flow — honori laluan asal customer (ret).
           if (RET && RET.indexOf("//") !== 0 &&
-              (RET.indexOf("/traveller_portal/") === 0 || RET.indexOf("/traveller/") === 0)) {
+              (RET.indexOf("/traveller/") === 0 || RET.indexOf("/traveller/") === 0)) {
             window.location.href = base + RET;
             return;
           }

@@ -66,7 +66,7 @@ def _create_customer_portal_role():
 	role = frappe.get_doc({
 		"doctype":           "Role",
 		"role_name":         "Customer",
-		"home_page":         "/traveller_portal",
+		"home_page":         "/traveller",
 		"desk_access":       0,  # portal-only — tiada akses Desk
 		"disabled":          0,
 	})
@@ -151,7 +151,7 @@ def _create_default_travel_website():
 		 "open_in_new_tab": 0, "is_active": 1, "sort_order": 3},
 	]
 	nav_cta_label = "Manage Booking"
-	nav_cta_url = "/traveller_portal"
+	nav_cta_url = "/traveller"
 
 	footer_links = [
 		{"column_title": "Explore", "label": "All Trips", "url": "/trips",
@@ -160,7 +160,7 @@ def _create_default_travel_website():
 		 "is_active": 1, "sort_order": 2},
 		{"column_title": "Explore", "label": "Tours", "url": "/tours",
 		 "is_active": 1, "sort_order": 3},
-		{"column_title": "Explore", "label": "My Bookings", "url": "/traveller_portal",
+		{"column_title": "Explore", "label": "My Bookings", "url": "/traveller",
 		 "is_active": 1, "sort_order": 4},
 	]
 

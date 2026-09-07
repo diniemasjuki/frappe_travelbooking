@@ -764,7 +764,7 @@ select option { background: var(--bg-primary); }
 
 
 
-/* ── Billing page (/traveller_portal/booking_billing) ──
+/* ── Billing page (/traveller/booking_billing) ──
    Corak borang dipinjam dari wizard booking.html Step 3 (rc-pay-amount /
    rc-pay-chip / rc-radio-option / rc-bank-details), diadaptasi guna token
    portal.css supaya kedua-dua permukaan nampak seragam. */

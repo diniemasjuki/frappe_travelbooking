@@ -1,6 +1,6 @@
 /* ============================================================
    travel_booking/public/js/portal_transactions.js
-   Page: /traveller_portal/transactions
+   Page: /traveller/transactions
 
    - Senarai FLAT semua transaksi (payment + invoice) merentasi booking
      — port dari renderSoList() portal_payment.js, semua nilai di-escape.
@@ -70,8 +70,8 @@ function renderPaymentResult(result) {
     // ke Billing page booking terlibat untuk cuba bayar semula — guna
     // booking_number dari metadata intent (bukan butang duplikasi back).
     const retryUrl = result.booking_number
-      ? '/traveller_portal/booking_billing?ref=' + encodeURIComponent(result.booking_number)
-      : '/traveller_portal/bookings';
+      ? '/traveller/booking_billing?ref=' + encodeURIComponent(result.booking_number)
+      : '/traveller/bookings';
     body.innerHTML =
       '<div class="pr-icon pr-icon-failed">' +
         '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#991B1B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
@@ -167,7 +167,7 @@ function renderTxnList(orders) {
         '<div style="font-size:15px;font-weight:600;color:#1E1C18;margin-bottom:6px;">No transactions yet</div>' +
         '<p style="font-size:13px;color:#7D7A70;line-height:1.6;max-width:360px;margin:0 auto;">' +
           'Your payments and invoices will appear here once you make your first booking payment.</p>' +
-        '<a href="/traveller_portal/bookings" class="btn btn-p" style="text-decoration:none;display:inline-block;margin-top:16px;">View My Bookings</a>' +
+        '<a href="/traveller/bookings" class="btn btn-p" style="text-decoration:none;display:inline-block;margin-top:16px;">View My Bookings</a>' +
       '</div>';
     return;
   }

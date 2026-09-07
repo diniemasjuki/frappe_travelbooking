@@ -13,7 +13,7 @@
 
 import frappe
 
-# FIXED: Import dari path yang betul (traveller, bukan traveller_portal)
+# FIXED: Import dari path yang betul (traveller, bukan traveller)
 from travel_booking.www.traveller._guard import get_query_param
 
 

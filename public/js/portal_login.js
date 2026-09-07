@@ -1,6 +1,6 @@
 /* ============================================================
    travel_booking/public/js/portal_login.js
-   Page: /traveller_portal (index) — login, magic link, forgot password.
+   Page: /traveller (index) — login, magic link, forgot password.
    Bergantung pada portal_common.js (dimuatkan dahulu).
    ============================================================ */
 
@@ -32,7 +32,7 @@ async function signInWithGoogle() {
   if (btn.disabled) return;
   btn.disabled = true;
   try {
-    const authUrl = await API('get_google_login_url', { redirect_to: '/traveller_portal/bookings' });
+    const authUrl = await API('get_google_login_url', { redirect_to: '/traveller/bookings' });
     window.location.href = authUrl;
   } catch (e) {
     showLoginError((e && e.message) || 'Could not start Google sign-in. Please try again.');
@@ -61,7 +61,7 @@ async function doLogin() {
       body: formData
     });
     if (!loginRes.ok) throw new Error('Invalid email or password.');
-    window.location.href = '/traveller_portal/bookings';
+    window.location.href = '/traveller/bookings';
   } catch (e) {
     const msg = e.message || '';
     showLoginError(msg.includes('Invalid') || msg.includes('invalid')

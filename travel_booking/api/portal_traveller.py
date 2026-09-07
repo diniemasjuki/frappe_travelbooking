@@ -306,7 +306,7 @@ def save_booking_traveller(booking_number: str, slot_name: str,
 
     # PDPA (Personal Data Protection Act 2010) — persetujuan WAJIB sebelum
     # simpan maklumat peribadi traveller (passport/IC/dokumen perjalanan).
-    # Checkbox pada bar bawah form (link ke /traveller_portal/privacy);
+    # Checkbox pada bar bawah form (link ke /traveller/privacy);
     # server-side check supaya panggilan API terus (bypass frontend) tak
     # boleh langkau.
     if not pdpa_consent:

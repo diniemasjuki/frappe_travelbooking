@@ -210,7 +210,7 @@ def _send_status_email(booking_name, status, email_override=None):
             "amount_paid_fmt":  (fmt_currency(ctx.get("advance_paid") or 0, ctx.get("currency"))
                                   if status != "Pending" else None),
             "payment_status":   ctx["payment_status"] if status != "Pending" else None,
-            "booking_url":      site_url + "/traveller_portal",
+            "booking_url":      site_url + "/traveller",
         }
 
         email_template = frappe.get_doc("Email Template", template_name)
