@@ -1,0 +1,32 @@
+{
+ "app": "travel_booking",
+ "creation": "2026-09-07 08:00:49.966758",
+ "docstatus": 0,
+ "doctype": "Dock",
+ "idx": 0,
+ "items": [
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "plane-takeoff",
+   "link_to": "Travel Booking",
+   "link_type": "Sidebar",
+   "title": "Travel Booking"
+  },
+  {
+   "added": 0,
+   "hidden": 0,
+   "icon": "circle-dollar-sign",
+   "link_to": "Affiliate Manager",
+   "link_type": "Sidebar",
+   "title": "Affiliate"
+  }
+ ],
+ "modified": "2026-09-07 09:28:04.762292",
+ "modified_by": "Administrator",
+ "mount_on": "erpnext",
+ "name": "travel_booking",
+ "owner": "Administrator",
+ "standard": 1,
+ "user": ""
+}
