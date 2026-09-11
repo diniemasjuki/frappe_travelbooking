@@ -16,8 +16,11 @@ class Booking(Document):
 
 		affiliate: DF.Link | None
 		balance_amount: DF.Currency
+		booked_by: DF.Link | None
 		booked_pax: DF.Int
+		booking_channel: DF.Literal["Direct", "Staff", "Affiliate", "B2B"]
 		booking_number: DF.Data
+		company: DF.Link | None
 		cruise_end: DF.Date | None
 		cruise_start: DF.Date | None
 		cust_email: DF.Data | None
@@ -75,13 +78,19 @@ class Booking(Document):
 
 	@property
 	def currency(self):
-		"""Currency booking ni (SEMUA SO — utama + addon — WAJIB currency
-		yang sama, rujuk guardrail dokumen reka bentuk multi-currency
-		Seksyen 3), untuk field 'Currency' fieldtype lain (total_amount/
-		balance_amount/pre_discount_total) papar symbol yang BETUL di
-		Desk (bukan default currency asas company/MYR — rujuk 'options'
-		field-field tu di booking.json, semua rujuk 'currency' ni).
-		Fallback MYR kalau tiada SO lagi (booking baru dicipta).
+		"""Currency SO UTAMA booking ni (cabin booking asal), untuk field
+		'Currency' fieldtype lain (total_amount/balance_amount/
+		pre_discount_total) papar symbol yang BETUL di Desk (bukan default
+		currency asas company/MYR — rujuk 'options' field-field tu di
+		booking.json, semua rujuk 'currency' ni).
+
+		NOTA model multi-currency baharu: SO ADDON kini BOLEH dalam
+		currency berbeza dari SO utama (customer bebas pilih rate currency
+		addon) — setiap SO tetap dipegang company yang sepadan dengan
+		currency-nya. total_amount/balance_amount menjumlah grand_total
+		NATIVE setiap SO; bila ada SO addon dalam currency lain, jumlah
+		tersebut bercampur currency — lihat detail per-SO di portal/billing
+		untuk angka tepat. Fallback MYR kalau tiada SO lagi.
 		"""
 		from travel_booking.api.booking import _get_all_booking_sales_orders
 		for so_name in _get_all_booking_sales_orders(self.name):

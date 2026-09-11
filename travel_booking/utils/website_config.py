@@ -123,6 +123,19 @@ def _build_config() -> dict:
 
     footer_links = _active_rows(doc.get("footer_links"), has_active=True)
 
+    # Default currency by location (geo_currency) — mapping kod negara ISO
+    # (uppercase) -> currency. Child table simpan Link Country (nama);
+    # kod dibaca dari Country.code (lowercase "my" -> "MY").
+    geo_currency_map = {}
+    for row in (doc.get("geo_currency_map") or []):
+        country = row.get("country")
+        currency = row.get("currency")
+        if not country or not currency:
+            continue
+        code = frappe.db.get_value("Country", country, "code")
+        if code:
+            geo_currency_map[code.upper()] = currency
+
     # Multi-domain configuration
     multi_domain_enabled = doc.get("enable_multi_domain") or False
     domain_mappings_raw = doc.get("domain_mappings") or []
@@ -149,6 +162,10 @@ def _build_config() -> dict:
         "multi_domain": {
             "enabled": bool(multi_domain_enabled),
             "mappings": domain_mappings,
+        },
+        "geo_currency": {
+            "enabled": bool(doc.get("geo_currency_enabled")),
+            "map": geo_currency_map,
         },
         "footer": {
             "tagline": doc.get("footer_tagline") or "",
@@ -293,6 +310,10 @@ def _empty_config() -> dict:
         "multi_domain": {
             "enabled": False,
             "mappings": [],
+        },
+        "geo_currency": {
+            "enabled": False,
+            "map": {},
         },
         "footer": {
             "tagline": "", "links": [], "columns": [],

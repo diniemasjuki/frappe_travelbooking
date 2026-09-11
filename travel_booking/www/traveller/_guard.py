@@ -12,7 +12,7 @@
 import frappe
 import frappe.sessions
 
-from travel_booking.api._helpers import get_customer_by_email
+from travel_booking.api._helpers import get_customer_by_email, has_on_behalf_role
 
 
 def get_query_param(name):
@@ -46,16 +46,20 @@ def guard_context(require_customer=True):
     """Sediakan context asas + enforce auth untuk page traveller portal.
 
     Pulangkan dict: csrf_token, email, customer_name (docname),
-    customer_label (nama paparan).
+    customer_label (nama paparan), show_onbehalf_menu (bool).
 
     Behaviour:
       - Guest                          → redirect ke /traveller (login).
-      - Logged-in TANPA role Traveller → redirect ke /traveller juga —
+      - Logged-in TANPA role Traveller DAN bukan manager on-behalf
+                                      → redirect ke /traveller juga —
         index.py papar skrin "Account Under Review" (signup tanpa booking;
         role hanya diberi selepas booking pertama).
       - Logged-in + role Traveller     → context penuh, page render biasa.
         Customer mungkin tiada (edge case: staff/testing) — page handle
         empty state sendiri.
+      - Manager on-behalf (role dalam Travel Settings > On-Behalf Booking
+        Roles, walau tanpa role Customer) → dibenarkan masuk portal untuk
+        urus booking yang mereka buat bagi pihak customer lain.
     """
     ctx = {
         "no_cache": 1,
@@ -71,12 +75,22 @@ def guard_context(require_customer=True):
 
     ctx["email"] = user
 
-    # Gatekeeper: hanya role "Customer" dibenarkan akses portal.
-    # Tiada role = "under review" (signup tanpa booking) → redirect ke
-    # login page, di mana index.py papar skrin "Account Under Review".
-    if "Customer" not in frappe.get_roles(user):
+    # Gatekeeper: role "Customer" ATAU manager on-behalf (role yang
+    # dikonfigurasi dalam Travel Settings). Tiada kedua-duanya =
+    # "under review" (signup tanpa booking) → redirect ke login page,
+    # di mana index.py papar skrin "Account Under Review".
+    is_on_behalf_manager = has_on_behalf_role(user)
+    if "Customer" not in frappe.get_roles(user) and not is_on_behalf_manager:
         frappe.local.flags.redirect_location = "/traveller"
         raise frappe.Redirect
+
+    # Menu "Bookings on Behalf" (nav portal) — hanya papar bila user layak
+    # (role on-behalf) DAN benar-benar ada booking yang diurus (booked_by =
+    # user, booking_channel bukan Direct). Query EXISTS ringan — jauh lebih
+    # murah dari fetch senarai penuh di setiap page render.
+    ctx["show_onbehalf_menu"] = is_on_behalf_manager and bool(frappe.db.exists(
+        "Booking", {"booked_by": user, "booking_channel": ["!=", "Direct"]}
+    ))
 
     customer = get_customer_by_email(user)
     ctx["account_issue"] = False

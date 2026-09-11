@@ -34,7 +34,8 @@
   "currency",
   "import_from_cruise_rate",
   "package_pricing",
-  "price_review_required"
+  "price_review_required",
+  "ground_arrangement"
  ],
  "fields": [
   {
@@ -159,6 +160,12 @@
    "set_only_once": 1
   },
   {
+   "default": "0",
+   "fieldname": "ground_arrangement",
+   "fieldtype": "Check",
+   "label": "Ground Arrangement"
+  },
+  {
    "fieldname": "column_break_eemr",
    "fieldtype": "Column Break"
   },
@@ -176,20 +183,18 @@
    "label": "Package Titlle",
    "no_copy": 1,
    "options": "Name",
-   "read_only": 1,
-   "set_only_once": 1
+   "read_only": 1
   },
   {
    "default": "MYR",
-   "description": "Harga pakej sentiasa disimpan & dimasukkan dalam COMPANY CURRENCY (accounting/SO/Stripe semua company currency). Field ini HANYA hint default paparan converter untuk trip ni di frontend (cth tunjuk SGD sebagai currency paparan utama). Tidak menjejaskan jumlah dicaj.",
-   "fetch_if_empty": 1,
+   "description": "Currency NATIVE pakej ini (paksi utama). Harga pada Package Pricing dianggap dalam currency ini; SO/bil booking akan dikeluarkan oleh company yang sepadan (rujuk Travel Settings > Multi Currency Account). MESTI salah satu currency yang diisytiharkan di sana.",
    "fieldname": "currency",
    "fieldtype": "Link",
-   "hidden": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Display Currency (Marketing Hint)",
-   "options": "Currency"
+   "label": "Currency",
+   "options": "Currency",
+   "reqd": 1
   },
   {
    "default": "0",
@@ -235,7 +240,7 @@
  "grid_page_length": 50,
  "image_field": "trip_image",
  "links": [],
- "modified": "2026-08-27 07:55:53.970502",
+ "modified": "2026-09-11 07:00:54.811750",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Package",

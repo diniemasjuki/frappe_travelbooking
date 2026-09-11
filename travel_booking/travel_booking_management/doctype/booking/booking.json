@@ -17,8 +17,11 @@
   "section_break_wqvr",
   "column_break_hwbu",
   "customer",
+  "company",
   "get_cust_phone",
   "cust_email",
+  "booking_channel",
+  "booked_by",
   "section_break_eyrl",
   "order_summary",
   "payment_section",
@@ -131,6 +134,16 @@
    "options": "Customer"
   },
   {
+   "description": "Company yang mengeluarkan Sales Order utama booking ini (dari paksi currency — currency native pakej menentukan company).",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
    "fieldname": "section_break_mhpl",
    "fieldtype": "Section Break",
    "label": "Trip Information"
@@ -210,7 +223,7 @@
    "label": "Pending Traveller"
   },
   {
-   "description": "Jumlah pax (Main Guest + Extra Bed + Infant) dirayang masa booking dicipta \u2014 sumber kebenaran untuk gate overbooking (sum merentasi semua booking tak-cancelled vs Trip Group Date.max_participants). Berbeza dari Total Traveller (virtual, kira Booking Reservation Confirmed).",
+   "description": "Jumlah pax (Main Guest + Extra Bed + Infant) dirayang masa booking dicipta — sumber kebenaran untuk gate overbooking (sum merentasi semua booking tak-cancelled vs Trip Group Date.max_participants). Berbeza dari Total Traveller (virtual, kira Booking Reservation Confirmed).",
    "fieldname": "booked_pax",
    "fieldtype": "Int",
    "label": "Booked Pax",
@@ -379,6 +392,23 @@
    "fieldtype": "Data",
    "label": "Customer Email",
    "options": "Email"
+  },
+  {
+   "default": "Direct",
+   "description": "Saluran booking: Direct = customer tempah sendiri; Staff = sales user (role Sales User) tempah bagi pihak customer tanpa OTP; Affiliate = rakan kongsi affiliate (role Affiliate) tempah bagi pihak customer tanpa OTP; B2B = business partner (fasa hadapan).",
+   "fieldname": "booking_channel",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Booking Channel",
+   "options": "Direct\nStaff\nAffiliate\nB2B"
+  },
+  {
+   "description": "User yang membuat tempahan ini (session semasa confirm_booking). Untuk booking on-behalf (Staff/Affiliate), ini ialah 3rd party yang bertanggungjawab; untuk Direct, user customer sendiri.",
+   "fieldname": "booked_by",
+   "fieldtype": "Link",
+   "label": "Booked By",
+   "options": "User",
+   "search_index": 1
   },
   {
    "fieldname": "currency",

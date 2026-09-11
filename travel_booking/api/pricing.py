@@ -375,59 +375,49 @@ def _currency_symbol(currency):
 
 @frappe.whitelist(allow_guest=True)
 def get_display_currencies() -> list:
-    """Senarai currency yang boleh dipaparkan di converter frontend.
+    """Senarai currency yang boleh DIBELI (paksi currency multi-company).
 
-    Kriteria (pilihan user "Semua Currency dengan rate"): setiap currency
-    AKTIF (enabled=1) yang ada sekurang-kurangnya satu rekod Currency
-    Exchange melibatkan company currency (jadi rate boleh diresolve).
-    Company currency sentiasa dihadapan (rate=1, identiti).
-    Pulangkan [{code, symbol, name, is_company}].
+    Ditulis semula untuk model multi-currency sebenar: sumber senarai
+    ialah axis Travel Settings > Multi Currency Account (currency ->
+    company), BUKAN rekod Currency Exchange. Setiap currency diisytiharkan
+    = booking boleh dibuat & di-bil dalam currency itu oleh company yang
+    sepadan. Currency default company sentiasa dihadapan (is_company).
+
+    Currency Exchange (get_currency_rate) masih wujud untuk paparan
+    indicative cross-rate sahaja — ia TIDAK lagi menentukan senarai.
+
+    Pulangkan [{code, symbol, name, is_company, company}].
     """
-    company_currency = get_company_currency()
+    from travel_booking.api.currency_axis import get_currency_axis
 
-    rows = frappe.db.sql(
-        """
-        SELECT DISTINCT c.name AS code, c.currency_name AS name,
-                        c.symbol
-        FROM `tabCurrency` c
-        WHERE c.enabled = 1
-          AND c.name = %s
-           OR (
-                c.enabled = 1
-                AND c.name IN (
-                    SELECT from_currency FROM `tabCurrency Exchange`
-                    WHERE to_currency = %s AND docstatus != 2
-                    UNION
-                    SELECT to_currency FROM `tabCurrency Exchange`
-                    WHERE from_currency = %s AND docstatus != 2
-                )
-           )
-        """,
-        (company_currency, company_currency, company_currency),
-        as_dict=True,
-    )
+    company_currency = get_company_currency()
 
     out = []
     seen = set()
-    # Company currency first.
-    out.append({
-        "code": company_currency,
-        "symbol": _currency_symbol(company_currency),
-        "name": frappe.db.get_value("Currency", company_currency, "currency_name")
-        or company_currency,
-        "is_company": True,
-    })
-    seen.add(company_currency)
-    for r in rows:
-        if r.code in seen:
+    for r in get_currency_axis():
+        if r["currency"] in seen:
             continue
         out.append({
-            "code": r.code,
-            "symbol": r.symbol or r.code,
-            "name": r.name or r.code,
-            "is_company": False,
+            "code": r["currency"],
+            "symbol": r["symbol"],
+            "name": frappe.db.get_value("Currency", r["currency"], "currency_name")
+            or r["currency"],
+            "is_company": bool(r["currency"] == company_currency),
+            "company": r["company"],
         })
-        seen.add(r.code)
+        seen.add(r["currency"])
+
+    # Fallback: axis kosong (belum dikonfigur) — pulangkan currency
+    # company sahaja supaya selector frontend masih berfungsi.
+    if not out:
+        out.append({
+            "code": company_currency,
+            "symbol": _currency_symbol(company_currency),
+            "name": frappe.db.get_value("Currency", company_currency, "currency_name")
+            or company_currency,
+            "is_company": True,
+            "company": frappe.db.get_single_value("Global Defaults", "default_company"),
+        })
     return out
 
 
@@ -757,7 +747,9 @@ def search_packages_by_date(start_date: str, end_date: str, trip: str = None):
         """
         SELECT tp.name AS trip_package, sel.trip_group_date AS group_date,
                tp.package_title, tp.package_type, tp.airport_form,
-               ap.airport_name, tp.currency, cur.symbol AS currency_symbol
+               ap.airport_name, tp.currency, cur.symbol AS currency_symbol,
+               tgd.departure_date, tgd.return_date, tgd.sailing_start, tgd.sailing_end,
+               tgd.total_days, tgd.total_nights, tgd.is_cruise_only, tp.ground_arrangement
         FROM `tabTrip Package` AS tp
         JOIN `tabTrip Package Group Date Select` AS sel ON sel.parent = tp.name
         JOIN `tabTrip Group Date` AS tgd ON tgd.name = sel.trip_group_date
@@ -789,6 +781,14 @@ def search_packages_by_date(start_date: str, end_date: str, trip: str = None):
             "flight_label": flight_label,
             "currency": p.currency or "MYR",
             "currency_symbol": p.currency_symbol or (p.currency or "MYR"),
+            "departure_date": str(p.departure_date) if p.departure_date else "",
+            "return_date": str(p.return_date) if p.return_date else "",
+            "sailing_start": str(p.sailing_start) if p.sailing_start else "",
+            "sailing_end": str(p.sailing_end) if p.sailing_end else "",
+            "total_days": p.total_days,
+            "total_nights": p.total_nights,
+            "is_cruise_only": bool(p.is_cruise_only),
+            "ground_arrangement": bool(p.ground_arrangement),
         })
     return result
 

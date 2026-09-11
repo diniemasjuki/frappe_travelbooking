@@ -26,6 +26,7 @@
   "otp_and_security_section",
   "otp_expiry_minutes",
   "email_verified_session_minutes",
+  "on_behalf_roles",
   "referral_and_voucher_section",
   "default_referral_discount_percent",
   "price_category_section",
@@ -148,6 +149,13 @@
    "fieldname": "email_verified_session_minutes",
    "fieldtype": "Int",
    "label": "Email Verified Session (minutes)"
+  },
+  {
+   "description": "Senarai role yang dibenarkan buat tempahan BAGI PIHAK customer (booking on-behalf): user dengan role di sini boleh langkau OTP email customer dalam wizard /booknow, dan mengurus booking tersebut dalam portal traveller (menu \"Bookings on Behalf\"). Channel menentukan nilai Booking.booking_channel yang direkodkan. SENARAI KOSONG = ciri on-behalf dimatikan sepenuhnya.",
+   "fieldname": "on_behalf_roles",
+   "fieldtype": "Table",
+   "label": "On-Behalf Booking Roles",
+   "options": "Travel On Behalf Role"
   },
   {
    "fieldname": "referral_and_voucher_section",

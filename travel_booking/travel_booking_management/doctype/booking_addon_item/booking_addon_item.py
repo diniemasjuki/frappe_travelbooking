@@ -59,18 +59,22 @@ class BookingAddonItem(Document):
 		self.refresh_related()
 
 	def snapshot_pricing(self):
-		"""Bekukan currency + unit_price dari Addon Package WAKTU baris ini
-		dicipta sahaja (before_insert, bukan validate) — perubahan harga
-		Addon Package selepas ni tak menjejaskan baris sedia ada.
+		"""Bekukan currency + unit_price daripada Addon Package rate table
+		WAKTU baris ini dicipta sahaja (before_insert, bukan validate) —
+		perubahan harga Addon Package selepas ini tak menjejaskan baris
+		sedia ada.
 		"""
 		if not self.addon_package:
 			return
-		ap = frappe.db.get_value(
-			"Trip Addon Package", self.addon_package, ["currency", "unit_price"], as_dict=True
+		rate = frappe.db.get_value(
+			"Trip Addon Package Rate",
+			{"parent": self.addon_package, "parenttype": "Trip Addon Package", "enabled": 1},
+			["currency", "unit_price"], as_dict=True,
+			order_by="creation asc",
 		)
-		if ap:
-			self.currency = ap.currency
-			self.unit_price = ap.unit_price
+		if rate:
+			self.currency = rate.currency
+			self.unit_price = rate.unit_price
 
 	def snapshot_validity(self):
 		"""Kira valid_from/valid_to dari validity_mode Addon Package + tarikh

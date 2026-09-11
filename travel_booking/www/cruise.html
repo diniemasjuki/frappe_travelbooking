@@ -30,6 +30,9 @@
     {# Search Widget #}
     <form class="rc-hero-search" action="/cruises" method="get">
       <input type="hidden" name="cruise" value="1"/>
+      {# Currency aktif kekal dibawa bila customer guna search (paksi
+         multi-company — currency menentukan pakej yang dipaparkan). #}
+      <input type="hidden" name="currency" value="{{ currency or '' }}"/>
       <script type="application/json" id="rcSearchDestinations">{{ options.destinations | tojson }}</script>
       <div class="rc-search-grid">
         <div class="rc-search-field rc-autocomplete" data-rc-autocomplete>
@@ -49,6 +52,12 @@
         </button>
       </div>
     </form>
+
+    {# Selector currency (paksi multi-company) — pilihan menapis pakej
+       & harga yang dipaparkan pada halaman ini. #}
+    <div style="margin-top: 0.75rem;">
+      {% include "templates/includes/currency_selector.html" %}
+    </div>
 
     <div class="rc-hero-stats">
       {% for stat in hp.hero.stats %}

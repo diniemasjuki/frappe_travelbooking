@@ -3,7 +3,11 @@
 # ─────────────────────────────────────────────────────────────────────────
 
 import frappe
-from travel_booking.api.portal_booking import _get_customer
+from travel_booking.api.portal_booking import (
+    _get_customer,
+    _portal_access,
+    _so_action_allowed,
+)
 from travel_booking.api.constants import PRINT_FORMAT_RECEIPT
 from travel_booking.api._helpers import sanitize_portal_return_path
 
@@ -21,6 +25,11 @@ def get_all_so_payments():
     """
     frappe.flags.ignore_permissions = True
     customer_name = _get_customer()
+
+    # Currency fallback axis (bukan hardcoded MYR) untuk SO rekod lama
+    # yang currency-nya kosong.
+    from travel_booking.api.currency_axis import get_default_currency
+    default_currency = get_default_currency()
 
     so_rows = frappe.db.sql("""
         SELECT so.name, so.grand_total, so.advance_paid, so.status, so.docstatus,
@@ -194,7 +203,7 @@ def get_all_so_payments():
                 "grand_total":   float(r.grand_total or 0),
                 "proforma_pdf":   r.proforma_pdf or "",
                 "status":         r.status or "",
-                "currency":       r.currency or so.currency or "MYR",
+                "currency":       r.currency or so.currency or default_currency,
             } for r in pf_rows]
 
         # NOTA: "Disable Rounded Total" kini global (Selling Settings,
@@ -222,8 +231,8 @@ def get_all_so_payments():
             # berkuatkuasa DALAM satu booking, tapi across booking BERBEZA
             # customer boleh ada currency lain-lain). Frontend guna field
             # ni untuk papar simbol yang BETUL untuk card SO ni.
-            "currency":        so.currency or "MYR",
-            "currency_symbol": so.currency_symbol or (so.currency or "MYR"),
+            "currency":        so.currency or default_currency,
+            "currency_symbol": so.currency_symbol or (so.currency or default_currency),
             "has_booking_addon": bool(so.custom_booking_addon),
         })
 
@@ -260,7 +269,9 @@ def create_payment_request(booking_number: str = None, amount: float = None,
     from travel_booking.api.stripe_checkout import create_payment_intent
 
     frappe.flags.ignore_permissions = True
-    customer_name = _get_customer()
+    # ON-BEHALF: manager (booked_by) dibenarkan bayar untuk SO booking
+    # yang diurusnya — rujuk _so_accessible_by().
+    _user, customer_name, managed = _portal_access()
 
     so_name = sales_order
     if not so_name and booking_number:
@@ -285,7 +296,7 @@ def create_payment_request(booking_number: str = None, amount: float = None,
 
     so = frappe.db.get_value("Sales Order", so_name,
                              ["customer", "grand_total", "advance_paid", "currency"], as_dict=True)
-    if so.customer != customer_name:
+    if not _so_action_allowed(so_name, customer_name, managed, "Full"):
         frappe.throw("Access denied.", frappe.PermissionError)
 
     # NOTA: "Disable Rounded Total" kini global (Selling Settings) — semua
@@ -364,7 +375,9 @@ def submit_manual_payment(amount: float, payment_date: str,
     from erpnext.accounts.party import get_party_account
 
     # --- Verify customer DULU (keselamatan) ---
-    customer_name = _get_customer()
+    # ON-BEHALF: manager (booked_by) dibenarkan hantar resit manual untuk
+    # SO booking yang diurusnya — rujuk _so_accessible_by().
+    _user, customer_name, managed = _portal_access()
 
     target_so = sales_order
     if not target_so and booking_number:
@@ -376,8 +389,17 @@ def submit_manual_payment(amount: float, payment_date: str,
 
     so = frappe.db.get_value("Sales Order", target_so,
                              ["customer", "company", "currency"], as_dict=True)
-    if so.customer != customer_name:
+    if not _so_action_allowed(target_so, customer_name, managed, "Full"):
         frappe.throw("Access denied.", frappe.PermissionError)
+
+    # ON-BEHALF: bila manager (bukan pemilik SO) yang hantar resit, PE
+    # mesti direkodkan terhadap customer SO (end customer) — bukan
+    # customer manager (yang mungkin tiada rekod Customer langsung).
+    party_customer = (
+        customer_name
+        if (customer_name and so.customer == customer_name)
+        else so.customer
+    )
 
     # --- Cipta Payment Entry dengan hak sistem (customer dah verified atas) ---
     #
@@ -416,7 +438,7 @@ def submit_manual_payment(amount: float, payment_date: str,
             {"account_type": "Bank", "company": company, "is_group": 0},
             "name"
         )
-    party_account = get_party_account("Customer", customer_name, company)
+    party_account = get_party_account("Customer", party_customer, company)
     # MULTI-CURRENCY — DIRINGKASKAN, sama dengan _create_manual_payment_entry()
     # (api/booking.py): akaun Debtors DEFAULT company selamat diguna
     # terus untuk apa-apa currency SO, sejak Accounts Settings "Allow
@@ -427,7 +449,7 @@ def submit_manual_payment(amount: float, payment_date: str,
     pe.company         = company
     pe.posting_date    = payment_date or frappe.utils.today()
     pe.party_type      = "Customer"
-    pe.party           = customer_name
+    pe.party           = party_customer
     pe.party_account   = party_account
     pe.paid_from       = party_account
     pe.paid_to         = paid_to
@@ -481,14 +503,30 @@ PRINT_FORMAT_INVOICE = "Rarecation Invoice"
 @frappe.whitelist()
 def get_document_pdf(doctype: str, docname: str):
     frappe.flags.ignore_permissions = True
-    customer_name = _get_customer()
+    # ON-BEHALF: manager (booked_by) dibenarkan muat turun resit/invois
+    # untuk booking yang diurusnya — pemilikan disemak ikut customer ATAU
+    # SO booking on-behalf (rujuk setiap cabang di bawah).
+    _user, customer_name, managed = _portal_access()
 
     if doctype == "Payment Entry":
+        # PE milik customer user, ATAU PE merujuk SO booking on-behalf
+        # yang diurus (PE references → Sales Order).
         pe = frappe.db.sql("""
             SELECT pe.name
             FROM `tabPayment Entry` pe
             WHERE pe.name = %s AND pe.party = %s AND pe.docstatus = 1
-        """, (docname, customer_name), as_dict=True)
+        """, (docname, customer_name), as_dict=True) if customer_name else None
+        if not pe:
+            ref_so = frappe.get_all(
+                "Payment Entry Reference",
+                filters={"parent": docname, "reference_doctype": "Sales Order"},
+                pluck="reference_name",
+            )
+            pe = (
+                {"name": docname}
+                if any(_so_action_allowed(so, customer_name, managed, "Full") for so in ref_so)
+                else None
+            )
         if not pe:
             frappe.response["http_status_code"] = 403
             return {"status": "error", "message": "Document not found."}
@@ -501,7 +539,19 @@ def get_document_pdf(doctype: str, docname: str):
             JOIN `tabSales Invoice Item` sii ON sii.parent = si.name
             JOIN `tabSales Order` so ON so.name = sii.sales_order
             WHERE si.name = %s AND so.customer = %s AND si.docstatus = 1
-        """, (docname, customer_name), as_dict=True)
+        """, (docname, customer_name), as_dict=True) if customer_name else None
+        if not inv:
+            # ON-BEHALF: invois merujuk SO booking yang diurus manager.
+            inv_so = frappe.get_all(
+                "Sales Invoice Item",
+                filters={"parent": docname, "sales_order": ["is", "set"]},
+                pluck="sales_order",
+            )
+            inv = (
+                {"name": docname}
+                if any(_so_action_allowed(so, customer_name, managed, "Full") for so in inv_so)
+                else None
+            )
         if not inv:
             frappe.response["http_status_code"] = 403
             return {"status": "error", "message": "Document not found."}
@@ -514,6 +564,7 @@ def get_document_pdf(doctype: str, docname: str):
         # customer portal, bukan semak terus ke field customer proforma
         # (selari dengan corak ownership Sales Invoice di atas). PDF diserv
         # di sini supaya file private tak terdedah terus ke laluan awam.
+        # ON-BEHALF: SO milik customer ATAU booking yang diurus manager.
         proforma = frappe.db.get_value(
             "Proforma Invoice", docname,
             ["sales_order", "proforma_pdf"], as_dict=True
@@ -522,8 +573,7 @@ def get_document_pdf(doctype: str, docname: str):
             frappe.response["http_status_code"] = 404
             return {"status": "error", "message": "Proforma PDF not available."}
 
-        so_owner = frappe.db.get_value("Sales Order", proforma.sales_order, "customer")
-        if so_owner != customer_name:
+        if not _so_action_allowed(proforma.sales_order, customer_name, managed, "Full"):
             frappe.response["http_status_code"] = 403
             return {"status": "error", "message": "Document not found."}
 

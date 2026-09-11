@@ -52,6 +52,13 @@ BOOKING_NUMBER_PREFIX = "RC"
 # Currency lalai untuk paparan fallback.
 DEFAULT_CURRENCY = "MYR"
 
+# Price List selling lalai — digunakan bila baris paksi currency
+# (Travel Settings > Multi Currency Account) tidak set selling_price_list.
+# Item Price dalam price list auto-seed oleh insert_item_price ERPNext pada
+# SO pertama setiap currency; rate SO item sentiasa di-set eksplisit dari
+# Trip Package Price / addon rate, jadi price list di sini mekanikal.
+DEFAULT_SELLING_PRICE_LIST = "Standard Selling"
+
 
 # ── Pemalar boleh konfigurasi (dibaca dari Travel Settings) ─────────
 

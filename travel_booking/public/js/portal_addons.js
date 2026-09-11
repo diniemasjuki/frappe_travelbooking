@@ -24,11 +24,18 @@
 'use strict';
 
 let BOOKING = '';
-let CATALOG = [];         // hasil get_available_addons()
+let CATALOG = [];         // hasil get_available_addons() → resp.addons
 const CART = {};          // addon_package -> qty
 let BANK_ACCOUNTS = {};   // {currency: {bank_name, account_name, account_number}}
 let ONLINE_PAYMENT_ENABLED = true;  // ditetapkan oleh get_payment_settings
 let _addonReceiptFile = null;
+
+// MULTI-COMPANY: currency rate addon yang dipilih customer (bebas tukar;
+// default = currency booking utama). SEMUA harga katalog + cart dalam
+// currency ini; SO addon akan dikeluarkan oleh company yang sepadan.
+let ADDON_CURRENCY = '';
+let ADDON_CURRENCY_SYMBOL = '';
+let ADDON_CURRENCY_OPTIONS = [];
 
 
 /* ══════════════════════════════════════════════
@@ -41,13 +48,16 @@ async function loadAddons() {
 
   container.innerHTML = '<div style="font-size:13px;color:#B0AC9F;padding:8px 0;">Loading add-ons...</div>';
   try {
-    CATALOG = await API_ADDON('get_available_addons', { booking_number: BOOKING });
-
-    if (!CATALOG.length) {
-      container.innerHTML =
-        '<div class="card" style="text-align:center;padding:32px 20px;font-size:13px;color:#7D7A70;">' +
-        'No add-ons or insurance are available for this trip package yet.</div>';
-      return;
+    const resp = await API_ADDON('get_available_addons', { booking_number: BOOKING });
+    // Resp baharu: {addons, currency, currency_symbol, currency_options}
+    // (backward-compat: resp lama ialah array terus).
+    if (Array.isArray(resp)) {
+      CATALOG = resp;
+    } else {
+      CATALOG = (resp && resp.addons) || [];
+      ADDON_CURRENCY = (resp && resp.currency) || '';
+      ADDON_CURRENCY_SYMBOL = (resp && resp.currency_symbol) || '';
+      ADDON_CURRENCY_OPTIONS = (resp && resp.currency_options) || [];
     }
 
     // Butir bank (untuk panel Manual Transfer nanti) — gagal load bukan
@@ -58,6 +68,18 @@ async function loadAddons() {
       ONLINE_PAYMENT_ENABLED = s && s.online_payment_enabled !== false;
     } catch (e) { /* kekal kosong */ }
 
+    renderCurrencyBar();
+    if (!CATALOG.length) {
+      // Katalog kosong DALAM CURRENCY INI sahaja — bukan pasti tiada addon
+      // langsung (mungkin tiada rate untuk currency ini). Bar currency tetap
+      // dipaparkan supaya customer boleh tukar currency lain.
+      container.innerHTML =
+        '<div class="card" style="text-align:center;padding:32px 20px;font-size:13px;color:#7D7A70;">' +
+        'No add-ons are available in ' + _esc(ADDON_CURRENCY || 'this currency') +
+        ' for this trip yet. Try another currency above.</div>';
+      bindAddonEvents(container);
+      return;
+    }
     renderAddons();
     bindAddonEvents(container);
   } catch (e) {
@@ -67,6 +89,40 @@ async function loadAddons() {
         '<button class="btn btn-g" data-act="reload" style="font-size:12px;">Retry</button>' +
       '</div>';
   }
+}
+
+/* Bar selector currency addon (paksi multi-company) — tukar pilihan akan
+   reload page dengan ?currency=XXX; katalog re-fetch server-side ikut
+   rate currency itu (package tanpa rate currency ini disembunyikan). */
+function renderCurrencyBar() {
+  const slot = document.getElementById('addon-currency-bar');
+  if (!slot) return;
+  if (!ADDON_CURRENCY_OPTIONS || ADDON_CURRENCY_OPTIONS.length < 2) {
+    slot.innerHTML = '';
+    return;
+  }
+  slot.innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;margin:12px 0 2px;font-size:12px;color:#7D7A70;">' +
+      '<i class="ti ti-currency-dollar"></i> Prices in' +
+      '<select id="addon-currency-select" style="padding:5px 26px 5px 10px;border:1px solid #E5E1D8;border-radius:7px;font-size:12px;background:#fff;">' +
+        ADDON_CURRENCY_OPTIONS.map(o =>
+          '<option value="' + _esc(o.currency) + '"' + (o.currency === ADDON_CURRENCY ? ' selected' : '') + '>' +
+          _esc(o.symbol) + ' ' + _esc(o.currency) + '</option>').join('') +
+      '</select>' +
+      '<span style="font-size:11px;color:#B0AC9F;">— billed by the company for this currency</span>' +
+    '</div>';
+  const sel = document.getElementById('addon-currency-select');
+  sel.addEventListener('change', () => {
+    const u = new URL(window.location.href);
+    u.searchParams.set('currency', sel.value);
+    window.location.href = u.toString();
+  });
+}
+
+/* Simbol currency addon aktif untuk fmtDual (2-arg WAJIB — fmtDual 1-arg
+   fallback ke company symbol global RM, bukan currency rate addon). */
+function addonSym() {
+  return ADDON_CURRENCY_SYMBOL || ADDON_CURRENCY || 'RM';
 }
 
 
@@ -118,7 +174,7 @@ function renderItemRow(item) {
         statusNote +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">' +
-        '<span style="font-size:14px;font-weight:500;color:#1E1C18;">' + fmtDual(item.unit_price) + '</span>' +
+        '<span style="font-size:14px;font-weight:500;color:#1E1C18;">' + fmtDual(item.unit_price, addonSym()) + '</span>' +
         '<div style="display:flex;align-items:center;gap:6px;">' +
           '<button type="button" class="btn-g" data-act="qty-dec" data-ap="' + _esc(item.addon_package) + '" ' +
             (disabled ? 'disabled' : '') + ' style="width:28px;height:28px;padding:0;font-size:14px;">−</button>' +
@@ -243,7 +299,7 @@ function renderCart() {
   });
 
   document.getElementById('cart-count').textContent = count;
-  document.getElementById('cart-total-line').innerHTML = fmtDual(cartTotal);
+  document.getElementById('cart-total-line').innerHTML = fmtDual(cartTotal, addonSym());
 }
 
 
@@ -270,9 +326,12 @@ function selectPaymentMethod(kind) {
 }
 
 function fillBankDetails() {
-  const apNames = Object.keys(CART);
-  const items = CATALOG.filter(i => apNames.includes(i.addon_package));
-  const currency = items.length ? items[0].currency : 'MYR';
+  // MULTI-COMPANY: bank details ikut CURRENCY RATE addon yang dipilih
+  // (guard server pastikan cart satu-currency; ADDON_CURRENCY ialah
+  // currency berkenaan).
+  const currency = ADDON_CURRENCY || (Object.keys(CART).length
+    ? (CATALOG.find(i => i.addon_package === Object.keys(CART)[0]) || {}).currency
+    : '') || 'MYR';
   const bank = BANK_ACCOUNTS[currency] || {};
   const slot = document.getElementById('bank-details-slot');
   if (!slot) return;
@@ -364,6 +423,9 @@ async function confirmCheckout() {
       payment_method: pm,
       receipt: receiptDataUrl,
       bank_transfer_ref: bankRef,
+      // MULTI-COMPANY: currency rate yang customer lihat di cart — server
+      // re-validate + re-price sepenuhnya dari rates table.
+      currency: ADDON_CURRENCY || undefined,
     });
 
     if (pm === 'Online Payment' && result.payment_url) {

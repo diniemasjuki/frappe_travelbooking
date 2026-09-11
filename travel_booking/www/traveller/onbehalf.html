@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>On-Behalf Bookings — {{ site_name or 'Rarecation' }} Portal</title>
+  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800;900&family=Rubik:wght@300;400;500;600;700;800;900&family=Satisfy&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') }}"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/traveller.css?v={{ asset_v('css/traveller.css') }}"/>
+</head>
+<body class="tv-page">
+
+{% include "templates/includes/traveller_nav.html" %}
+
+<div class="body">
+  <div class="tv-container">
+    <!-- Page Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <h1 class="tv-section-title">On-Behalf Bookings</h1>
+      <a href="/trips" class="tv-btn tv-btn--ghost tv-btn--sm">
+        + New Booking for a Customer
+      </a>
+    </div>
+    <p style="color:var(--text-muted);margin:0 0 24px 0;font-size:14px;">
+      Bookings you placed on behalf of your customers. You can manage their
+      details, documents and payments here — the customer keeps access to
+      their own booking in their portal as usual.
+    </p>
+
+    <!-- Search & Filters (JS papar bila ada bookings) -->
+    <div id="bookings-filters" class="tv-filterbar" style="display:none;">
+      <div class="tv-filterbar__search">
+        <span class="tv-filterbar__icon">🔍</span>
+        <input id="ob-search" type="text" class="tv-input" autocomplete="off"
+               placeholder="Search customer, email or ref..."/>
+      </div>
+      <select id="ob-f-status" class="tv-input tv-select" aria-label="Booking status">
+        <option value="">All Statuses</option>
+      </select>
+      <select id="ob-f-payment" class="tv-input tv-select" aria-label="Payment status">
+        <option value="">All Payments</option>
+      </select>
+      <select id="ob-f-trip" class="tv-input tv-select" aria-label="Trip">
+        <option value="">All Trips</option>
+      </select>
+      <button id="ob-f-clear" type="button" class="tv-btn tv-btn--ghost tv-btn--sm">Reset</button>
+    </div>
+    <div id="bookings-count" class="tv-filterbar__count" style="display:none;"></div>
+
+    <!-- Loading State -->
+    <div id="bookings-loading" class="tv-card tv-text-center" style="padding:60px 24px;">
+      <div style="font-size:32px;color:var(--text-muted);margin-bottom:12px;">⏳</div>
+      <p style="color:var(--text-muted);">Loading on-behalf bookings...</p>
+    </div>
+
+    <!-- Content Container (populated by JS) -->
+    <div id="bookings-content" style="display:none;"></div>
+
+    <!-- Empty State -->
+    <div id="bookings-empty" class="tv-empty" style="display:none;">
+      <div class="tv-empty__icon">🤝</div>
+      <h3 class="tv-empty__title">No On-Behalf Bookings Yet</h3>
+      <p class="tv-empty__desc">
+        Bookings you make for your customers (with "Booking on behalf" enabled
+        in the booking wizard) will appear here.
+      </p>
+      <a href="/trips" class="tv-btn tv-btn--primary">Start a Booking</a>
+    </div>
+  </div>
+</div>
+
+<script id="rcCurrencyData" type="application/json">{"company_currency": "{{ get_company_currency() }}", "company_symbol": "{{ get_company_symbol() }}"}</script>
+<script type="application/json" id="pageData">{{ page_data | tojson | safe }}</script>
+<script src="/assets/travel_booking/js/traveller_common.js?v={{ asset_v('js/traveller_common.js') }}"></script>
+<script src="/assets/travel_booking/js/onbehalf_list.js?v={{ asset_v('js/onbehalf_list.js') }}"></script>
+</body>
+</html>

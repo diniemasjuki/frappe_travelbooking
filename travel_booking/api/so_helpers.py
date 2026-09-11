@@ -194,42 +194,6 @@ def _ensure_contact_customer_link(contact_name, customer_name):
         )
 
 
-def _ensure_customer_company_currency(customer_name):
-    """Pastikan Customer.default_currency = company currency.
-
-    Model app: SEMUA transaksi jualan/booking dalam COMPANY CURRENCY
-    (harga pakej disimpan & dimasukkan dalam company currency; paparan
-    currency lain diuruskan di layer display converter frontend). Jadi
-    setiap customer travel_booking patutpunya default_currency = company
-    currency. Kalau terisi lain (cth di-set manual di Desk dari model
-    multi-currency lama), betulkan semula ke company currency + log untuk
-    audit (bukan senyap — perubahan data manual admin patut nampak).
-
-    Dipanggil dalam confirm_booking() SEBELUM SO dicipta. SO set
-    currency=company_currency & conversion_rate=1.0 secara eksplisit
-    jua, jadi ini cuma penjajar data customer (bukan gate kritikal).
-    """
-    if not customer_name:
-        return
-    company_currency = get_company_currency()
-    current = frappe.db.get_value("Customer", customer_name, "default_currency")
-    if current == company_currency:
-        return
-    frappe.db.set_value(
-        "Customer", customer_name, "default_currency", company_currency, update_modified=False
-    )
-    if current:
-        frappe.log_error(
-            "Customer '" + str(customer_name) + "' had default_currency='" +
-            str(current) + "' (likely set manually in Desk under the legacy "
-            "multi-currency model). It was reset to company currency '" +
-            str(company_currency) + "' — all travel_booking transactions are "
-            "now in company currency (display-only currency conversion happens "
-            "in the frontend converter, not in accounting).",
-            "Customer Currency Reset to Company"
-        )
-
-
 # ══════════════════════════════════════════════
 # SALES ORDER ITEMS
 # ══════════════════════════════════════════════
@@ -334,20 +298,30 @@ def _get_or_create_travel_item(item_code=None, item_name=None):
 # ══════════════════════════════════════════════
 
 def _resolve_so_currency_and_rate(currency=None):
-    """Kembalikan (currency, conversion_rate) untuk cipta Sales Order.
+	"""Kembalikan (currency, company, price_list, conversion_rate) untuk
+	cipta Sales Order — model multi-company sebenar.
 
-    Keputusan senibina: SEMUA SO (booking utama + addon) dalam COMPANY
-    CURRENCY dengan conversion_rate=1.0. Harga pakej/addon disimpan &
-    dimasukkan dalam company currency; paparan currency lain diuruskan di
-    layer display converter frontend, BUKAN di SO/accounting. Argumen
-    `currency` dikekalkan (backward-compat caller sedia ada, cth
-    api/addon_manager.py) tetapi diabaikan — sentiasa pulangkan company
-    currency. Ini juga membuang kebergantungan pada rekod Currency Exchange
-    untuk penciptaan SO: booking TIDAK gagal walaupun rate exchange belum
-    diisi admin (rate hanya diperlukan untuk DISPLAY converter).
-    """
-    company_currency = get_company_currency()
-    return company_currency, 1.0
+	Currency yang diberi (currency NATIVE pakej/addon, dari DB bukan
+	payload) menentukan company yang mengeluarkan SO/bil melalui paksi
+	currency (Travel Settings > Multi Currency Account). SO sentiasa
+	dalam company currency company berkenaan dengan conversion_rate=1.0
+	— tiada conversion accounting (bukan currency converter).
+
+	Kalau currency tidak diberi (caller lama), jatuh balik kepada
+	company default + currency company default — behavior hari ini
+	kekal untuk data sedia ada.
+	"""
+	from travel_booking.api.currency_axis import resolve_so_currency_context
+	from travel_booking.api.constants import DEFAULT_SELLING_PRICE_LIST
+
+	if not currency:
+		# Caller lama tanpa currency — company default (behavior
+		# pra-multi-company). Jangan resolve ikut axis supaya laman
+		# tidak bergantung pada konfigurasi axis untuk path ini.
+		default_company = frappe.db.get_single_value("Global Defaults", "default_company")
+		return get_company_currency(), default_company, DEFAULT_SELLING_PRICE_LIST, 1.0
+
+	return resolve_so_currency_context(currency)
 
 
 # ══════════════════════════════════════════════
@@ -490,8 +464,14 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
                 "Travel Settings > Multi Currency Account.",
                 "Manual Transfer - Currency Account Missing"
             )
-
-        paid_to = frappe.db.get_value("Account",{"account_type": "Bank", "company": company, "is_group": 0}, "name")
+            # FIXED: fallback dulu ditulis SEMULA di luar blok if, menimpa
+            # nilai paid_to dari Travel Settings walaupun ianya dijumpai —
+            # menjadikan konfigurasi per-currency tidak pernah berkesan.
+            # Kini fallback hanya berlaku bila TCA tiada baris untuk
+            # currency SO berkenaan.
+            paid_to = frappe.db.get_value(
+                "Account", {"account_type": "Bank", "company": company, "is_group": 0}, "name"
+            )
         party_account = get_party_account("Customer", customer_name, company)
         pe = frappe.new_doc("Payment Entry")
         pe.payment_type    = "Receive"

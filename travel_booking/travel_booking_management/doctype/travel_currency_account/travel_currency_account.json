@@ -8,6 +8,8 @@
  "engine": "InnoDB",
  "field_order": [
   "currency",
+  "company",
+  "selling_price_list",
   "bank_account",
   "manual_transfer_paid_to_account",
   "payment_gateway_account"
@@ -19,6 +21,22 @@
    "in_list_view": 1,
    "label": "Currency",
    "options": "Currency"
+  },
+  {
+   "description": "Company yang mengeluarkan SO/bil untuk booking dalam currency baris ini (currency inilah yang menentukan company yang mana customer berurusan).",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "description": "Price List (selling) untuk SO dalam currency ini. Currency price list mesti sama dengan currency baris.",
+   "fieldname": "selling_price_list",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Selling Price List",
+   "options": "Price List"
   },
   {
    "fieldname": "bank_account",

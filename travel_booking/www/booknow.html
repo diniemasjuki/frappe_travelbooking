@@ -73,15 +73,6 @@ if ('serviceWorker' in navigator) {
     </div>
   </nav>
 
-  {# ── Display Currency Bar ── #}
-  <div class="bnw-currency-bar">
-    <div class="bnw-container">
-      <span class="bnw-currency-label">Display in</span>
-      <select id="bnwDisplayCurrency" class="bnw-currency-select"></select>
-      <p class="bnw-currency-note" id="bnwCurrencyNote"></p>
-    </div>
-  </div>
-
   {# ════════════════════════════════════════════════════════ #}
   {# STEP 1: ROOMS & PASSENGERS (first visible step)            #}
   {# ════════════════════════════════════════════════════════ #}
@@ -187,6 +178,24 @@ if ('serviceWorker' in navigator) {
         <div class="bnw-bill-col">
 
       <div class="bnw-card bnw-card--narrow">
+
+        {# ── Booking on behalf (fasa 1 modul booking-channel) ─────────
+           HANYA dipaparkan bila session user memiliki role Affiliate /
+           Sales User (booking_actor dari pageData; JS yang toggle
+           paparan). Bila diaktifkan: email customer boleh diisi TANPA
+           OTP — kelayakan disahkan SEMULA server-side di
+           confirm_booking(), nilai client tidak dipercayai. #}
+        <div class="bnw-field" id="bnwOnBehalfField" style="display:none">
+          <label class="bnw-onbehalf" for="bnwOnBehalfCheck">
+            <input type="checkbox" id="bnwOnBehalfCheck"/>
+            <span class="bnw-onbehalf-text">
+              <span class="bnw-onbehalf-title">
+                <i class="ti ti-user-cog"></i> Booking on behalf of a customer
+              </span>
+              <span class="bnw-onbehalf-sub" id="bnwOnBehalfSub"></span>
+            </span>
+          </label>
+        </div>
 
         {# Pilihan 1: social login (Google) — email dari akaun Google,
            AUTOMATIC verified (tiada OTP). Kembali semula ke /booknow
@@ -580,7 +589,7 @@ if ('serviceWorker' in navigator) {
 
 {# ── Page Data JSON (dari Frappe context) ── #}
 <script id="pageData" type="application/json">
-{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_cruise_flags": {{ trip_cruise_flags }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "csrf_token": "{{ csrf_token }}", "current_user": "{{ current_user }}", "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}"}
+{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_cruise_flags": {{ trip_cruise_flags }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "csrf_token": "{{ csrf_token }}", "current_user": "{{ current_user }}", "booking_actor": {{ booking_actor_json }}, "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}"}
 </script>
 
 {% endblock %}

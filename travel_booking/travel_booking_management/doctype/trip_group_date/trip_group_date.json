@@ -68,13 +68,13 @@
    "label": "Basic Info"
   },
   {
-   "description": "Active = Open for booking <br>\nFulled = Closed for full booked<br>\nClosed = Date in active range <br>\nCompleted = Trip has complete <br>\nPending Review = Pending Confirmation<br>\nCancelled = Trip Canceled",
+   "description": "Active = Open for booking <br>\nFulled = Closed for full booked<br>\nClosed = Closed for final preparation\n<br>\nRunning = Currently Running<br>\nCompleted = Trip has complete <br>\nPending Review = Pending Confirmation<br>\nCancelled = Trip Canceled",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Active\nFull\nClosed\nCompleted\nPending Review\nCancelled"
+   "options": "Active\nFull\nClosed\nRunning\nCompleted\nPending Review\nCancelled"
   },
   {
    "default": "7",
@@ -432,7 +432,7 @@
  "grid_page_length": 50,
  "is_calendar_and_gantt": 1,
  "links": [],
- "modified": "2026-09-08 08:37:44.692100",
+ "modified": "2026-09-11 07:26:25.188594",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Group Date",
@@ -471,6 +471,35 @@
  "show_title_field_in_link": 1,
  "sort_field": "creation",
  "sort_order": "DESC",
- "states": [],
+ "states": [
+  {
+   "color": "Blue",
+   "title": "Active"
+  },
+  {
+   "color": "Cyan",
+   "title": "Fulled"
+  },
+  {
+   "color": "Gray",
+   "title": "Closed"
+  },
+  {
+   "color": "Orange",
+   "title": "Running"
+  },
+  {
+   "color": "Green",
+   "title": "Completed"
+  },
+  {
+   "color": "Yellow",
+   "title": "Pending Review"
+  },
+  {
+   "color": "Red",
+   "title": "Cancelled"
+  }
+ ],
  "title_field": "trip_group_name"
 }

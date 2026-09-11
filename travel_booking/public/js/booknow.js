@@ -30,6 +30,14 @@ const INIT_DATE   = _data.trip_group_date;
 // /traveller, atau admin/staff Desk) — rujuk www/booking.py.
 const CSRF_TOKEN  = _data.csrf_token || "";
 
+// ─── BOOKING ACTOR (fasa 1 modul booking-channel) ──────────
+// Session user yang layak buat "booking on behalf" — dikira SERVER-SIDE
+// dalam www/booknow.py (resolve_booking_actor: role "Affiliate" dari app
+// affiliate, atau "Sales User" standard ERPNext) dan disuntik ke pageData.
+// null untuk Guest / user biasa — checkbox on-behalf tidak dipaparkan.
+// PAPARAN sahaja: gate OTP sebenar disahkan semula di confirm_booking().
+var BOOKING_ACTOR = (_data && _data.booking_actor) || null;
+
 // ─── SELECTED PACKAGE (resolved from cart or wizard) ──
 // Dideclare AWAL supaya available ke seluruh scope — elak implicit global.
 // Diisi kemudian dalam block cart-read (line ~677) atau restoreWizard().
@@ -60,18 +68,16 @@ const state = {
   trip_package: "",
   trip_name:    "",
   group_name:   "",
-  // SEMUA harga disimpan & dicaj dalam COMPANY CURRENCY. package_currency
-  // /package_symbol kini HANYA hint display-default (Trip Package.currency)
-  // — bukan lagi currency caj sebenar. fmt() guna company currency sebagai
-  // asas, papar display currency (converted) bila customer pilih yang lain.
+  // MULTI-COMPANY: harga pakej disimpan dalam currency NATIVE pakej dan
+  // itulah currency yang dicaj (SO dikeluarkan oleh company yang sepadan
+  // dengan currency pakej — paksi Travel Settings > Multi Currency
+  // Account). package_currency/package_symbol = currency billing aktif
+  // (disegerak dari pakej terpilih oleh syncBillingCurrency()). fmt() guna
+  // currency billing sebagai asas.
   company_currency: _data.company_currency || "MYR",
   company_symbol:   _data.company_symbol || "MYR",
   package_currency: "MYR",
   package_symbol:   "RM",
-  // Display currency terpilih (converter). Null rate -> fallback company.
-  display_currency: null,
-  display_symbol:   null,
-  display_rate:     null,
   cabins:       [],
   rooms:        [],
   selections:   {},
@@ -79,6 +85,10 @@ const state = {
   group_seats_left: null,
   billing:      {},
   otp_verified: false,
+  // Booking on behalf (fasa 1): true bila actor (Affiliate/Sales User)
+  // menanda checkbox — email customer diisi tanpa OTP. Dihantar ke
+  // confirm_booking() sebagai on_behalf; server sahkan semula role.
+  on_behalf:    false,
   booking:      null,
 };
 
@@ -220,22 +230,34 @@ function fmt(n) {
   // backend. Percanggahan paparan vs caj sebenar ni boleh buat customer
   // fikir mereka dicaj lebih/kurang dari yang sepatutnya.
   //
-  // COMPANY-CURRENCY MODEL: harga disimpan & dicaj dalam company currency.
-  // `n` sentiasa company currency. Bila customer pilih display currency
-  // BERBEZA (converter), papar DUA: display (converted) utama + company
-  // (caj sebenar) dalam kurungan. display_rate null / display == company ->
-  // company sahaja. Ini PAPARAN; Stripe/Payment Entry caj company currency.
+  // MULTI-COMPANY MODEL: currency caj = currency NATIVE pakej yang dipilih
+  // (1 pakej = 1 currency; company pengeluar SO ikut currency itu).
+  // `n` sentiasa dalam currency billing.
   var num = Number(n).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  var coSym = state.company_symbol || "RM";
-  var dCur  = state.display_currency;
-  var dSym  = state.display_symbol;
-  var rate  = state.display_rate;
-  if (dCur && dCur !== state.company_currency && rate) {
-    var converted = Number(n) * Number(rate);
-    var convStr = converted.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    return dSym + " " + convStr + " (" + coSym + " " + num + ")";
-  }
-  return coSym + " " + num;
+  return billingSymbol() + " " + num;
+}
+
+// ── MULTI-COMPANY: currency billing = currency native pakej terpilih ──
+// Helper tunggal supaya semua titik paparan/caj guna sumber sama. Bila
+// pakej belum dipilih (awal wizard), fallback company currency (behavior
+// lama). selectedPackage (dari TRIP_PACKAGES / cart) bawa currency +
+// currency_symbol setiap pakej.
+function billingCurrency() {
+  return state.package_currency || state.company_currency || "MYR";
+}
+function billingSymbol() {
+  return state.package_symbol || state.company_symbol || "RM";
+}
+// Selaraskan state.package_currency/symbol dengan pakej terpilih; pulang
+// true bila berubah (caller boleh refresh paparan + rate indicative).
+function syncBillingCurrency() {
+  var pkg = (typeof selectedPackage !== "undefined" && selectedPackage) ? selectedPackage : null;
+  var cur = (pkg && pkg.currency) || state.package_currency || state.company_currency || "MYR";
+  var sym = (pkg && (pkg.currency_symbol || pkg.currency)) || state.package_symbol || state.company_symbol || "RM";
+  var changed = cur !== state.package_currency;
+  state.package_currency = cur;
+  state.package_symbol = sym;
+  return changed;
 }
 
 // Escape HTML — booknow.js standalone (tidak meload traveller_common.js
@@ -320,6 +342,10 @@ function saveState() {
       rooms:        state.rooms,
       billing:      billing,
       otp_verified: state.otp_verified,
+      // On-behalf perlu survive refresh (cth selepas Google login
+      // redirect balik) — sama seperti otp_verified. restoreWizard()
+      // hanya pulihkan kalau session user masih layak (BOOKING_ACTOR).
+      on_behalf:    !!state.on_behalf,
       pay_method:   (typeof state_payment_method !== "undefined") ? state_payment_method : "Online Payment",
       pay_amount:   (typeof state_payment_amount !== "undefined") ? state_payment_amount : 0,
       // Affiliate code mesti tersimpan supaya survive refresh selepas customer
@@ -492,6 +518,14 @@ function restoreWizard() {
   state.package_label = snap.package_label || "";
   state.package_currency = snap.package_currency || "MYR";
   state.package_symbol   = snap.package_symbol || "RM";
+  // MULTI-COMPANY: selaraskan semula dengan selectedPackage yang
+  // di-resolve di bawah (snapshot lama mungkin bawa nilai legacy).
+  setTimeout(function () {
+    if (syncBillingCurrency()) {
+      refreshCurrencyDisplay();
+      if (typeof renderPaymentSettingsUI === "function") renderPaymentSettingsUI();
+    }
+  }, 0);
 
   // Re-resolve selectedPackage dari TRIP_PACKAGES (available in pageData)
   // supaya selectedPackage.flight / .flight_label tersedia untuk banner
@@ -517,6 +551,19 @@ function restoreWizard() {
 
   if (snap.billing) state.billing = snap.billing;
   state.otp_verified = !!snap.otp_verified;
+
+  // Pulihkan mode on-behalf HANYA kalau session user MASIH layak —
+  // BOOKING_ACTOR dikira semasa page load ini (server-side), jadi kalau
+  // user dah logout / role dibuang sepanjang tempoh itu, mode ini senyap
+  // dimatikan dan flow OTP biasa diguna.
+  // PENTING: di sini SET STATE sahaja — applyOnBehalf() (yang sentuh DOM
+  // Step 2: emailInput/otpInline/checkStep2Ready) hanya dipanggil dalam
+  // loadCabins().then() di bawah, kerana restoreWizard() sendiri dilaksana
+  // AWAL dalam fail ini (line ~1055) SEBELUM var emailInput/step2NextBtn
+  // di-assign di section STEP 2 (~line 2250) — var-var tu masih undefined
+  // pada ketika ini.
+  state.on_behalf = !!(snap.on_behalf
+    && typeof BOOKING_ACTOR !== "undefined" && BOOKING_ACTOR);
 
   // Pulihkan booking_number dari sesi sebelum ni (booking yang dicipta sebelum
   // redirect ke checkout). Bila customer tekan "Back" & kembali ke wizard,
@@ -550,6 +597,11 @@ function restoreWizard() {
         initRooms();
       }
     }
+    // On-behalf: apply UI mode SEBELUM billing restore — clearEmail:false
+    // supaya email customer yang tersimpan dipulihkan selepas ini tanpa
+    // dibuang, dan field kekal boleh diedit (tiada lock OTP).
+    if (state.on_behalf) applyOnBehalf(true, { clearEmail: false });
+
     if (snap.billing) {
       var bn = document.getElementById("bnwBillingName");   if (bn) bn.value = snap.billing.full_name || "";
       var be = document.getElementById("bnwBillingEmail");  if (be) be.value = snap.billing.email || "";
@@ -561,11 +613,16 @@ function restoreWizard() {
       // juga — UX konsisten dengan apa customer nampak sebelum refresh
       // (bukan keperluan keselamatan tambahan; "input" listener sendiri
       // dah cukup untuk elak edit tanpa disedari tak kira macam mana
-      // nilai field tu ditetapkan).
-      if (snap.otp_verified && be) {
+      // nilai field tu ditetapkan). DILANGKAU untuk on-behalf — email
+      // customer mesti kekal boleh diedit (tiada OTP/lock untuk 3rd party).
+      if (snap.otp_verified && be && !state.on_behalf) {
         lockEmailField();
         setEmailStatus("verified", '<i class="ti ti-circle-check"></i> Verified');
       }
+      // On-behalf aktif: kira semula status email (programmatic .value
+      // set di atas tidak trigger event "input") supaya Butang Continue
+      // dibuka dan status "No verification needed" dipaparkan.
+      if (state.on_behalf) syncOnBehalfEmailStatus();
     }
     if (snap.pay_method) state_payment_method = snap.pay_method;
     if (snap.pay_amount) state_payment_amount = snap.pay_amount;
@@ -1107,8 +1164,18 @@ if (!_restored) {
     var _resolvedPkgName = (_cart.package_name || (selectedPackage && selectedPackage.name)) || "";
     state.trip_package   = _resolvedPkgName;
     state.package_label   = _cart.package_label || (selectedPackage && selectedPackage.package_type) || "";
-    state.package_currency = _cart.package_currency || "MYR";
-    state.package_symbol   = _cart.company_currency || "RM";
+    // MULTI-COMPANY: currency billing = currency native pakej (dari cart
+    // page trip, atau dari selectedPackage yang di-resolve). Cart lama
+    // mungkin tiada package_currency — fallback resolve dari selectedPackage
+    // selepas ni oleh syncBillingCurrency().
+    state.package_currency = _cart.package_currency
+      || (selectedPackage && selectedPackage.currency)
+      || state.company_currency
+      || "MYR";
+    state.package_symbol = _cart.package_currency_symbol
+      || (selectedPackage && (selectedPackage.currency_symbol || selectedPackage.currency))
+      || state.company_symbol
+      || "RM";
 
 
     var _allTds = (typeof trip_group_dateS !== "undefined" && trip_group_dateS)
@@ -1117,6 +1184,12 @@ if (!_restored) {
     if (_td) {
       state.group_name = _td.trip_group_name || (fmtDate(_td.departure_date) + ' – ' + fmtDate(_td.return_date));
     }
+
+    // MULTI-COMPANY: pastikan currency billing konsisten dengan
+    // selectedPackage muktamad (cart lama / fallback), kemudian refresh
+    // payment settings yang bergantung pada currency billing.
+    syncBillingCurrency();
+    if (typeof renderPaymentSettingsUI === "function") renderPaymentSettingsUI();
 
     // Event GA4 begin_checkout — wizard bermula dengan cart dari page trip
     // (entry segar selepas add_to_cart; restore Back dari checkout tak
@@ -2316,6 +2389,9 @@ function unlockEmailForChange() {
 // disahkan asalkan mereka pernah taip email lain yang verified dulu).
 if (emailInput) {
   emailInput.addEventListener("input", function() {
+    // On-behalf aktif: status "verified" dikira semula dari format email
+    // (tiada OTP) — jangan reset butang Continue seperti flow biasa.
+    if (state.on_behalf) { syncOnBehalfEmailStatus(); return; }
     state.otp_verified      = false;
     if (otpInline) otpInline.style.display = "none";
     var _cb = document.getElementById("bnwEmailChangeBtn");
@@ -2328,6 +2404,9 @@ if (emailInput) {
   // GUARD: Jangan trigger OTP semasa Stripe return — tiada wizard state yang sah
   emailInput.addEventListener("blur", async function() {
   if (_stripeReturn) return;  // Skip OTP semasa confirmation pasca-Stipe
+  // On-behalf aktif: JANGAN hantar OTP ke email customer — 3rd party
+  // ter-authenticate (Affiliate/Sales User) yang vouch untuk email ni.
+  if (state.on_behalf) { syncOnBehalfEmailStatus(); return; }
   var email = this.value.trim();
   if (!email || !email.includes("@")) return;
 
@@ -2424,6 +2503,9 @@ function maybeApplySessionEmail() {
     return;
   }
   if (!_sessionUserEmail || !emailInput) return;
+  // On-behalf aktif: field email milik CUSTOMER pihak ketiga, BUKAN email
+  // session user (affiliate/staff) sendiri — jangan auto-isi/kunci.
+  if (state.on_behalf) return;
   // Hormati pilihan manual customer: email LAIN yang sudah diisi (cth hasil
   // "Change email" atau restore snapshot) tidak di-override.
   var current = (emailInput.value || "").trim().toLowerCase();
@@ -2435,6 +2517,86 @@ function maybeApplySessionEmail() {
   setEmailStatus("verified", '<i class="ti ti-circle-check"></i> Verified (signed in)');
   checkStep2Ready();
 }
+
+// ─── BOOKING ON BEHALF (fasa 1 modul booking-channel) ────────────────
+// Session user dengan role Affiliate / Sales User (BOOKING_ACTOR dari
+// pageData, dikira server-side) boleh menanda booking ini dibuat BAGI
+// PIHAK customer: email customer diisi tanpa OTP. Server mengesahkan
+// kelayakan role SEMULA dalam confirm_booking() — toggle client sahaja
+// tidak pernah mencukupi untuk langkau OTP.
+var onBehalfField = document.getElementById("bnwOnBehalfField");
+var onBehalfCheck = document.getElementById("bnwOnBehalfCheck");
+var onBehalfSub   = document.getElementById("bnwOnBehalfSub");
+
+// Bila on-behalf aktif, "verified" dikira dari FORMAT email sahaja (tiada
+// OTP) — Butang Continue kekal ter-disabled sampai email nampak sah.
+function syncOnBehalfEmailStatus() {
+  if (!state.on_behalf) return;
+  var email = (emailInput && emailInput.value.trim()) || "";
+  if (email && email.includes("@")) {
+    state.otp_verified = true;
+    setEmailStatus("onbehalf", '<i class="ti ti-user-cog"></i> No verification needed');
+  } else {
+    state.otp_verified = false;
+    setEmailStatus("", "");
+  }
+  checkStep2Ready();
+}
+
+// Aktifkan / nyahaktifkan mode on-behalf. opts.clearEmail (default true)
+// kosongkan field email semasa TOGGLE MANUAL oleh user — field mungkin
+// mengandungi email session user sendiri yang tak relevan. Restore dari
+// snapshot (refresh) guna clearEmail:false supaya email customer yang
+// tersimpan kekal.
+function applyOnBehalf(on, opts) {
+  var clearEmail = !opts || opts.clearEmail !== false;
+  state.on_behalf = !!on && !!BOOKING_ACTOR;
+  if (onBehalfField) onBehalfField.classList.toggle("bnw-onbehalf--active", state.on_behalf);
+  if (onBehalfCheck) onBehalfCheck.checked = state.on_behalf;
+  var socialField = document.getElementById("bnwSocialLoginField");
+  var gmailHint   = document.getElementById("bnwGmailHint");
+  var changeBtn   = document.getElementById("bnwEmailChangeBtn");
+  if (state.on_behalf) {
+    // Email field milik CUSTOMER sekarang: buka kunci (mungkin telah
+    // di-auto-isi/dikunci dengan email session user), sembunyi pilihan
+    // yang tak relevan (Google login milik customer sendiri, tip Gmail,
+    // blok OTP).
+    if (emailInput) {
+      emailInput.readOnly = false;
+      if (clearEmail) emailInput.value = "";
+    }
+    if (otpInline)   otpInline.style.display = "none";
+    if (socialField) socialField.style.display = "none";
+    if (gmailHint)   gmailHint.style.display = "none";
+    if (changeBtn)   changeBtn.style.display = "none";
+    state.otp_verified = false;
+    syncOnBehalfEmailStatus();
+  } else {
+    // Balik ke flow biasa: email mesti lulus OTP / login semula. Field
+    // kekal berisi — user boleh terus blur (trigger OTP) atau tukar email.
+    if (socialField) socialField.style.display = "block";
+    state.otp_verified = false;
+    if (otpInline) otpInline.style.display = "none";
+    setEmailStatus("", "");
+    checkStep2Ready();
+  }
+}
+
+// Papar + pasang toggle HANYA bila session user layak (BOOKING_ACTOR).
+// Untuk Guest / customer biasa, blok ini kekal display:none dari HTML.
+(function initOnBehalfToggle() {
+  if (!onBehalfField || !onBehalfCheck || !BOOKING_ACTOR) return;
+  onBehalfField.style.display = "block";
+  if (onBehalfSub) {
+    onBehalfSub.textContent =
+      "You are signed in as " + (BOOKING_ACTOR.full_name || BOOKING_ACTOR.user) +
+      " (" + BOOKING_ACTOR.channel + "). When enabled, the customer's email can be " +
+      "entered without email verification.";
+  }
+  onBehalfCheck.addEventListener("change", function () {
+    applyOnBehalf(this.checked);
+  });
+})();
 
 // ── Butang "Continue with Google" — OAuth via Social Login Key Frappe ──
 // URL authorize dijana server-side (get_google_login_url, portal_auth) —
@@ -3072,11 +3234,12 @@ function renderPaymentSettingsUI() {
     online_payment_min_amount: 0
   };
 
-  // COMPANY-CURRENCY: bank details (Manual Transfer) ikut COMPANY currency
-  // — customer dicaj dalam company currency (SO/Stripe/Payment Entry semua
-  // company currency), jadi mereka kena transfer ke bank account company.
-  // Bukan state.package_currency (itu cuma hint paparan converter sekarang).
-  var currency = state.company_currency || "MYR";
+  // MULTI-COMPANY: bank details (Manual Transfer) ikut CURRENCY BILLING
+  // (currency native pakej terpilih) — customer dicaj dalam currency itu
+  // oleh company yang sepadan (SO/Stripe/Payment Entry), jadi mereka kena
+  // transfer ke bank account yang dikonfigurasikan untuk currency itu
+  // (Travel Settings > Multi Currency Account → bank_account).
+  var currency = billingCurrency();
   var bankInfo = (s.bank_accounts && s.bank_accounts[currency]) || null;
 
   // Bank transfer details
@@ -3418,8 +3581,26 @@ function showAffiliateMsg(type, msg) {
 }
 
 function onPaymentMethodChange(radio) {
+  // Sebelum tukar method: kenal pasti amaun semasa samada preset Deposit/Full
+  // bagi method LAMA. Bila cashback aktif (Travel Settings), min/max berbeza
+  // antara Online Payment (tanpa cashback) dan Manual Transfer (dengan
+  // cashback) — tanpa remap ni, amaun "full" lama (cth RM 950 selepas
+  // cashback) masih berada dalam range baru dan terus terpapar bila tukar
+  // balik ke Online (patut RM 1000); deposit bawah min baru pula terlompat
+  // terus ke full oleh clamp dalam updatePaymentUI.
+  var prevMin = getEffectiveMin(), prevMax = getMaxPay();
+  var wasDeposit = state_payment_amount > 0 && Math.abs(state_payment_amount - prevMin) < 0.001;
+  var wasFull    = state_payment_amount > 0 && Math.abs(state_payment_amount - prevMax) < 0.001;
+
   state_payment_method = radio.value;
   updatePaymentUI();
+
+  // Re-apply preset ikut range method BARU. Amaun custom (yang pelanggan
+  // taip sendiri) dibiarkan — updatePaymentUI dah clamp ke range sah.
+  // Pay Later tiada amount (0) — jangan re-apply.
+  if ((wasDeposit || wasFull) && state_payment_method !== "Pay Later") {
+    setPayAmount(wasDeposit ? getEffectiveMin() : getMaxPay());
+  }
 }
 
 function getDiscounted() { return calcDiscountedTotal(); }
@@ -3483,13 +3664,20 @@ function refreshPaySummary() {
 // edit amount).
 function evaluateOnlinePayment() {
   var s = state_payment_settings || {};
-  var currency = state.company_currency || "MYR";
+  // MULTI-COMPANY: ketersediaan payment ikut CURRENCY BILLING (pakej) —
+  // gateway/bank dikonfigurasikan per-currency dalam axis.
+  var currency = billingCurrency();
   var bankInfo = (s.bank_accounts && s.bank_accounts[currency]) || null;
+  var gatewayForCurrency = (s.online_payment_by_currency && s.online_payment_by_currency[currency]);
   var minAmount = parseFloat(s.online_payment_min_amount) || 0;
 
   var fullTotal = getMaxPay();
 
-  var gatewayOk = s.online_payment_enabled !== false;
+  // Gateway mesti dikonfigurasikan khusus untuk currency billing (axis
+  // per-currency); flag global hanya fallback untuk struktur lama.
+  var gatewayOk = (gatewayForCurrency !== undefined)
+    ? !!gatewayForCurrency
+    : (s.online_payment_enabled !== false);
   // Online boleh dipilih kalau gateway configured DAN jumlah penuh trip
   // mencukupi min gateway. Bila deposit biasa < min gateway, lantai deposit
   // DIANGKAT ke min gateway (getOnlineMinPay) supaya customer masih boleh
@@ -3591,14 +3779,14 @@ function updatePaymentUI() {
   if (chipDepEl) chipDepEl.textContent = fmt(min);
   if (chipFullEl) chipFullEl.textContent = fmt(max);
 
-  // COMPANY-CURRENCY: prefix input "Payment Amount" — amaun yang customer
-  // BAYAR (deposit/full) sentiasa dalam company currency (dicaj Stripe /
-  // Payment Entry), jadi prefix mesti company_symbol, BUKAN package_symbol
-  // (itu cuma hint paparan converter sekarang). fmt() pada chip Deposit/
-  // Pay-in-full sebelah guna company currency juga (display currency hanya
-  // paparan tambahan dalam kurungan).
+  // MULTI-COMPANY: prefix input "Payment Amount" — amaun yang customer
+  // BAYAR (deposit/full) sentiasa dalam CURRENCY BILLING (currency native
+  // pakej — dicaj Stripe/Payment Entry oleh company berkenaan), jadi
+  // prefix mesti billingSymbol(). fmt() pada chip Deposit/Pay-in-full
+  // sebelah guna currency billing juga (display currency hanya paparan
+  // tambahan dalam kurungan).
   var prefixEl = document.getElementById("bnwPayAmountPrefix");
-  if (prefixEl) prefixEl.textContent = state.company_symbol || "RM";
+  if (prefixEl) prefixEl.textContent = billingSymbol();
 
   var inp = document.getElementById("bnwPayAmountInput");
   if (inp) { inp.min = min; inp.max = max; }
@@ -4100,6 +4288,10 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
         // guna ini untuk cancel booking lama (elak duplicate) sebelum cipta
         // booking baharu. Kosong untuk booking pertama.
         booking_number: (state.booking && state.booking.booking_number) || "",
+        // On-behalf (fasa 1 booking-channel): affiliate/sales user tempah
+        // bagi pihak customer — minta server langkau OTP. Server sahkan
+        // semula role session; nilai ini sahaja TIDAK mencukupi.
+        on_behalf:      !!state.on_behalf,
       },
       false  // POST
     );
@@ -4397,95 +4589,9 @@ function renderPaymentWarning(errorMsg) {
   }
 }
 
-// ─── DISPLAY CURRENCY CONVERTER ───────────────────────────
-// SEMUA harga dicaj dalam company currency; pilihan currency di sini cuma
-// tukar PAPARAN (rate exchange ERPNext for_selling, indicative). fmt()
-// baca state.display_rate live, jadi re-render step semasa selepas tukar.
-var DISPLAY_CURRENCIES = [];
-
-async function initDisplayCurrency() {
-  var sel = document.getElementById("bnwDisplayCurrency");
-  if (!sel) return;
-  try {
-    var list = await apiCall("travel_booking.api.pricing.get_display_currencies", {}, true);
-    DISPLAY_CURRENCIES = list || [];
-  } catch (e) {
-    DISPLAY_CURRENCIES = [];
-  }
-  sel.innerHTML = "";
-  if (!DISPLAY_CURRENCIES.length) {
-    // fallback: company currency sahaja (endpoint gagal — jangan pecah wizard)
-    var fo = document.createElement("option");
-    fo.value = state.company_currency;
-    fo.textContent = state.company_currency;
-    sel.appendChild(fo);
-    sel.disabled = true;
-  } else {
-    DISPLAY_CURRENCIES.forEach(function(c) {
-      var opt = document.createElement("option");
-      opt.value = c.code;
-      opt.textContent = c.code + " (" + (c.symbol || c.code) + ")" + (c.is_company ? " \u2014 charged" : "");
-      sel.appendChild(opt);
-    });
-  }
-  // Default: keutamaan localStorage, lain company currency.
-  var saved = null;
-  try { saved = localStorage.getItem("bnw_display_currency"); } catch (e) {}
-  var def = saved || state.company_currency;
-  sel.value = def;
-  sel.addEventListener("change", function() {
-    setDisplayCurrency(this.value, true);
-  });
-  setDisplayCurrency(def, false);
-}
-
-function lookupCurrencySymbol(code) {
-  for (var i = 0; i < DISPLAY_CURRENCIES.length; i++) {
-    if (DISPLAY_CURRENCIES[i].code === code) return DISPLAY_CURRENCIES[i].symbol || code;
-  }
-  return code;
-}
-
-async function setDisplayCurrency(code, persist) {
-  code = code || state.company_currency;
-  state.display_currency = code;
-  state.display_symbol = lookupCurrencySymbol(code);
-  if (persist) {
-    try { localStorage.setItem("bnw_display_currency", code); } catch (e) {}
-  }
-  if (code === state.company_currency) {
-    state.display_rate = null;
-    updateCurrencyNote();
-    refreshCurrencyDisplay();
-    return;
-  }
-  // Fetch rate company -> display (cached 5 minit di server).
-  try {
-    var r = await apiCall("travel_booking.api.pricing.get_currency_rate",
-      { from_currency: state.company_currency, to_currency: code }, true);
-    state.display_rate = (r && r.rate) ? Number(r.rate) : null;
-  } catch (e) {
-    state.display_rate = null;
-  }
-  updateCurrencyNote();
-  refreshCurrencyDisplay();
-}
-
-function updateCurrencyNote() {
-  var note = document.getElementById("bnwCurrencyNote");
-  if (!note) return;
-  var parts = ["Charged in " + state.company_symbol + " (" + state.company_currency + ")"];
-  if (state.display_currency && state.display_currency !== state.company_currency) {
-    if (state.display_rate) {
-      parts.push("1 " + state.company_currency + " = " + state.display_rate + " " + state.display_currency + " (indicative)");
-    } else {
-      parts.push("Rate unavailable \u2014 showing " + state.company_currency);
-    }
-  }
-  note.textContent = parts.join(" \u00b7 ");
-}
-
-// Re-render step semasa supaya fmt() dikira semula dengan rate baharu.
+// Re-render step semasa supaya semua harga (fmt(), currency billing) dikira
+// semula — dipanggil bila currency billing berubah (cth restore snapshot
+// wizard yang membawa pakej ber-currency lain).
 function refreshCurrencyDisplay() {
   try {
     if (state.step === 1) {
@@ -4511,7 +4617,6 @@ function refreshCurrencyDisplay() {
 // bila user sampai ke Step 3 (Payment). Tidak menghalang render page lain.
 loadPaymentSettings();
 loadSalesPersons();
-initDisplayCurrency();
 
 // Auto-fill + auto-apply referral code if the customer arrived via an
 // affiliate's shareable link (?sp=CODE), or via a restored wizard snapshot

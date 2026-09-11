@@ -3,6 +3,8 @@
 
 import frappe
 
+from travel_booking.api._helpers import has_on_behalf_role
+
 
 def get_context(context):
     """Prepare context for login page.
@@ -30,9 +32,11 @@ def get_context(context):
     # Check if already logged in → redirect to bookings
     user = frappe.session.user
     if user and user != "Guest":
-        # Customer role = portal access. No role = "under review".
+        # Customer role ATAU manager on-behalf (role dalam Travel Settings
+        # > On-Behalf Booking Roles) = akses portal. Tiada keduanya =
+        # "under review" — selari dengan guard_context()/_guard.py.
         try:
-            if "Customer" in frappe.get_roles(user):
+            if "Customer" in frappe.get_roles(user) or has_on_behalf_role(user):
                 frappe.local.flags.redirect_location = "/traveller/bookings"
                 raise frappe.Redirect
             else:

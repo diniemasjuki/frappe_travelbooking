@@ -191,6 +191,10 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     if not so:
         frappe.throw("Sales Order not found.")
 
+    # Currency fallback axis (bukan hardcoded MYR) untuk SO rekod lama.
+    from travel_booking.api.currency_axis import get_default_currency
+    default_currency = get_default_currency()
+
     # ══════════════════════════════════════════════
     # SECURITY: Verify ownership — elak IDOR/payment hijacking.
     # Skip untuk source="wizard" (booking baru oleh Guest) — SO baru
@@ -247,8 +251,8 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
             _("Minimum payment is {0}% ({1}) of total order amount {2}. "
               "Please contact support for special arrangements.").format(
                 min_deposit_pct,
-                frappe.utils.fmt_currency(min_deposit, currency=so.currency or "MYR"),
-                frappe.utils.fmt_currency(effective_so_total, currency=so.currency or "MYR")
+                frappe.utils.fmt_currency(min_deposit, currency=so.currency or default_currency),
+                frappe.utils.fmt_currency(effective_so_total, currency=so.currency or default_currency)
             ),
             title="Amount Below Minimum"
         )
@@ -261,7 +265,7 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     if online_min and amount < online_min:
         frappe.throw(
             _("Online payment requires a minimum of {0}.").format(
-                frappe.utils.fmt_currency(online_min, currency=so.currency or "MYR")
+                frappe.utils.fmt_currency(online_min, currency=so.currency or default_currency)
             ),
             title="Below Online Payment Minimum"
         )
@@ -281,7 +285,7 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     if pr_amount <= 0:
         frappe.throw("No balance to pay on this Sales Order.")
 
-    currency = so.currency or "MYR"
+    currency = so.currency or default_currency
     ss, gateway_account = _get_stripe_settings(currency)
 
     email = get_customer_email(so.customer)
@@ -488,7 +492,7 @@ def get_checkout_context(pr: str):
         else:
             intent = stripe.PaymentIntent.create(
                 amount=int(round(float(pr_doc.grand_total) * 100)),
-                currency=(pr_doc.currency or "MYR").lower(),
+                currency=(pr_doc.currency or default_currency).lower(),
                 metadata={"payment_request": pr, "sales_order": pr_doc.reference_name},
             )
         frappe.cache().set_value("checkout_intent_" + pr, intent.id, expires_in_sec=7200)
@@ -505,7 +509,7 @@ def get_checkout_context(pr: str):
         "client_secret":    intent.client_secret,
         "publishable_key":  ss.publishable_key,
         "amount":           float(intent.amount) / 100.0,
-        "currency":         pr_doc.currency or "MYR",
+        "currency":         pr_doc.currency or default_currency,
     }
 
 
@@ -870,6 +874,10 @@ def get_payment_result(payment_intent: str):
     disertakan Stripe dalam URL selepas redirect), lalu padankan dengan
     Payment Request/Sales Order kita untuk paparan yang boleh dipercayai.
     """
+
+    # Currency fallback axis (bukan hardcoded MYR).
+    from travel_booking.api.currency_axis import get_default_currency
+    default_currency = get_default_currency()
     # Rate limiting per-IP — endpoint ni allow_guest=True dan setiap panggilan
     # retrieve PaymentIntent dari Stripe API (network request keluar). Tanpa
     # had, bot boleh flood Stripe API guna payment_intent id yang teka/wujud,

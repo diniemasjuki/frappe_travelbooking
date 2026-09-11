@@ -8,6 +8,12 @@
 
 (function () {
   var BOOKING_REF = _pageData.booking_ref || '';
+  // mode "onbehalf" = page /traveller/onbehalf-booking (manager mengurus
+  // booking pelanggan). mode lalai = booking.html pemilik.
+  var MODE = _pageData.mode === 'onbehalf' ? 'onbehalf' : 'self';
+
+  function backListUrl() { return MODE === 'onbehalf' ? '/traveller/onbehalf' : '/traveller/bookings'; }
+  function backListLabel() { return MODE === 'onbehalf' ? '← Back to On-Behalf Bookings' : '← Back to My Bookings'; }
 
   /* ── Init ── */
   async function init() {
@@ -42,7 +48,7 @@
         content.innerHTML =
           '<div class="tv-card tv-text-center" style="padding:40px;">' +
           '<p style="color:var(--c-danger-text);">' + _esc(e.message || 'Failed to load booking.') + '</p>' +
-          '<a href="/traveller/bookings" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:16px;">← Back</a>' +
+          '<a href="' + backListUrl() + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:16px;">' + backListLabel() + '</a>' +
           '</div>';
       }
     }
@@ -59,6 +65,18 @@
     var ref = _esc(b.booking_number || b.name || '');
     var tripName = _esc(b.trip_name || 'Unnamed Trip');
     var status = _esc(b.booking_status || 'Pending');
+
+    // ── ON-BEHALF: customer akhir + tahap akses (server-authoritative) ──
+    // isOnbehalf ikut bendera server (data.booking.on_behalf_view) — client
+    // tak boleh "paksa" mod manager. Level menentukan butang yang dipapar:
+    //   View (0): baca sahaja · Docs (1): + travellers/documents/add-ons
+    //   Full (2): + pembayaran & muat turun PDF
+    var isOnbehalf = MODE === 'onbehalf' || !!b.on_behalf_view;
+    var LEVEL_RANK = { 'View': 0, 'Docs': 1, 'Full': 2 };
+    var level = isOnbehalf ? (LEVEL_RANK[b.on_behalf_access_level] !== undefined
+      ? b.on_behalf_access_level : 'View') : 'Full';
+    var canDocs = LEVEL_RANK[level] >= 1;
+    var canFull = LEVEL_RANK[level] >= 2;
 
     // Trip classification from API
     var isCruise = !!b.is_cruise;
@@ -110,8 +128,48 @@
 
     /* Page nav: Back (top) */
     html += '<div style="margin-bottom:20px;">';
-    html += '<a href="/traveller/bookings" class="tv-btn tv-btn--ghost tv-btn--sm">← Back to My Bookings</a>';
+    html += '<a href="' + backListUrl() + '" class="tv-btn tv-btn--ghost tv-btn--sm">' + backListLabel() + '</a>';
     html += '</div>';
+
+    /* ══════════════════════════════════════
+       SECTION 0 (onbehalf sahaja): CUSTOMER BLOCK
+       Customer akhir yang booking ini untuk — header utama page
+       (seperti kad listing), + channel & tahap akses manager.
+       booking.html (pemilik) TIDAK memaparkan blok ini.
+       ══════════════════════════════════════ */
+    if (isOnbehalf) {
+      var endName = _esc(b.end_customer_name || 'Unknown Customer');
+      var endEmail = _esc(b.end_customer_email || '');
+      var channel = _esc(b.booking_channel || '');
+      var levelMeta = {
+        'View': { icon: '👁', label: 'View Access', desc: 'You can view this booking’s status, trip & billing summary only.' },
+        'Docs': { icon: '📄', label: 'Docs Access', desc: 'You can view everything and manage traveller details & documents (no payments).' },
+        'Full': { icon: '🔑', label: 'Full Access', desc: 'You can manage travellers, documents, payments & download documents.' }
+      }[level] || { icon: '👁', label: level + ' Access', desc: '' };
+
+      html += '<div class="tv-card tv-animate-in">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">';
+      // Kiri: customer name (header utama) + email
+      html += '<div style="min-width:220px;">';
+      html += '<div class="tv-info-label" style="margin-bottom:2px;">Customer</div>';
+      html += '<h2 class="tv-th-name" style="margin:0 0 4px 0;">' + endName + '</h2>';
+      if (endEmail) {
+        html += '<div style="font-size:13px;color:var(--text-secondary);">' + endEmail + '</div>';
+      }
+      html += '</div>';
+      // Kanan: badge channel + access level
+      html += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">';
+      if (channel) {
+        html += '<span class="tv-badge tv-badge--neutral">' + channel + ' Booking</span>';
+      }
+      html += '<span class="tv-badge tv-badge--info">' + levelMeta.icon + ' ' + _esc(levelMeta.label) + '</span>';
+      html += '</div>';
+      html += '</div>';
+      if (levelMeta.desc) {
+        html += '<p style="font-size:12px;color:var(--text-muted);margin:10px 0 0 0;line-height:1.6;">' + _esc(levelMeta.desc) + '</p>';
+      }
+      html += '</div>'; // customer card
+    }
 
     /* ══════════════════════════════════════
        SECTION A: TRIP HERO (Main Info)
@@ -284,8 +342,12 @@
         html += '<span class="tv-badge tv-badge--' + payCls + '">' + payStatus + '</span> · ' + fmtDual(soAmt);
         html += '</div>';
         html += '</div>';
-        // Right: Manage button
-        html += '<a href="' + soBillingUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;">Manage →</a>';
+        // Right: Manage button — pembayaran/PDF di tahap Full sahaja
+        // (server gate: create_payment_request, submit_manual_payment,
+        // get_document_pdf = "Full").
+        if (canFull) {
+          html += '<a href="' + soBillingUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;">Manage →</a>';
+        }
         html += '</div>';
       });
     } else {
@@ -296,24 +358,30 @@
 
     html += '</div>'; // payment card
 
-    if (noPayment) {
+    if (noPayment && canFull) {
       /* ══════════════════════════════════════
          PAYMENT REQUIRED — Traveller Summary & Add-ons are locked
-         until the customer makes a payment. Prompt them to billing.
+         until a payment is made. Hanya papar pada yang BOLEH bayar
+         (level Full) — kalau tak, jadi dead-end tanpa fungsi.
          ══════════════════════════════════════ */
       html += '<div class="tv-card tv-animate-in" style="border:1px solid var(--c-warning);background:var(--c-warning-bg);">';
       html += '<div style="display:flex;align-items:flex-start;gap:12px;">';
       html += '<div style="font-size:22px;line-height:1.2;">🔒</div>';
       html += '<div style="flex:1;min-width:0;">';
       html += '<h3 class="tv-card__title" style="margin:0 0 6px 0;color:var(--c-warning-text);">Payment Required</h3>';
-      html += '<p style="font-size:13px;color:var(--text-secondary);margin:0 0 14px 0;line-height:1.6;">Make a payment for this booking to start managing your travellers, add-ons &amp; extras.</p>';
+      var whoPays = isOnbehalf ? 'this booking' : 'this booking';
+      html += '<p style="font-size:13px;color:var(--text-secondary);margin:0 0 14px 0;line-height:1.6;">Make a payment for ' + whoPays + ' to start managing travellers, add-ons &amp; extras.</p>';
       var payUrl = '/traveller/billing?ref=' + encodeURIComponent(ref);
       if (b.sales_order) payUrl += '&bill=' + encodeURIComponent(b.sales_order);
       html += '<a href="' + payUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;">Pay Now →</a>';
       html += '</div>';
       html += '</div>';
       html += '</div>'; // payment-required card
-    } else {
+    }
+
+    if (!noPayment || isOnbehalf) {
+      // (mod onbehalf: manager terus boleh urus traveller/add-ons walau
+      //  belum bayar — sekatan bayaran untuk aliran pemilik sahaja)
 
     /* ══════════════════════════════════════
        SECTION C: TRAVELLER SUMMARY (compact)
@@ -328,7 +396,11 @@
     html += '<h3 class="tv-card__title" style="margin:0;">👥 Traveller Summary</h3>';
     html += '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">' + cabinCount + ' ' + roomLabel.toLowerCase() + '(s) · ' + filledCount + '/' + totalSlots + ' travellers · ' + docPct + '% completed</div>';
     html += '</div>';
-    html += '<a href="/traveller/travellers?ref=' + encodeURIComponent(ref) + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;margin-left:auto;">Manage Travellers →</a>';
+    // Butang urus traveller — tahap Docs ke atas sahaja (server gate:
+    // save_booking_traveller dkk = "Docs"). View nampak ringkasan sahaja.
+    if (canDocs) {
+      html += '<a href="/traveller/travellers?ref=' + encodeURIComponent(ref) + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;margin-left:auto;">Manage Travellers →</a>';
+    }
     html += '</div>'; // header row
     html += '</div>'; // traveller card
 
@@ -362,18 +434,22 @@
     }
 
     html += '</div>';
-    // CTA Button — Browse (no orders) or Manage (has orders)
-    var btnUrl = hasAddonOrders ? manageUrl : addonUrl;
-    html += '<a href="' + btnUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;margin-left:auto;">';
-    html += hasAddonOrders ? 'Manage Addon →' : 'Browse Addon →';
-    html += '</a>';
+    // CTA Button — Browse (no orders) or Manage (has orders).
+    // Add-on endpoints digate "Docs" (addon_manager) — View nampak
+    // ringkasan sahaja tanpa butang.
+    if (canDocs) {
+      var btnUrl = hasAddonOrders ? manageUrl : addonUrl;
+      html += '<a href="' + btnUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;margin-left:auto;">';
+      html += hasAddonOrders ? 'Manage Addon →' : 'Browse Addon →';
+      html += '</a>';
+    }
     html += '</div>'; // header row
     html += '</div>'; // addons card
-    } // end if (!noPayment)
+    } // end if (!noPayment || isOnbehalf)
 
     /* Page nav: Back (bottom) */
     html += '<div style="margin-top:24px;">';
-    html += '<a href="/traveller/bookings" class="tv-btn tv-btn--ghost tv-btn--sm">← Back to My Bookings</a>';
+    html += '<a href="' + backListUrl() + '" class="tv-btn tv-btn--ghost tv-btn--sm">' + backListLabel() + '</a>';
     html += '</div>';
 
     return html;

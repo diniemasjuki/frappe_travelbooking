@@ -2,7 +2,11 @@
 # Booking Data — Portal
 
 import frappe
-from travel_booking.api._helpers import get_customer_by_email
+from travel_booking.api._helpers import (
+    get_customer_by_email,
+    has_on_behalf_role,
+    on_behalf_level_ok,
+)
 
 
 def _get_customer():
@@ -39,14 +43,131 @@ def _get_customer():
     return customer_name
 
 
+# ════════════════════════════════════════════════════════════
+# ON-BEHALF ACCESS (modul booking-channel, fasa 1b)
+# ════════════════════════════════════════════════════════════
+# User dengan role yang dikonfigurasi dalam Travel Settings >
+# On-Behalf Booking Roles boleh MENGURUS booking yang mereka buat BAGI
+# PIHAK customer lain: Booking.booked_by = user DAN Booking.booking_channel
+# != "Direct" (channel Direct = user tempah untuk diri sendiri walaupun
+# logged in — bukan urusan 3rd party).
+
+def _managed_booking_names(user):
+    """Set nama Booking yang user ini urus bagi pihak customer lain
+    (booked_by = user, booking_channel bukan Direct). Kosong untuk user
+    tanpa role on-behalf / tiada booking sebegini.
+    """
+    if not user or user == "Guest" or not has_on_behalf_role(user):
+        return set()
+    return set(frappe.get_all(
+        "Booking",
+        filters={"booked_by": user, "booking_channel": ["!=", "Direct"]},
+        pluck="name",
+    ))
+
+
+def _portal_access(require_customer=True):
+    """Resolve konteks akses portal untuk session semasa sekali sahaja:
+
+        (user, customer_name, managed_bookings)
+
+    - customer_name: rekod Customer milik user (boleh None — rujuk nota
+      _get_customer; kini DIBENARKAN bila user ada booking on-behalf).
+    - managed_bookings: set nama Booking yang user urus bagi pihak
+      customer lain (rujuk _managed_booking_names).
+
+    require_customer=True kekal menolak user tanpa Customer DAN tanpa
+      sebarang booking on-behalf (mesej sama seperti _get_customer supaya
+      keputusan UX portal tidak berubah untuk akaun separuh jadi).
+    """
+    user = frappe.session.user
+    if not user or user == "Guest":
+        frappe.throw("Please log in to continue.", frappe.AuthenticationError)
+
+    customer_name = get_customer_by_email(user)
+    managed = _managed_booking_names(user)
+
+    if require_customer and not customer_name and not managed:
+        frappe.throw(
+            "No customer record found for this account. "
+            "Access to bookings/transactions requires a customer record.",
+            frappe.PermissionError
+        )
+
+    return user, customer_name, managed
+
+
+def _booking_accessible(booking, customer_name, managed_bookings):
+    """True jika booking boleh diakses session semasa: milik customer
+    user ATAU dalam set booking on-behalf yang diurusnya. `booking` perlu
+    bawa sekurang-kurangnya field .name dan .customer.
+    """
+    if customer_name and booking.customer == customer_name:
+        return True
+    return booking.name in (managed_bookings or set())
+
+
+def _so_accessible_by(so_name, customer_name, managed_bookings):
+    """Versi _booking_accessible untuk Sales Order — SO boleh diakses bila
+    milik customer user, ATAU SO itu milik booking on-behalf yang diurus
+    (Sales Order.custom_booking). Pulangkan False kalau SO tiada.
+    """
+    so = frappe.db.get_value(
+        "Sales Order", so_name, ["customer", "custom_booking"], as_dict=True
+    )
+    if not so:
+        return False
+    if customer_name and so.customer == customer_name:
+        return True
+    return bool(so.custom_booking and so.custom_booking in (managed_bookings or set()))
+
+
+def _booking_action_allowed(booking, customer_name, managed_bookings, required_level):
+    """Gate TINDAKAN (bukan sekadar lihat) ke atas booking — dipakai oleh
+    endpoint yang mengubah data / melakukan bayaran:
+
+      - Pemilik booking (customer session sendiri): SEMUA tindakan dibenarkan.
+      - Manager on-behalf: booking mesti dalam set yang diurusnya DAN
+        tahap akses role-nya (Travel Settings > On-Behalf Booking Roles >
+        Access Level) mesti >= tahap yang diminta:
+          "Docs" — urus maklumat & dokumen traveller
+          "Full" — bayaran + muat turun resit/invois
+
+    Pulangkan False jika tidak dibenarkan (caller throw PermissionError).
+    """
+    if customer_name and booking.customer == customer_name:
+        return True
+    if booking.name not in (managed_bookings or set()):
+        return False
+    return on_behalf_level_ok(required_level)
+
+
+def _so_action_allowed(so_name, customer_name, managed_bookings, required_level):
+    """Versi _booking_action_allowed untuk Sales Order (bayaran/resit/
+    invois mengikut SO, bukan booking terus)."""
+    so = frappe.db.get_value(
+        "Sales Order", so_name, ["customer", "custom_booking"], as_dict=True
+    )
+    if not so:
+        return False
+    if customer_name and so.customer == customer_name:
+        return True
+    if not (so.custom_booking and so.custom_booking in (managed_bookings or set())):
+        return False
+    return on_behalf_level_ok(required_level)
+
+
 @frappe.whitelist()
 def get_booking_data(booking_number: str):
     frappe.flags.ignore_permissions = True
-    customer_name = _get_customer()
+    # ON-BEHALF: manager (booked_by) turut dibenarkan buka booking yang
+    # diurusnya — rujuk _booking_accessible(). customer_name boleh None
+    # untuk manager tanpa rekod Customer sendiri.
+    _user, customer_name, managed = _portal_access()
 
     booking = frappe.db.sql("""
         SELECT
-            b.name, b.booking_number, b.customer, b.trip_date,
+            b.name, b.booking_number, b.customer, b.cust_email, b.trip_date,
             b.trip_package, b.status, b.flight,
             -- Trip info
             tm.trip_name,
@@ -80,8 +201,25 @@ def get_booking_data(booking_number: str):
         frappe.throw("Booking not found.")
     booking = booking[0]
 
-    if booking.customer != customer_name:
+    if not _booking_accessible(booking, customer_name, managed):
         frappe.throw("Access denied.", frappe.PermissionError)
+
+    # Flag untuk frontend: akses ini melalui hak on-behalf (bukan pemilik
+    # booking). Dipakai UI untuk maklumat/kawalan paparan (cth label
+    # "managed on behalf") — khususnya page /traveller/onbehalf-booking.
+    on_behalf_view = not (customer_name and booking.customer == customer_name)
+
+    # Maklumat customer akhir + tahap akses — HANYA untuk akses on-behalf
+    # (page booking.html pemilik tidak memaparkan maklumat diri sendiri).
+    # Tahap akses menentukan tindakan yang dibenarkan UI (View/Docs/Full).
+    end_customer = None
+    on_behalf_access_level = None
+    if on_behalf_view:
+        end_customer = frappe.db.get_value(
+            "Customer", booking.customer, "customer_name"
+        )
+        from travel_booking.api._helpers import get_on_behalf_access_level
+        on_behalf_access_level = get_on_behalf_access_level() or "View"
 
     # Kunci akses ikut status (Accepted/Cancelled) DIBUANG — semua booking
     # (tak kira status atau payment_status) boleh dibuka & dilihat customer
@@ -425,6 +563,13 @@ def get_booking_data(booking_number: str):
             "booking_status":     booking.status or "",
             "payment_status":     payment_status,
             "can_edit_traveller_details": can_edit_traveller_details,
+            # ON-BEHALF: true bila dibuka oleh manager (bukan pemilik) —
+            # sertakan maklumat customer akhir + tahap akses untuk page
+            # onbehalf-booking (UI kawal butang ikut tahap).
+            "on_behalf_view":     on_behalf_view,
+            "end_customer_name":  end_customer or "",
+            "end_customer_email": booking.cust_email if on_behalf_view else "",
+            "on_behalf_access_level": on_behalf_access_level or "",
             # Flight itinerary (booking-level, from tabFlight via booking.flight)
             "flight_itinerary":           flight_info,
         },
@@ -463,9 +608,16 @@ def get_bookings_list():
 
     Grouping visual (Upcoming/Future/Past) dibuat di CLIENT ikut tarikh —
     server cuma bekalkan data; peraturan grouping ialah urusan paparan.
+
+    ON-BEHALF: manager tanpa rekod Customer sendiri (cth affiliate yang
+    tak pernah tempah untuk diri) dapat senarai KOSONG di sini — booking
+    yang mereka urus bagi pihak customer lain dihidangkan di endpoint
+    berasingan get_on_behalf_bookings_list().
     """
     frappe.flags.ignore_permissions = True
-    customer_name = _get_customer()
+    _user, customer_name, _managed = _portal_access()
+    if not customer_name:
+        return {"bookings": []}
 
     from travel_booking.api.booking import _compute_payment_status
 
@@ -515,6 +667,99 @@ def get_bookings_list():
 
         out.append({
             "booking_number":  bk.booking_number or bk.name,
+            "trip_name":       bk.trip_name       or "-",
+            "group_name":      bk.trip_group_name or "",
+            "departure_date":  str(bk.departure_date) if bk.departure_date else "",
+            "return_date":     str(bk.return_date)    if bk.return_date    else "",
+            "embarkation_port":   bk.embarkation_port    or "",
+            "disembarkation_port": bk.disembarkation_port or "",
+            "sailing_start":   str(bk.sailing_start) if bk.sailing_start else "",
+            "sailing_end":     str(bk.sailing_end)   if bk.sailing_end   else "",
+            "booking_status":  bk.status or "",
+            "payment_status":  _compute_payment_status(paid, billed),
+            "total_slots":     total_slots,
+            "filled_count":    filled_count,
+            "billed":          billed,
+            "paid":            paid,
+            "balance":         max(0.0, billed - paid),
+            "currency":        currency,
+            "currency_symbol": currency_symbol,
+        })
+
+    return {"bookings": out}
+
+@frappe.whitelist()
+def get_on_behalf_bookings_list():
+    """Senarai booking yang user session urus BAGI PIHAK customer lain —
+    khas untuk page "Bookings on Behalf" dalam portal traveller.
+
+    Kriteria: Booking.booked_by = user DAN Booking.booking_channel !=
+    "Direct" (booked_by juga diisi untuk tempahan sendiri yang logged-in,
+    tapi channel Direct — itu bukan urusan 3rd party). Struktur data sama
+    dengan get_bookings_list() supaya kad boleh dikongsi, DITAMBAH maklumat
+    customer akhir setiap booking (manager perlu tahu booking milik siapa).
+
+    Akses ditolak senyap (senarai kosong) untuk user tanpa role on-behalf
+    — endpoint ini hanya releven untuk manager yang dikonfigurasi dalam
+    Travel Settings > On-Behalf Booking Roles.
+    """
+    frappe.flags.ignore_permissions = True
+    user, _customer_name, managed = _portal_access()
+    if not managed:
+        return {"bookings": []}
+
+    from travel_booking.api.booking import _compute_payment_status
+
+    bookings = frappe.db.sql("""
+        SELECT b.name, b.booking_number, b.status, b.booking_channel,
+               b.cust_email, b.customer,
+               c.customer_name,
+               tm.trip_name, td.trip_group_name,
+               td.departure_date, td.return_date,
+               td.embarkation_port, td.disembarkation_port,
+               td.sailing_start, td.sailing_end
+        FROM `tabBooking` b
+        LEFT JOIN `tabCustomer` c ON c.name = b.customer
+        LEFT JOIN `tabTrip Group Date` td ON td.name = b.trip_date
+        LEFT JOIN `tabTrip` tm ON tm.name = td.trip
+        WHERE b.name IN %(names)s
+        ORDER BY td.departure_date ASC, b.creation ASC
+    """, {"names": tuple(managed)}, as_dict=True)
+
+    out = []
+    for bk in bookings:
+        counts = frappe.db.sql("""
+            SELECT COUNT(name) AS total,
+                   SUM(CASE WHEN traveller IS NOT NULL AND traveller != ''
+                            THEN 1 ELSE 0 END) AS filled
+            FROM `tabBooking Reservation`
+            WHERE booking = %s
+        """, bk.name, as_dict=True)
+        total_slots  = int(counts[0].total or 0)
+        filled_count = int(counts[0].filled or 0)
+
+        totals = frappe.db.sql("""
+            SELECT COALESCE(SUM(grand_total), 0)  AS billed,
+                   COALESCE(SUM(advance_paid), 0) AS paid
+            FROM `tabSales Order`
+            WHERE custom_booking = %s AND docstatus != 2
+        """, bk.name, as_dict=True)
+        billed = float(totals[0].billed or 0)
+        paid   = float(totals[0].paid or 0)
+
+        currency = frappe.db.get_value(
+            "Sales Order", {"custom_booking": bk.name},
+            "currency", order_by="creation asc"
+        ) or "MYR"
+        currency_symbol = frappe.db.get_value("Currency", currency, "symbol") or currency
+
+        out.append({
+            "booking_number":  bk.booking_number or bk.name,
+            "booking_channel": bk.booking_channel or "",
+            # Customer akhir — paparan utama yang membezakan kad ini dari
+            # My Bookings (manager tahu serta-merta booking milik siapa).
+            "end_customer_name":  bk.customer_name or bk.customer or "",
+            "end_customer_email": bk.cust_email or "",
             "trip_name":       bk.trip_name       or "-",
             "group_name":      bk.trip_group_name or "",
             "departure_date":  str(bk.departure_date) if bk.departure_date else "",

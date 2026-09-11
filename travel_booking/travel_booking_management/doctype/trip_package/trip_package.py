@@ -17,7 +17,8 @@ class TripPackage(Document):
 		from travel_booking.travel_booking_management.doctype.trip_package_price.trip_package_price import TripPackagePrice
 
 		airport_form: DF.Link | None
-		currency: DF.Link | None
+		currency: DF.Link
+		ground_arrangement: DF.Check
 		is_a_cruise_trip: DF.Check
 		is_cruise_only: DF.Check
 		organizer_link: DF.Link | None
@@ -57,10 +58,23 @@ class TripPackage(Document):
 		else :
 			airport = ""
 
-
 		if not self.currency:
 			self.currency = "MYR"
-			
+
+		# Currency = paksi utama pakej (1 pakej = 1 currency). Hanya
+		# currency yang diisytiharkan dalam Travel Settings > Multi
+		# Currency Account sah (tiada company/pivot untuk yang lain).
+		from travel_booking.api.currency_axis import get_declared_currencies
+		declared = get_declared_currencies()
+		if declared and self.currency not in declared:
+			frappe.throw(
+				"Currency '{0}' is not declared in Travel Settings > Multi "
+				"Currency Account. Available: {1}.".format(
+					self.currency, ", ".join(sorted(declared))
+				),
+				title="Invalid Package Currency",
+			)
+
 		if package_type == "CO" or package_type == "GP":
 			self.airport_form = None
 			airport = self.currency
@@ -68,8 +82,7 @@ class TripPackage(Document):
 		if not self.package_code:
 			self.package_code = (self.trip_link + " : " + package_type + " : " + airport ).upper().replace(" ","").strip()
 
-		if not self.package_title:
-			self.package_title = (self.trip_name or "") + " : " + (self.package_type or "") + " : " + airport
+		self.package_title = (self.trip_name or "") + " : " + (self.package_type or "") + " : " + airport
 
 	
 		domain = frappe.utils.get_url()

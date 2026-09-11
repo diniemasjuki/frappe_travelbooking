@@ -14,8 +14,13 @@ from travel_booking.utils.trip_catalog import get_catalog_trips, get_filter_opti
 def get_context(context):
     """Build context for the tour homepage."""
 
+    # Currency pilihan customer (?currency=SGD / localStorage via JS) —
+    # menapis pakej & harga "from" ikut currency itu (paksi multi-company).
+    from travel_booking.www.trips import _get_currency_filter
+    currency = _get_currency_filter()
+
     # 1. Get ALL non-cruise trips (cruise=0 filter) as "featured"
-    tour_data = get_catalog_trips({"cruise": "0", "sort": "date"})
+    tour_data = get_catalog_trips({"cruise": "0", "sort": "date", "currency": currency})
     all_tours = tour_data["trips"]
     trip_group_dates = tour_data["trip_group_dates"]
 
@@ -36,6 +41,10 @@ def get_context(context):
     context.active_nav = "tour"
     context.no_cache = 1
     context.title = "International Travel & Tours — Rarecation"
+    # Meta currency listing (selector + simbol harga)
+    context.currency = tour_data["currency"]
+    context.currency_symbol = tour_data["currency_symbol"]
+    context.currency_options = tour_data["currency_options"]
 
 
 def _enrich_tour_cards(trips, trip_group_dates):

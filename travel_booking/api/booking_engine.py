@@ -18,14 +18,18 @@ from datetime import date as datetime_date  # untuk delivery date comparison
 from datetime import datetime
 import string
 
-from travel_booking.api._helpers import get_customer_by_email, get_company_currency
+from travel_booking.api._helpers import (
+    get_customer_by_email,
+    get_company_currency,
+    resolve_booking_actor,
+    _as_bool,
+)
 from travel_booking.api.pricing import (
     _get_pricing_map,
     _validate_selection_capacity,
 )
 from travel_booking.api.so_helpers import (
     _create_customer,
-    _ensure_customer_company_currency,
     _build_so_items,
     _get_or_create_travel_item,
     _create_manual_payment_entry,
@@ -36,6 +40,7 @@ from travel_booking.api.so_helpers import (
     _compute_payment_status,
     _activate_booking,
     _maybe_auto_invoice_so,
+    _resolve_so_currency_and_rate,
 )
 from travel_booking.api.email_service import (
     _send_status_email,
@@ -59,7 +64,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
                     payment_type: str = "Full Payment", payment_method: str = "Online Payment",
                     receipt: str = None, voucher_code: str = "", affiliate_code: str = "", amount_paid: float = None,
                     trip_package: str = None, sales_persons: str = None, bank_transfer_ref: str = None,
-                    booking_number: str = None):
+                    booking_number: str = None, on_behalf: bool = False):
     if isinstance(selections, str):
         selections = json.loads(selections)
     if isinstance(billing, str):
@@ -67,6 +72,10 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
 
     email = billing.get("email", "").strip().lower()
     bank_transfer_ref = (bank_transfer_ref or "").strip()
+    # Form-encoded POST menghantar boolean sebagai string "true"/"false" —
+    # Python merawat KEDUA-DUA string tu sebagai truthy, jadi WAJIB
+    # normalize sebelum diguna (rujuk _as_bool di _helpers.py).
+    on_behalf = _as_bool(on_behalf)
 
     if payment_method == "Manual Transfer" and not bank_transfer_ref:
         # Nombor rujukan transaksi DARI BANK CUSTOMER SENDIRI (bukan rujukan
@@ -100,7 +109,19 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     has_portal_user   = bool(frappe.db.exists("User", email))
     existing_customer = get_customer_by_email(email)
 
-    if not has_portal_user and not is_verified:
+    # ── BOOKING ON BEHALF (fasa 1 — modul booking-channel) ──────────────
+    # Session user dengan role Affiliate / Sales User yang menanda
+    # on_behalf=True di wizard BOLEH langkau OTP email customer — 3rd
+    # party ter-authenticate inilah yang "vouch" email tersebut. Nilai
+    # on_behalf dari client TIDAK dipercayai begitu sahaja: IANYA hanya
+    # berkesan bila resolve_booking_actor() mengesahkan session semasa
+    # benar-benar memiliki role yang layak. Guest / user biasa yang
+    # menghantar on_behalf=true secara manual akan terus jatuh kepada
+    # gate OTP biasa di bawah — tiada pintu belakang.
+    booking_actor = resolve_booking_actor() if on_behalf else None
+    session_user  = frappe.session.user if frappe.session.user != "Guest" else None
+
+    if not booking_actor and not has_portal_user and not is_verified:
         frappe.throw(
             "Your email verification session has expired (30 minutes). "
             "Please request a new OTP code and verify again to continue your booking."
@@ -144,11 +165,11 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
 
     customer_name = existing_customer or _create_customer(billing)
 
-    # Penjajar currency customer — SEMUA transaksi kini dalam company
-    # currency. Pastikan Customer.default_currency = company currency
-    # sebelum SO dicipta (SO set currency/conversion_rate eksplisit jua,
-    # ini cuma penjajar data customer untuk konsistensi).
-    _ensure_customer_company_currency(customer_name)
+    # NOTA: _ensure_customer_company_currency() dihentikan penggunaannya —
+    # model multi-company baharu tidak lagi memaksa Customer.default_currency
+    # kepada satu company currency (customer boleh berurusan dengan company
+    # berbeza ikut currency pakej yang ditempah). Customer.default_currency
+    # dibiarkan sebagaimana ada.
 
     # Trip info
     td = frappe.db.get_value("Trip Group Date", trip_group_date,
@@ -307,16 +328,16 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     else:
         delivery_date = frappe.utils.today()
 
-    # SO sentiasa dalam COMPANY CURRENCY — harga pakej disimpan & dimasukkan
-    # dalam company currency (keputusan senibina: workflow jualan/booking
-    # SEMUA dalam company currency; paparan currency lain diuruskan di layer
-    # display converter frontend, BUKAN di SO/accounting). conversion_rate=1.0
-    # kerana SO currency == company currency. Ini juga membuang kebergantungan
-    # pada rekod Currency Exchange untuk penciptaan booking — booking TIDAK
-    # gagal walaupun rate exchange belum diisi admin (rate hanya diperlukan
-    # untuk DISPLAY converter, bukan untuk accounting transaksi).
-    company_currency = get_company_currency()
-    so_conversion_rate = 1.0
+    # Model multi-company: currency NATIVE pakej (dari DB — sumber
+    # kebenaran, bukan payload) menentukan company yang mengeluarkan
+    # SO/bil. SO tetap dalam company currency company berkenaan dengan
+    # conversion_rate=1.0 — tiada conversion accounting. Kalau pakej
+    # tiada currency (data lama), fallback company default.
+    package_currency = frappe.db.get_value("Trip Package", trip_package, "currency")
+    if not package_currency:
+        package_currency = get_company_currency()
+    so_currency, so_company, so_price_list, so_conversion_rate = \
+        _resolve_so_currency_and_rate(package_currency)
 
     # Sales Order — insert & submit sebagai Administrator (elak isu permission
     # customer terhadap Link field dalaman seperti Account semasa validate SO).
@@ -330,9 +351,13 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
             "delivery_date":      delivery_date,
             "order_type":         "Sales",
             "items":              so_items,
-            "selling_price_list": "Standard Selling",
-            # SO dalam company currency, conversion_rate=1.0 (lihat nota di atas).
-            "currency":           company_currency,
+            # Company yang mengeluarkan SO ditentukan oleh currency native
+            # pakej (paksi currency multi-company). Price list per-currency
+            # dari axis; rate item sentiasa di-set eksplisit dari Trip
+            # Package Price, jadi price list di sini mekanikal.
+            "company":            so_company,
+            "selling_price_list": so_price_list,
+            "currency":           so_currency,
             "conversion_rate":    so_conversion_rate,
             # PENTING: matikan pembundaran ke ringgit-penuh untuk SO booking.
             # Tanpa ni, ERPNext boleh bundar grand_total (cth RM9.50) ke
@@ -486,6 +511,10 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         "payment_status": "Pending",
         "booking_number": _generate_booking_number(),
         "booked_pax":     incoming_pax,
+        # Company pengeluar SO utama (dari paksi currency — currency native
+        # pakej menentukan company). Snapshot untuk filter/reporting; SO
+        # tetap sumber kebenaran accounting.
+        "company":        so_company,
         # PENTING: attribution affiliate (untuk commission) TAK bergantung
         # pada referral_discount > 0 — sales_partner dah sah (atau None)
         # ditentukan di atas terus dari validate_affiliate_code(), jadi
@@ -499,6 +528,14 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         # digunakan masa booking dibuat — rekod sejarah/audit trail, bukan
         # rujukan "terkini".
         "cust_email":           email,
+        # Modul booking-channel (fasa 1): rekod SIAPA/SALURAN mana booking
+        # ni dibuat. booking_channel "Direct" untuk customer sendiri;
+        # "Staff"/"Affiliate" bila checkbox on-behalf aktif DAN session
+        # user mempunyai role yang layak (booking_actor di atas). booked_by
+        # sentiasa merakam session user ter-authenticate (audit trail),
+        # kosong untuk Guest.
+        "booking_channel":      (booking_actor["channel"] if booking_actor else "Direct"),
+        "booked_by":            session_user,
     })
     booking.insert(ignore_permissions=True)
 

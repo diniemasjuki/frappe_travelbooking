@@ -8,7 +8,12 @@ import re
 
 import frappe
 import qrcode
-from travel_booking.api.portal_booking import _get_customer
+from travel_booking.api.portal_booking import (
+    _get_customer,
+    _portal_access,
+    _booking_accessible,
+    _booking_action_allowed,
+)
 
 
 def _ai_extract_passport(content: bytes) -> dict | None:
@@ -285,13 +290,19 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         booking_number = booking.booking_number
         slot_name = slot.name
     else:
-        customer_name = _get_customer()
+        # ON-BEHALF: manager (booked_by) turut dibenarkan isi maklumat
+        # traveller untuk booking yang diurusnya — rujuk _booking_accessible().
+        _user, session_customer, managed = _portal_access()
         booking = frappe.db.get_value("Booking", {"booking_number": booking_number},
                                       ["name", "customer", "status"], as_dict=True)
         if not booking:
             frappe.throw("Booking not found.")
-        if booking.customer != customer_name:
+        if not _booking_action_allowed(booking, session_customer, managed, "Docs"):
             frappe.throw("Access denied.", frappe.PermissionError)
+        # Scope IDOR (padanan traveller sedia ada, rujuk _customer_traveller_
+        # names bawah) ikut CUSTOMER BOOKING — untuk pemilik ia sama dengan
+        # session customer; untuk manager on-behalf ia customer akhir booking.
+        customer_name = booking.customer
         slot = frappe.db.get_value(
             "Booking Reservation", slot_name,
             ["name", "booking", "document_status", "traveller"], as_dict=True
@@ -1380,7 +1391,9 @@ def wizard_lookup(ic_number: str, passport_no: str, full_name: str):
 @frappe.whitelist()
 def request_document_update(slot_name: str):
     """Customer request to unlock a Verified slot for re-editing."""
-    customer = _get_customer()
+    # ON-BEHALF: manager (booked_by) boleh minta buka semula slot untuk
+    # booking yang diurusnya.
+    _user, session_customer, managed = _portal_access()
 
     slot = frappe.db.get_value(
         "Booking Reservation", slot_name,
@@ -1390,8 +1403,9 @@ def request_document_update(slot_name: str):
     if not slot:
         frappe.throw("Slot not found")
 
-    booking_customer = frappe.db.get_value("Booking", slot.booking, "customer")
-    if booking_customer != customer:
+    booking = frappe.db.get_value("Booking", slot.booking,
+                                  ["name", "customer"], as_dict=True)
+    if not booking or not _booking_action_allowed(booking, session_customer, managed, "Docs"):
         frappe.throw("Not permitted", frappe.PermissionError)
 
     if slot.document_status != "Verified":
@@ -1417,12 +1431,14 @@ def confirm_traveller_documents(booking_number: str, slot_name: str,
         booking_number = booking.booking_number
         slot_name = slot.name
     else:
-        customer = _get_customer()
+        # ON-BEHALF: manager (booked_by) boleh sahkan dokumen traveller
+        # untuk booking yang diurusnya.
+        _user, session_customer, managed = _portal_access()
         booking = frappe.db.get_value("Booking", {"booking_number": booking_number},
                                       ["name", "customer"], as_dict=True)
         if not booking:
             frappe.throw("Booking not found.")
-        if booking.customer != customer:
+        if not _booking_action_allowed(booking, session_customer, managed, "Docs"):
             frappe.throw("Access denied.", frappe.PermissionError)
         slot = frappe.db.get_value(
             "Booking Reservation", slot_name,
@@ -1557,9 +1573,10 @@ def request_guest_passport_link(booking_number: str = "", slot_name: str = "",
 
     roles = set(frappe.get_roles())
     if not (_GUEST_LINK_ADMIN_ROLES & roles):
-        # Customer path — verify ownership.
-        customer = _get_customer()
-        if booking.customer != customer:
+        # Customer path — verify ownership. ON-BEHALF: manager (booked_by)
+        # turut dibenarkan minta guest link untuk booking yang diurusnya.
+        _user, session_customer, managed = _portal_access()
+        if not _booking_action_allowed(booking, session_customer, managed, "Docs"):
             frappe.throw("Access denied.", frappe.PermissionError)
 
     if slot.document_status == "Verified":
@@ -1759,12 +1776,16 @@ def get_slot_file(booking_number: str, slot_name: str, field: str = "passport_im
     if field not in ("passport_image", "visa_photo"):
         frappe.throw("Invalid file field.")
 
-    customer = _get_customer()
+    # ON-BEHALF: manager (booked_by) boleh lihat fail passport/visa untuk
+    # booking yang diurusnya.
+    _user, session_customer, managed = _portal_access()
     booking = frappe.db.get_value("Booking", {"booking_number": booking_number},
                                   ["name", "customer"], as_dict=True)
     if not booking:
         frappe.throw("Booking not found.")
-    if booking.customer != customer:
+    # ON-BEHALF: manager (booked_by) boleh lihat fail passport/visa untuk
+    # booking yang diurusnya.
+    if not _booking_action_allowed(booking, session_customer, managed, "Docs"):
         frappe.throw("Access denied.", frappe.PermissionError)
 
     slot = frappe.db.get_value("Booking Reservation", slot_name,

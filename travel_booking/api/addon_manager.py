@@ -16,7 +16,7 @@
 import frappe
 import json
 
-from travel_booking.api.portal_booking import _get_customer
+from travel_booking.api.portal_booking import _portal_access, _booking_action_allowed
 from travel_booking.api.constants import ADDON_PACKAGE_ITEM_CODE
 from travel_booking.api.so_helpers import (
     _get_or_create_travel_item,
@@ -34,13 +34,18 @@ def _get_owned_booking(booking_number):
     throw PermissionError. Dipanggil di SETIAP endpoint dalam modul ni
     sebelum apa-apa operasi — jangan percaya booking_number dari client
     tanpa verify ownership.
+
+    ON-BEHALF: manager (booked_by) juga dibenarkan — addon/upsell
+    melibatkan maklumat traveller, jadi perlukan tahap akses "Docs"
+    (rujuk _booking_action_allowed). Downstream SO dibina atas
+    booking.customer (bukan session user) supaya IDOR kekal terkawal.
     """
-    customer_name = _get_customer()
+    _user, customer_name, managed = _portal_access()
     booking = frappe.db.get_value(
         "Booking", {"booking_number": booking_number},
         ["name", "customer", "trip_package", "trip_date", "status", "affiliate"], as_dict=True
     )
-    if not booking or booking.customer != customer_name:
+    if not booking or not _booking_action_allowed(booking, customer_name, managed, "Docs"):
         frappe.throw("Booking not found.", frappe.PermissionError)
     if booking.status == "Cancelled":
         frappe.throw("This booking has been cancelled.")
@@ -112,21 +117,44 @@ def _scoping_is_applicable(
     return False
 
 
-def get_available_addons(booking_number: str):
+def get_available_addons(booking_number: str, currency: str = None):
     """Senarai Trip Addon (produk) dengan Trip Addon Package sebagai variant.
     Setiap addon boleh ada beberapa package (plan type, pricing, scoping berbeza).
     Hanya package yang applicable untuk booking ni yang di-return.
 
-    Checkout_addons() re-price semula dari DB — jangan percaya harga dari client.
+    currency (opsyenal) — model multi-currency: hanya rate dalam currency
+    ini dipaparkan; package tanpa rate currency ini DISEMBUNYIKAN. Default:
+    currency booking utama (SO utama). Customer bebas tukar selector
+    currency di portal — pilihan itu menentukan company yang mengeluarkan
+    SO addon (paksi currency multi-company).
+
+    Checkout_addons() re-price semula dari DB — jangan percaya harga dari
+    client.
     """
     booking = _get_owned_booking(booking_number)
+
+    # Default currency = currency booking utama (SO utama booking ni).
+    from travel_booking.api.currency_axis import get_declared_currencies, get_default_currency
+    if not currency:
+        primary_so = frappe.db.get_value(
+            "Sales Order", {"custom_booking": booking.name},
+            "currency", order_by="creation asc"
+        )
+        currency = primary_so or get_default_currency()
+    declared = get_declared_currencies()
+    if currency and declared and currency not in declared:
+        frappe.throw(
+            "Currency '{0}' is not available. Available currencies: {1}.".format(
+                currency, ", ".join(sorted(declared))
+            ),
+            title="Currency Not Available",
+        )
 
     trip_name, departure_date = _booking_trip_context(booking)
 
     rows = frappe.db.sql("""
         SELECT DISTINCT
             ap.name, ap.addon, ap.addon_title, ap.addon_package_name,
-            ap.currency, ap.unit_price,
             ap.sales_cutoff_enabled, ap.sales_cutoff_days_before_departure,
             ap.max_qty_per_booking, ap.max_total_qty, ap.current_qty_sold,
             ap.applicable_to, ap.scope,
@@ -148,6 +176,17 @@ def get_available_addons(booking_number: str):
     ):
         scoping_map.setdefault(s.parent, []).append(s)
 
+    # Bulk-load SEMUA rate rows sekali (sama punca N+1) — resolve harga
+    # ikut currency terpilih; fallback legacy unit_price hanya bila
+    # currency legacy == currency diminta.
+    rate_map = {}
+    for rr in frappe.get_all(
+        "Trip Addon Package Rate",
+        {"parenttype": "Trip Addon Package", "enabled": 1},
+        ["parent", "currency", "unit_price"],
+    ):
+        rate_map.setdefault(rr.parent, {})[rr.currency] = float(rr.unit_price or 0)
+
     # Build package dicts, grouped by parent Trip Addon
     addon_map = {}   # {addon_name: {addon-level fields, packages: [...]}}
 
@@ -167,6 +206,14 @@ def get_available_addons(booking_number: str):
         if not is_applicable:
             continue
 
+        # Resolusi harga multi-currency: hanya rate row untuk currency terpilih.
+        # Package tanpa harga dalam currency ini DISEMBUNYIKAN.
+        rates = rate_map.get(r.name, {})
+        if currency in rates:
+            price = rates[currency]
+        else:
+            continue  # tiada rate currency ini — sembunyikan package
+
         sold_out = bool(r.max_total_qty and r.current_qty_sold >= r.max_total_qty)
         cutoff_closed = False
         if r.sales_cutoff_enabled and departure_date:
@@ -182,8 +229,8 @@ def get_available_addons(booking_number: str):
             "addon_package_name": r.addon_package_name or "",
             "scope":               r.scope,
             "applicable_to":       r.applicable_to,
-            "currency":            r.currency,
-            "unit_price":          float(r.unit_price or 0),
+            "currency":            currency,
+            "unit_price":          price,
             "max_qty_per_booking": r.max_qty_per_booking or 0,
             "remaining":           remaining,
             "sold_out":            sold_out,
@@ -224,7 +271,22 @@ def get_available_addons(booking_number: str):
 
     # Convert to list, sorted by addon_type then title
     out = sorted(addon_map.values(), key=lambda x: (x["addon_type"], x["addon_title"]))
-    return out
+
+    # Meta currency untuk selector portal (pilihan bebas — setiap currency
+    # yang diisytiharkan dalam axis, walaupun tiada addon punya rate
+    # untuknya; frontend hanya disable/hide pilihan tanpa hasil).
+    from travel_booking.api.currency_axis import get_currency_options, _currency_symbol
+    currency_options = [
+        {"currency": o["currency"], "symbol": o["symbol"]}
+        for o in get_currency_options()
+    ]
+
+    return {
+        "addons": out,
+        "currency": currency,
+        "currency_symbol": _currency_symbol(currency),
+        "currency_options": currency_options,
+    }
 
 
 # ══════════════════════════════════════════════
@@ -233,9 +295,17 @@ def get_available_addons(booking_number: str):
 
 @frappe.whitelist()
 def checkout_addons(booking_number: str, lines: str, payment_method: str = "Online Payment",
-                    receipt: str = None, bank_transfer_ref: str = None):
+                    receipt: str = None, bank_transfer_ref: str = None, currency: str = None):
     """lines = JSON list [{"addon_package": "AP-xxx", "qty": 2,
     "travellers": ["BR-xxx", ...]}, ...].
+
+    currency (opsyenal) — currency rate yang dipilih customer semasa
+    checkout (model multi-currency: bebas pilih, tak semestinya sama
+    dengan currency booking utama). SO addon akan dikeluarkan oleh
+    company yang sepadan dengan currency ini (paksi currency). Default:
+    currency booking utama. Re-validated sepenuhnya server-side —
+    setiap package mesti ADA rate (atau fallback legacy) dalam currency
+    ini, kalau tidak throw.
 
     Server-side re-price SEMUA baris dari DB (jangan sesekali percaya rate
     dari client). Travellers array wajib untuk Per Pax scope — server
@@ -254,6 +324,25 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
     if not lines:
         frappe.throw("Please select at least one item.")
 
+    # Currency checkout: default = currency booking utama; mesti
+    # diisytiharkan dalam axis (throw jika tidak — jangan fallback senyap
+    # ke currency lain, harga cart akan berubah tanpa customer sedar).
+    from travel_booking.api.currency_axis import get_declared_currencies, get_default_currency
+    if not currency:
+        primary_so = frappe.db.get_value(
+            "Sales Order", {"custom_booking": booking.name},
+            "currency", order_by="creation asc"
+        )
+        currency = primary_so or get_default_currency()
+    declared = get_declared_currencies()
+    if declared and currency not in declared:
+        frappe.throw(
+            "Currency '{0}' is not available. Available currencies: {1}.".format(
+                currency, ", ".join(sorted(declared))
+            ),
+            title="Currency Not Available",
+        )
+
     validated_lines = []
     trip_name, departure_date = _booking_trip_context(booking)
     today = frappe.utils.getdate()
@@ -267,13 +356,31 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
         ap = frappe.db.get_value(
             "Trip Addon Package", ap_name,
             ["name", "addon", "addon_title", "addon_package_name", "scope",
-             "applicable_to", "status", "currency", "unit_price",
+             "applicable_to", "status",
              "sales_cutoff_enabled", "sales_cutoff_days_before_departure",
              "max_qty_per_booking", "max_total_qty", "current_qty_sold"],
             as_dict=True
         )
         if not ap or ap.status != "Active":
             frappe.throw("One of the selected items is no longer available.")
+
+        # Resolusi harga multi-currency (server-side, sumber kebenaran):
+        # hanya rate row untuk currency checkout. Tiada rate = item tak
+        # dijual dalam currency ni — throw.
+        rate_row = frappe.db.get_value(
+            "Trip Addon Package Rate",
+            {"parent": ap.name, "parenttype": "Trip Addon Package",
+             "currency": currency, "enabled": 1},
+            "unit_price",
+        )
+        if rate_row is not None:
+            unit_price = float(rate_row or 0)
+        else:
+            frappe.throw(
+                ap.addon_title + " is not available in " + currency +
+                ". Please choose another currency or remove it from your cart.",
+                title="Addon Currency Unavailable"
+            )
 
         scope = ap.scope or "Per Booking"
         # Per Pax: server re-derives qty from traveller count (don't trust client)
@@ -324,8 +431,8 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
             "addon_title":        ap.addon_title,
             "addon_package_name": ap.addon_package_name or "",
             "scope":              scope,
-            "currency":           ap.currency or "MYR",
-            "unit_price":         float(ap.unit_price or 0),
+            "currency":           currency,
+            "unit_price":         unit_price,
             "qty":                qty,
             "travellers":         travellers,
         })
@@ -333,13 +440,21 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
     if not validated_lines:
         frappe.throw("Please select at least one item.")
 
+    # Cart guard: SEMUA baris mesti currency yang sama — dikunci semula
+    # kepada currency checkout yang di-derive di atas (bukan dari set
+    # currency package, yang kini boleh berbeza-beza ikut rate). Guard
+    # ini kekal sebagai pertahanan kedua terhadap cart bercampur.
     currencies = {l["currency"] for l in validated_lines}
     if len(currencies) > 1:
         frappe.throw("Selected items have mismatched currencies. Please contact support.")
     so_currency = currencies.pop()
 
     grand_total = sum(l["unit_price"] * l["qty"] for l in validated_lines)
-    so_currency, conversion_rate = _resolve_so_currency_and_rate(so_currency)
+    # Paksi multi-company: currency checkout menentukan company + price
+    # list SO addon. conversion_rate=1.0 (SO dalam company currency
+    # company berkenaan — harga rate native, tiada conversion).
+    so_currency, so_company, so_price_list, conversion_rate = \
+        _resolve_so_currency_and_rate(so_currency)
 
     # Batch-resolve traveller display names from Booking Reservation
     all_traveller_names = set()
@@ -430,11 +545,14 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
             "customer":              booking.customer,
             "custom_booking":        booking.name,
             "custom_booking_addon":  order.name,
+            # Company pengeluar SO addon ditentukan oleh currency rate yang
+            # dipilih customer (paksi currency multi-company).
+            "company":               so_company,
             "transaction_date":      frappe.utils.today(),
             "delivery_date":         frappe.utils.today(),
             "order_type":            "Sales",
             "items":                 so_items,
-            "selling_price_list":    "Standard Selling",
+            "selling_price_list":    so_price_list,
             "currency":              so_currency,
             "conversion_rate":       conversion_rate,
             "disable_rounded_total": 1,

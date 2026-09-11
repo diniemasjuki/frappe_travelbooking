@@ -15,12 +15,13 @@ class TravelWebsite(Document):
         from frappe.types import DF
         from travel_booking.travel_booking_management.doctype.website_benefit_card.website_benefit_card import WebsiteBenefitCard
         from travel_booking.travel_booking_management.doctype.website_footer_link.website_footer_link import WebsiteFooterLink
+        from travel_booking.travel_booking_management.doctype.website_geo_currency_rule.website_geo_currency_rule import WebsiteGeoCurrencyRule
         from travel_booking.travel_booking_management.doctype.website_menu_item.website_menu_item import WebsiteMenuItem
         from travel_booking.travel_booking_management.doctype.website_stat.website_stat import WebsiteStat
         from travel_booking.travel_booking_management.doctype.website_testimonial.website_testimonial import WebsiteTestimonial
 
-        chat_widget_success_message: DF.SmallText | None
         chat_widget_subtitle: DF.SmallText | None
+        chat_widget_success_message: DF.SmallText | None
         chat_widget_title: DF.Data | None
         copyright_text: DF.Data | None
         cruise_benefits: DF.Table[WebsiteBenefitCard]
@@ -35,6 +36,7 @@ class TravelWebsite(Document):
         cruise_dest_subtitle: DF.SmallText | None
         cruise_dest_tag: DF.Data | None
         cruise_dest_title: DF.SmallText | None
+        cruise_favicon: DF.AttachImage | None
         cruise_featured_cta_label: DF.Data | None
         cruise_featured_cta_url: DF.Data | None
         cruise_featured_subtitle: DF.SmallText | None
@@ -59,9 +61,12 @@ class TravelWebsite(Document):
         cruise_whyus_subtitle: DF.SmallText | None
         cruise_whyus_tag: DF.Data | None
         cruise_whyus_title: DF.SmallText | None
+        date_display_format: DF.Literal["dd MMM yyyy", "dd/mm/yyyy", "dd-mm-yyyy", "dd MMMM yyyy", "yyyy-mm-dd"]
         enable_chat_widget: DF.Check
         footer_links: DF.Table[WebsiteFooterLink]
         footer_tagline: DF.TextEditor | None
+        geo_currency_enabled: DF.Check
+        geo_currency_map: DF.Table[WebsiteGeoCurrencyRule]
         social_facebook: DF.Data | None
         social_instagram: DF.Data | None
         social_whatsapp: DF.Data | None
@@ -78,6 +83,7 @@ class TravelWebsite(Document):
         tour_dest_subtitle: DF.SmallText | None
         tour_dest_tag: DF.Data | None
         tour_dest_title: DF.SmallText | None
+        tour_favicon: DF.AttachImage | None
         tour_featured_cta_label: DF.Data | None
         tour_featured_cta_url: DF.Data | None
         tour_featured_subtitle: DF.SmallText | None

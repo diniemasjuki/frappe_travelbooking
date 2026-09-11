@@ -17,9 +17,7 @@
   "addon_package_name",
   "scope",
   "column_break_lcct",
-  "currency",
-  "price_override",
-  "unit_price",
+  "currency_rates",
   "trip_scoping_section",
   "applicable_to",
   "trip_scoping",
@@ -91,30 +89,11 @@
    "label": "Pricing"
   },
   {
-   "fieldname": "currency",
-   "fieldtype": "Link",
-   "label": "Currency",
-   "options": "Currency",
-   "read_only": 1
-  },
-  {
-   "description": "Kosongkan untuk guna Addon > Base Price. Isi untuk override harga khusus package/plan type ini.",
-   "fieldname": "price_override",
-   "fieldtype": "Currency",
-   "label": "Price ",
-   "non_negative": 1,
-   "options": "doc.currency",
-   "precision": "2"
-  },
-  {
-   "description": "Harga efektif (Price Override jika diisi, jika tidak guna Addon > Base Price). Dikira automatik semasa simpan.",
-   "fieldname": "unit_price",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Unit Price",
-   "options": "currency",
-   "precision": "2",
-   "read_only": 1
+   "description": "Harga jualan per currency (multi-currency sebenar). Setiap baris = harga dalam currency yang diisytiharkan dalam Travel Settings > Multi Currency Account; SO addon akan dikeluarkan oleh company yang sepadan dengan currency yang dipilih customer.",
+   "fieldname": "currency_rates",
+   "fieldtype": "Table",
+   "label": "Currency Rates",
+   "options": "Trip Addon Package Rate"
   },
   {
    "collapsible": 1,
@@ -271,7 +250,7 @@
    "link_fieldname": "name"
   }
  ],
- "modified": "2026-08-28 13:55:04.861975",
+ "modified": "2026-09-11 07:41:45.386131",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Addon Package",

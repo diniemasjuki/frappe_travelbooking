@@ -1,7 +1,7 @@
 # Copyright (c) 2026, WargaPrihatin and contributors
 # For license information, please see license.txt
 
-# import frappe
+import frappe
 from frappe.model.document import Document
 
 
@@ -38,3 +38,20 @@ class TravelSettings(Document):
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Travel Settings"
+
+	def validate(self):
+		# currency_accounts ialah paksi multi-currency/multi-company app:
+		# satu baris per currency, setiap satu menunjuk company yang
+		# mengeluarkan SO/bil. Mesti unik ikut currency — dua baris currency
+		# sama menjadikan resolusi company ambiguous.
+		seen = set()
+		for row in (self.currency_accounts or []):
+			if not row.currency:
+				continue
+			if row.currency in seen:
+				frappe.throw(
+					"Currency '{0}' appears more than once in Multi Currency "
+					"Account — only one row per currency is allowed.".format(row.currency),
+					title="Duplicate Currency",
+				)
+			seen.add(row.currency)

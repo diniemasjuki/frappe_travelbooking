@@ -12,7 +12,7 @@ import frappe
 from travel_booking.utils.trip_catalog import get_catalog_trips, get_filter_options
 
 # nama medan penapis yang diterima dari query string (cruise dipaksa = 0)
-_FILTER_KEYS = ("q", "destination", "item_group", "date_from", "date_to", "sort")
+_FILTER_KEYS = ("q", "destination", "item_group", "date_from", "date_to", "sort", "currency")
 
 
 def get_context(context):
@@ -23,6 +23,12 @@ def get_context(context):
         v = frappe.form_dict.get(k)
         if v:
             filters[k] = v
+
+    # Currency listing: resolve penuh (?currency= > cookie tersimpan >
+    # default geolocation IP pelawat) melalui pintu tunggal yang dikongsi
+    # dengan page katalog/homepage lain.
+    from travel_booking.www.trips import _get_currency_filter
+    filters["currency"] = _get_currency_filter()
 
     data = get_catalog_trips(filters)
     options = get_filter_options(cruise=0)
@@ -35,3 +41,7 @@ def get_context(context):
     context.active_nav = "tour"  # tunjuk menu tour + highlight
     context.no_cache = 1
     context.title = "Tours — Rarecation"
+    # Meta currency listing (selector + simbol harga card)
+    context.currency = data["currency"]
+    context.currency_symbol = data["currency_symbol"]
+    context.currency_options = data["currency_options"]

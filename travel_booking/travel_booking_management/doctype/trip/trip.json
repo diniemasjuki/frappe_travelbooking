@@ -22,9 +22,6 @@
   "column_break_jyau",
   "image_llpz",
   "naming_series",
-  "logo_organizer",
-  "logo_organizer_view",
-  "domain",
   "tab_break_tegv",
   "section_break_hibe",
   "column_break_cahp",
@@ -240,22 +237,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "trip_organizer.org_logo",
-   "fieldname": "logo_organizer",
-   "fieldtype": "Attach Image",
-   "hidden": 1,
-   "label": "Logo Organizer"
-  },
-  {
-   "fetch_from": "trip_organizer.org_logo",
-   "fieldname": "logo_organizer_view",
-   "fieldtype": "Image",
-   "hidden": 1,
-   "is_virtual": 1,
-   "label": "Logo Organizer",
-   "options": "logo_organizer"
-  },
-  {
    "fieldname": "column_break_dsrv",
    "fieldtype": "Column Break"
   },
@@ -277,12 +258,6 @@
    "fieldtype": "Tab Break",
    "label": "Connection",
    "show_dashboard": 1
-  },
-  {
-   "fetch_from": "trip_organizer.website",
-   "fieldname": "domain",
-   "fieldtype": "Data",
-   "label": "Domain"
   },
   {
    "default": "0",
@@ -319,7 +294,7 @@
   }
  ],
  "make_attachments_public": 1,
- "modified": "2026-08-28 09:16:49.835807",
+ "modified": "2026-09-09 19:01:32.623701",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip",

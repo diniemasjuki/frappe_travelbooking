@@ -13,26 +13,25 @@ class TripAddonPackage(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
+		from travel_booking.travel_booking_management.doctype.trip_addon_package_rate.trip_addon_package_rate import TripAddonPackageRate
 		from travel_booking.travel_booking_management.doctype.trip_scoping.trip_scoping import TripScoping
 
 		addon: DF.Link
 		addon_package_name: DF.Data | None
 		addon_title: DF.Data | None
 		applicable_to: DF.Literal["All Trips", "Specific Trips Only"]
-		currency: DF.Link | None
+		currency_rates: DF.Table[TripAddonPackageRate]
 		current_qty_sold: DF.Int
 		fixed_valid_from: DF.Date | None
 		fixed_valid_to: DF.Date | None
 		max_qty_per_booking: DF.Int
 		max_total_qty: DF.Int
 		naming_series: DF.Literal["AP.YY.MM.###"]
-		price_override: DF.Currency
 		sales_cutoff_days_before_departure: DF.Int
 		sales_cutoff_enabled: DF.Check
 		scope: DF.Literal["Per Booking", "Per Pax"]
 		status: DF.Literal["Active", "Inactive"]
 		trip_scoping: DF.Table[TripScoping]
-		unit_price: DF.Currency
 		valid_from_offset_days: DF.Int
 		valid_to_offset_days: DF.Int
 		validity_mode: DF.Literal["One-Off", "Same as Trip", "Relative to Departure", "Fixed Dates"]
@@ -41,26 +40,54 @@ class TripAddonPackage(Document):
 	_DOCTYPE_NAME = "Trip Addon Package"
 
 	def validate(self):
-		self.set_currency_and_unit_price()
 		self.validate_validity_rule()
 		self.validate_scoping()
+		self.validate_currency_rates()
 
-	def set_currency_and_unit_price(self):
-		"""Currency selalu ikut Addon induk (fetch_from, tapi dipastikan semula
-		di sini sebab fetch_from client-side boleh tak jalan untuk operasi
-		backend/API). unit_price = price_override kalau diisi, jika tidak
-		guna Addon.base_price.
+	def validate_currency_rates(self):
+		"""Paksi harga multi-currency: setiap baris rate mesti currency yang
+		diisytiharkan dalam Travel Settings > Multi Currency Account, dan
+		currency unik per pakej (dua baris currency sama buat resolusi
+		harga ambiguous).
 		"""
-		if not self.addon:
-			return
-		addon_currency, addon_base_price = frappe.db.get_value(
-			"Trip Addon", self.addon, ["currency", "base_price"]
-		)
-		self.currency = addon_currency or "MYR"
-		if self.price_override is not None and self.price_override > 0:
-			self.unit_price = self.price_override
-		else:
-			self.unit_price = addon_base_price or 0
+		from travel_booking.api.currency_axis import get_declared_currencies
+
+		declared = get_declared_currencies()
+		seen = set()
+		for row in (self.currency_rates or []):
+			if not row.currency:
+				continue
+			if declared and row.currency not in declared:
+				frappe.throw(
+					"Rate row currency '{0}' is not declared in Travel Settings > "
+					"Multi Currency Account. Available: {1}.".format(
+						row.currency, ", ".join(sorted(declared))
+					),
+					title="Invalid Rate Currency",
+				)
+			if row.currency in seen:
+				frappe.throw(
+					"Currency '{0}' appears more than once in Currency Rates — "
+					"only one rate per currency is allowed.".format(row.currency),
+					title="Duplicate Rate Currency",
+				)
+			seen.add(row.currency)
+			if row.enabled and (row.unit_price is None or float(row.unit_price or 0) < 0):
+				frappe.throw(
+					"Rate for '{0}' must have a unit price (>= 0).".format(row.currency),
+					title="Missing Rate Price",
+				)
+
+	def get_rate_for_currency(self, currency):
+		"""Harga jualan dalam currency tertentu, atau None.
+
+		Hanya guna baris rate enabled dalam currency_rates — tiada
+		fallback legacy. Pulangkan (unit_price, 'rates') atau (None, None).
+		"""
+		for row in (self.currency_rates or []):
+			if row.currency == currency and row.enabled:
+				return float(row.unit_price or 0), "rates"
+		return None, None
 
 	def validate_validity_rule(self):
 		if self.validity_mode == "Fixed Dates":

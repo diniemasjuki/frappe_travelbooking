@@ -169,7 +169,6 @@
   align-items: start;
 }
 .rc-trip-main { min-width: 0; }
-.rc-trip-sidebar { position: sticky; top: 80px; }
 
 /* ── Sections (shared) ── */
 .rc-trip-section { margin-bottom: 34px; }
@@ -261,6 +260,17 @@
 .rc-itin-img { width: 100%; height:auto; object-fit: cover; border-radius: 8px; margin: 12px 0; }
 .rc-itin-desc { font-size: 14px; line-height: 1.6; color: #3A3730; }
 .rc-itin-meals { margin: 10px 0 0; font-size: 13px; color: #5C5850; display: flex; gap: 6px; align-items: center; }
+/* Collapsible itinerary — head bertindak sebagai toggle */
+.rc-itin-head { cursor: pointer; user-select: none; }
+.rc-itin-head:hover .rc-itin-title { color: #C9A84C; }
+.rc-itin-toggle {
+  margin-left: auto; flex-shrink: 0; align-self: center;
+  font-size: 18px; color: #7D7A70; transition: transform .25s;
+}
+.rc-itin-day.rc-itin-open .rc-itin-toggle { transform: rotate(180deg); }
+.rc-itin-day.rc-itin-collapsed .rc-itin-img,
+.rc-itin-day.rc-itin-collapsed .rc-itin-desc,
+.rc-itin-day.rc-itin-collapsed .rc-itin-meals { display: none; }
 
 /* ── FAQ accordion ── */
 .rc-faq { border-top: 1px solid #E8E5DF; }
@@ -479,7 +489,6 @@
 
 @media (max-width: 980px) {
   .rc-trip-layout { grid-template-columns: 1fr; gap: 28px; }
-  .rc-trip-sidebar { position: static; }
   .rc-trip-grid-cards { grid-template-columns: 1fr 1fr; }
   .rc-trip-title { font-size: 30px; }
 }
@@ -494,7 +503,7 @@
   .rc-route-arrow { transform: rotate(90deg); }
 }
 
-/* ── Package buttons (Radio Button Style) ── */
+/* ── Package buttons (Radio Card Style — ref design) ── */
 .rc-pkg-buttons {
   display: flex;
   flex-direction: column;
@@ -502,63 +511,77 @@
 }
 .rc-pkg-btn {
   width: 100%;
-  padding: 14px 16px;
+  padding: 12px 16px;
   border: 2px solid #E8E5DF;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #fff;
   color: #1E1C18;
-  font-size: 14px;
-  font-weight: 500;
   font-family: var(--font-jost);
   cursor: pointer;
-  transition: all 0.2s ease;
-  line-height: 1.4;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
   text-align: left;
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 14px;
   position: relative;
+  /* Isolate each button — hover/transition tak bocor ke saudara */
+  isolation: isolate;
+  contain: layout style;
+  box-sizing: border-box;
 }
-/* Radio circle indicator */
+/* Radio circle indicator — left of title */
 .rc-pkg-btn::before {
   content: "";
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
+  width: 17.9px; height: 17.9px; min-width: 17.9px;
   border: 2px solid #D6D2CA;
   border-radius: 50%;
   background: #fff;
   flex-shrink: 0;
-  transition: all 0.2s ease;
+  margin-top: 2px;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
+/* Hover: guna box-shadow (tiada reflow) bukan border-color */
 .rc-pkg-btn:hover {
-  border-color: #C9A84C;
   background: #FDF8EC;
+  box-shadow: 0 0 0 2px #C9A84C;
 }
-.rc-pkg-btn:hover::before {
-  border-color: #C9A84C;
-}
-/* Selected/Active state */
+.rc-pkg-btn:hover::before { border-color: #C9A84C; }
+/* Selected/Active state — spesifik supaya hover saudara tak ganggu */
 .rc-pkg-btn.rc-pkg-active {
   border-color: #C9A84C;
-  background: #FDF8EC;
+  background: #FEF7E6;
+  box-shadow: none;
   color: #1E1C18;
-  font-weight: 600;
 }
-.rc-pkg-active::before {
+.rc-pkg-btn.rc-pkg-active::before {
   border-color: #C9A84C;
   background: #C9A84C;
-  box-shadow: inset 0 0 0 4px rgba(201,168,76,.15);
+  box-shadow: inset 0 0 0 4px rgba(201,168,76,.18);
 }
-.rc-pkg-btn.rc-pkg-active b {
-  color: #1E1C18;
-  font-weight: 700;
+.rc-pkg-btn.rc-pkg-active b { color: #1E1C18; font-weight: 700; }
+.rc-pkg-btn b { font-weight: 600; color: #5C5850; }
+
+/* Content area: title + meta rows stacked */
+.rc-pkg-btn > span {
+  flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0;
 }
-.rc-pkg-btn b {
-  font-weight: 600;
-  color: #5C5850;
-  flex: 1;
+.rc-pkg-btn .rc-pkg-title { font-size: 15px; font-weight: 600; color: #1E1C18; line-height: 1.35; }
+
+/* ── Meta rows INSIDE each button ── */
+.rc-pkg-meta {
+  display: flex; flex-direction: column; gap: 3px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #F0EEE9;
 }
+.rc-pkg-meta-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+  font-size: 12.5px; line-height: 1.45;
+}
+.rc-pkg-meta-label { color: #8A857A; white-space: nowrap; }
+.rc-pkg-meta-value { color: #1E1C18; font-weight: 600; text-align: right; min-width: 0; }
+.rc-pkg-meta-value.rc-pkg-included   { color: #2E7D32; }
+.rc-pkg-meta-value.rc-pkg-not-included { color: #B0603A; }
 
 @media (max-width: 480px) {
   .rc-pkg-buttons { gap: 8px; }

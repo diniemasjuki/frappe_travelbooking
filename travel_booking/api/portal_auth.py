@@ -3,7 +3,7 @@
 # ─────────────────────────────────────────────
 
 import frappe
-from travel_booking.api._helpers import get_customer_by_email
+from travel_booking.api._helpers import get_customer_by_email, has_on_behalf_role
 
 
 @frappe.whitelist(allow_guest=True)
@@ -137,11 +137,14 @@ def check_session():
     # Profile photo (User.user_image) — dipakai oleh nav avatar dropdown.
     user_image = frappe.db.get_value("User", user_email, "user_image") or ""
 
-    # Gatekeeper: hanya role "Customer" dibenarkan akses portal.
-    # Tiada role = akaun "under review" (signup tanpa booking). Customer
-    # record bukan syarat utama lagi — role adalah satu-satunya pintu
+    # Gatekeeper: role "Customer" ATAU manager on-behalf (role yang
+    # dikonfigurasi dalam Travel Settings > On-Behalf Booking Roles —
+    # mereka perlu akses portal untuk urus booking 3rd party).
+    # Tiada kedua-duanya = akaun "under review" (signup tanpa booking).
+    # Customer record bukan syarat utama lagi — role adalah satu-satunya pintu
     # masuk. Sebelum ni, Customer jadi gatekeeper; sekarang role.
-    if "Customer" not in frappe.get_roles(user_email):
+    is_on_behalf_manager = has_on_behalf_role(user_email)
+    if "Customer" not in frappe.get_roles(user_email) and not is_on_behalf_manager:
         return {
             "status":     "under_review",
             "logged_in":  True,
@@ -156,9 +159,11 @@ def check_session():
     customer_name = get_customer_by_email(user_email)
 
     if not customer_name:
-        # Ada role Customer tapi tiada Customer (cth staff/testing, atau
-        # user yang role-nya diberi manual di Desk). Dashboard kosong —
-        # bukan redirect ke login, sebab session mereka sah.
+        # Ada role Customer (atau manager on-behalf) tapi tiada Customer
+        # (cth staff/testing, atau affiliate yang tak pernah tempah untuk
+        # diri sendiri). Dashboard kosong — bukan redirect ke login, sebab
+        # session mereka sah. Manager on-behalf tetap nampak menu "Bookings
+        # on Behalf" (data dihidangkan oleh endpoint berasingan).
         full_name = frappe.db.get_value("User", user_email, "full_name") or user_email
         return {
             "status":        "ok",
@@ -168,6 +173,7 @@ def check_session():
             "email":         user_email,
             "user_image":    user_image,
             "bookings":      [],
+            "on_behalf_manager": is_on_behalf_manager,
         }
 
     customer = frappe.db.get_value(
@@ -194,7 +200,8 @@ def check_session():
         "customer_id":   customer.name,
         "email":         user_email,
         "user_image":    user_image,
-        "bookings":      bookings
+        "bookings":      bookings,
+        "on_behalf_manager": is_on_behalf_manager,
     }
 
 

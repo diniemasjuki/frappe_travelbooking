@@ -127,9 +127,13 @@
     <div class="rc-card-foot">
       <div class="rc-card-price">
         {% if t.starting_from_price is not none %}
+          {# Simbol currency LISTING aktif (pilihan customer, paksi
+             multi-currency) — fallback symbol company jika context
+             halaman tidak menyediakannya (cth include di page lain). #}
+          {% set sym = currency_symbol if currency_symbol else get_company_symbol() %}
           <span class="rc-price-label">From</span>
           <span class="rc-price-value">
-            {{ get_company_symbol() }}{{ "{:,.0f}".format(t.starting_from_price) }}
+            {{ sym }}{{ "{:,.0f}".format(t.starting_from_price) }}
           </span>
         {% else %}
           <span class="rc-price-value rc-price-tba"><span class="rc-price-label">Price</span>On Request</span>

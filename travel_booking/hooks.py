@@ -74,6 +74,15 @@ scheduler_events = {
 	"daily": [
 		"travel_booking.api.booking_engine.mark_completed_trips",
 	],
+	"cron": {
+		# Setiap hari jam 12:00 malam (site time) — semak & update status
+		# Trip Group Date (Running / Completed / Closed / Full ikut tarikh
+		# & kapasiti). Rujuk auto_update_trip_group_statuses().
+		"0 0 * * *": [
+				"travel_booking.travel_booking_management.doctype.trip_group_date.trip_group_date.auto_update_trip_group_statuses",
+				"travel_booking.travel_booking_management.doctype.trip_cruise_schedule.trip_cruise_schedule.auto_update_cruise_schedule_statuses",
+			],
+	},
 }
 
 

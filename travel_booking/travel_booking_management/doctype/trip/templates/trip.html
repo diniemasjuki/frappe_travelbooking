@@ -206,6 +206,7 @@
               <div class="rc-itin-head">
                 <h3 class="rc-itin-title">{{ row.day_title }}</h3>
                 {% if row.destination_name %}<span class="rc-itin-dest">{{ row.destination_name }}{% if row.country %} · {{ row.country }}{% endif %}</span>{% endif %}
+                <i class="ti ti-chevron-down rc-itin-toggle" aria-hidden="true"></i>
               </div>
               {% if row.day_image %}
               <img src="{{ row.day_image }}" alt="{{ row.day_title }}" class="rc-itin-img" onerror="this.style.display='none'"/>
@@ -245,13 +246,20 @@
         <p class="rc-booking-sub">Price is varies base on current flight price</p>
 
         {% if starting_from_price %}
-        <p class="rc-trip-fromprice"><small>Start from</small> {{ get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }} <span class="rc-muted">/ person</span></p>
+        {# Harga "from" dalam currency listing aktif (paksi multi-company).
+           currency_symbol disuntik oleh get_context (fallback symbol company
+           bila page include dari konteks lain). #}
+        <p class="rc-trip-fromprice"><small>Start from</small> {{ currency_symbol or get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }} <span class="rc-muted">/ person{% if currency_native_only %} · package currency{% endif %}</span></p>
         {% endif %}
+
+        {# Selector currency (paksi multi-company) — menapis pakej yang
+           dipaparkan pada widget ini. #}
+        {% include "templates/includes/currency_selector.html" %}
 
         {# ── meta bar (duration, max pax, type) ── #}
         {% if g %}
         <ul class="rc-booking-meta">
-          {% if g.total_days %}<li><i class="ti ti-clock-2"></i> {{ g.total_days }}D{% if g.total_nights %}/{{ g.total_nights }}N{% endif %}</li>{% endif %}
+          {% if g.total_days %}<li id="rcMetaDuration"><i class="ti ti-clock-2"></i> {{ g.total_days }}D{% if g.total_nights %}/{{ g.total_nights }}N{% endif %}</li>{% endif %}
           {% if g.max_participants %}<li><i class="ti ti-users"></i> Max {{ g.max_participants }} pax</li>{% else %}<li><i class="ti ti-users"></i> Open pax</li>{% endif %}
           <li><i class="ti {{ 'ti-ship' if is_cruise else 'ti-route' }}"></i> {{ 'Cruise' if is_cruise else 'Tour' }}</li>
         </ul>
@@ -261,13 +269,13 @@
         <div class="rc-booking-widget">
           {# ── FLOW: Date first → Package second ── #}
           <label class="rc-field">
-            <span class="rc-field-label">{% if is_cruise %}Sailing Date{% else %}Departure date{% endif %}</span>
+            <span class="rc-field-label">{% if is_cruise %}Choose Sailing Date{% else %}Departure date{% endif %}</span>
             <div id="rcDetailGroupDate" class="rc-date-radios">
               <p class="rc-muted">Loading dates…</p>
             </div>
           </label>
           <label class="rc-field">
-            <span class="rc-field-label">Package</span>
+            <span class="rc-field-label">Select Package</span>
             <div id="rcDetailPackage" class="rc-pkg-buttons">
               <p class="rc-muted">Pick a date to see available packages.</p>
             </div>
@@ -279,7 +287,10 @@
 
           <button id="rcDetailBookBtn" class="rc-btn-primary rc-btn-disabled" disabled>Book Now</button>
           <button id="rcDetailShareBtn" class="rc-btn-share rc-btn-disabled" disabled>Share My Trip</button>
-          <p class="rc-booking-note">Charged in {{ get_company_currency() }}</p>
+          {# Currency dicaj = currency native pakej yang dipilih (setiap
+             pakej satu currency — trip_detail.js kemas kini nota ini bila
+             customer pilih pakej; default: currency listing aktif). #}
+          <p class="rc-booking-note" id="rcChargedCurrencyNote">Charged in {{ currency or get_company_currency() }}</p>
         </div>
         {% else %}
         <p class="rc-empty-inline">No upcoming departures. <a href="/trips">Browse other trips →</a></p>
@@ -319,6 +330,8 @@
   "trip_packages": {{ trip_packages_json }},
   "sailing_tgds": {{ sailing_tgds_json }},
   "company_symbol": {{ get_company_symbol()|tojson }},
+  "currency": {{ (currency or get_company_currency())|tojson }},
+  "currency_native_only": {{ "true" if currency_native_only else "false" }},
   "gallery_count": {{ gallery|length }}
 }</script>
 

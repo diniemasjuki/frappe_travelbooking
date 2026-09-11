@@ -9,9 +9,7 @@
   "footer_cb",
   "support_email",
   "copyright_text",
-  "column_break_nwnu",
   "footer_tagline",
-  "section_break_gblx",
   "footer_links",
   "social_section",
   "social_facebook",
@@ -25,7 +23,12 @@
   "chat_widget_title",
   "chat_widget_subtitle",
   "chat_widget_success_message",
+  "date_format_section",
   "date_display_format",
+  "geo_currency_section",
+  "geo_currency_enabled",
+  "geo_currency_cb",
+  "geo_currency_map",
   "tab_cruise",
   "cruise_menu_section",
   "cruise_menu",
@@ -155,6 +158,7 @@
    "label": "Common (Shared)"
   },
   {
+   "collapsible": 1,
    "fieldname": "footer_section",
    "fieldtype": "Section Break",
    "label": "Footer"
@@ -209,13 +213,14 @@
    "label": "WhatsApp URL"
   },
   {
+   "collapsible": 1,
    "fieldname": "chat_widget_section",
    "fieldtype": "Section Break",
    "label": "Floating Chat Button (Contact Form)"
   },
   {
    "default": "1",
-   "description": "Tunjukkan butang chat floating (mini contact form) pada semua page awam cruise/tour — homepage, senarai trip, product page dan booking wizard. Submission disimpan sebagai Travel Inquiry.",
+   "description": "Tunjukkan butang chat floating (mini contact form) pada semua page awam cruise/tour \u2014 homepage, senarai trip, product page dan booking wizard. Submission disimpan sebagai Travel Inquiry.",
    "fieldname": "enable_chat_widget",
    "fieldtype": "Check",
    "label": "Enable Floating Chat Button"
@@ -250,6 +255,30 @@
    "fieldtype": "Select",
    "label": "Date Display Format",
    "options": "dd MMM yyyy\ndd/mm/yyyy\ndd-mm-yyyy\ndd MMMM yyyy\nyyyy-mm-dd"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "geo_currency_section",
+   "fieldtype": "Section Break",
+   "label": "Default Currency by Location"
+  },
+  {
+   "default": "1",
+   "description": "Auto-pilih default currency listing mengikut lokasi pelawat \u2014 lookup negara dari IP (cth Malaysia \u2192 MYR, Singapore \u2192 SGD), ditambah permintaan lokasi browser SEKALI sahaja jika dibenarkan pelawat. Pelawat tetap boleh pilih currency lain; pilihan mereka sentiasa diutamakan.",
+   "fieldname": "geo_currency_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Currency Default by Geolocation"
+  },
+  {
+   "fieldname": "geo_currency_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Mapping negara \u2192 currency default untuk pelawat dari negara tersebut. Negara lain akan guna currency default syarikat (Travel Settings > Multi Currency Account).",
+   "fieldname": "geo_currency_map",
+   "fieldtype": "Table",
+   "label": "Country Currency Mapping",
+   "options": "Website Geo Currency Rule"
   },
   {
    "fieldname": "tab_cruise",
@@ -334,7 +363,7 @@
   {
    "fieldname": "cruise_featured_section",
    "fieldtype": "Section Break",
-   "label": "Featured Cruises — Section Header"
+   "label": "Featured Cruises \u2014 Section Header"
   },
   {
    "fieldname": "cruise_featured_tag",
@@ -596,7 +625,7 @@
   {
    "fieldname": "tour_featured_section",
    "fieldtype": "Section Break",
-   "label": "Featured Tours — Section Header"
+   "label": "Featured Tours \u2014 Section Header"
   },
   {
    "fieldname": "tour_featured_tag",
@@ -833,14 +862,6 @@
    "fieldtype": "Section Break"
   },
   {
-   "fieldname": "column_break_nwnu",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "section_break_gblx",
-   "fieldtype": "Section Break"
-  },
-  {
    "fieldname": "column_break_zykf",
    "fieldtype": "Column Break"
   },
@@ -883,11 +904,17 @@
   {
    "fieldname": "column_break_rrot",
    "fieldtype": "Column Break"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "date_format_section",
+   "fieldtype": "Section Break",
+   "label": "Date Format"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-09-07 00:00:00.000000",
+ "modified": "2026-09-09 13:24:42.166463",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel Website",

@@ -8,7 +8,7 @@ import frappe
 import frappe.sessions
 import json
 
-from travel_booking.api._helpers import get_company_currency
+from travel_booking.api._helpers import get_company_currency, resolve_booking_actor
 from travel_booking.utils.trip_catalog import get_ready_bundle
 
 
@@ -46,3 +46,15 @@ def get_context(context):
     context.current_user = (
         frappe.session.user if frappe.session.user != "Guest" else ""
     )
+
+    # Booking actor (fasa 1 modul booking-channel): session user dengan
+    # role "Affiliate" / "Sales User" yang layak aktifkan checkbox
+    # "Booking on behalf" di wizard — email customer boleh diisi tanpa OTP.
+    # Dikira server-side (sama corak dengan current_user di atas) dan
+    # disuntik ke pageData sebagai JSON; kosong (null) untuk Guest/user
+    # biasa — wizard tak papar checkbox langsung dalam kes tu.
+    # PENTING: ini hanya untuk PAPARAN wizard. Gate sebenar (OTP skip)
+    # disahkan SEMULA di confirm_booking() melalui resolve_booking_actor()
+    # — nilai dari client tidak pernah dipercayai begitu sahaja.
+    actor = resolve_booking_actor()
+    context.booking_actor_json = json.dumps(actor) if actor else "null"

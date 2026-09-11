@@ -81,21 +81,38 @@ def get_context(context):
     context.travellers = travellers
     
     # Preload available addons server-side (avoids separate API call & auth issues)
+    # MULTI-COMPANY: currency selector addon — param ?currency= (bebas pilih
+    # antara currency yang diisytiharkan; default = currency booking utama).
     available_addons = []
+    addon_currency = ""
+    addon_currency_symbol = ""
+    addon_currency_options = []
     try:
         from travel_booking.api.addon_manager import get_available_addons
         # Use ignore_permissions since we already verified ownership above
         frappe.flags.ignore_permissions = True
-        available_addons = get_available_addons(booking_ref)
+        addons_data = get_available_addons(
+            booking_ref, currency=_get_query_param("currency") or None
+        )
+        available_addons = addons_data.get("addons") or []
+        addon_currency = addons_data.get("currency") or ""
+        addon_currency_symbol = addons_data.get("currency_symbol") or ""
+        addon_currency_options = addons_data.get("currency_options") or []
     except Exception as e:
         frappe.log_error(title="booking_addons: load addons failed", message=e)
         available_addons = []
-    
+
+    context.addon_currency = addon_currency
+    context.addon_currency_symbol = addon_currency_symbol
+    context.addon_currency_options = addon_currency_options
     context.page_data = {
         "csrf_token": ctx.get("csrf_token", ""),
         "booking_ref": booking_ref,
         "travellers": travellers,  # Add travellers to page_data for JS
         "available_addons": available_addons,
+        "currency": addon_currency,
+        "currency_symbol": addon_currency_symbol,
+        "currency_options": addon_currency_options,
     }
 
     return context

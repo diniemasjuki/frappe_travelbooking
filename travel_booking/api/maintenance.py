@@ -1,16 +1,21 @@
 # travel_booking/api/maintenance.py
 #
 # Utility maintenance untuk admin (System Manager sahaja) — sokongan
-# operasi multi-currency model "satu Debtors multi-currency":
+# operasi model multi-currency/multi-company "paksi currency" (Travel
+# Settings > Multi Currency Account: currency -> company + price list +
+# payment accounts):
 #
-#   multi_currency_health_check()   — diagnostic READ-SAHJA: customer
-#     yang terlocked currency, akaun Receivable legacy per-currency yang
-#     masih berguna, status flag Accounts Settings, dan ringkasan
-#     konfigurasi Travel Settings.currency_accounts.
+#   multi_currency_health_check()   — diagnostic READ-SAHJA: konsistensi
+#     paksi currency (currency <-> Company.default_currency <-> Price
+#     List currency), konfigurasi payment accounts per-currency, dan
+#     SO luar-axis (currency tidak diisytiharkan).
 #
-#   clear_customer_currency_locks() — CLEANUP (write): unset
-#     Customer.default_currency untuk SEMUA customer yang terisi, supaya
-#     customer kembali currency-agnostic (boleh beli pakej MYR + SGD).
+#   list_packages_for_currency_review() — senarai Trip Package berflag
+#     price_review_required (guardrail migrasi harga).
+#
+# clear_customer_currency_locks() dihentikan — model baharu TIDAK lagi
+# memaksa/unset Customer.default_currency (customer bebas berurusan
+# dengan company berbeza ikut currency pakej yang ditempah).
 #
 # Cara panggil (bench console):
 #   from travel_booking.api.maintenance import multi_currency_health_check
@@ -27,147 +32,108 @@ import frappe
 
 @frappe.whitelist()
 def multi_currency_health_check():
-    """Diagnostic multi-currency — pulangkan report read-sahja.
+    """Diagnostic paksi currency multi-company — pulangkan report read-sahja.
 
-    Empat bahagian:
-      1. locked_customers    — Customer.default_currency terisi (patut
-         KOSONG dalam model ni; setiap satunya adalah customer yang tak
-         boleh beli pakej market lain).
-      2. legacy_fx_receivable_accounts — akaun Receivable ber-currency
-         asing (cth "Debtors SGD - DC") dari pendekatan LAMA + bilangan
-         GL Entry yang masih rujuk akaun tu (kalau 0, selamat di-abandon;
-         kalau >0, rekod sejarah — jangan padam, cuma jangan guna).
-      3. accounts_settings_flag — status "Allow multi-currency invoices
-         against single party account" (MESTI enabled untuk model ni).
-      4. currency_accounts_config — ringkasan konfigurasi per row Travel
-         Settings.currency_accounts (currency, bank, gateway, manual
-         transfer account) + amaran kalau field LEGACY receivable_account
-         terisi (diabaikan oleh code, tapi tanda konfigurasi lama).
+    Bahagian:
+      1. currency_axis — setiap baris Travel Settings.currency_accounts
+         disemak: company wujud + default_currency sepadan; price list
+         wujud + currency sepadan; payment accounts terisi (bank /
+         manual transfer paid_to / payment gateway — amaran sahaja bila
+         kosong, bukan error).
+      2. undeclared_company_currencies — Company lain dalam site yang
+         currency-nya BELUM diisytiharkan dalam axis (booking tak boleh
+         jalan untuk currency itu sehingga baris ditambah).
+      3. sos_outside_axis — Sales Order travel_booking (custom_booking
+         terisi) yang currency-nya tidak diisytiharkan dalam axis —
+         rekod sejarah dari model lama; jangan padam, cuma monitoring.
     """
     frappe.only_for("System Manager")
 
-    # 1) Customer yang terlocked currency — patut kosong.
-    locked_customers = frappe.get_all(
-        "Customer",
-        filters={"default_currency": ["is", "set"]},
-        fields=["name", "customer_name", "default_currency"],
-    )
+    from travel_booking.api.currency_axis import get_currency_axis, get_declared_currencies
 
-    # 2) Akaun Receivable ber-currency asing (legacy per-currency approach).
     default_company = frappe.db.get_single_value("Global Defaults", "default_company")
-    company_currency = (
-        frappe.get_cached_value("Company", default_company, "default_currency")
-        if default_company else "MYR"
-    )
-    legacy_accounts = []
-    if default_company:
-        fx_accounts = frappe.get_all(
-            "Account",
-            filters={
-                "account_type": "Receivable",
-                "company": default_company,
-                "is_group": 0,
-                "account_currency": ["!=", company_currency],
-            },
-            fields=["name", "account_currency"],
+    declared = get_declared_currencies()
+
+    # 1) Konsistensi setiap baris axis.
+    axis_report = []
+    for r in get_currency_axis():
+        company_currency = frappe.get_cached_value("Company", r["company"], "default_currency")
+        pl_currency = (
+            frappe.get_cached_value("Price List", r["selling_price_list"], "currency")
+            if r["selling_price_list"] else None
         )
-        for acc in fx_accounts:
-            gl_count = frappe.db.count("GL Entry", {"account": acc.name})
-            legacy_accounts.append({
-                "account":   acc.name,
-                "currency":  acc.account_currency,
-                "gl_entries": gl_count,
-                "safe_to_ignore": gl_count == 0,
-            })
-
-    # 3) Flag Accounts Settings — mesti enabled (1) untuk single-Debtors
-    #    multi-currency. None bermaksud field tak jumpa (versi ERPNext
-    #    berbeza) — perlu semak manual di Accounts Settings.
-    accounts_flag = frappe.db.get_single_value(
-        "Accounts Settings",
-        "allow_multi_currency_invoices_against_single_party_account",
-    )
-
-    # 4) Ringkasan konfigurasi currency_accounts + amaran legacy.
-    settings = frappe.get_cached_doc("Travel Settings")
-    currency_rows = []
-    for row in (settings.get("currency_accounts") or []):
-        currency_rows.append({
-            "currency": row.currency,
-            "bank_account":                  row.bank_account or "",
-            "payment_gateway_account":       row.payment_gateway_account or "",
-            "manual_transfer_paid_to_account": row.manual_transfer_paid_to_account or "",
-            # LEGACY — field receivable_account diabaikan oleh code (model
-            # single-Debtors). Kalau terisi, tanda amaran supaya admin sedar
-            # ia tak berkesan & boleh mengelirukan.
-            "legacy_receivable_account":     row.receivable_account or "",
-            "legacy_receivable_account_warning": bool(row.receivable_account),
+        issues = []
+        if company_currency != r["currency"]:
+            issues.append(
+                "Company default currency ({0}) != row currency ({1})".format(
+                    company_currency, r["currency"]
+                )
+            )
+        if r["selling_price_list"] and pl_currency != r["currency"]:
+            issues.append(
+                "Price List currency ({0}) != row currency ({1})".format(
+                    pl_currency, r["currency"]
+                )
+            )
+        if not r["bank_account"]:
+            issues.append("Bank Account not set (manual transfer display info)")
+        if not r["manual_transfer_paid_to_account"]:
+            issues.append("Manual Transfer Paid To Account not set (PE will fall back to first Bank account)")
+        if not r["payment_gateway_account"]:
+            issues.append("Payment Gateway Account not set (online payment unavailable for this currency)")
+        axis_report.append({
+            "currency": r["currency"],
+            "company": r["company"],
+            "selling_price_list": r["selling_price_list"] or "",
+            "is_default": r["is_default"],
+            "issues": issues,
+            "ok": not issues,
         })
 
-    return {
-        "status": "ok",
-        "company": default_company,
-        "company_currency": company_currency,
-        "locked_customers": {
-            "count": len(locked_customers),
-            "customers": locked_customers,
-            "action": (
-                "Run clear_customer_currency_locks() to fix."
-                if locked_customers else "OK — all customers are currency-agnostic."
-            ),
-        },
-        "legacy_fx_receivable_accounts": legacy_accounts,
-        "accounts_settings_flag": {
-            "allow_multi_currency_invoices_against_single_party_account": accounts_flag,
-            "required": 1,
-            "ok": bool(accounts_flag),
-        },
-        "currency_accounts_config": currency_rows,
-    }
+    # 2) Company dalam site yang belum diisytiharkan dalam axis.
+    undeclared = []
+    for c in frappe.get_all("Company", filters={"is_group": 0}, fields=["name", "default_currency"]):
+        if c.name == default_company:
+            continue
+        if c.default_currency and c.default_currency not in declared:
+            undeclared.append({
+                "company": c.name,
+                "currency": c.default_currency,
+                "note": "Currency not declared in Travel Settings > Multi Currency Account — packages cannot be sold in this currency until a row is added.",
+            })
 
-
-# ══════════════════════════════════════════════
-# CLEANUP (write — unset Customer.default_currency)
-# ══════════════════════════════════════════════
-
-@frappe.whitelist()
-def clear_customer_currency_locks():
-    """Unset Customer.default_currency untuk SEMUA customer yang terisi.
-
-    Idempotent — selamat panggil berulang (tiada rows = tiada perubahan).
-    update_modified=False supaya customer record tak nampak "diedit" pada
-    tarikh semasa (perubahan ni housekeeping metadata, bukan kandungan).
-
-    Kembalikan senarai customer yang dibersihkan (dengan currency lama)
-    untuk audit trail. Run multi_currency_health_check() dulu kalau nak
-    preview sebelum cleanup.
-    """
-    frappe.only_for("System Manager")
-
-    locked = frappe.get_all(
-        "Customer",
-        filters={"default_currency": ["is", "set"]},
-        fields=["name", "default_currency"],
+    # 3) SO travel_booking yang currency-nya di luar axis (rekod lama).
+    sos_outside = frappe.db.sql(
+        """
+        SELECT so.name, so.currency, so.company
+        FROM `tabSales Order` so
+        WHERE so.custom_booking IS NOT NULL
+          AND so.currency NOT IN %s
+        LIMIT 50
+        """,
+        (tuple(declared) if declared else ("__none__",),),
+        as_dict=True,
     )
 
-    for c in locked:
-        frappe.db.set_value(
-            "Customer", c.name, "default_currency", None, update_modified=False
-        )
-
-    frappe.db.commit()
-
     return {
         "status": "ok",
-        "cleared": len(locked),
-        "customers": [
-            {"name": c.name, "previous_currency": c.default_currency}
-            for c in locked
-        ],
-        "message": (
-            str(len(locked)) + " customer(s) restored to currency-agnostic."
-            if locked else "No locked customers found — nothing to clear."
-        ),
+        "default_company": default_company,
+        "declared_currencies": sorted(declared),
+        "currency_axis": {
+            "count": len(axis_report),
+            "rows": axis_report,
+            "action": (
+                "All rows OK."
+                if all(r["ok"] for r in axis_report) and axis_report
+                else "Fix rows flagged with issues in Travel Settings > Multi Currency Account."
+            ),
+        },
+        "undeclared_company_currencies": undeclared,
+        "sos_outside_axis": {
+            "count": len(sos_outside),
+            "rows": sos_outside,
+            "note": "Historical SOs from the legacy model — do not delete; informational only.",
+        },
     }
 
 

@@ -58,6 +58,15 @@
   <script id="rcCurrencyData" type="application/json">{"company_currency": "{{ get_company_currency() }}", "company_symbol": "{{ get_company_symbol() }}"}</script>
   {# Format tarikh pusat (Travel Website) untuk helper JS fmtDate. #}
   <script>window.RC_DATE_FORMAT = {{ get_website_config().date_format | tojson }};</script>
+  {# Konfigurasi default-currency-by-location (Travel Website → Default
+     Currency by Location). `currency` = currency listing yang dirender
+     server untuk page ini (kosong utk page tanpa listing cth wizard).
+     Dibaca oleh public/js/geo_currency.js: (1) sync pilihan ?currency=
+     ke cookie supaya server render pilihan user kunjungan seterusnya,
+     (2) minta lokasi browser SEKALI utk default lebih tepat. #}
+  {% set _geo = get_website_config().geo_currency or {'enabled': False, 'map': {}} %}
+  <script id="rcGeoCurrency" type="application/json">{{ {"enabled": _geo.enabled, "map": _geo.map, "currency": currency or ""} | tojson }}</script>
+  <script src="/assets/travel_booking/js/geo_currency.js?v={{ asset_v('js/geo_currency.js') }}"></script>
   {# Capture kod affiliate (?sp=) → cookie rc_aff 30 hari — attribution
      sehingga ke checkout. Dimuat di semua page awam, tak kira status widget. #}
   <script src="/assets/travel_booking/js/affiliate_capture.js?v={{ asset_v('js/affiliate_capture.js') }}"></script>

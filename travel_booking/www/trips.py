@@ -12,7 +12,27 @@ import frappe
 from travel_booking.utils.trip_catalog import get_catalog_trips, get_filter_options
 
 # nama medan penapis yang diterima dari query string
-_FILTER_KEYS = ("q", "destination", "item_group", "cruise", "date_from", "date_to", "sort")
+_FILTER_KEYS = ("q", "destination", "item_group", "cruise", "date_from", "date_to", "sort", "currency")
+
+
+def _get_currency_filter():
+    """Currency listing untuk page awam — rantaian keutamaan:
+
+    1. ?currency= param (pilihan eksplisit user)
+    2. cookie rc_currency (pilihan tersimpan — ditulis oleh
+       public/js/geo_currency.js)
+    3. default geolocation (negara dari IP pelawat: MY→MYR, SG→SGD,
+       lain-lain → currency default axis — dikawal oleh Travel Website
+       > Default Currency by Location)
+
+    Dikongsi oleh page .py lain (tour/cruise/tours/cruises + trip
+    detail) supaya logik baca/normalize berada di SATU tempat.
+    get_catalog_trips() yang meng-verify nilai (fallback currency
+    default kalau tidak diisytiharkan dalam axis).
+    """
+    from travel_booking.utils.geo_currency import resolve_website_currency
+
+    return resolve_website_currency()
 
 
 def get_context(context):
@@ -23,6 +43,12 @@ def get_context(context):
         v = frappe.form_dict.get(k)
         if v:
             filters[k] = v
+
+    # Currency listing: resolve penuh (param > cookie tersimpan > geo
+    # default) melalui pintu tunggal _get_currency_filter — bukan terus
+    # dari form_dict, supaya default geolocation dipakai bila tiada
+    # pilihan eksplisit.
+    filters["currency"] = _get_currency_filter()
 
     data = get_catalog_trips(filters)
     options = get_filter_options()
@@ -38,5 +64,9 @@ def get_context(context):
     context.active_nav = "trips"
     context.no_cache = 1
     context.title = "Trips — Rarecation"
+    # Meta currency listing (selector + simbol harga card).
+    context.currency = data["currency"]
+    context.currency_symbol = data["currency_symbol"]
+    context.currency_options = data["currency_options"]
     # Company currency/symbol tersedia sebagai kaedah Jinja (rujuk hooks.py
     # jinja.methods); guna {{ get_company_symbol() }} terus di template.

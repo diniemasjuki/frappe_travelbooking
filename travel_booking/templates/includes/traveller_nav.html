@@ -2,7 +2,7 @@
    travel_booking/templates/includes/traveller_nav.html
    Shared navigation untuk semua page /traveller/* (post-login).
    Includes: Logo, nav links, user menu dropdown (profile photo →
-   name + currency selector + logout).
+   name + logout).
    ============================================================ #}
 
 <nav class="tv-nav">
@@ -20,6 +20,14 @@
       <a href="/traveller/bookings" class="tv-nav-link{% if active_nav == 'bookings' %} on{% endif %}">
         My Bookings
       </a>
+      {# Menu on-behalf — hanya untuk manager (role dalam Travel Settings >
+         On-Behalf Booking Roles) yang benar-benar ada booking bagi pihak
+         customer lain (flag dikira server-side oleh _guard.guard_context). #}
+      {% if show_onbehalf_menu %}
+      <a href="/traveller/onbehalf" class="tv-nav-link{% if active_nav == 'onbehalf' %} on{% endif %}">
+        On-Behalf Bookings
+      </a>
+      {% endif %}
       <a href="/traveller/transactions" class="tv-nav-link{% if active_nav == 'transactions' %} on{% endif %}">
         Transactions
       </a>
@@ -44,15 +52,6 @@
         <div class="tv-user-menu-header">
           <div id="tv-menu-name" class="tv-menu-name">—</div>
           <div id="tv-menu-email" class="tv-menu-email">—</div>
-        </div>
-
-        <!-- Currency selector -->
-        <div class="tv-menu-section">
-          <span class="tv-menu-label">💱 Display Currency</span>
-          <select id="tvCurrencySelect" title="Display currency (charged in {{ get_company_currency() }})"
-                  class="tv-menu-currency">
-            <option>{{ get_company_currency() }}</option>
-          </select>
         </div>
 
         <!-- Links -->

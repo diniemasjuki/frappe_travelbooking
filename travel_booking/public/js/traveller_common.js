@@ -40,7 +40,7 @@ const fmt = (n) => parseFloat(n || 0).toLocaleString('en-MY', {
   minimumFractionDigits: 2, maximumFractionDigits: 2
 });
 
-/* ── Display currency converter (portal-wide) ── */
+/* ── Company currency (mata wang caj) daripada #rcCurrencyData ── */
 const RC = (function () {
   let companyCurrency = 'MYR', companySymbol = 'RM';
   try {
@@ -51,82 +51,11 @@ const RC = (function () {
       companySymbol = d.company_symbol || companyCurrency;
     }
   } catch {}
-  let displayCurrency = null, displaySymbol = null, displayRate = null;
-  try {
-    const raw = localStorage.getItem('rc_display_currency');
-    if (raw) {
-      const c = JSON.parse(raw);
-      if (c && c.currency && c.currency !== companyCurrency && c.rate) {
-        displayCurrency = c.currency;
-        displaySymbol = c.symbol || c.currency;
-        displayRate = Number(c.rate);
-      }
-    }
-  } catch {}
-  return { company_currency: companyCurrency, company_symbol: companySymbol,
-           display_currency: displayCurrency, display_symbol: displaySymbol,
-           display_rate: displayRate };
+  return { company_currency: companyCurrency, company_symbol: companySymbol };
 })();
 
 function fmtDual(amount, companySym) {
-  const n = fmt(amount);
-  const sym = _esc(companySym || RC.company_symbol || 'RM');
-  const base = sym + ' ' + n;
-  if (RC.display_currency && RC.display_currency !== RC.company_currency && RC.display_rate) {
-    const conv = fmt(parseFloat(amount || 0) * RC.display_rate);
-    return _esc(RC.display_symbol || RC.display_currency) + ' ' + conv + ' (' + base + ')';
-  }
-  return base;
-}
-
-async function initTravellerCurrencyConverter() {
-  const sel = document.getElementById('tvCurrencySelect');
-  if (!sel) return;
-  let list = [];
-  try {
-    list = await _get('/api/method/travel_booking.api.pricing.get_display_currencies');
-  } catch {}
-  sel.innerHTML = '';
-  if (!list || !list.length) {
-    const o = document.createElement('option');
-    o.value = RC.company_currency; o.textContent = RC.company_currency;
-    sel.appendChild(o); sel.disabled = true;
-    return;
-  }
-  list.forEach((c) => {
-    const o = document.createElement('option');
-    o.value = c.code;
-    o.textContent = c.code + (c.is_company ? ' \u2014 charged' : '');
-    sel.appendChild(o);
-  });
-  sel.value = RC.display_currency || RC.company_currency;
-  sel.addEventListener('change', async function () {
-    const code = this.value;
-    if (!code || code === RC.company_currency) {
-      RC.display_currency = null; RC.display_symbol = null; RC.display_rate = null;
-      try { localStorage.removeItem('rc_display_currency'); } catch {}
-      _tvCurrencyRefresh();
-      return;
-    }
-    try {
-      const r = await _get('/api/method/travel_booking.api.pricing.get_currency_rate?from_currency='
-        + encodeURIComponent(RC.company_currency) + '&to_currency=' + encodeURIComponent(code));
-      const rate = (r && r.rate) ? Number(r.rate) : null;
-      const sym = (list.find((c) => c.code === code) || {}).symbol || code;
-      RC.display_currency = code; RC.display_symbol = sym; RC.display_rate = rate;
-      try { localStorage.setItem('rc_display_currency', JSON.stringify({ currency: code, symbol: sym, rate })); } catch {}
-    } catch {
-      RC.display_rate = null;
-    }
-    _tvCurrencyRefresh();
-  });
-}
-
-function _tvCurrencyRefresh() {
-  if (typeof window.tvRefreshCurrency === 'function') {
-    try { window.tvRefreshCurrency(); return; } catch {}
-  }
-  window.location.reload();
+  return _esc(companySym || RC.company_symbol || 'RM') + ' ' + fmt(amount);
 }
 
 const _MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -210,14 +139,6 @@ const _post = (path, body) =>
     sessionStorage.removeItem('tv_csrf_reload');
     return d.message;
   });
-
-const _get = (path) =>
-  fetch(path, { credentials: 'include' })
-    .then(r => r.json())
-    .then(d => {
-      if (d && d.exc) throw new Error('Request failed.');
-      return d.message;
-    });
 
 /* ── Endpoint namespaces (same APIs as old portal) ── */
 const API    = (m, p = {}) => _post(`/api/method/travel_booking.api.portal_auth.${m}`, p);
@@ -417,11 +338,4 @@ function statusBadge(status, type = 'booking') {
   };
   const cls = (map[type] || {})[status] || 'neutral';
   return `<span class="tv-badge tv-badge--${cls}">${_esc(status)}</span>`;
-}
-
-/* ── Auto-init currency converter ── */
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initTravellerCurrencyConverter);
-} else {
-  initTravellerCurrencyConverter();
 }

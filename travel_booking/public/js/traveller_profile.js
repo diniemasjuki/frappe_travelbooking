@@ -19,71 +19,12 @@
     }
   }
 
-  /* ── Currency list cache (populated once per page load) ── */
-  var _currencyList = null;
-
-  async function _loadCurrencyList() {
-    if (_currencyList) return _currencyList;
-    try {
-      _currencyList = await _get(
-        '/api/method/travel_booking.api.pricing.get_display_currencies'
-      );
-    } catch {
-      _currencyList = [];
-    }
-    return _currencyList || [];
-  }
-
-  /* ── Sync converter (RC + localStorage + nav select) to a target currency ── */
-  async function _syncConverterTo(currency) {
-    var code = currency || '';
-    var company = RC.company_currency;
-
-    if (!code || code === company) {
-      RC.display_currency = null;
-      RC.display_symbol = null;
-      RC.display_rate = null;
-      try { localStorage.removeItem('rc_display_currency'); } catch {}
-    } else {
-      try {
-        var r = await _get(
-          '/api/method/travel_booking.api.pricing.get_currency_rate?from_currency='
-          + encodeURIComponent(company) + '&to_currency=' + encodeURIComponent(code)
-        );
-        var rate = (r && r.rate) ? Number(r.rate) : null;
-        var list = await _loadCurrencyList();
-        var sym = (list.find(function (c) { return c.code === code; }) || {}).symbol || code;
-        RC.display_currency = code;
-        RC.display_symbol = sym;
-        RC.display_rate = rate;
-        try {
-          localStorage.setItem('rc_display_currency',
-            JSON.stringify({ currency: code, symbol: sym, rate: rate }));
-        } catch {}
-      } catch {
-        RC.display_rate = null;
-      }
-    }
-
-    var navSel = document.getElementById('tvCurrencySelect');
-    if (navSel) navSel.value = code || company;
-  }
-
   async function loadProfile() {
     var loading = document.getElementById('profile-loading');
     var content = document.getElementById('profile-content');
 
     try {
       var data = await API_PF('get_profile', {});
-
-      /* Sync converter dengan server preference (source of truth across
-         devices). Kalau server ada preference yang berbeza dari localStorage,
-         update localStorage + RC + nav select. */
-      var svCurr = data.display_currency || '';
-      var lsCurr = RC.display_currency || '';
-      if (svCurr !== lsCurr) {
-        await _syncConverterTo(svCurr);
-      }
 
       if (loading) loading.style.display = 'none';
       if (content) {
@@ -148,37 +89,7 @@
     html += '</div>'; // card
 
     /* ══════════════════════════════════════
-       SECTION B: DISPLAY CURRENCY
-       ══════════════════════════════════════ */
-    var companyCur = _esc(RC.company_currency || 'MYR');
-    var savedCur = _esc(data.display_currency || '');
-    var activeCur = savedCur || (RC.display_currency || '');
-
-    html += '<div class="tv-card tv-animate-in">';
-    html += '<div class="tv-sec">💱 Display Currency</div>';
-    html += '<p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;line-height:1.6;">';
-    html += 'All amounts are charged in <strong>' + companyCur + '</strong>. ';
-    html += 'Choose a display currency to see approximate converted amounts ';
-    html += 'alongside your billing currency. Conversion is for display only — ';
-    html += 'your card is always charged in ' + companyCur + '.</p>';
-
-    html += '<div class="tv-form-group">';
-    html += '<label class="tv-label" for="pf-currency">Display Currency</label>';
-    html += '<select id="pf-currency" class="tv-input" style="cursor:pointer;padding:10px 12px;">';
-    html += '<option value="' + companyCur + '">' + companyCur + ' — Charged currency</option>';
-    html += '</select>';
-    html += '</div>';
-
-    html += '<div id="pf-currency-rate" style="font-size:12px;color:var(--text-muted);margin-bottom:12px;"></div>';
-
-    html += '<div style="display:flex;gap:10px;">';
-    html += '<button type="button" id="pf-currency-btn" class="tv-btn tv-btn--primary tv-btn--sm">Save Preference</button>';
-    html += '</div>';
-
-    html += '</div>'; // card
-
-    /* ══════════════════════════════════════
-       SECTION C: SECURITY (CHANGE PASSWORD)
+       SECTION B: SECURITY (CHANGE PASSWORD)
        ══════════════════════════════════════ */
     html += '<div class="tv-card tv-animate-in">';
     html += '<div class="tv-sec">🔒 Change Password</div>';
@@ -206,7 +117,7 @@
     html += '</div>'; // card
 
     /* ══════════════════════════════════════
-       SECTION D: PDPA DATA RIGHTS
+       SECTION C: PDPA DATA RIGHTS
        ══════════════════════════════════════ */
     html += '<div class="tv-card tv-animate-in">';
     html += '<div class="tv-sec">🛡️ Your Data Rights (PDPA)</div>';
@@ -235,87 +146,8 @@
     return html;
   }
 
-  /* ── Display Currency: populate dropdown + wire save ── */
-  async function _initCurrencySection() {
-    var sel = document.getElementById('pf-currency');
-    var rateEl = document.getElementById('pf-currency-rate');
-    var btn = document.getElementById('pf-currency-btn');
-    if (!sel || !btn) return;
-
-    var company = RC.company_currency || 'MYR';
-    var list = await _loadCurrencyList();
-
-    /* Populate options: company currency first, then the rest */
-    sel.innerHTML = '';
-    list.forEach(function (c) {
-      var o = document.createElement('option');
-      o.value = c.code;
-      o.textContent = c.code + ' — ' + _esc(c.name || c.code)
-        + (c.is_company ? ' (charged)' : '');
-      sel.appendChild(o);
-    });
-
-    if (!list.length) {
-      var o = document.createElement('option');
-      o.value = company; o.textContent = company;
-      sel.appendChild(o);
-      sel.disabled = true;
-      btn.disabled = true;
-      return;
-    }
-
-    /* Set current value: server preference → localStorage → company */
-    sel.value = RC.display_currency || company;
-
-    /* Show rate info for the currently-selected non-company currency */
-    function _showRate() {
-      if (!rateEl) return;
-      var code = sel.value;
-      if (!code || code === company) {
-        rateEl.textContent = '';
-        return;
-      }
-      if (RC.display_currency === code && RC.display_rate) {
-        rateEl.textContent = 'Rate: 1 ' + company + ' = '
-          + fmt(RC.display_rate) + ' ' + code
-          + ' (indicative, for_selling)';
-      } else {
-        rateEl.textContent = 'Rate will be fetched when you save.';
-      }
-    }
-    _showRate();
-
-    sel.addEventListener('change', _showRate);
-
-    btn.addEventListener('click', async function () {
-      var code = sel.value;
-      btn.disabled = true;
-      btn.textContent = 'Saving...';
-
-      try {
-        var result = await API_PF('set_display_currency', { currency: code });
-        /* Sync converter (localStorage + RC + nav select) with new preference */
-        await _syncConverterTo(result.display_currency || '');
-        if (rateEl) _showRate();
-
-        showInlineError('profile-success',
-          result.message || 'Display currency preference saved.');
-        showToast('Currency preference saved!', 'success');
-      } catch (e) {
-        showInlineError('profile-error',
-          e.message || 'Failed to save currency preference.');
-      }
-
-      btn.disabled = false;
-      btn.textContent = 'Save Preference';
-    });
-  }
-
   /* ── Wire up all form actions ── */
   function wireProfileActions() {
-    /* Display Currency — populate list + wire save */
-    _initCurrencySection();
-
     /* Phone Edit Toggle */
     var editBtn = document.getElementById('btn-edit-phone');
     var cancelBtn = document.getElementById('btn-cancel-phone');

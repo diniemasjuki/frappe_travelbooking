@@ -1,0 +1,76 @@
+{# ============================================================
+   travel_booking/templates/includes/currency_selector.html
+
+   SELECTOR CURRENCY AWAM (paksi multi-company) — boleh include di
+   mana-mana page listing/detail. Pilihan currency = pilihan company
+   yang mengeluarkan bil (MYR=HQ, SGD=Branch SG, IDR=Branch ID).
+
+   Variable jinja (diperlukan):
+     currency         — currency aktif (string, cth "MYR")
+     currency_options — list [{currency, symbol, company, is_default}]
+                        (dari api.currency_axis.get_currency_options)
+
+   Behavior JS (rc-currency-select):
+     - tukar pilihan → simpan localStorage["rc_currency"] + reload page
+       dengan ?currency=XXX dipush ke URL (render kekal server-side).
+       Semasa reload tu, public/js/geo_currency.js turut simpan pilihan
+       sebagai cookie rc_currency — supaya server render pilihan user
+       pada kunjungan seterusnya tanpa reload bootstrap.
+   ============================================================ #}
+{% if currency_options and currency_options|length > 1 %}
+<div class="rc-currency-selector">
+  <label for="rc-currency-select" class="rc-currency-label">
+    <i class="ti ti-currency-dollar"></i> Currency
+  </label>
+  <select id="rc-currency-select" class="rc-currency-select">
+    {% for o in currency_options %}
+    <option value="{{ o.currency }}" {% if o.currency == currency %}selected{% endif %}>
+      {{ o.symbol }} — {{ o.currency }}
+    </option>
+    {% endfor %}
+  </select>
+</div>
+<style>
+.rc-currency-selector{display:inline-flex;align-items:center;gap:.5rem;}
+.rc-currency-selector .rc-currency-label{font-size:.85rem;color:inherit;opacity:.85;display:inline-flex;align-items:center;gap:.25rem;}
+.rc-currency-selector .rc-currency-select{
+  padding:.4rem 2rem .4rem .75rem;border-radius:.5rem;border:1px solid rgba(255,255,255,.35);
+  background:rgba(255,255,255,.12);color:inherit;font-size:.9rem;cursor:pointer;outline:none;
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right .6rem center;
+}
+.rc-currency-selector .rc-currency-select option{color:#111;}
+</style>
+<script>
+(function () {
+  var sel = document.getElementById("rc-currency-select");
+  if (!sel) return;
+  // Prefill dari localStorage jika URL tiada ?currency= (server sudah
+  // fallback ke default) — hanya relevan kali pertama sampai ke page.
+  try {
+    if (!new URLSearchParams(window.location.search).get("currency")) {
+      var saved = window.localStorage.getItem("rc_currency");
+      if (saved && saved !== sel.value) {
+        // reload sekali dengan currency tersimpan (guard flag elak loop)
+        if (!window.__rc_currency_bootstrapped) {
+          window.__rc_currency_bootstrapped = true;
+          var u = new URL(window.location.href);
+          u.searchParams.set("currency", saved);
+          window.location.replace(u.toString());
+          return;
+        }
+      }
+    }
+  } catch (e) { /* storage blocked — biar default */ }
+
+  sel.addEventListener("change", function () {
+    var c = sel.value;
+    try { window.localStorage.setItem("rc_currency", c); } catch (e) {}
+    var u = new URL(window.location.href);
+    u.searchParams.set("currency", c);
+    window.location.href = u.toString();
+  });
+})();
+</script>
+{% endif %}

@@ -1,0 +1,54 @@
+{
+ "actions": [],
+ "creation": "2026-09-09 17:30:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "role",
+  "booking_channel",
+  "access_level"
+ ],
+ "fields": [
+  {
+   "fieldname": "role",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Role",
+   "options": "Role",
+   "reqd": 1
+  },
+  {
+   "default": "Affiliate",
+   "description": "Channel yang direkodkan pada Booking.booking_channel bila user dengan role ini buat booking on-behalf. Affiliate = rakan kongsi (commission-oriented); Staff = staf jualan dalaman.",
+   "fieldname": "booking_channel",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Booking Channel",
+   "options": "Affiliate\nStaff",
+   "reqd": 1
+  },
+  {
+   "default": "Full",
+   "description": "Tahap akses urusan booking on-behalf bagi user dengan role ini: View = lihat status/trip/billing sahaja; Docs = + urus maklumat & dokumen traveller; Full = + bayaran (Pay Now/resit manual) dan muat turun resit/invois. User dengan berbilang role mendapat tahap TERTINGGI antara role tersebut.",
+   "fieldname": "access_level",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Access Level",
+   "options": "View\nDocs\nFull",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-09 17:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Travel On Behalf Role",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -24,14 +24,13 @@ class Trip(Document):
 
 		description: DF.TextEditor | None
 		destination_list: DF.TableMultiSelect[TripDestinationPointSelect]
-		domain: DF.Data | None
 		facilities: DF.Table[TripFacility]
 		faqs: DF.Table[TripFAQ]
+		featured_trip: DF.Check
 		features: DF.Table[TripFeature]
 		highlights: DF.Table[TripHighlight]
 		is_a_cruise_trip: DF.Check
 		itinerary: DF.Table[TripItinerary]
-		logo_organizer: DF.AttachImage | None
 		naming_series: DF.Literal["TRIP.YY.##"]
 		published: DF.Check
 		route: DF.Data | None
@@ -72,8 +71,13 @@ class Trip(Document):
 		import json
 
 		from travel_booking.utils.trip_catalog import get_trip_detail
+		from travel_booking.www.trips import _get_currency_filter
 
-		d = get_trip_detail(self.name)
+		# Currency pilihan customer (?currency=SGD) — menapis pakej & harga
+		# ikut currency itu; fallback native kalau trip tiada pakej dalam
+		# currency tersebut (currency_native_only).
+		currency = _get_currency_filter()
+		d = get_trip_detail(self.name, currency=currency)
 		group_dates_raw = d["group_dates"]
 		is_cruise = d["is_cruise"]
 
@@ -87,6 +91,12 @@ class Trip(Document):
 		context.starting_from_price = d["starting_from_price"]
 		context.destinations = d["destinations"]
 		context.is_cruise = d["is_cruise"]
+		# Meta currency page detail — currency aktif + fallback flag +
+		# pilihan selector (axis).
+		context.currency = d.get("currency")
+		context.currency_native_only = d.get("currency_native_only")
+		from travel_booking.api.currency_axis import get_currency_options
+		context.currency_options = get_currency_options()
 		# Breadcrumb "Trips" dinamik mengikut jenis produk ini: cruise →
 		# Cruises (/cruises); tour → Tours (/tours).
 		context.trips_crumb = (
@@ -346,4 +356,102 @@ class Trip(Document):
 
 	def validate(self):
 		pass
-		
+
+	def on_update(self):
+		"""Propagate trip_name & package_title ke semua linked doctypes apabila berubah."""
+		if self.has_value_changed("trip_name"):
+			self._propagate_trip_name()
+			self._propagate_package_title()
+
+	def _propagate_trip_name(self):
+		"""Push trip_name terkini ke semua rekod yang link ke Trip ini.
+
+		Linked doctypes:
+		- Trip Package       (link: trip_link)
+		- Trip Group Date    (link: trip)
+		- Trip Cruise Schedule (link: trip_link)
+		"""
+		new_name = self.trip_name
+		linked = [
+			("Trip Package", "trip_link"),
+			("Trip Group Date", "trip"),
+			("Trip Cruise Schedule", "trip_link"),
+		]
+
+		for doctype, link_field in linked:
+			try:
+				frappe.db.sql(
+					f"""UPDATE `tab{doctype}`
+						SET trip_name = %s
+						WHERE `{link_field}` = %s AND (trip_name IS NULL OR trip_name != %s)""",
+					(new_name, self.name, new_name),
+				)
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(),
+					f"Trip: Failed to propagate trip_name to {doctype} for {self.name}",
+				)
+
+	def _propagate_package_title(self):
+		"""Regenerate package_title untuk semua Trip Package yang link ke Trip ini.
+
+		package_title format: "{trip_name} : {package_type} : {airport_or_currency}"
+		Dipanggil bila trip_name berubah supaya package_title sentiasa sync.
+		"""
+		new_trip_name = self.trip_name
+
+		try:
+			# Dapatkan semua Trip Package yang link ke Trip ini
+			packages = frappe.db.sql(
+				"""SELECT name, package_type, airport_form, currency
+				   FROM `tabTrip Package`
+				   WHERE trip_link = %s""",
+				(self.name,),
+				as_dict=True,
+			)
+
+			for pkg in packages:
+				try:
+					# Generate package_type code (same logic as Trip Package validate())
+					pt = pkg.package_type or ""
+					if pt == "Fly Cruise":
+						pt_code = "FC"
+					elif pt == "Cruise Only":
+						pt_code = "CO"
+					elif pt == "Fly Package":
+						pt_code = "FP"
+					elif pt == "Ground Only":
+						pt_code = "GP"
+					elif pt == "Customed":
+						pt_code = "CU"
+					else:
+						pt_code = ""
+
+					# Determine airport/currency suffix (same logic as Trip Package)
+					if pt_code in ("CO", "GP"):
+						airport = pkg.currency or "MYR"
+					else:
+						airport = pkg.airport_form or ""
+
+					# Regenerate package_title
+					new_title = f"{new_trip_name or ''} : {pkg.package_type or ''} : {airport}"
+
+					# Update only if changed
+					frappe.db.sql(
+						"""UPDATE `tabTrip Package`
+						   SET package_title = %s
+						   WHERE name = %s AND (package_title IS NULL OR package_title != %s)""",
+						(new_title, pkg.name, new_title),
+					)
+				except Exception:
+					frappe.log_error(
+						frappe.get_traceback(),
+						f"Trip: Failed to update package_title for Trip Package {pkg.name}",
+					)
+
+		except Exception:
+			frappe.log_error(
+				frappe.get_traceback(),
+				f"Trip: Failed to propagate package_title for {self.name}",
+			)
+			

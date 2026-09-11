@@ -58,6 +58,18 @@
           <option value="duration" {% if active.sort == 'duration' %}selected{% endif %}>Duration (longest)</option>
         </select>
       </label>
+      {# Currency listing (paksi multi-company) — menapis pakej & harga
+         yang dipaparkan. #}
+      {% if currency_options and currency_options|length > 1 %}
+      <label class="rc-field">
+        <span class="rc-field-label">Currency</span>
+        <select name="currency" onchange="this.form.submit()">
+          {% for o in currency_options %}
+          <option value="{{ o.currency }}" {% if o.currency == currency %}selected{% endif %}>{{ o.symbol }} {{ o.currency }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endif %}
       <div class="rc-filter-actions">
         <button type="submit" class="rc-btn-primary"><i class="ti ti-search"></i> Search</button>
         <a href="/tours" class="rc-btn-ghost">Reset</a>

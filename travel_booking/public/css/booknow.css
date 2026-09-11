@@ -141,34 +141,6 @@ body:has(.bnw-main) .rc-public-main {
 }
 
 /* ══════════════════════════════════════════
-   CURRENCY BAR
-   ══════════════════════════════════════════ */
-.bnw-currency-bar {
-  background: var(--bnw-dark);
-  color: var(--bnw-gold);
-  padding: 10px 0;
-  font-size: 13px;
-}
-.bnw-currency-bar .bnw-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.bnw-currency-label { font-weight: 500; }
-.bnw-currency-select {
-  background: transparent;
-  border: 1px solid var(--bnw-gold-border);
-  color: var(--bnw-gold);
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-family: var(--font-body);
-  font-size: 13px;
-  cursor: pointer;
-  width:unset;
-}
-.bnw-currency-note { margin-left: auto; font-size: 12px; }
-
-/* ══════════════════════════════════════════
    SECTIONS
    ══════════════════════════════════════════ */
 .bnw-section {
@@ -1647,3 +1619,56 @@ body:has(.bnw-main) .rc-public-main {
   .bnw-otp-row { flex-direction: column; }
   .bnw-input-otp { max-width: 100%; }
 }
+
+/* ── Booking on behalf (fasa 1 modul booking-channel) ──────────────
+   Toggle untuk session user dengan role Affiliate / Sales User — bila
+   aktif, email customer boleh diisi tanpa OTP (kelayakan disahkan
+   semula server-side di confirm_booking). */
+.bnw-onbehalf {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--bnw-cream, #F7F5F0);
+  border: 1.5px solid var(--bnw-gold-border, rgba(201,168,76,.3));
+  border-radius: var(--bnw-radius-sm, 8px);
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 20px;
+}
+.bnw-onbehalf--active {
+  background: var(--bnw-gold-light, rgba(201,168,76,.12));
+  border-color: var(--bnw-gold, #C9A84C);
+}
+.bnw-onbehalf input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--bnw-gold, #C9A84C);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.bnw-onbehalf-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.bnw-onbehalf-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--bnw-text, #1E1C18);
+}
+.bnw-onbehalf-title .ti {
+  color: var(--bnw-gold, #C9A84C);
+  margin-right: 4px;
+}
+.bnw-onbehalf-sub {
+  font-size: 12px;
+  color: var(--bnw-text-muted, #6E6A5F);
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+/* Status line "No verification needed" semasa on-behalf aktif */
+.bnw-email-status--onbehalf { color: var(--bnw-gold-hover, #B8983F); }

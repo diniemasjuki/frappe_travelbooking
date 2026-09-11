@@ -79,6 +79,8 @@
           <h2 style="font-size:18px;color:#1E1C18;margin:0 0 4px;">Add-on Catalog</h2>
           <p style="font-size:13px;color:#7D7A70;margin:0 0 16px;">Select extras to enhance your trip experience</p>
         </div>
+        <!-- Currency selector (multi-company axis; populated by JS) -->
+        <div id="addon-currency-bar"></div>
         <!-- Filter bar (populated by JS) -->
         <div id="filter-bar"></div>
         <!-- Addon list -->
@@ -99,7 +101,7 @@
           </div>
           <div id="summary-total" style="display:none;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:16px;border-top:1px solid #E5E0D5;">
-              <strong style="font-size:18px;color:#C47900;">Total: RM<span id="total-amount">0.00</span></strong>
+              <strong style="font-size:18px;color:#C47900;">Total: <span id="total-sym">RM</span><span id="total-amount">0.00</span></strong>
             </div>
             <button onclick="proceedToCheckout()" class="tv-btn tv-btn--primary" style="width:100%;margin-top:12px;background:#C47900;color:white;border:none;padding:12px;border-radius:8px;cursor:pointer;font-weight:600;" id="checkout-btn" disabled>
               Proceed to Checkout
@@ -124,6 +126,10 @@ var availableAddons = [];
 var bookingRef = '';
 var travellers = [];
 var activeFilter = 'All';
+// MULTI-COMPANY: currency rate addon aktif + pilihan tersedia (axis).
+var addonCurrency = '';
+var addonCurrencySymbol = '';
+var addonCurrencyOptions = [];
 
 document.addEventListener('DOMContentLoaded', function() {
   var dataEl = document.getElementById('pageData');
@@ -142,6 +148,11 @@ document.addEventListener('DOMContentLoaded', function() {
       }).catch(function(err) { console.warn('Session init failed:', err); });
     }
     
+    addonCurrency = pd.currency || '';
+    addonCurrencySymbol = pd.currency_symbol || '';
+    addonCurrencyOptions = pd.currency_options || [];
+    renderAddonCurrencyBar();
+
     if (pd.available_addons && Array.isArray(pd.available_addons)) {
       availableAddons = pd.available_addons;
       renderFilterBar();
@@ -172,8 +183,18 @@ function loadAvailableAddons() {
     return response.json();
   })
   .then(function(result) {
-    if (result.message && Array.isArray(result.message)) {
-      availableAddons = result.message;
+    var msg = result.message;
+    // Resp baharu: {addons, currency, currency_symbol, currency_options}
+    if (msg && Array.isArray(msg.addons)) {
+      availableAddons = msg.addons;
+      addonCurrency = msg.currency || addonCurrency;
+      addonCurrencySymbol = msg.currency_symbol || addonCurrencySymbol;
+      addonCurrencyOptions = msg.currency_options || addonCurrencyOptions;
+      renderAddonCurrencyBar();
+      renderFilterBar();
+      renderAddonCatalog(availableAddons);
+    } else if (Array.isArray(msg)) {  // backward-compat resp lama
+      availableAddons = msg;
       renderFilterBar();
       renderAddonCatalog(availableAddons);
     } else { showEmptyState(); }
@@ -290,14 +311,14 @@ function renderAddonCatalog(addons) {
         html += '<label onclick="selectVariant(\'' + escapeAttr(addon.addon) + '\', ' + idx + ')" style="display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:6px;background:' + (isSelected ? '#FFFBF5' : 'white') + ';border:1px solid ' + (isSelected ? '#C47900' : '#E5E0D5') + ';cursor:' + (disabled ? 'not-allowed' : 'pointer') + ';font-size:12px;' + (disabled ? 'opacity:0.5;' : '') + '" id="variant-' + escapeAttr(addon.addon) + '-' + idx + '">';
         html += '<input type="radio" name="variant-' + escapeAttr(addon.addon) + '" value="' + escapeAttr(pkg.addon_package) + '"' + (isSelected ? ' checked' : '') + (disabled ? ' disabled' : '') + ' style="margin:0;display:none;">';
         html += escapeHtml(label);
-        html += ' <span style="color:#C47900;font-weight:600;">RM' + formatPrice(pkg.unit_price) + '</span>';
+        html += ' <span style="color:#C47900;font-weight:600;">' + addonSym() + ' ' + formatPrice(pkg.unit_price) + '</span>';
         if (pkg.sold_out) html += ' <span style="color:#DC2626;font-size:10px;">Sold Out</span>';
         html += '</label>';
       });
       html += '</div></div>';
     } else {
       // Single package — just show price
-      html += '<div style="font-size:17px;font-weight:700;color:#C47900;margin-bottom:4px;">RM' + formatPrice(firstPkg.unit_price) + ' <span style="font-size:12px;color:#7D7A70;font-weight:400;">' + (firstPerPax ? 'per person' : 'per booking') + '</span></div>';
+      html += '<div style="font-size:17px;font-weight:700;color:#C47900;margin-bottom:4px;">' + addonSym() + ' ' + formatPrice(firstPkg.unit_price) + ' <span style="font-size:12px;color:#7D7A70;font-weight:400;">' + (firstPerPax ? 'per person' : 'per booking') + '</span></div>';
       if (firstPkg.sold_out || firstPkg.cutoff_closed) {
         html += '<span style="font-size:12px;padding:3px 8px;border-radius:4px;background:#FEF2F2;color:#DC2626;font-weight:500;">' + (firstPkg.sold_out ? 'Sold Out' : 'Sales Closed') + '</span>';
       } else if (firstPkg.remaining !== null && firstPkg.remaining <= 5) {
@@ -307,7 +328,7 @@ function renderAddonCatalog(addons) {
 
     // Dynamic price display (updates when variant changes)
     if (hasMultiplePackages) {
-      html += '<div id="price-' + escapeAttr(addon.addon) + '" style="font-size:17px;font-weight:700;color:#C47900;margin-bottom:4px;">RM' + formatPrice(firstPkg.unit_price) + ' <span style="font-size:12px;color:#7D7A70;font-weight:400;">' + (firstPerPax ? 'per person' : 'per booking') + '</span></div>';
+      html += '<div id="price-' + escapeAttr(addon.addon) + '" style="font-size:17px;font-weight:700;color:#C47900;margin-bottom:4px;">' + addonSym() + ' ' + formatPrice(firstPkg.unit_price) + ' <span style="font-size:12px;color:#7D7A70;font-weight:400;">' + (firstPerPax ? 'per person' : 'per booking') + '</span></div>';
     }
 
     // Traveller selection (for Per Pax)
@@ -379,7 +400,7 @@ function selectVariant(addonId, index) {
   // Update price display
   var priceEl = document.getElementById('price-' + addonId);
   if (priceEl) {
-    priceEl.innerHTML = 'RM' + formatPrice(pkg.unit_price) + ' <span style="font-size:12px;color:#7D7A70;font-weight:400;">' + (isPerPax ? 'per person' : 'per booking') + '</span>';
+    priceEl.innerHTML = addonSym() + ' ' + formatPrice(pkg.unit_price) + ' <span style="font-size:12px;color:#7D7A70;font-weight:400;">' + (isPerPax ? 'per person' : 'per booking') + '</span>';
   }
   
   // Show/hide traveller selection based on scope
@@ -549,7 +570,7 @@ function updateSelectionSummary() {
     html += '<div>';
     html += '<div style="font-weight:600;font-size:13px;">' + escapeHtml(item.addon_title) + '</div>';
     if (item.scope === 'Per Pax' && item.travellers.length > 0) {
-      html += '<div style="font-size:11px;color:#7D7A70;">' + item.travellers.length + ' x RM' + formatPrice(item.unit_price) + '</div>';
+      html += '<div style="font-size:11px;color:#7D7A70;">' + item.travellers.length + ' x ' + addonSym() + formatPrice(item.unit_price) + '</div>';
       var names = item.travellers.map(function(tName) {
         var t = travellers.find(function(t) { return t.name === tName; });
         return t ? (t.traveller_full_name || t.guest_label || '') : '';
@@ -560,11 +581,11 @@ function updateSelectionSummary() {
         html += '</div>';
       }
     } else {
-      html += '<div style="font-size:11px;color:#7D7A70;">1 x RM' + formatPrice(item.unit_price) + '</div>';
+      html += '<div style="font-size:11px;color:#7D7A70;">1 x ' + addonSym() + ' ' + formatPrice(item.unit_price) + '</div>';
     }
     html += '</div>';
     html += '<div style="display:flex;align-items:center;gap:8px;">';
-    html += '<strong style="color:#C47900;font-size:13px;">RM' + formatPrice(lineTotal) + '</strong>';
+    html += '<strong style="color:#C47900;font-size:13px;">' + addonSym() + ' ' + formatPrice(lineTotal) + '</strong>';
     html += '<button onclick="removeFromCart(\'' + escapeAttr(key) + '\')" style="background:none;border:none;color:#DC2626;cursor:pointer;font-size:16px;padding:0 4px;">x</button>';
     html += '</div>';
     html += '</div>';
@@ -572,6 +593,8 @@ function updateSelectionSummary() {
   
   itemsDiv.innerHTML = html;
   totalEl.textContent = formatPrice(total);
+  var totalSymEl = document.getElementById('total-sym');
+  if (totalSymEl) totalSymEl.textContent = addonSym() + ' ';
   checkoutBtn.disabled = false;
 }
 
@@ -691,7 +714,9 @@ function proceedToCheckout() {
   fetch('/api/method/travel_booking.api.addon_manager.checkout_addons', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': csrfToken },
-    body: JSON.stringify({ booking_number: bookingRef, lines: JSON.stringify(lines) })
+    // MULTI-COMPANY: currency rate aktif dihantar — server re-validate +
+    // re-price sepenuhnya dari Currency Rates (jangan percaya client).
+    body: JSON.stringify({ booking_number: bookingRef, lines: JSON.stringify(lines), currency: addonCurrency || undefined })
   })
   .then(function(response) { return response.json(); })
   .then(function(result) {
@@ -733,6 +758,29 @@ function showError(message) {
 }
 
 function formatPrice(price) { return parseFloat(price || 0).toFixed(2); }
+
+// ── MULTI-COMPANY: currency rate addon (paksi) ──
+function addonSym() { return addonCurrencySymbol || addonCurrency || 'RM'; }
+function renderAddonCurrencyBar() {
+  var slot = document.getElementById('addon-currency-bar');
+  if (!slot) return;
+  if (!addonCurrencyOptions || addonCurrencyOptions.length < 2) { slot.innerHTML = ''; return; }
+  var html = '<div style="display:flex;align-items:center;gap:8px;margin:0 0 14px;font-size:12px;color:#7D7A70;">'
+    + '<i class="ti ti-currency-dollar"></i> Prices in '
+    + '<select id="addon-currency-select" style="padding:5px 26px 5px 10px;border:1px solid #E5E0D5;border-radius:7px;font-size:12px;background:#fff;">';
+  addonCurrencyOptions.forEach(function(o) {
+    html += '<option value="' + escapeAttr(o.currency) + '"' + (o.currency === addonCurrency ? ' selected' : '') + '>'
+      + escapeHtml(o.symbol) + ' ' + escapeHtml(o.currency) + '</option>';
+  });
+  html += '</select><span style="font-size:11px;color:#B0AC9F;">\u2014 billed by the company for this currency</span></div>';
+  slot.innerHTML = html;
+  var sel = document.getElementById('addon-currency-select');
+  if (sel) sel.addEventListener('change', function() {
+    var u = new URL(window.location.href);
+    u.searchParams.set('currency', sel.value);
+    window.location.href = u.toString();
+  });
+}
 
 function escapeHtml(text) {
   if (!text) return '';

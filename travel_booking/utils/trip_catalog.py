@@ -235,21 +235,27 @@ def _enrich_trips(trips: list) -> None:
 		t["destinations"] = dest_map.get(t.name, [])
 
 
-def _add_starting_price(trips: list) -> None:
+def _add_starting_price(trips: list, currency: str | None = None) -> None:
 	"""Harga terendah "from" setiap trip = MIN price_adult merentasi SEMUA
-	package Active trip tu. SEMUA harga dalam company currency (senibina
-	sedia ada). None kalau tiada pricing."""
+	package Active trip tu, DALAM currency yang diberi (model multi-currency:
+	harga pakej disimpan dalam currency native pakej). None kalau tiada
+	pricing dalam currency itu. Currency None = tiada tapisan currency
+	(behavior lama, merentasi semua currency — JANGAN guna untuk listing
+	yang menapis ikut currency, harga akan bercampur)."""
 	if not trips:
 		return
+	cond = ""
+	if currency:
+		cond = "AND tp.currency = %(currency)s"
 	rows = frappe.db.sql(
 		"""
 		SELECT tp.trip_link AS trip, MIN(pr.price_adult) AS min_price
 		FROM `tabTrip Package` tp
 		JOIN `tabTrip Package Price` pr ON pr.parent = tp.name
-		WHERE tp.trip_link IN %(names)s AND tp.status = 'Active'
+		WHERE tp.trip_link IN %(names)s AND tp.status = 'Active' {cond}
 		GROUP BY tp.trip_link
-		""",
-		{"names": [t.name for t in trips]},
+		""".format(cond=cond),
+		{"names": [t.name for t in trips], "currency": currency},
 		as_dict=True,
 	)
 	price_map = {r.trip: (float(r.min_price) if r.min_price else None) for r in rows}
@@ -292,11 +298,25 @@ def get_catalog_trips(filters: dict | None = None) -> dict:
 	    date_from    — tarikh mula (YYYY-MM-DD)
 	    date_to      — tarikh tamat (YYYY-MM-DD)
 	    sort         — "date" | "price" | "duration" (default "date")
+	    currency     — currency pilihan customer (paksi multi-currency):
+	                   trip yang TIADA pakej Active dalam currency ini
+	                   DITAPIS KELUAR (keputusan product: filter, bukan
+	                   badge). Default: currency company default
+	                   (behavior hari ini).
 	"""
 	filters = filters or {}
+
+	# Currency listing: default = currency company default (axis). Bukan
+	# rahsia — selector awam menghantar ?currency=SGD dsb.
+	from travel_booking.api.currency_axis import get_default_currency, get_currency_options
+	currency = (filters.get("currency") or "").strip().upper()
+	declared = {o["currency"] for o in get_currency_options()}
+	if not currency or currency not in declared:
+		currency = get_default_currency()
+
 	trips, trip_group_dates, trip_packages, trip_is_cruise = get_ready_bundle()
 	_enrich_trips(trips)
-	_add_starting_price(trips)
+	_add_starting_price(trips, currency)
 	_add_next_departure(trips, trip_group_dates)
 
 	q = (filters.get("q") or "").strip()
@@ -343,6 +363,12 @@ def get_catalog_trips(filters: dict | None = None) -> dict:
 		if not _trip_matches(t):
 			trip_group_dates.pop(t.name, None)
 			continue
+		# Penapis currency (paksi multi-currency): trip tanpa pakej Active
+		# dalam currency pilihan DISEMBUNYIKAN — harga "from" tiada makna
+		# dalam currency itu dan booking tak boleh jana SO company betul.
+		if currency and t.get("starting_from_price") is None:
+			trip_group_dates.pop(t.name, None)
+			continue
 		# tapis group dates ikut julat tarikh
 		gs = [g for g in (trip_group_dates.get(t.name) or []) if _date_in_range(g)]
 		if date_from or date_to:
@@ -374,10 +400,12 @@ def get_catalog_trips(filters: dict | None = None) -> dict:
 	else:  # "date"
 		trips.sort(key=lambda t: t.get("next_departure") or "9")
 
-	company_currency = get_company_currency()
-	company_symbol = (
-		frappe.db.get_value("Currency", company_currency, "symbol") or company_currency
+	# Meta currency listing — currency yang DIPILIH (paksi), bukan company
+	# currency global. trip_card / template guna ni untuk simbol harga.
+	currency_symbol = (
+		frappe.db.get_value("Currency", currency, "symbol") or currency
 	)
+	company_currency = get_company_currency()
 
 	return {
 		"trips": trips,
@@ -385,7 +413,14 @@ def get_catalog_trips(filters: dict | None = None) -> dict:
 		"trip_packages": trip_packages,
 		"trip_is_cruise": trip_is_cruise,
 		"company_currency": company_currency,
-		"company_symbol": company_symbol,
+		"company_symbol": (
+			frappe.db.get_value("Currency", company_currency, "symbol") or company_currency
+		),
+		# Currency listing aktif (pilihan customer) + pilihan tersedia untuk
+		# selector (semua currency diisytiharkan dalam axis).
+		"currency": currency,
+		"currency_symbol": currency_symbol,
+		"currency_options": get_currency_options(),
 	}
 
 
@@ -444,25 +479,36 @@ def get_filter_options(cruise: int | None = None) -> dict:
 	}
 
 
-def get_trip_detail(trip_name: str) -> dict:
+def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 	"""Data untuk page DETAIL trip /trip/<slug>. SCOPE ke satu trip sahaja
 	(jangan query semua ready trip macam get_ready_bundle — page detail
 	dipanggil per-trip, jadi elak overhead merentasi trip lain).
+
+	currency (opsyenal, model multi-currency): currency pilihan customer.
+	Pakej ditapis ikut currency ni (termasuk group date tanpa pakej
+	currency itu dikeluarkan). Kalau trip tiada langsung pakej dalam
+	currency itu, fallback papar SEMUA pakej native (direct URL trip MYR
+	semasa browse SGD — jangan tunjuk page kosong; template papar badge
+	currency pakej). Default: currency company default.
 
 	Definisi "ready" group date SEPADAN dengan get_ready_bundle: Trip Group
 	Date Active + tarikh akan datang + ada Trip Package Active. seats_left
 	dari SUM(booked_pax) booking tak-cancelled (sepadan gate overbooking).
 
 	KEMBALI:
-	    {group_dates, trip_packages, starting_from_price, destinations, is_cruise}
+	    {group_dates, trip_packages, starting_from_price, destinations,
+	     is_cruise, currency, currency_native_only}
 
 	- group_dates:        list[dict] ready group dates trip ni (cruise disusun
 	                      ikut sailing_start)
 	- trip_packages:      {group_date_name: [package_dict, ...]}
 	- starting_from_price: MIN price_adult merentasi package Active trip ni
-	                      (company currency), None kalau tiada pricing
+	                      dalam currency terpilih, None kalau tiada pricing
 	- destinations:       [{name, destination_name, country}]
-	- is_cruise:         bool
+	- is_cruise:          bool
+	- currency:           currency yang diguna untuk page ni
+	- currency_native_only: True bila fallback native dipakai (trip tiada
+	                      pakej dalam currency pilihan)
 	"""
 	trip = frappe.db.get_value(
 		"Trip", trip_name,
@@ -478,8 +524,31 @@ def get_trip_detail(trip_name: str) -> dict:
 			"starting_from_price": None,
 			"destinations": [],
 			"is_cruise": False,
+			"currency": currency,
+			"currency_native_only": False,
 		}
 	is_cruise = bool(trip.is_a_cruise_trip)
+
+	# Normalize currency listing (default = currency company default axis).
+	from travel_booking.api.currency_axis import get_default_currency
+	if not currency:
+		currency = get_default_currency()
+
+	# Ada pakej Active trip ni dalam currency pilihan? Kalau tiada,
+	# fallback papar SEMUA pakej native (currency_native_only=True —
+	# template papar badge currency setiap pakej).
+	pkg_currency_count = frappe.db.sql(
+		"""
+		SELECT tp.currency, COUNT(*) AS n
+		FROM `tabTrip Package` tp
+		WHERE tp.trip_link = %(t)s AND tp.status = 'Active'
+		GROUP BY tp.currency
+		""",
+		{"t": trip_name},
+		as_dict=True,
+	)
+	has_pkg_in_currency = any(r.currency == currency for r in pkg_currency_count)
+	currency_native_only = not has_pkg_in_currency
 
 	# --- ready group dates untuk trip ni sahaja ---
 	dates = frappe.db.sql(
@@ -533,9 +602,9 @@ def get_trip_detail(trip_name: str) -> dict:
 		)
 		booked = {r.trip_date: int(r.pax or 0) for r in rows}
 
-	group_dates: list = []
-	for d in dates:
-		mx = int(d.max_participants or 0)
+		group_dates: list = []
+		for d in dates:
+			mx = int(d.max_participants or 0)
 		bk = int(booked.get(d.name, 0))
 		# max_participants == 0 -> UNLIMITED (None -> frontend "Available").
 		# Cruise: tentukan kunci/label grouping sailing (cluster group date
@@ -621,11 +690,19 @@ def get_trip_detail(trip_name: str) -> dict:
 	# dipilih melalui peta sailing_tgds di bawah.
 	trip_packages: dict = {}
 	if dates:
+		# Filter currency pakej: hanya pakej dalam currency terpilih;
+		# fallback semua native (currency_native_only). Group date tanpa
+		# pakej dalam currency itu akan terkeluar semula dari dates di
+		# bawah (EXISTS query atas belum tahu currency — tapis di sini).
+		pkg_currency_cond = ""
+		if not currency_native_only:
+			pkg_currency_cond = "AND tp.currency = %(currency)s"
 		pkgs = frappe.db.sql(
 			"""
 			SELECT tp.name, sel.trip_group_date, tp.package_title, tp.package_type,
 			       tp.airport_form, ap.airport_name, tp.currency, cur.symbol AS currency_symbol,
-			       td.departure_date, td.sailing_start, td.is_cruise_only
+			       td.departure_date, td.return_date, td.sailing_start, td.sailing_end,
+			       td.total_days, td.total_nights, td.is_cruise_only, tp.ground_arrangement
 			FROM `tabTrip Package` tp
 			JOIN `tabTrip Package Group Date Select` sel ON sel.parent = tp.name
 			JOIN `tabTrip Group Date` td ON td.name = sel.trip_group_date
@@ -633,9 +710,10 @@ def get_trip_detail(trip_name: str) -> dict:
 			LEFT JOIN `tabCurrency` cur ON cur.name = tp.currency
 			WHERE sel.trip_group_date IN %(ds)s
 			  AND tp.status = 'Active'
+			  {pkg_currency_cond}
 			ORDER BY td.departure_date ASC, tp.package_type ASC, tp.package_title ASC
-			""",
-			{"ds": [d.name for d in dates]},
+			""".format(pkg_currency_cond=pkg_currency_cond),
+			{"ds": [d.name for d in dates], "currency": currency},
 			as_dict=True,
 		)
 		for p in pkgs:
@@ -651,10 +729,16 @@ def get_trip_detail(trip_name: str) -> dict:
 					"currency": p.currency or "MYR",
 					"currency_symbol": p.currency_symbol or (p.currency or "MYR"),
 					# Info TGD sebenar pakej — untuk nota "Departs" pada butang
-					# pakej bukan-cruise-only dan resolusi TGD di /booknow.
+					# pakej bukan-cruise-only, blok meta pakej (departure/return/
+					# duration/ground arrangement) dan resolusi TGD di /booknow.
 					"departure_date": str(p.departure_date) if p.departure_date else "",
+					"return_date": str(p.return_date) if p.return_date else "",
 					"sailing_start": str(p.sailing_start) if p.sailing_start else "",
+					"sailing_end": str(p.sailing_end) if p.sailing_end else "",
+					"total_days": p.total_days,
+					"total_nights": p.total_nights,
 					"is_cruise_only": bool(p.is_cruise_only),
+					"ground_arrangement": bool(p.ground_arrangement),
 				}
 				)
 
@@ -677,15 +761,19 @@ def get_trip_detail(trip_name: str) -> dict:
 				}
 			)
 
-		# --- starting_from_price: MIN price_adult merentasi package Active trip ni ---
+	# --- starting_from_price: MIN price_adult dalam currency terpilih
+	# (fallback: merentasi SEMUA pakej native bila currency_native_only).
+	# MESTI di peringkat function — bukan dalam `if is_cruise:` (bug
+	# UnboundLocalError untuk trip bukan-cruise). ---
+	sp_cond = "" if currency_native_only else "AND tp.currency = %(cur)s"
 	sp = frappe.db.sql(
 		"""
 		SELECT MIN(pr.price_adult) AS mn
 		FROM `tabTrip Package` tp
 		JOIN `tabTrip Package Price` pr ON pr.parent = tp.name
-		WHERE tp.trip_link = %(t)s AND tp.status = 'Active'
-		""",
-		{"t": trip_name},
+		WHERE tp.trip_link = %(t)s AND tp.status = 'Active' {sp_cond}
+		""".format(sp_cond=sp_cond),
+		{"t": trip_name, "cur": currency},
 	)
 	starting_from_price = float(sp[0][0]) if sp and sp[0][0] else None
 
@@ -718,4 +806,6 @@ def get_trip_detail(trip_name: str) -> dict:
 		"starting_from_price": starting_from_price,
 		"destinations": destinations,
 		"is_cruise": is_cruise,
+		"currency": currency,
+		"currency_native_only": currency_native_only,
 	}

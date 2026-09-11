@@ -20,8 +20,12 @@ from travel_booking.utils.trip_catalog import get_catalog_trips, get_filter_opti
 def get_context(context):
     """Build context for the cruise homepage."""
 
+    # Currency pilihan customer — menapis pakej & harga ikut currency itu.
+    from travel_booking.www.trips import _get_currency_filter
+    currency = _get_currency_filter()
+
     # 1. Get ALL cruise trips (cruise=1 filter) as "featured"
-    cruise_data = get_catalog_trips({"cruise": "1", "sort": "date"})
+    cruise_data = get_catalog_trips({"cruise": "1", "sort": "date", "currency": currency})
     all_cruises = cruise_data["trips"]
     trip_group_dates = cruise_data["trip_group_dates"]
 
@@ -42,6 +46,10 @@ def get_context(context):
     context.active_nav = "cruise"  # highlight nav if needed
     context.no_cache = 1
     context.title = "Luxury Cruise Vacations — Rarecation"
+    # Meta currency listing (selector + simbol harga)
+    context.currency = cruise_data["currency"]
+    context.currency_symbol = cruise_data["currency_symbol"]
+    context.currency_options = cruise_data["currency_options"]
 
 
 def _enrich_cruise_cards(trips, trip_group_dates):
