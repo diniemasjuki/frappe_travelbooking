@@ -22,6 +22,7 @@ class TripCruiseSchedule(Document):
 
 		cabin_rates: DF.Table[TripPackagePrice]
 		cruise_line_company: DF.Link | None
+		currency: DF.Link | None
 		naming_series: DF.Literal[".ship_code.YY.#"]
 		port_end: DF.Link
 		port_start: DF.Link
@@ -30,8 +31,9 @@ class TripCruiseSchedule(Document):
 		schedule_code: DF.Data | None
 		ship_code: DF.Literal["AC01", "HV01"]
 		ship_name: DF.Data | None
-		status: DF.Literal["Pending Review", "Active", "Inactive", "Canceled"]
+		status: DF.Literal["Pending Review", "Active", "Completed", "Inactive", "Canceled"]
 		total_days: DF.Int
+		total_nights: DF.Int
 		trip_code: DF.Data | None
 		trip_link: DF.Link | None
 		trip_name: DF.Data | None
@@ -41,22 +43,33 @@ class TripCruiseSchedule(Document):
 
 	def validate(self):
 
+		# jangan usik - start
+  
 		if self.trip_code:
 			self.trip_code = self.trip_code.upper().strip()
 			code = self.trip_code
 
 		if self.sail_start and self.sail_end:
-			self.schedule_code = ( self.ship_code + " : " + frappe.utils.getdate(self.sail_start).strftime("%Y-%m-%d") ).upper().strip()
+			self.schedule_code = ( frappe.utils.getdate(self.sail_start).strftime("%Y %m %d") + " - " + frappe.utils.getdate(self.sail_end).strftime("%Y %m %d") + " : " +  self.ship_code ).upper().strip()
 
-		if self.sail_start and self.sail_end:
-
-			if self.sail_start:
-				sail_start = self.sail_start
-
-			if self.sail_end:
-				sail_end = self.sail_end
-
-			if sail_start > sail_end:
+			if self.sail_start > self.sail_end:
 				frappe.throw("SAILING START DATE must earlier then SAILING END DATE")
 
-			self.total_days = date_diff(self.sail_end, self.sail_start)+1
+			days = date_diff(self.sail_end, self.sail_start)
+
+			if not self.total_days:
+				self.total_days = days + 1
+    
+			if not self.total_nights:
+				self.total_nights = days
+       
+   
+			if self.total_days < (days -2) or self.total_days > (days +2):
+				self.total_days = days + 1
+
+			if self.total_nights < (days -2) or self.total_nights > (days +2):
+				self.total_nights = days
+    
+		# jangan usik - end
+				
+    

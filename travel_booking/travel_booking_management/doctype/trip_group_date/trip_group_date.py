@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+import datetime
 
 import re
 from datetime import datetime, timedelta
@@ -22,6 +23,7 @@ class TripGroupDate(Document):
 
 		cruise_code: DF.Data | None
 		cruise_days: DF.Int
+		cruise_nights: DF.Int
 		cruise_schedule: DF.Link | None
 		cruise_schedule_title: DF.Data | None
 		cruise_trip: DF.Data | None
@@ -107,20 +109,26 @@ class TripGroupDate(Document):
 		if self.return_date and self.sailing_end and not self.is_cruise_only:
 			if sailing_end > return_date:
 				frappe.throw("RETURN DATE must earlier then SAILING END DATE" )
+    
+		if self.departure_date and self.return_date:
+			date_format_departure = str(self.departure_date.strftime("%d %b %Y")) + " - " + str(self.return_date.strftime("%d %b %Y"))
+		
+  		if self.sailing_start and self.sailing_end:
+			date_format_sailing = str(self.sailing_start.strftime("%d %b %Y")) + " - " + str(self.sailing_end.strftime("%d %b %Y"))
 
 		# this is for FLY CRUISE trip = group title use sailing date
 		if (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (not self.is_cruise_only or self.is_cruise_only == 0):
-			self.trip_group_name = str(self.departure_date.strftime("%d %b %Y")) + " - " + str(self.return_date.strftime("%d %b %Y")) + (" : " + self.trip or "") + " : Fly Cruise"
+			self.trip_group_name = date_format_departure + (" : " + self.trip or "") + " : Fly Cruise"
 			self.trip_group_code = (str(self.departure_date) + "-" + str(self.return_date) + ":" + self.trip + ":" + "FC").replace("-", "")
 
 		# this is for CRUISE ONLY trip
 		elif (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (self.is_cruise_only is True or self.is_cruise_only == 1):
-			self.trip_group_name = str(self.sailing_start.strftime("%d %b %Y")) + " - " + str(self.sailing_end.strftime("%d %b %Y")) + (" : " + self.trip or "") + " : Cruise Only"
+			self.trip_group_name =  date_format_sailing + (" : " + self.trip or "") + " : Cruise Only"
 			self.trip_group_code = (str(self.sailing_start) + "-" + str(self.sailing_end) + ":" + self.trip + ":" + "CO").replace("-", "")
 
 		# this is for RARECATION / NON-CRUISE trip
 		else:
-			self.trip_group_name = str(self.departure_date.strftime("%d %b %Y")) + " - " + str(self.return_date.strftime("%d %b %Y")) + (" : " + self.trip or "") + (" : " + self.name or "")
+			self.trip_group_name = date_format_departure + (" : " + self.trip or "") + (" : " + self.name or "")
 			self.trip_group_code = (str(self.departure_date) + "-" + str(self.return_date) + ":" + self.trip + ":" + self.name).replace("-", "")
 
 		"""
