@@ -101,6 +101,13 @@ select option { background: var(--bg-primary); }
   display: block;
 }
 .f { margin-bottom: 16px; }
+/* Semua field dalam panel borang traveller (Passport/Contact/Health) isi
+   penuh lebar cell grid/baris. Rule global input portal sengaja TANPA
+   width 100% (komen) supaya input lain di luar borang tak terjejas —
+   jadi skopkan di sini sahaja. */
+.tvl-panel .f input,
+.tvl-panel .f select,
+.tvl-panel .f textarea { width: 100%; box-sizing: border-box; }
 .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .g2f .l { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
 .g2f .v { font-size: 14px; font-weight: 500; }
@@ -259,6 +266,9 @@ select option { background: var(--bg-primary); }
   transition: background .2s;
 }
 .rc-nav-btn:hover { background: #333; }
+
+/* Right cluster — currency selector + CTA duduk sebelah-menepi */
+.rc-nav-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
 @media (max-width: 800px) {
   /* Disable sticky public nav on mobile — biar scroll naturally dgn content */

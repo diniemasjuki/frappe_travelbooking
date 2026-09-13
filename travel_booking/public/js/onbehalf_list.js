@@ -7,10 +7,11 @@
    - Data dari get_on_behalf_bookings_list (booked_by = user,
      booking_channel != Direct).
    - Paparan TABLE (bukan kad): satu .tv-bk-table, baris dikumpul
-     Upcoming / Future / Past melalui baris tajuk kumpulan.
+     Future / Running / Past melalui baris tajuk kumpulan; dalam
+     setiap kumpulan susunan ikut tarikh berangkat/sailing.
    - Lajur pertama = CUSTOMER AKHIR (nama + email) — identiti utama
      baris supaya manager tahu serta-merta booking milik siapa.
-   - Ref + badge channel (Affiliate/Staff) dalam lajur kedua.
+   - Ref dalam lajur kedua.
    - Baris boleh diklik → /traveller/onbehalf-booking?ref= (page
      onbehalf dgn kawalan tahap akses); baris Cancelled statik.
 
@@ -63,52 +64,55 @@
     }
   }
 
-  /* ── Group bookings into Upcoming / Future / Past ── */
+  /* ── Tarikh efektif perjalanan: departure dulu, fallback sailing ──
+     Cruise kadang tiada departure_date — guna sailing_start/end. */
+  function tripStart(b) {
+    return b.departure_date || b.sailing_start || b.sailing_end || '';
+  }
+  function tripEnd(b) {
+    return b.return_date || b.sailing_end || tripStart(b);
+  }
+
+  /* ── Kumpul booking ke Future / Running / Past ──
+     Future  : tarikh mula belum sampai.
+     Running : sudah berangkat, belum tamat (return/sailing_end >= hari ini).
+     Past    : perjalanan selesai; booking Cancelled & tarikh kosong masuk sini. */
   function groupBookings(bookings) {
     var now = new Date();
     now.setHours(0,0,0,0);
 
-    var active = bookings.filter(function (b) {
-      return b.booking_status !== 'Cancelled' && b.departure_date;
-    });
-    active.sort(function (a, b) {
-      return new Date(a.departure_date) - new Date(b.departure_date);
-    });
-
-    var upcoming = null;
-    var future = [];
-    var past = [];
-
-    active.forEach(function (b) {
-      var depDate = new Date(b.departure_date + 'T00:00:00');
-      if (!upcoming && depDate > now) {
-        upcoming = b;
-      } else if (depDate > now) {
-        future.push(b);
-      } else {
-        past.push(b);
-      }
-    });
+    var future = [], running = [], past = [];
 
     bookings.forEach(function (b) {
-      if (b.booking_status === 'Cancelled') {
+      var start = tripStart(b);
+      if (b.booking_status === 'Cancelled' || !start) {
         past.push(b);
+        return;
       }
+      var startDate = new Date(start + 'T00:00:00');
+      var endDate = new Date(tripEnd(b) + 'T00:00:00');
+      if (startDate > now) future.push(b);
+      else if (endDate >= now) running.push(b);
+      else past.push(b);
     });
 
-    return { upcoming: upcoming, future: future, past: past };
+    // Order ikut tarikh berangkat/sailing: belum perjalanan paling hampir
+    // dulu; yang lepas paling terkini dulu.
+    function byStartAsc(a, b) {
+      return String(tripStart(a)).localeCompare(String(tripStart(b)));
+    }
+    future.sort(byStartAsc);
+    running.sort(byStartAsc);
+    past.sort(function (a, b) { return byStartAsc(b, a); });
+
+    return { future: future, running: running, past: past };
   }
 
-  /* ── Render all groups (TABLE view) ──
+  /* ── Render semua kumpulan (TABLE view) ──
      Satu table penuh; baris dikumpul dgn baris tajuk kumpulan
-     (Upcoming / Future / Past) ala section label kad sebelum ini. */
+     (Future Trip / Running Trip / Past Trip). */
   function renderBookings(bookings) {
     var g = groupBookings(bookings);
-
-    // Past: terkini dulu (turun ikut tarikh berangkat), tarikh kosong di hujung
-    g.past.sort(function (a, b) {
-      return String(b.departure_date || '').localeCompare(String(a.departure_date || ''));
-    });
 
     var html = '';
     html += '<div class="tv-table-wrap tv-animate-in">';
@@ -116,34 +120,35 @@
     html += '<thead><tr>'
       + '<th>Customer</th>'
       + '<th>Ref</th>'
-      + '<th>Trip</th>'
+      + '<th>Package</th>'
       + '<th>Departure</th>'
       + '<th class="tv-bk-table__num">Travellers</th>'
       + '<th>Status</th>'
       + '<th class="tv-bk-table__num">Billed</th>'
-      + '<th class="tv-bk-table__num">Paid</th>'
       + '<th class="tv-bk-table__num">Balance</th>'
       + '<th>Payment</th>'
       + '</tr></thead>';
     html += '<tbody>';
 
     var rendered = 0;
-    if (g.upcoming) {
-      html += groupRow('⭐ Upcoming Trip');
-      html += bookingRow(g.upcoming, true, false);
-      rendered++;
-    }
     if (g.future.length > 0) {
-      html += groupRow('📅 Future Trips');
+      html += groupRow('📅 Future Trip');
       g.future.forEach(function (b) {
-        html += bookingRow(b, false, false);
+        html += bookingRow(b, false);
+        rendered++;
+      });
+    }
+    if (g.running.length > 0) {
+      html += groupRow('🚢 Running Trip');
+      g.running.forEach(function (b) {
+        html += bookingRow(b, false);
         rendered++;
       });
     }
     if (g.past.length > 0) {
-      html += groupRow('📦 Past & Cancelled');
+      html += groupRow('📦 Past Trip');
       g.past.forEach(function (b) {
-        html += bookingRow(b, false, true);
+        html += bookingRow(b, true);
         rendered++;
       });
     }
@@ -154,70 +159,64 @@
 
   /* ── Baris tajuk kumpulan (colspan penuh) ── */
   function groupRow(label) {
-    return '<tr class="tv-bk-table__group"><td colspan="10">' + label + '</td></tr>';
+    return '<tr class="tv-bk-table__group"><td colspan="9">' + label + '</td></tr>';
   }
 
   /* ── Single On-Behalf Booking ROW ──
-     Customer akhir kekal identiti UTAMA baris (nama + email di lajur
-     pertama). Baris boleh diklik → /traveller/onbehalf-booking?ref=
+     Customer akhir kekal identiti UTAMA baris (nama + email + phone di
+     lajur pertama). Baris boleh diklik → /traveller/onbehalf-booking?ref=
      (delegation didengar di wireRowLinks); baris Cancelled tidak aktif. */
-  function bookingRow(b, isHighlight, isPast) {
+  function bookingRow(b, isPast) {
     var ref = _esc(b.booking_number || b.name || '');
-    var tripName = _esc(b.trip_name || 'Unnamed Trip');
+    // Package title (dari Trip Package booking) — fallback ke trip_name
+    var pkgTitle = _esc(b.package_title || b.trip_name || 'Unnamed Package');
     var endName = _esc(b.end_customer_name || 'Unknown Customer');
     var endEmail = _esc(b.end_customer_email || '');
-    var channel = _esc(b.booking_channel || '');
+    var endPhone = _esc(b.end_customer_phone || '');
     var status = _esc(b.booking_status || 'Pending');
     var payStatus = _esc(b.payment_status || 'Pending');
 
     var totalSlots = parseInt(b.total_slots) || 0;
     var filledCount = parseInt(b.filled_count) || 0;
     var billed = parseFloat(b.billed) || 0;
-    var paid = parseFloat(b.paid) || 0;
     var balance = parseFloat(b.balance) || 0;
+    // Currency booking (dari SO utama) — jumlah kad ikut currency ni
+    var sym = curSym(b);
 
-    // Departure: julat tarikh + countdown kecil (bukan Cancelled)
+    // Departure: dua baris — tarikh berangkat di atas, tarikh pulang di bawah
     var dates = '—';
     if (b.departure_date) {
-      dates = fmtDate(b.departure_date);
+      dates = '<div>' + fmtDate(b.departure_date) + '</div>';
       if (b.return_date && b.return_date !== b.departure_date) {
-        dates += ' – ' + fmtDate(b.return_date);
-      }
-    }
-    var countdownHtml = '';
-    if (!isPast && b.departure_date) {
-      var cd = getCountdown(b.departure_date);
-      if (cd) {
-        countdownHtml = '<div class="tv-bk-table__sub">⏰ ' + _esc(cd) + '</div>';
+        dates += '<div>' + fmtDate(b.return_date) + '</div>';
       }
     }
 
     var cancelled = status === 'Cancelled';
     var rowCls = 'tv-bk-table__row';
-    if (isHighlight) rowCls += ' tv-bk-table__row--highlight';
     if (cancelled) rowCls += ' tv-bk-table__row--muted';
 
     var balCls = balance <= 0 ? 'tv-bk-fin-value--success' : 'tv-bk-fin-value--warning';
 
     var html = '<tr class="' + rowCls + '"' + (cancelled ? '' : ' data-href="/traveller/onbehalf-booking?ref=' + encodeURIComponent(ref) + '"') + '>';
 
-    // 1) CUSTOMER (identiti utama baris)
+    // 1) CUSTOMER (identiti utama baris) — nama, email & phone
     html += '<td class="tv-bk-table__cell">';
     html += '<div class="tv-bk-table__cust">' + endName + (cancelled ? ' 🔒' : '') + '</div>';
     if (endEmail) html += '<div class="tv-bk-table__sub">' + endEmail + '</div>';
+    if (endPhone) html += '<div class="tv-bk-table__sub">' + endPhone + '</div>';
     html += '</td>';
 
-    // 2) REF + channel badge
+    // 2) REF
     html += '<td class="tv-bk-table__cell">';
     html += '<span class="tv-bk-table__ref">' + ref + '</span>';
-    if (channel) html += '<div class="tv-bk-table__sub"><span class="tv-badge tv-badge--neutral">' + channel + '</span></div>';
     html += '</td>';
 
-    // 3) TRIP (div had lebar — nama panjang wrap, tak melebarkan table)
-    html += '<td class="tv-bk-table__cell tv-bk-table__cell--trip"><div class="tv-bk-table__tripname">' + tripName + '</div></td>';
+    // 3) PACKAGE (div had lebar — package_title panjang wrap, tak melebarkan table)
+    html += '<td class="tv-bk-table__cell tv-bk-table__cell--trip"><div class="tv-bk-table__tripname">' + pkgTitle + '</div></td>';
 
-    // 4) DEPARTURE (nowrap — jangan pecahkan julat tarikh di tengah nilai)
-    html += '<td class="tv-bk-table__cell tv-bk-table__date">' + dates + countdownHtml + '</td>';
+    // 4) DEPARTURE (nowrap — setiap tarikh kekal satu baris)
+    html += '<td class="tv-bk-table__cell tv-bk-table__date">' + dates + '</td>';
 
     // 5) TRAVELLERS
     html += '<td class="tv-bk-table__cell tv-bk-table__num">' + filledCount + '/' + totalSlots + '</td>';
@@ -225,12 +224,11 @@
     // 6) STATUS
     html += '<td class="tv-bk-table__cell">' + statusBadge(status, 'booking') + '</td>';
 
-    // 7-9) FINANAS
-    html += '<td class="tv-bk-table__cell tv-bk-table__num">' + fmtDual(billed) + '</td>';
-    html += '<td class="tv-bk-table__cell tv-bk-table__num"><span class="tv-bk-fin-value--success">' + fmtDual(paid) + '</span></td>';
-    html += '<td class="tv-bk-table__cell tv-bk-table__num"><span class="' + balCls + '">' + fmtDual(balance) + '</span></td>';
+    // 7-8) FINANAS
+    html += '<td class="tv-bk-table__cell tv-bk-table__num">' + fmtDual(billed, sym) + '</td>';
+    html += '<td class="tv-bk-table__cell tv-bk-table__num"><span class="' + balCls + '">' + fmtDual(balance, sym) + '</span></td>';
 
-    // 10) PAYMENT
+    // 9) PAYMENT
     html += '<td class="tv-bk-table__cell">' + statusBadge(payStatus, 'payment') + '</td>';
 
     html += '</tr>';

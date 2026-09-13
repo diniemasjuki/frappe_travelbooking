@@ -27,19 +27,19 @@ BOOKING_HUB_ROLES = ["System Manager", "Tour Manager", "Tour Operator", "Account
 
 
 def _require_booking_manager():
-    """Pastikan user mempunyai role yang sesuai untuk operasi Booking Hub.
-    Mencegah IDOR — mana-mana user logged-in TIDAK boleh akses data booking lain."""
-    if not frappe.session.user or frappe.session.user == "Guest":
-        frappe.throw(_("Please login to access Booking Hub"), frappe.PermissionError)
+	"""Pastikan user mempunyai role yang sesuai untuk operasi Booking Hub.
+	Mencegah IDOR — mana-mana user logged-in TIDAK boleh akses data booking lain."""
+	if not frappe.session.user or frappe.session.user == "Guest":
+		frappe.throw(_("Please login to access Booking Hub"), frappe.PermissionError)
 
-    user_roles = frappe.get_roles()
-    if not any(role in BOOKING_HUB_ROLES for role in user_roles):
-        frappe.throw(
-            _("You do not have permission to access Booking Hub. Required roles: {0}").format(
-                ", ".join(BOOKING_HUB_ROLES)
-            ),
-            frappe.PermissionError,
-        )
+	user_roles = frappe.get_roles()
+	if not any(role in BOOKING_HUB_ROLES for role in user_roles):
+		frappe.throw(
+			_("You do not have permission to access Booking Hub. Required roles: {0}").format(
+				", ".join(BOOKING_HUB_ROLES)
+			),
+			frappe.PermissionError,
+		)
 
 
 def get_booking_status_filters():
@@ -49,17 +49,17 @@ def get_booking_status_filters():
 
 @frappe.whitelist()
 def get_booking_kanban(status: str = None, trip: str = None, date_from: str = None, date_to: str = None, search: str = None) -> dict:
-    """
-    Return booking data grouped by status untuk Kanban Board.
+	"""
+	Return booking data grouped by status untuk Kanban Board.
     
-    Returns:
-        dict: {
-            columns: { status: [booking_dict, ...] },
-            counts: { queue: int, active: int }
-        }
-    """
-    # SECURITY: Require Booking Hub role — exposes PII (email, phone, IC)
-    _require_booking_manager()
+	Returns:
+		dict: {
+			columns: { status: [booking_dict, ...] },
+			counts: { queue: int, active: int }
+		}
+	"""
+	# SECURITY: Require Booking Hub role — exposes PII (email, phone, IC)
+	_require_booking_manager()
 	filters = []
 	
 	# Status filter
@@ -171,12 +171,12 @@ def get_booking_kanban(status: str = None, trip: str = None, date_from: str = No
 
 @frappe.whitelist()
 def get_booking_list(search: str = None, status: str = None, limit: int = 50) -> dict:
-    """
-    Return list of bookings untuk Active Bookings tab.
-    Supports pagination and filtering.
-    """
-    # SECURITY: Require Booking Hub role — exposes PII
-    _require_booking_manager()
+	"""
+	Return list of bookings untuk Active Bookings tab.
+	Supports pagination and filtering.
+	"""
+	# SECURITY: Require Booking Hub role — exposes PII
+	_require_booking_manager()
 	filters = []
 	
 	if status and status != 'All Statuses':
@@ -248,12 +248,12 @@ def get_booking_list(search: str = None, status: str = None, limit: int = 50) ->
 
 @frappe.whitelist()
 def get_booking_detail(booking_name: str) -> dict:
-    """
-    Return complete booking detail dengan semua related data.
-    Used by Active Bookings detail panel.
-    """
-    # SECURITY: Require Booking Hub role — exposes PII (passport, IC, phone)
-    _require_booking_manager()
+	"""
+	Return complete booking detail dengan semua related data.
+	Used by Active Bookings detail panel.
+	"""
+	# SECURITY: Require Booking Hub role — exposes PII (passport, IC, phone)
+	_require_booking_manager()
 	if not booking_name:
 		frappe.throw(_('Booking name is required'))
 
@@ -333,6 +333,9 @@ def get_booking_detail(booking_name: str) -> dict:
 				'stateroom_no': getattr(res_doc, 'stateroom_no', '') or '',
 				'aroya_guest_no': getattr(res_doc, 'aroya_guest_no', '') or '',
 				'pax_type': getattr(res_doc, 'pax_type', '') or '',
+				# Pilihan privacy customer (cruise solo) — ops guna untuk
+				# cari siapa perlu dipadankan roommate + proses refund.
+				'room_privacy': getattr(res_doc, 'room_privacy', '') or '',
 				'document_status': getattr(res_doc, 'document_status', 'Pending Review') or 'Pending Review',
 				**traveller_info,
 			})
@@ -561,12 +564,12 @@ def get_activity_logs(booking_name: str) -> list:
 
 @frappe.whitelist()
 def get_cabin_grid(booking_name: str) -> dict:
-    """
-    Return cabin arrangement data untuk Cabin Grid tab.
-    Groups reservations by cabin number.
-    """
-    # SECURITY: Require Booking Hub role — exposes traveller assignments
-    _require_booking_manager()
+	"""
+	Return cabin arrangement data untuk Cabin Grid tab.
+	Groups reservations by cabin number.
+	"""
+	# SECURITY: Require Booking Hub role — exposes traveller assignments
+	_require_booking_manager()
 	if not booking_name:
 		frappe.throw(_('Booking name is required'))
 
@@ -615,6 +618,8 @@ def get_cabin_grid(booking_name: str) -> dict:
 				'room_category': category_name or str(room_cat or ''),
 				'capacity': capacity,
 				'stateroom_no': getattr(res_doc, 'stateroom_no', '') or '',
+				# Pilihan privacy cabin (cruise solo) — flag untuk ops.
+				'room_privacy': getattr(res_doc, 'room_privacy', '') or '',
 				'travellers': [],
 			}
 
@@ -651,11 +656,11 @@ def get_cabin_grid(booking_name: str) -> dict:
 
 @frappe.whitelist()
 def update_cabin_assignment(reservation_name: str, stateroom_no: str = None, aroya_guest_no: str = None) -> dict:
-    """
-    Update stateroom assignment untuk a Booking Reservation.
-    """
-    # SECURITY: Write operation — require Booking Hub role
-    _require_booking_manager()
+	"""
+	Update stateroom assignment untuk a Booking Reservation.
+	"""
+	# SECURITY: Write operation — require Booking Hub role
+	_require_booking_manager()
 	if not reservation_name:
 		frappe.throw(_('Reservation name is required'))
 	
@@ -684,16 +689,16 @@ def update_cabin_assignment(reservation_name: str, stateroom_no: str = None, aro
 
 @frappe.whitelist()
 def bulk_assign_staterooms(booking_name: str, file_url: str = None, assignments: str = None) -> dict:
-    """
-    Bulk assign staterooms dari CSV upload atau manual input.
+	"""
+	Bulk assign staterooms dari CSV upload atau manual input.
     
-    Args:
-        booking_name: Name of the Booking document
-        file_url: URL of uploaded CSV file (optional)
-        assignments: JSON string of assignments [{reservation_name, stateroom_no, aroya_guest_no}]
-    """
-    # SECURITY: Write operation — require Booking Hub role
-    _require_booking_manager()
+	Args:
+		booking_name: Name of the Booking document
+		file_url: URL of uploaded CSV file (optional)
+		assignments: JSON string of assignments [{reservation_name, stateroom_no, aroya_guest_no}]
+	"""
+	# SECURITY: Write operation — require Booking Hub role
+	_require_booking_manager()
 	if not booking_name:
 		frappe.throw(_('Booking name is required'))
 	
@@ -764,11 +769,11 @@ def bulk_assign_staterooms(booking_name: str, file_url: str = None, assignments:
 
 @frappe.whitelist()
 def get_payment_summary(date_range: str = None) -> dict:
-    """
-    Return payment summary statistics untuk Payment Dashboard.
-    """
-    # SECURITY: Financial data — require Booking Hub role
-    _require_booking_manager()
+	"""
+	Return payment summary statistics untuk Payment Dashboard.
+	"""
+	# SECURITY: Financial data — require Booking Hub role
+	_require_booking_manager()
 	today = datetime.now().date()
 	month_start = today.replace(day=1)
 	
@@ -887,11 +892,11 @@ def get_payment_summary(date_range: str = None) -> dict:
 
 @frappe.whitelist()
 def get_payment_queue(limit: int = 20) -> list:
-    """
-    Return list of bookings dengan outstanding payments, sorted by urgency.
-    """
-    # SECURITY: Financial data — require Booking Hub role
-    _require_booking_manager()
+	"""
+	Return list of bookings dengan outstanding payments, sorted by urgency.
+	"""
+	# SECURITY: Financial data — require Booking Hub role
+	_require_booking_manager()
 	today = datetime.now().date()
 	
 	try:
@@ -955,12 +960,12 @@ def get_payment_queue(limit: int = 20) -> list:
 
 @frappe.whitelist()
 def send_payment_reminder(booking_name: str) -> dict:
-    """
-    Send payment reminder email/SMS untuk a booking.
-    Uses existing email service infrastructure.
-    """
-    # SECURITY: Sends external emails — require Booking Hub role
-    _require_booking_manager()
+	"""
+	Send payment reminder email/SMS untuk a booking.
+	Uses existing email service infrastructure.
+	"""
+	# SECURITY: Sends external emails — require Booking Hub role
+	_require_booking_manager()
 	if not booking_name:
 		frappe.throw(_('Booking name is required'))
 	
@@ -1033,46 +1038,46 @@ def send_payment_reminder(booking_name: str) -> dict:
 
 @frappe.whitelist()
 def generate_pay_link(booking_name: str) -> str:
-    """
-    Generate Stripe checkout payment link untuk a booking.
+	"""
+	Generate Stripe checkout payment link untuk a booking.
 
-    FIXED: Gunakan create_payment_intent (wujud), bukan create_checkout_session (tidak wujud)
-    """
-    # SECURITY: Generates payment links — require Booking Hub role
-    _require_booking_manager()
-    if not booking_name:
-        frappe.throw(_('Booking name is required'))
+	FIXED: Gunakan create_payment_intent (wujud), bukan create_checkout_session (tidak wujud)
+	"""
+	# SECURITY: Generates payment links — require Booking Hub role
+	_require_booking_manager()
+	if not booking_name:
+		frappe.throw(_('Booking name is required'))
 
-    try:
-        booking = frappe.get_doc('Booking', booking_name)
+	try:
+		booking = frappe.get_doc('Booking', booking_name)
 
-        # Cari Sales Order utama untuk booking ni
-        so_name = frappe.db.get_value("Sales Order", {"custom_booking": booking_name}, "name")
-        if not so_name:
-            frappe.throw(_("No Sales Order found for this booking."))
+		# Cari Sales Order utama untuk booking ni
+		so_name = frappe.db.get_value("Sales Order", {"custom_booking": booking_name}, "name")
+		if not so_name:
+			frappe.throw(_("No Sales Order found for this booking."))
 
-        # Gunakan create_payment_intent (fungsi yang wujud dalam stripe_checkout.py)
-        from travel_booking.api.stripe_checkout import create_payment_intent
+		# Gunakan create_payment_intent (fungsi yang wujud dalam stripe_checkout.py)
+		from travel_booking.api.stripe_checkout import create_payment_intent
 
-        result = create_payment_intent(
-            sales_order=so_name,
-            amount=float(booking.total_amount or 0),
-            source="portal",
-            booking_number=booking.booking_number,
-        )
+		result = create_payment_intent(
+			sales_order=so_name,
+			amount=float(booking.total_amount or 0),
+			source="portal",
+			booking_number=booking.booking_number,
+		)
 
-        # Return URL dari result, atau fallback ke halaman checkout
-        if isinstance(result, dict) and result.get("checkout_url"):
-            return result["checkout_url"]
+		# Return URL dari result, atau fallback ke halaman checkout
+		if isinstance(result, dict) and result.get("checkout_url"):
+			return result["checkout_url"]
 
-        return f'/checkout?pr={result.get("payment_request", "")}' if isinstance(result, dict) else f'/checkout?booking={booking_name}'
+		return f'/checkout?pr={result.get("payment_request", "")}' if isinstance(result, dict) else f'/checkout?booking={booking_name}'
 
-    except ImportError:
-        # Fallback: return booking page URL
-        return f'/checkout?booking={booking_name}'
-    except Exception as e:
-        frappe.log_error(frappe.get_traceback(), 'Generate Pay Link Error')
-        frappe.throw(_('Failed to generate payment link: {0}').format(str(e)))
+	except ImportError:
+		# Fallback: return booking page URL
+		return f'/checkout?booking={booking_name}'
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), 'Generate Pay Link Error')
+		frappe.throw(_('Failed to generate payment link: {0}').format(str(e)))
 
 		return session_url
 
@@ -1086,11 +1091,11 @@ def generate_pay_link(booking_name: str) -> str:
 
 @frappe.whitelist()
 def update_booking_status(booking_name: str, new_status: str, reason: str = None) -> dict:
-    """
-    Update booking status dengan audit trail.
-    """
-    # SECURITY: Status change — critical write operation, require Booking Hub role
-    _require_booking_manager()
+	"""
+	Update booking status dengan audit trail.
+	"""
+	# SECURITY: Status change — critical write operation, require Booking Hub role
+	_require_booking_manager()
 	if not booking_name:
 		frappe.throw(_('Booking name is required'))
 	
@@ -1236,15 +1241,15 @@ def get_addon_catalog(trip: str = None) -> list:
 
 @frappe.whitelist()
 def create_addon_order(booking_name: str, addon_items: str) -> dict:
-    """
-    Create new addon order untuk a booking.
+	"""
+	Create new addon order untuk a booking.
     
-    Args:
-        booking_name: Name of the Booking document
-        addon_items: List of [{addon: name, qty: number}]
-    """
-    # SECURITY: Creates financial documents — require Booking Hub role
-    _require_booking_manager()
+	Args:
+		booking_name: Name of the Booking document
+		addon_items: List of [{addon: name, qty: number}]
+	"""
+	# SECURITY: Creates financial documents — require Booking Hub role
+	_require_booking_manager()
 	if not booking_name:
 		frappe.throw(_('Booking name is required'))
 	

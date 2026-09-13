@@ -1,0 +1,135 @@
+{
+ "actions": [],
+ "autoname": "naming_series:B2BP.YY.###",
+ "creation": "2026-09-12 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "partner_name",
+  "status",
+  "column_break_main",
+  "customer",
+  "contact_email",
+  "section_net_rate",
+  "default_discount_percent",
+  "package_discounts",
+  "section_users",
+  "users"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Naming Series",
+   "options": "B2BP.YY.###",
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "partner_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Partner Name",
+   "reqd": 1
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Active\nDisabled"
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Customer ERPNext yang DIBILKAN untuk semua tempahan saluran B2B partner ini (Sales Order / Payment Entry / Sales Invoice). Staf partner dan pelanggan end-customer tidak melihat bil antara satu sama lain.",
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Billing Customer",
+   "options": "Customer",
+   "reqd": 1,
+   "search_index": 1,
+   "unique": 1
+  },
+  {
+   "description": "Email billing utama partner — penerima emel status/resait/invois. Kosong = email Contact primary Customer di atas.",
+   "fieldname": "contact_email",
+   "fieldtype": "Data",
+   "label": "Contact Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "section_net_rate",
+   "fieldtype": "Section Break",
+   "label": "Net Rate (Deducted Price)"
+  },
+  {
+   "description": "Diskaun % lalai atas harga pakej (Trip Package Price) untuk SEMUA tempahan partner ini — harga dibilkan adalah harga net, BUKAN komisen. Diatasi oleh override khusus pakej di bawah.",
+   "fieldname": "default_discount_percent",
+   "fieldtype": "Percent",
+   "label": "Default Discount Percent",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "package_discounts",
+   "fieldtype": "Table",
+   "label": "Package Discounts",
+   "options": "Travel B2B Package Discount"
+  },
+  {
+   "description": "Staf partner yang boleh log masuk portal dan menempah bagi pihak pelanggan mereka (booking_channel = B2B). Pelanggan end-customer TIDAK dimasukkan di sini.",
+   "fieldname": "section_users",
+   "fieldtype": "Section Break",
+   "label": "Partner Users"
+  },
+  {
+   "fieldname": "users",
+   "fieldtype": "Table",
+   "label": "Users",
+   "options": "Travel B2B Partner User"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-12 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Travel Booking Management",
+ "name": "Travel B2B Partner",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

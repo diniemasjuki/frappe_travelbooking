@@ -225,7 +225,8 @@ def _build_so_items(selections, pricing_map, trip_name="", group_label="", is_cr
             if main_guests == 1:
                 items.append(_so_line(default_item, room_category, "Main Guest (Single)",
                                       1, float(price.price_adult_single or 0),
-                                      trip_name, group_label, cabin_no))
+                                      trip_name, group_label, cabin_no,
+                                      room_privacy=(sel.get("room_privacy") or "")))
             elif main_guests >= 2:
                 items.append(_so_line(default_item, room_category, "Main Guest",
                                       main_guests, float(price.price_adult or 0),
@@ -251,9 +252,10 @@ def _build_so_items(selections, pricing_map, trip_name="", group_label="", is_cr
     return items
 
 
-def _so_line(item_code, room_category, pax_type, qty, rate, trip_name, group_label, cabin_no=1):
+def _so_line(item_code, room_category, pax_type, qty, rate, trip_name, group_label, cabin_no=1,
+             room_privacy=""):
     cabin_tag = "Cabin " + str(cabin_no)
-    return {
+    line = {
         "item_code":   item_code,
         "item_name":   room_category + " (" + cabin_tag + ") \u2014 " + pax_type,
         "qty":         qty,
@@ -261,6 +263,13 @@ def _so_line(item_code, room_category, pax_type, qty, rate, trip_name, group_lab
         "uom":         "Nos",
         "description": trip_name + " | " + group_label + " | " + room_category + " | " + cabin_tag + " | " + pax_type,
     }
+    # Room privacy pilihan customer (cruise 1 main guest sahaja) — disimpan
+    # pada SO line sebagai snapshot supaya _cabin_layout_from_so() boleh
+    # alirkan nilai ni ke Booking Reservation.room_privacy masa booking
+    # diaktifkan (SO = sumber tunggal). Kosong untuk line lain / pilihan lama.
+    if room_privacy:
+        line["custom_room_privacy"] = room_privacy
+    return line
 
 
 def _get_or_create_travel_item(item_code=None, item_name=None):
@@ -341,7 +350,8 @@ def _cabin_layout_from_so(so_name):
     """
     items = frappe.db.get_all("Sales Order Item",
                               filters={"parent": so_name},
-                              fields=["description", "qty"], order_by="idx")
+                              fields=["description", "qty", "rate", "custom_room_privacy"],
+                              order_by="idx")
     layout = {}
     for it in items:
         parts = (it.description or "").split(" | ")
@@ -351,7 +361,8 @@ def _cabin_layout_from_so(so_name):
         cabin_tag     = parts[3].strip()
         pax_type      = parts[4].strip()
 
-        if pax_type == "Main Guest (Single)":
+        is_single_line = (pax_type == "Main Guest (Single)")
+        if is_single_line:
             pax_type = "Main Guest"
 
         try:
@@ -359,10 +370,19 @@ def _cabin_layout_from_so(so_name):
         except Exception:
             continue
         if cabin_no not in layout:
-            layout[cabin_no] = {"cabin_no": cabin_no, "room_category": room_category, "pax": 0, "pax_breakdown": {}}
+            layout[cabin_no] = {"cabin_no": cabin_no, "room_category": room_category, "pax": 0,
+                                "pax_breakdown": {}, "room_privacy": "", "single_rate": None}
         qty = int(it.qty or 0)
         layout[cabin_no]["pax"] += qty
         layout[cabin_no]["pax_breakdown"][pax_type] = layout[cabin_no]["pax_breakdown"].get(pax_type, 0) + qty
+        # Room privacy (pilihan customer, cruise 1 main guest) — ambil nilai
+        # bukan-kosong pertama untuk cabin ni (line "Main Guest (Single)").
+        if not layout[cabin_no]["room_privacy"] and it.get("custom_room_privacy"):
+            layout[cabin_no]["room_privacy"] = it["custom_room_privacy"]
+        # Snapshot kadar single-supplement cabin ni — diguna oleh
+        # cabin_sharing.py untuk kira kredit lebihan traveller tambahan.
+        if is_single_line and layout[cabin_no]["single_rate"] is None:
+            layout[cabin_no]["single_rate"] = float(it.rate or 0)
     return [layout[n] for n in sorted(layout.keys())]
 
 
@@ -420,6 +440,10 @@ def _activate_booking(booking_name):
                     "room_category":   cabin.get("room_category"),
                     "cabin_no":        cabin.get("cabin_no"),
                     "pax_type":        pax_type,
+                    # Room privacy pilihan customer (snapshot SO) — "Private"
+                    # / "Open Sharing". Kosong untuk booking lama / cabin
+                    # multi-pax (pilihan hanya wujud untuk solo cruise).
+                    "room_privacy":    cabin.get("room_privacy") or "",
                     "is_a_cruise":     is_cruise,
                     "status":          "Confirmed",
                     "document_status": "Pending",
@@ -429,12 +453,331 @@ def _activate_booking(booking_name):
 
 
 # ══════════════════════════════════════════════
+# CASHBACK → PAYMENT ENTRY DEDUCTION
+# ══════════════════════════════════════════════
+
+def _resolve_cashback_discount_account(company, currency):
+    """Akaun Marketing Expenses untuk deduction cashback Manual Transfer,
+    resolving ikut COMPANY dokumen (bukan global tunggal):
+
+    1. Baris Travel Settings > Multi Currency Account yang match currency —
+       field 'cashback_discount_account' (akaun milik company baris tu).
+    2. Fallback: Travel Settings > Cashback Discount Account (global) —
+       HANYA jika akaun tu milik company yang sama.
+
+    Return None bila tiada akaun yang sah untuk company ni — caller
+    bertanggungjawab log error / throw (ikut konteks: wizard boleh throw
+    awal sebelum booking dicipta; portal fallback ke PE tanpa cashback).
+    """
+    def _account_company(acc):
+        return frappe.db.get_value("Account", acc, "company")
+
+    settings = frappe.get_cached_doc("Travel Settings")
+
+    for row in (settings.get("currency_accounts") or []):
+        acc = row.get("cashback_discount_account")
+        if acc and row.get("currency") == currency and _account_company(acc) == company:
+            return acc
+
+    fallback = settings.get("cashback_discount_account")
+    if fallback and _account_company(fallback) == company:
+        return fallback
+    return None
+
+
+def _resolve_cashback_deduction(company, currency, so_name, cashback_percent, cash, gross_allocated,
+                                other_deductions=0):
+    """Kira baris DEDUCTION cashback Manual Transfer untuk Payment Entry.
+
+    Model perakaunan (ERPNext Payment Entry, Receive, same-currency):
+      paid_amount = received_amount = CASH sebenar customer transfer (net)
+      references.allocated_amount = bahagian GROSS SO yang dibetulkan
+      deductions.account          = Marketing Expenses company tersebut
+      deductions.amount           = bahagian cashback (debit expense)
+
+    ERPNext mewajibkan received + deductions = allocated (difference_amount
+    mesti 0 semasa submit) — kombinasi di atas mengekalkan baki tu. Sebab
+    tu SO cashback/discount KEKAL GROSS: kalau SO sudah di-discount (net),
+    tiada gap untuk deduction menyerap dan PE mesti tidak seimbang.
+
+    'other_deductions' ialah jumlah baris deduction LAIN dalam PE yang sama
+    (cth diskaun voucher/referral order-level) — ditolak daripada jurang
+    (gross_allocated − cash) supaya yang tinggal untuk cashback tepat.
+
+    Return dict baris deductions ({account, amount, cost_center, description})
+    — siap untuk pe.append("deductions", row) — atau None bila tidak layak /
+    akaun tidak ditemui; caller WAJIB fallback allocate cash sahaja (behavior
+    lama) supaya PE tetap seimbang; error di-log untuk admin.
+    """
+    cashback_amount = round(float(gross_allocated) - float(cash) - float(other_deductions or 0), 2)
+    if cashback_amount <= 0:
+        return None
+
+    account = _resolve_cashback_discount_account(company, currency)
+    if not account:
+        frappe.log_error(
+            "Cashback deduction SKIPPED for manual Payment Entry against SO " +
+            str(so_name) + " (company " + str(company) + ", currency " +
+            str(currency) + "): no Cashback Discount Account configured for "
+            "this company in Travel Settings (Multi Currency Account row or "
+            "global fallback). Payment Entry will allocate the transferred "
+            "amount without cashback — configure the account and adjust the "
+            "draft PE before submitting.",
+            "Manual Transfer Cashback - Account Missing"
+        )
+        return None
+
+    # ERPNext v17: Payment Entry Deduction.cost_center adalah wajib (reqd) —
+    # guna cost center default company.
+    return {
+        "account":     account,
+        "amount":      cashback_amount,
+        "cost_center": frappe.db.get_value("Company", company, "cost_center"),
+        "description": "Manual Transfer Cashback " + str(cashback_percent) + "%",
+    }
+
+
+# ══════════════════════════════════════════════
+# DISKAUN ORDER-LEVEL (voucher/referral) → PE DEDUCTION
+# ══════════════════════════════════════════════
+# SO booking KEKAL GROSS (semua baris item rate positif — tiada pergantungan
+# pada Selling Settings > Allow Negative rates). Jumlah diskaun voucher/
+# referral disimpan pada BOOKING (voucher_discount / referral_discount,
+# diakses melalui Sales Order.custom_booking) dan diserap sebagai baris
+# DEDUCTION (debit) ke akaun Marketing Expenses company tersebut pada
+# Payment Entry.
+#
+# Kelayakan CASHBACK Manual Transfer pula TRANSAKSIONAL — tidak disimpan
+# pada mana-mana dokumen. Ia dibaca semasa bayaran: Booking.checkout_method
+# (kaedah bayaran semasa checkout) == "Manual Transfer" DAN promosi masih
+# aktif di Travel Settings, DAN bukan saluran B2B (harga net kontrak
+# partner tiada slot promosi runcit). Menutup setting promosi terus
+# menamatkan cashback untuk SEMUA booking — termasuk yang belum settle.
+
+_ORDER_DISCOUNT_DESC_PREFIX = "Order Discount"
+
+
+def _get_booking_discount_snapshot(so_name):
+    """Diskaun order-level & kelayakan cashback suatu SO booking — voucher/
+    referral_discount dari BOOKING (sumber kebenaran) melalui
+    Sales Order.custom_booking; cashback_percent pula di-DERIVE semasa
+    bayaran (benefit transaksional): Booking.checkout_method ==
+    "Manual Transfer" DAN promosi aktif di Travel Settings DAN bukan B2B.
+    Returns (voucher_discount, referral_discount, cashback_percent).
+
+    SO tanpa pautan Booking (rekod lama/ dicipta manual di Desk) → sifar,
+    sama seperti tingkah lama bila field diskaun kosong."""
+    booking = frappe.db.get_value("Sales Order", so_name, "custom_booking")
+    if not booking:
+        return 0.0, 0.0, 0.0
+    row = frappe.db.get_value(
+        "Booking", booking,
+        ["voucher_discount", "referral_discount", "checkout_method", "b2b_partner"],
+        as_dict=True)
+    if not row:
+        return 0.0, 0.0, 0.0
+
+    cashback_percent = 0.0
+    if (row.checkout_method == "Manual Transfer" and not row.b2b_partner):
+        settings = frappe.get_cached_doc("Travel Settings")
+        if settings.manual_transfer_cashback_enabled:
+            cashback_percent = float(settings.manual_transfer_cashback_percent or 0)
+
+    return (
+        float(row.voucher_discount or 0),
+        float(row.referral_discount or 0),
+        cashback_percent,
+    )
+
+
+def _get_order_discount_total(so_name):
+    """Jumlah diskaun order-level (voucher + referral) SO, dalam currency SO.
+    0 bila tiada (termasuk SO lama pra-refactor)."""
+    voucher_discount, referral_discount, _pct = _get_booking_discount_snapshot(so_name)
+    return round(voucher_discount + referral_discount, 2)
+
+
+def _get_absorbed_order_discount(so_name, company, currency):
+    """Bahagian diskaun order-level yang SUDAH diserap oleh Payment Entry
+    terdahulu (draft + submitted; cancelled dikira bebas). Dua sumber:
+
+      1. Baris deduction 'Order Discount ...' pada PE yang reference SO ni
+         (laluan wizard Manual Transfer & portal).
+      2. PE penyelesaian (paid_to = akaun Marketing Expenses) yang dibina
+         oleh _create_discount_settlement_entry() untuk laluan Stripe —
+         keseluruhan paid_amount nya ialah serapan diskaun.
+
+    Dipanggil sebelum bina PE baharu supaya diskaun tak diserap dua kali
+    (cth deposit wizard dah serap, bayaran baki portal tak patut serap lagi).
+    """
+    account = _resolve_cashback_discount_account(company, currency)
+    if not account:
+        return 0.0
+    return float(frappe.db.sql("""
+        SELECT COALESCE(SUM(x.amt), 0) FROM (
+            SELECT SUM(ded.amount) AS amt
+            FROM `tabPayment Entry Deduction` ded
+            JOIN `tabPayment Entry` pe ON pe.name = ded.parent
+            WHERE pe.docstatus < 2
+              AND ded.account = %(acc)s
+              AND ded.description LIKE %(prefix)s
+              AND pe.name IN (
+                  SELECT ref.parent FROM `tabPayment Entry Reference` ref
+                  WHERE ref.reference_doctype = 'Sales Order'
+                    AND ref.reference_name = %(so)s
+              )
+            UNION ALL
+            SELECT SUM(pe.paid_amount) AS amt
+            FROM `tabPayment Entry` pe
+            WHERE pe.docstatus < 2
+              AND pe.paid_to = %(acc)s
+              AND pe.name IN (
+                  SELECT ref.parent FROM `tabPayment Entry Reference` ref
+                  WHERE ref.reference_doctype = 'Sales Order'
+                    AND ref.reference_name = %(so)s
+              )
+        ) x
+    """, {"acc": account, "so": so_name, "prefix": _ORDER_DISCOUNT_DESC_PREFIX + "%"})[0][0] or 0)
+
+
+def _build_discount_deduction_rows(company, currency, so_name, components):
+    """Bina BARIS DEDUCTION untuk diskaun order-level (voucher/referral).
+
+    'components' ialah senarai (description, amount); baris dengan amount
+    <= 0 digugurkan. Semua baris debit akaun Marketing Expenses company
+    tersebut (sumber tunggal: _resolve_cashback_discount_account).
+
+    Return (rows, total) — atau (None, 0) bila akaun tidak dijumpai; caller
+    WAJIB fallback allocate cash sahaja (PE kekal seimbang) seperti corak
+    cashback; error di-log untuk admin.
+    """
+    clean = [(str(desc), round(float(amt), 2)) for desc, amt in (components or [])
+             if float(amt or 0) > 0]
+    if not clean:
+        return [], 0.0
+
+    account = _resolve_cashback_discount_account(company, currency)
+    if not account:
+        frappe.log_error(
+            "Order discount deduction SKIPPED for Payment Entry against SO " +
+            str(so_name) + " (company " + str(company) + ", currency " +
+            str(currency) + "): no Cashback Discount Account configured for "
+            "this company in Travel Settings (Multi Currency Account row or "
+            "global fallback). The discount is NOT absorbed by this Payment "
+            "Entry — it will be retried on the next payment.",
+            "Order Discount Deduction - Account Missing"
+        )
+        return None, 0.0
+
+    cost_center = frappe.db.get_value("Company", company, "cost_center")
+    rows = [{
+        "account":     account,
+        "amount":      amt,
+        "cost_center": cost_center,
+        "description": _ORDER_DISCOUNT_DESC_PREFIX + " (" + desc + ")",
+    } for desc, amt in clean]
+    return rows, round(sum(amt for _, amt in clean), 2)
+
+
+def _settle_order_discount_residue(so_name):
+    """Selesaikan BAKI diskaun order-level (voucher/referral) yang belum
+    diserap mana-mana Payment Entry — khusus laluan Stripe.
+
+    Payment Entry Stripe dicipta oleh ERPNext (Payment Request.set_as_paid)
+    dan mengallocate CASH net sahaja — tiada ruang untuk deduction. Tanpa
+    penyelesaian ni, SO bervoucher kekal baki walaupun customer dah bayar
+    penuh secara net. PE pelengkap ni (Receive: Debtors → Marketing
+    Expenses, reference SO allocated = residue) mendebit expense dan
+    mengkreditkan baki customer SECUPLAH diskaun, sekaligus menaikkan
+    advance_paid SO supaya settle tepat.
+
+    Idempoten melalui _get_absorbed_order_discount() — dipanggil berulang
+    (webhook + fallback wizard poll) tak akan mendablik serapan. Error
+    DI-LOG sahaja (tidak pernah gagalkan pengesahan bayaran customer).
+    Pulangkan nama PE atau None.
+    """
+    so = frappe.db.get_value(
+        "Sales Order", so_name,
+        ["company", "currency", "customer", "grand_total", "advance_paid"], as_dict=True)
+    if not so:
+        return None
+
+    order_discount = _get_order_discount_total(so_name)
+    if order_discount <= 0:
+        return None
+
+    company = so.company or frappe.db.get_single_value("Global Defaults", "default_company")
+    residue = round(min(
+        order_discount - _get_absorbed_order_discount(so_name, company, so.currency),
+        float(so.grand_total or 0) - float(so.advance_paid or 0),
+    ), 2)
+    if residue <= 0:
+        return None
+
+    from erpnext.accounts.party import get_party_account
+
+    original_user = frappe.local.session.user
+    frappe.local.session.user = "Administrator"
+    try:
+        pe = frappe.new_doc("Payment Entry")
+        pe.payment_type    = "Receive"
+        pe.company         = company
+        pe.posting_date    = frappe.utils.today()
+        pe.party_type      = "Customer"
+        pe.party           = so.customer
+        pe.party_account   = get_party_account("Customer", so.customer, company)
+        pe.paid_from       = pe.party_account
+        pe.paid_to         = _resolve_cashback_discount_account(company, so.currency)
+        pe.paid_amount     = residue
+        pe.received_amount = residue
+        # ERPNext v17: GL pada akaun P&L (Marketing Expenses sbg paid_to)
+        # WAJIB bawa cost center — set pada tahap dokumen.
+        pe.cost_center     = frappe.db.get_value("Company", company, "cost_center")
+        pe.reference_no    = so_name
+        pe.reference_date  = frappe.utils.today()
+        pe.append("references", {
+            "reference_doctype": "Sales Order",
+            "reference_name":    so_name,
+            "allocated_amount":  residue,
+        })
+        pe.remarks = ("Order discount settlement (voucher/referral) for " +
+                      str(so_name) + ".")
+        pe.insert(ignore_permissions=True)
+        pe.submit()
+        return pe.name
+    except Exception as e:
+        frappe.log_error(
+            "Order discount settlement PE failed for SO " + str(so_name) +
+            ": " + str(e),
+            "Order Discount Settlement Error")
+        return None
+    finally:
+        frappe.local.session.user = original_user
+
+
+# ══════════════════════════════════════════════
 # PAYMENT ENTRY (Manual Transfer)
 # ══════════════════════════════════════════════
 
-def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data="", label="receipt", bank_transfer_ref=""):
+def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data="", label="receipt", bank_transfer_ref="",
+                                 cashback_percent=0, allocated_amount=None, discount_components=None):
     """Manual transfer — cipta Payment Entry DRAFT + attach resit.
     Draft (docstatus 0) = menunggu admin verify & submit. Corak sama dgn portal.
+
+    CASHBACK (jika cashback_percent > 0): SO kekal GROSS dan PE membawa
+    deduction ke akaun Marketing Expenses company tersebut (rujuk
+    _resolve_cashback_deduction). 'amount' ialah CASH sebenar yang customer
+    transfer (net cashback); 'allocated_amount' ialah bahagian GROSS SO yang
+    dibetulkan (cash + cashback). allocated_amount kosong = tiada cashback
+    (allocate terus cash — behavior lama, backward compatible).
+
+    DISKAUN ORDER-LEVEL (voucher/referral): 'discount_components' ialah
+    senarai (description, amount) — setiap satu menjadi baris deduction
+    berasingan ke akaun Marketing Expenses (rujuk
+    _build_discount_deduction_rows). allocated_amount kosong tapi komponen
+    wujud → gross_allocated dikira semula = cash + jumlah komponen.
+    allocated_amount terkurang dari cash + komponen → diangkat supaya PE
+    sentiasa seimbang (received + deductions = allocated).
     """
     import base64
     from erpnext.accounts.party import get_party_account
@@ -473,6 +816,26 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
                 "Account", {"account_type": "Bank", "company": company, "is_group": 0}, "name"
             )
         party_account = get_party_account("Customer", customer_name, company)
+
+        # CASHBACK + DISKAUN ORDER-LEVEL — kira bahagian gross, deduction &
+        # akaun marketing SEBELUM bina PE supaya paid/allocated/deduction
+        # sentiasa konsisten (PE kekal seimbang: received + deductions =
+        # allocated).
+        cash = round(float(amount), 2)
+        disc_rows, disc_total = _build_discount_deduction_rows(
+            company, so.currency, so_name, discount_components)
+        gross_allocated = round(float(allocated_amount), 2) if allocated_amount else (
+            cash + (disc_total or 0))
+        if gross_allocated < cash + (disc_total or 0):
+            # Guard: allocated tak boleh kurang dari cash + diskaun yang
+            # mahu diserap — angkat supaya PE kekal seimbang.
+            gross_allocated = cash + (disc_total or 0)
+        cashback_row = None
+        if cashback_percent > 0:
+            cashback_row = _resolve_cashback_deduction(
+                company, so.currency, so_name, cashback_percent, cash,
+                gross_allocated, other_deductions=disc_total or 0)
+
         pe = frappe.new_doc("Payment Entry")
         pe.payment_type    = "Receive"
         pe.company         = company
@@ -482,18 +845,36 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
         pe.party_account   = party_account
         pe.paid_from       = party_account
         pe.paid_to         = paid_to
-        pe.paid_amount     = float(amount)
-        pe.received_amount = float(amount)
+        pe.paid_amount     = cash
+        pe.received_amount = cash
         pe.reference_no    = bank_transfer_ref or so_name
         pe.reference_date  = frappe.utils.today()
         pe.append("references", {
             "reference_doctype": "Sales Order",
             "reference_name":    so_name,
-            "allocated_amount":  float(amount),
+            # Cashback/diskaun: allocate bahagian GROSS (cash + diskaun +
+            # cashback) supaya deduction ke akaun marketing menyerap
+            # perbezaan dan PE kekal seimbang (received + deductions =
+            # allocated).
+            "allocated_amount":  gross_allocated if (cashback_row or disc_rows) else cash,
         })
+        if disc_rows:
+            for _row in disc_rows:
+                pe.append("deductions", _row)
+        if cashback_row:
+            pe.append("deductions", cashback_row)
         pe.remarks = "Manual transfer (booking) for " + so_name + \
-        (". Ref: " + bank_transfer_ref if bank_transfer_ref else "") + \
-        ". Pending verification."
+        (". Ref: " + bank_transfer_ref if bank_transfer_ref else "")
+        if disc_rows:
+            pe.remarks += (". Order discount " + str(disc_total) + " " +
+                           str(so.currency) + " deducted to Marketing Expenses (" +
+                           disc_rows[0]["account"] + ").")
+        if cashback_row:
+            pe.remarks += (". Cashback " + str(cashback_percent) + "% (" +
+                           str(cashback_row["amount"]) + " " + str(so.currency) +
+                           ") deducted to Marketing Expenses (" +
+                           cashback_row["account"] + ").")
+        pe.remarks += ". Pending verification."
         pe.insert(ignore_permissions=True)
 
         if receipt_data:
@@ -509,8 +890,13 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
                 receipt_data = receipt_data.split(",")[1]
             file_content = base64.b64decode(receipt_data)
             frappe.get_doc({ "doctype": "File", "file_name": label + ext, "attached_to_doctype": "Payment Entry", "attached_to_name":    pe.name, "is_private": 1, "content": file_content }).insert(ignore_permissions=True)
-            return pe.name
-        
+
+        # FIXED: return nama PE di luar blok receipt — sebelum ni `return
+        # pe.name` hanya dalam `if receipt_data:`, jadi caller tanpa resit
+        # (dan apa-apa caller yang mahu nama PE) dapat None walhal PE sudah
+        # berjaya dicipta.
+        return pe.name
+
     except Exception as e:
         # FIXED: Propagate error — resit pembayaran manual pelanggan HILANG jika di-silent
         # Caller (confirm_booking) patut throw supaya customer tahu perlu retry
@@ -604,13 +990,24 @@ def _maybe_auto_invoice_so(so_name):
             # carries the same Booking + Booking Addon references as the SO.
             so_custom = frappe.db.get_value(
                 "Sales Order", so_name,
-                ["custom_booking", "custom_booking_addon"], as_dict=True
+                ["custom_booking", "custom_booking_addon", "apply_discount_on",
+                 "additional_discount_percentage", "discount_amount"], as_dict=True
             )
             if so_custom:
                 if so_custom.custom_booking:
                     si.custom_booking = so_custom.custom_booking
                 if so_custom.custom_booking_addon:
                     si.custom_booking_addon = so_custom.custom_booking_addon
+                # ADDITIONAL DISCOUNT (cashback manual transfer & harga net
+                # B2B) — mapper ERPNext TIDAK menyalin medan diskaun SO→SI.
+                # Tanpa ni, invois terhasil pada harga GROSS sedangkan
+                # bayaran diterima pada NET → invois kekal berbaki palsu.
+                if so_custom.apply_discount_on and float(so_custom.discount_amount or 0):
+                    si.apply_discount_on = so_custom.apply_discount_on
+                    si.additional_discount_percentage = \
+                        so_custom.additional_discount_percentage
+                    si.discount_amount = float(so_custom.discount_amount)
+                    si.run_method("calculate_taxes_and_totals")
 
             si.flags.ignore_permissions = True
             si.set_posting_time = 1

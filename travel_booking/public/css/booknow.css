@@ -54,6 +54,7 @@ body:has(.bnw-main) .rc-public-main {
   font-family: var(--font-body);
   color: var(--bnw-text);
   line-height: 1.55;
+  padding-bottom:50px;
 }
 
 .bnw-container {
@@ -472,22 +473,37 @@ body:has(.bnw-main) .rc-public-main {
 .bnw-btn-add-room {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  background: none;
-  border: 1.5px dashed var(--bnw-gold-border);
-  color: var(--bnw-gold);
-  padding: 10px 20px;
+  /* SOLID terang (dahulu ghost dashed samar-samar) — selari dengan
+     butang primary wizard (emas, teks gelap). */
+  background: var(--bnw-gold);
+  border: 1.5px solid var(--bnw-gold);
+  color: var(--bnw-dark);
+  padding: 12px 20px;
   border-radius: var(--bnw-radius-sm);
   font-family: var(--font-body);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all .2s ease;
   margin-top: 16px;
 }
 .bnw-btn-add-room:hover {
-  border-color: var(--bnw-gold);
-  background: var(--bnw-gold-light);
+  background: var(--bnw-gold-hover);
+  border-color: var(--bnw-gold-hover);
+}
+.bnw-btn-add-room:disabled {
+  /* Had maksimum kabin dicapai (renderRooms() disable butang) —
+     kekal nampak dimatikan, bukan samar tiada makna. */
+  opacity: .45;
+  cursor: not-allowed;
+}
+/* "Add another room" (Step 1) bersendirian di bawah senarai bilik —
+   full width block supaya sasaran sentuh jelas. */
+#bnwAddRoomBtn {
+  display: flex;
+  width: 100%;
 }
 
 /* Form Actions (Back/Next row) */
@@ -603,7 +619,7 @@ body:has(.bnw-main) .rc-public-main {
 .bnw-pay-col { min-width: 0; }
 .bnw-summary-col {
   top: 170px;
-  position:sticky;
+  /* position:sticky; */
 }
 
 /* Override asas di atas — MESTI selepas peraturan .bnw-summary-col asas
@@ -672,7 +688,7 @@ body:has(.bnw-main) .rc-public-main {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  background: var(--bnw-gold);
+  border-bottom: 0.5px solid var(--bnw-gold);
   cursor: pointer;
   user-select: none;
 }
@@ -1300,6 +1316,64 @@ body:has(.bnw-main) .rc-public-main {
   box-shadow: 0 2px 6px rgba(201,168,76,.3);
 }
 
+/* Room Privacy checkbox (cabin cruise SOLO — total penghuni 1 pax).
+   Satu baris checkbox di BAWAH kad cabin (selepas .bnw-steppers) —
+   panel inset 20px (sejajar dgn .bnw-field / .bnw-steppers) atas latar
+   cream — idiom sama seperti .bnw-bank-details. Checked = minta kami
+   carikan roommate ("Open Sharing"); unchecked = Private (default). */
+.bnw-privacy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 20px 4px;
+  padding: 14px 16px;
+  border-radius: var(--bnw-radius-sm);
+  background: var(--bnw-cream);
+}
+.bnw-privacy-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.bnw-privacy-check input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 2px solid var(--bnw-border);
+  border-radius: 4px;
+  background: var(--bnw-white);
+  cursor: pointer;
+  transition: all .2s ease;
+  flex-shrink: 0;
+}
+.bnw-privacy-check input[type="checkbox"]:hover { border-color: var(--bnw-gold-border); }
+.bnw-privacy-check input[type="checkbox"]:checked {
+  border-color: var(--bnw-gold);
+  background: var(--bnw-gold)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E")
+    center/12px no-repeat;
+}
+.bnw-privacy-check input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--bnw-gold);
+  outline-offset: 2px;
+}
+.bnw-privacy-text {
+  font-family: var(--font-heading);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--bnw-dark);
+  line-height: 1.3;
+}
+.bnw-privacy-hint {
+  font-size: 12px;
+  color: var(--bnw-text-muted);
+  line-height: 1.45;
+  padding-left: 28px; /* sejajar dgn teks (18px checkbox + 10px gap) */
+}
+
 /* Bank Details */
 .bnw-bank-details {
   background: var(--bnw-cream);
@@ -1672,3 +1746,509 @@ body:has(.bnw-main) .rc-public-main {
 }
 /* Status line "No verification needed" semasa on-behalf aktif */
 .bnw-email-status--onbehalf { color: var(--bnw-gold-hover, #B8983F); }
+
+/* ══════════════════════════════════════════
+   CABIN TYPE TRIGGER (pengganti dropdown select)
+   Butang yang membuka cabin picker modal.
+   Selepas kabin dipilih: papar nama kabin + kapasiti.
+   ══════════════════════════════════════════ */
+.bnw-cabin-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 18px;
+  border: 1.5px dashed var(--bnw-border-dark);
+  border-radius: var(--bnw-radius-sm);
+  background: var(--bnw-white);
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--bnw-text);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .2s, box-shadow .2s;
+}
+.bnw-cabin-trigger:hover {
+  border-color: var(--bnw-gold);
+  box-shadow: 0 2px 10px rgba(201,168,76,.12);
+}
+.bnw-cabin-trigger:focus-visible {
+  outline: 2px solid var(--bnw-gold);
+  outline-offset: 2px;
+}
+.bnw-cabin-trigger--selected {
+  border-style: solid;
+  border-color: var(--bnw-gold-border);
+  background: var(--bnw-gold-light);
+}
+.bnw-cabin-trigger-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.bnw-cabin-trigger-main {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--bnw-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bnw-cabin-trigger-sub {
+  font-size: 12.5px;
+  color: var(--bnw-text-muted);
+}
+.bnw-cabin-trigger-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--bnw-gold-hover);
+  white-space: nowrap;
+}
+.bnw-cabin-trigger-change .ti { font-size: 14px; }
+.bnw-cabin-trigger-placeholder {
+  color: var(--bnw-text-light);
+}
+.bnw-cabin-trigger-chev {
+  margin-left: auto;
+  color: var(--bnw-text-muted);
+  font-size: 18px;
+}
+
+/* ══════════════════════════════════════════
+   CABIN PICKER MODAL
+   Modal popup senarai kabin — info ringkas + media slide
+   + filter chips ikut room_type.
+   ══════════════════════════════════════════ */
+.bnw-cpick-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(30, 28, 24, .6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.bnw-cpick {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  max-height: min(86vh, 820px);
+  background: var(--bnw-white);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(30, 28, 24, .35);
+  overflow: hidden;
+  font-family: var(--font-body);
+}
+.bnw-cpick-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid var(--bnw-border);
+}
+.bnw-cpick-title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--bnw-dark);
+  line-height: 1.25;
+}
+.bnw-cpick-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--bnw-text-muted);
+}
+.bnw-cpick-close {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--bnw-cream);
+  color: var(--bnw-text-muted);
+  font-size: 18px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.bnw-cpick-close:hover {
+  background: var(--bnw-dark);
+  color: #fff;
+}
+
+/* ── Filter chips ikut room type ── */
+.bnw-cpick-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 22px 4px;
+}
+.bnw-cpick-chip {
+  padding: 7px 16px;
+  border: 1.5px solid var(--bnw-border-dark);
+  border-radius: 999px;
+  background: var(--bnw-white);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--bnw-text-muted);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.bnw-cpick-chip:hover {
+  border-color: var(--bnw-gold);
+  color: var(--bnw-dark);
+}
+.bnw-cpick-chip--active {
+  background: var(--bnw-dark);
+  border-color: var(--bnw-dark);
+  color: var(--bnw-gold) !important;
+}
+
+/* ── Senarai kabin (scrollable) ── */
+.bnw-cpick-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.bnw-cpick-empty {
+  padding: 40px 0;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--bnw-text-muted);
+}
+.bnw-cpick-card {
+  /* Susunan MENDATAR: media di kiri, info + butang Select di kanan —
+     nama kabin, kapasiti & butang sentiasa kelihatan TANPA scroll
+     (dahulu menegak: gambar 240px menolak info ke bawah fold modal). */
+  display: flex;
+  align-items: stretch;
+  /* WAJIB flex-shrink:0 — senarai kad ialah flex-column dalam modal
+     ber-max-height. Tanpa ni, bila jumlah tinggi kad melebihi tinggi
+     modal, flex MENGECHATKAN setiap kad (cth 340px → 203px) instead of
+     biarkan list overflow-y:scroll — kandungan badan kad dipotong oleh
+     overflow:hidden kad (title/meta/butang Select hilang) dan list
+     terkurung tak boleh scroll (scrollHeight == clientHeight sebab
+     "muat" selepas pengecutan). Ini punca kad kabin "cramped" di mobile. */
+  flex-shrink: 0;
+  border: 1.5px solid var(--bnw-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bnw-white);
+  transition: border-color .15s, box-shadow .15s;
+}
+.bnw-cpick-card:hover {
+  border-color: var(--bnw-gold-border);
+  box-shadow: 0 6px 24px rgba(30, 28, 24, .08);
+}
+.bnw-cpick-card--selected {
+  border-color: var(--bnw-gold);
+  box-shadow: 0 0 0 1px var(--bnw-gold);
+}
+.bnw-cpick-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px 16px;
+}
+.bnw-cpick-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.bnw-cpick-name {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 16.5px;
+  font-weight: 700;
+  color: var(--bnw-dark);
+}
+.bnw-cpick-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bnw-gold-light);
+  border: 1px solid var(--bnw-gold-border);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  color: var(--bnw-gold-hover);
+  white-space: nowrap;
+}
+.bnw-cpick-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  /* Kluster detail (kapasiti + harga) TOLAK ke bawah kad — nama kabin
+     bersendirian di atas; harga duduk terus di atas butang Select. */
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 13px;
+  color: var(--bnw-text-muted);
+}
+.bnw-cpick-meta .ti {
+  font-size: 14px;
+  vertical-align: -2px;
+  margin-right: 3px;
+  color: var(--bnw-gold);
+}
+.bnw-cpick-meta-price {
+  font-weight: 600;
+  color: var(--bnw-dark);
+}
+/* (.bnw-cpick-desc dibuang — deskripsi kad tidak lagi dipaparkan) */
+.bnw-cpick-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end; /* More Info + butang Select di hujung kanan */
+  gap: 14px;
+  /* Rapat dengan meta supaya HARGA duduk terus di atas butang */
+  margin-top: 0;
+  padding-top: 8px;
+}
+.bnw-cpick-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* Butang KECIL — diletak selepas More Info di hujung kanan kad */
+  padding: 7px 16px;
+  border: none;
+  border-radius: 8px;
+  background: var(--bnw-gold);
+  color: var(--bnw-dark);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, transform .1s;
+  white-space: nowrap;
+}
+.bnw-cpick-select:hover {
+  background: var(--bnw-gold-hover);
+}
+.bnw-cpick-select:active { transform: scale(.98); }
+.bnw-cpick-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--bnw-text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bnw-cpick-more:hover { color: var(--bnw-gold-hover); }
+
+/* ── Carousel media (gambar + video slide) — RATIO 16:9 utk video ── */
+.bnw-cpick-carousel {
+  position: relative;
+  width: 300px;   /* 300 × 168.75 ≈ 16:9 — sesuai video playback */
+  flex-shrink: 0;
+  background: var(--bnw-cream);
+  border-right: 1px solid var(--bnw-border);
+}
+.bnw-cpick-track {
+  position: relative;
+}
+.bnw-cpick-slide {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  height: auto;
+}
+.bnw-cpick-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: .95;
+}
+.bnw-cpick-slide--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bnw-text-light);
+  font-size: 44px;
+}
+.bnw-cpick-slide--video { cursor: pointer; }
+.bnw-cpick-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(30, 28, 24, .72);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background .2s ease, transform .2s ease;
+  z-index: 2;
+}
+.bnw-cpick-play i {
+  font-size: 26px;
+  margin-left: 4px; /* optical centering ikon play segitiga */
+}
+.bnw-cpick-slide--video:hover .bnw-cpick-play {
+  background: var(--bnw-gold);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+.bnw-cpick-slide iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+.bnw-cpick-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .92);
+  color: var(--bnw-dark);
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(30, 28, 24, .18);
+  z-index: 3;
+  transition: background .15s, color .15s;
+}
+.bnw-cpick-arrow:hover {
+  background: var(--bnw-gold);
+}
+.bnw-cpick-arrow--prev { left: 10px; }
+.bnw-cpick-arrow--next { right: 10px; }
+.bnw-cpick-dots {
+  position: absolute;
+  bottom: 10px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  z-index: 3;
+}
+.bnw-cpick-dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .55);
+  cursor: pointer;
+  transition: background .15s, transform .15s;
+}
+.bnw-cpick-dot--active {
+  background: var(--bnw-gold);
+  transform: scale(1.25);
+}
+
+/* ── Mobile (≤640px): modal jadi BOTTOM SHEET penuh — melekat di bawah
+   skrin, kad kembali menegak (media 16:9 penuh di atas, info di bawah).
+   dvh digunakan (dengan fallback vh) supaya tinggi tepat walaupun ada
+   address bar browser mobile; safe-area inset menghormati home bar iOS. ── */
+@media (max-width: 640px) {
+  .bnw-cpick-overlay {
+    padding: 0;
+    align-items: flex-end; /* sheet melekat di bawah */
+  }
+  .bnw-cpick {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    max-height: 92dvh;
+    border-radius: 16px 16px 0 0;
+  }
+  .bnw-cpick-head {
+    padding: 16px 16px 12px;
+  }
+  .bnw-cpick-title { font-size: 17px; }
+  .bnw-cpick-sub { font-size: 12.5px; }
+  .bnw-cpick-close { width: 32px; height: 32px; font-size: 16px; }
+
+  /* Filter chips: baris mendatar boleh scroll (tak wrap sesakkan) */
+  .bnw-cpick-filters {
+    flex-wrap: nowrap;
+    padding: 12px 16px 6px;
+    scrollbar-width: none;
+  }
+  .bnw-cpick-filters::-webkit-scrollbar { display: none; }
+  .bnw-cpick-chip {
+    flex-shrink: 0;
+    padding: 6px 14px;
+  }
+
+  .bnw-cpick-list {
+    padding: 12px 14px calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Kad: media 16:9 penuh di atas, info di bawah */
+  .bnw-cpick-card { flex-direction: column; }
+  .bnw-cpick-carousel {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--bnw-border);
+  }
+  .bnw-cpick-body { padding: 12px 14px 14px; }
+  .bnw-cpick-name { font-size: 15.5px; }
+  .bnw-cpick-meta { font-size: 12.5px; }
+
+  /* Butang Select sentuh: sikit lebih besar utk keselesaan tap */
+  .bnw-cpick-select {
+    padding: 9px 18px;
+    font-size: 13px;
+  }
+  .bnw-cpick-arrow {
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+  }
+}
+
+/* Thumbnail kabin terpilih dalam trigger (kad bilik) */
+.bnw-cabin-trigger-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bnw-cream);
+}
+.bnw-cabin-trigger-sub .ti {
+  font-size: 13px;
+  vertical-align: -2px;
+  margin-right: 2px;
+  color: var(--bnw-gold);
+}

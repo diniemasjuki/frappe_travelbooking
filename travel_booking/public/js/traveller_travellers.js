@@ -7,8 +7,16 @@
       Klik → redirect ke ?ref=XXX&res=YYY (individual slot page).
    
    2) INDIVIDU (ada 'res'=slot_name parameter)
-      Passport OCR wizard → form dengan tab (Passport/Contact/Health).
-      Proses bermula dengan upload passport image untuk validasi OCR.
+      Form dengan tab (Passport/Contact/Health) terus dibuka.
+      Step 1 wizard passport check DIMANSUHKAN — upload passport
+      berada di panel Passport dengan auto-scan (AI/OCR) selepas
+      gambar dipilih; medan borang diisi automatik.
+      SETIAP panel ada bar navigasi bawah sendiri (← Back |
+      Save [Section] | Next →) + consent PDPA per panel — corak
+      sama dengan guest_passport (traveller_docs_form.html /
+      portal_traveller_page.js). Butang confirm di bar akhir kekal
+      disabled sehingga semua section disimpan (atau slot sudah
+      terisi dari sesi sebelumnya).
    
    Reuses portal_traveller.py APIs.
    Requires: traveller_common.js (loaded before this)
@@ -23,13 +31,10 @@
   var bookingData = null;
   var countries   = [];
 
-  /* ── Mod individu globals (wizard + form) ── */
+  /* ── Mod individu globals (form) ── */
   let ACTIVE_SLOT     = null;
   let _passportFile   = null;
   let _visaPhotoFile  = null;
-  let _wizardResult   = null;    // data traveller dari check_traveller_passport
-  let _wizardExtracted = null;   // medan yang berjaya dibaca dari passport (OCR/MRZ)
-  let _wizardFile     = null;    // File passport yang dipilih di langkah 1
   let _sectionsSaved  = { passport: false, contact: false, health: false };
 
   /* ── Init ── */
@@ -62,10 +67,21 @@
     try {
       bookingData = await API_BK('get_booking_data', { booking_number: BOOKING_REF });
 
+      // Butang "Add Traveller" per cabin (cabin sharing) — data kelayakan +
+      // kadar kategori dari get_shareable_cabins, dipadankan ke senarai
+      // cabin ikut cabin_no. Asinkron dengan fail-silent supaya kegagalan
+      // endpoint tak sesekali rosakkan senarai utama.
+      _shareCabinsMap = await loadShareCabinsMap();
+
+      // Butang "Add Cabin & Traveller" (header senarai) — pilihan kategori
+      // bilik pada kadar solo dari get_new_cabin_options. Fail-silent sama:
+      // kegagalan endpoint hanya menyembunyikan butang, senarai kekal utuh.
+      _newCabinOptions = await loadNewCabinOptions();
+
       if (loading) loading.style.display = 'none';
       if (content) {
         content.style.display = 'block';
-        content.innerHTML = renderSlotList(bookingData);
+        content.innerHTML = renderSlotList(bookingData, _shareCabinsMap);
         wireListActions();
       }
     } catch (e) {
@@ -81,7 +97,41 @@
     }
   }
 
-  function renderSlotList(data) {
+  /* ── Kelayakan cabin sharing ikut cabin_no (untuk butang Add Traveller
+     pada setiap cabin berkekosongan). Return {} bila tiada — B2B
+     end-customer (harga tersembunyi): urusan bayaran perbezaan harga
+     melibatkan partner, jangan papar butang langsung. ── */
+  async function loadShareCabinsMap() {
+    if (bookingData && bookingData.booking && bookingData.booking.price_hidden) return {};
+    try {
+      var res = await API_CS('get_shareable_cabins', { booking_number: BOOKING_REF });
+      var map = {};
+      ((res && res.cabins) || []).forEach(function (c) {
+        if (c && c.eligible) map[c.cabin_no] = c;
+      });
+      return map;
+    } catch (e) {
+      console.warn('loadShareCabinsMap failed:', e);
+      return {};
+    }
+  }
+
+  /* ── Pilihan CABIN BAHARU untuk butang "Add Cabin & Traveller" di
+     header senarai. Return null bila tidak layak (trip penuh / had
+     cabin maksimum) atau B2B end-customer (harga tersembunyi — urusan
+     tambahan melibatkan partner, rujuk _share_context). ── */
+  async function loadNewCabinOptions() {
+    if (bookingData && bookingData.booking && bookingData.booking.price_hidden) return null;
+    try {
+      var res = await API_CS('get_new_cabin_options', { booking_number: BOOKING_REF });
+      return (res && res.eligible && (res.categories || []).length) ? res : null;
+    } catch (e) {
+      console.warn('loadNewCabinOptions failed:', e);
+      return null;
+    }
+  }
+
+  function renderSlotList(data, shareMap) {
     var b = data.booking || {};
     var cabins = data.cabins || [];
     var slots = data.slots || [];
@@ -97,28 +147,75 @@
 
     var html = '';
 
-    /* Header */
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">';
+    /* Header — butang "Add Cabin & Traveller" di sebelah tajuk bila
+       booking layak (dari loadNewCabinOptions). flex-wrap supaya butang
+       turun baris dengan kemas di skrin kecil. */
+    var newCabinBtn = '';
+    if (_newCabinOptions) {
+      newCabinBtn = '<button type="button" class="tv-btn tv-btn--primary tv-btn--sm" data-new-cabin style="white-space:nowrap;">＋ Add Cabin &amp; Traveller</button>';
+    }
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:24px;">';
+    html += '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:14px;">';
     html += '<h1 class="tv-section-title" style="margin-bottom:0;">Manage Travellers</h1>';
-    html += '<span class="tv-badge tv-badge--neutral">' + tripName + ' · ' + ref + '</span>';
+    html += newCabinBtn;
+    html += '</div>';
+    html += '<span class="tv-badge tv-badge--neutral">' + tripName + '<br/>' + ref + '</span>';
     html += '</div>';
 
     /* PDPA Notice */
-    html += '<div class="tv-msg tv-msg--info on" style="margin-bottom:20px;">';
+    html += '<div class="tv-msg tv-msg--info on" style="margin:20px 0;">';
     html += '🛡️ All personal data is protected under PDPA. By saving traveller information, you consent to our data processing.';
     html += '</div>';
 
-    /* Cabin / Slot List — clickable cards, no inline forms */
+    /* Cabin / Slot List — collapsible cards, ALL COLLAPSED by default.
+       Klik header cabin untuk buka/tutup senarai slot dalam cabin.
+       Header memaparkan nombor giliran rooming (1..N ikut urutan paparan);
+       summary rooming + butang "Add Traveller" berada dalam CONTENT panel
+       (bukan header — elak elemen interaktif bersarang dalam toggle). */
     cabins.forEach(function (cabin, cIdx) {
       var cabinSlots = cabin.slots || [];
-      var cabinLabel = _esc(cabin.cabin_assignment || cabin.room_name || ('Cabin ' + (cIdx + 1)));
+      /* Label header SENTIASA kategori bilik — JANGAN diganti dengan
+         stateroom/delegate bila nilai itu wujud (maklumat berkenaan
+         dipaparkan dalam summary content panel). */
+      var cabinLabel = _esc(cabin.room_name || ('Cabin ' + (cIdx + 1)));
+      var filledCount = cabinSlots.filter(function (s) {
+        return s.filled || s.traveller_id;
+      }).length;
+
+      /* Cabin sharing — padan cabin_no + room_category (fail-safe untuk
+         rekod lama yang nombor cabin paparannya di-nombor semula). */
+      var share = (shareMap && shareMap[cabin.cabin_no]) || null;
+      if (share && cabin.room_category && share.room_category !== cabin.room_category) share = null;
+
+      /* Summary rooming — nilai pertama yang tersedia dalam cabin
+         (stateroom boleh datang dari sibling); kosong → NA. */
+      var roomId = '', delegateNo = '', stateroom = cabin.stateroom_no || cabin.cabin_assignment || '';
+      cabinSlots.forEach(function (s) {
+        if (!roomId && s.room_id) roomId = s.room_id;
+        if (!stateroom && s.stateroom_no) stateroom = s.stateroom_no;
+        if (!delegateNo && s.delegate_no) delegateNo = s.delegate_no;
+      });
 
       html += '<div class="tv-cabin tv-animate-in">';
-      html += '<div class="tv-cabin__header">';
-      html += '<span>🛏️ ' + cabinLabel + '</span>';
-      html += '<span>' + cabinSlots.length + ' slot(s)</span>';
+      html += '<button type="button" class="tv-cabin__header" data-act="toggle-cabin" aria-expanded="false">';
+      html += '<span class="tv-cabin__title">🛏️ ' + _esc(cabin.cabin_no || (cIdx + 1)) + '. ' + cabinLabel + '</span>';
+      html += '<span class="tv-cabin__meta">' + filledCount + '/' + cabinSlots.length + ' filled · ' + cabinSlots.length + ' guest(s)';
+      html += '<span class="tv-cabin__chev">▾</span>';
+      html += '</span>';
+      html += '</button>';
+      html += '<div class="tv-cabin__body" style="display:none;">';
+
+      /* Summary info + butang Add Traveller */
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:2px 0 12px;border-bottom:1px solid #eaeaea;margin-bottom:5px;">';
+      html += '<div style="font-size:12px;color:var(--text-secondary);line-height:1.8;min-width:0;">';
+      html += '<div><span style="display:inline-block;min-width:96px;color:var(--text-muted);">Room ID</span>: ' + (roomId ? _esc(roomId) : 'NA') + '</div>';
+      html += '<div><span style="display:inline-block;min-width:96px;color:var(--text-muted);">Stateroom No</span>: ' + (stateroom ? _esc(stateroom) : 'NA') + '</div>';
+      html += '<div><span style="display:inline-block;min-width:96px;color:var(--text-muted);">Delegate No</span>: ' + (delegateNo ? _esc(delegateNo) : 'NA') + '</div>';
       html += '</div>';
-      html += '<div class="tv-cabin__body">';
+      if (share) {
+        html += '<button type="button" class="tv-btn tv-btn--primary tv-btn--sm" data-share-cabin="' + _esc(cabin.cabin_no) + '" style="white-space:nowrap;">＋ Add Traveller</button>';
+      }
+      html += '</div>';
 
       cabinSlots.forEach(function (slot, sIdx) {
         html += renderSelectableSlotCard(slot, cIdx, sIdx);
@@ -179,6 +276,10 @@
     }
     html += '</div>'; // summary
 
+    /* Guest Sequence — nombor tetamu DALAM cabin (format rooming list
+       kapal: Guest 1, Guest 2, ...). NA untuk rekod lama yang kosong. */
+    html += '<span style="font-size:11px;font-weight:600;text-align:center;line-height:1.2;margin:10px;color:var(--text-muted);white-space:nowrap;">Guest:<br/><span style="font-size:20px" >' + (slot.guest_sequence ? _esc(slot.guest_sequence) : 'NA') + '</span></span>';
+
     /* Share button (generate guest link + QR) */
     html += '<button class="tv-slot-share-btn" data-slot-share="' + slotKey + '" title="Generate share link for this traveller">🔗</button>';
 
@@ -187,6 +288,19 @@
   }
 
   function wireListActions() {
+    // Cabin header → toggle collapse/expand (default: semua collapsed)
+    document.querySelectorAll('[data-act="toggle-cabin"]').forEach(function (hdr) {
+      hdr.addEventListener('click', function () {
+        var cabin = this.closest('.tv-cabin');
+        var body = cabin && cabin.querySelector('.tv-cabin__body');
+        if (!body) return;
+        var isOpen = body.style.display !== 'none';
+        body.style.display = isOpen ? 'none' : 'block';
+        cabin.classList.toggle('tv-cabin--open', !isOpen);
+        this.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+      });
+    });
+
     // Click on slot card → navigate to individual page
     document.querySelectorAll('[data-act="go-to-slot"]').forEach(function (el) {
       el.addEventListener('click', function () {
@@ -204,6 +318,24 @@
         e.stopPropagation(); // prevent triggering slot navigation
         var slotKey = this.dataset.slotShare;
         if (slotKey) handleSlotShare(slotKey, this);
+      });
+    });
+
+    // Add Traveller (per cabin berkekosongan) → modal pilih kategori pax.
+    // stopPropagation supaya header cabin tidak terogol sekali.
+    document.querySelectorAll('[data-share-cabin]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var cabinNo = parseInt(this.dataset.shareCabin, 10);
+        if (!isNaN(cabinNo)) openAddTravellerModal(cabinNo);
+      });
+    });
+
+    // Add Cabin & Traveller (header senarai) → modal pilih kategori bilik.
+    document.querySelectorAll('[data-new-cabin]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        openNewCabinModal();
       });
     });
   }
@@ -297,8 +429,381 @@
     }
   }
 
+  /* ── Cabin sharing: butang "Add Traveller" pada header cabin ──
+     Mana-mana cabin yang masih ada kekosongan boleh terima traveller
+     tambahan (cabin & roommate sudah ditetapkan — slot baharu mendapat
+     room_id sama di server). Klik → MODAL pilih KATEGORI pax dahulu
+     (Main Adult / Extra Bed / Infant) sebelum order disubmit — server
+     cipta & submit SO terus, customer selesaikan bayaran di page billing.
+     Cabin masih solo: kadar NET Main Adult selepas kredit lebihan
+     single-supplement (kredit pada Main Adult SAHAJA); Extra Bed & Infant
+     kadar penuh. Slot traveller baharu aktif selepas SO dibayar penuh;
+     detail traveller diisi melalui flow sedia ada di page ini. */
+
+  /* Data kelayakan + kadar kategori per cabin_no — diisi loadShareCabinsMap(). */
+  var _shareCabinsMap = {};
+
+  /* Data pilihan cabin baharu — diisi loadNewCabinOptions(). */
+  var _newCabinOptions = null;
+
+  function openAddTravellerModal(cabinNo) {
+    var cabin = _shareCabinsMap[cabinNo];
+    if (!cabin || !(cabin.categories || []).length) return;
+
+    var old = document.getElementById('rcAddTravellerModal');
+    if (old) old.remove();
+
+    var sym = curSym(cabin);
+    var rows = '';
+    var firstEnabled = false;
+    cabin.categories.forEach(function (cat) {
+      /* Rule kapasiti selari booknow — server hantar disabled + reason
+         (Extra Bed hanya bila base capacity penuh; Main Adult hanya bila
+         belum penuh). Kategori disabled: radio off + row pudar + sebab. */
+      var dis = !!cat.disabled;
+      var checked = !dis && !firstEnabled;
+      if (checked) firstEnabled = true;
+      /* Kredit single-supplement (Main Adult sahaja): harga asal
+         di-strikethrough + kadar net selepas kredit — deduction nampak
+         berapa dimansuhkan sekali pandang. Tiada kredit → harga biasa. */
+      var hasCredit = parseFloat(cat.rate) > parseFloat(cat.net_rate);
+      var priceHtml = hasCredit
+        ? '<s style="color:#9B968A;font-weight:500;margin-right:6px;">' + fmtDual(cat.rate, sym) + '</s>' +
+          fmtDual(cat.net_rate, sym)
+        : fmtDual(cat.net_rate, sym);
+      rows += '<label style="display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #D8D3C6;border-radius:10px;margin-bottom:8px;font-size:13px;' +
+              (dis ? 'opacity:.55;cursor:not-allowed;' : 'cursor:pointer;') + '">';
+      rows += '<input type="radio" name="rcShareCategory" value="' + _esc(cat.key) + '"' +
+              (checked ? ' checked' : '') + (dis ? ' disabled' : '') + ' style="margin-top:3px;flex-shrink:0;"/>';
+      rows += '<span style="flex:1;min-width:0;">';
+      rows += '<span style="display:flex;justify-content:space-between;gap:8px;font-weight:600;">' + _esc(cat.label) +
+              '<span style="white-space:nowrap;">' + priceHtml + '</span></span>';
+      var noteTxt = (dis && cat.disabled_reason) ? cat.disabled_reason : cat.note;
+      if (noteTxt) {
+        rows += '<span style="display:block;font-size:11.5px;color:#6E6A5F;margin-top:3px;">' + _esc(noteTxt) + '</span>';
+      }
+      rows += '</span>';
+      rows += '</label>';
+    });
+
+    var ov = document.createElement('div');
+    ov.id = 'rcAddTravellerModal';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(30,28,24,.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+    ov.innerHTML =
+      '<div role="dialog" aria-modal="true" aria-label="Add traveller to cabin" style="background:#fff;border-radius:14px;max-width:440px;width:100%;max-height:85vh;overflow:auto;padding:22px;box-shadow:0 18px 48px rgba(30,28,24,.3);font-family:inherit;color:#1E1C18;">' +
+        '<h3 style="margin:0 0 4px;font-size:17px;">➕ Add Traveller — ' +
+          _esc(cabin.room_name || 'Cabin') + (cabin.cabin_no ? ' · Cabin ' + _esc(cabin.cabin_no) : '') + '</h3>' +
+        '<p style="margin:0 0 14px;font-size:12.5px;color:#6E6A5F;line-height:1.5;">' +
+          'Select the traveller category for this order. The order is submitted straight to a Sales Order — ' +
+          'complete the payment on the billing page to confirm the slot.</p>' +
+        rows +
+        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px;">' +
+          '<button type="button" id="rcShareCancel" class="tv-btn tv-btn--ghost">Cancel</button>' +
+          '<button type="button" id="rcShareConfirm" class="tv-btn tv-btn--primary">Submit Order</button>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(ov);
+
+    var closeFn = function () { ov.remove(); };
+    ov.querySelector('#rcShareCancel').addEventListener('click', closeFn);
+    ov.addEventListener('click', function (e) { if (e.target === ov) closeFn(); });
+    ov.querySelector('#rcShareConfirm').addEventListener('click', function () {
+      var sel = ov.querySelector('input[name="rcShareCategory"]:checked');
+      var category = (sel && sel.value) || 'main_adult';
+      closeFn();
+      submitAdditionalTravellerOrder(cabinNo, category);
+    });
+  }
+
+  async function submitAdditionalTravellerOrder(cabinNo, category) {
+    try {
+      var res = await API_CS('create_additional_traveller_order', {
+        booking_number: BOOKING_REF,
+        cabin_no: cabinNo,
+        category: category,
+      });
+      if (res && res.fully_covered) {
+        alert(res.message || 'Additional traveller added.');
+        // Refresh senarai — slot traveller baharu keluar dalam cabin.
+        window.location.reload();
+        return;
+      }
+      if (res && res.billing_url) {
+        window.location.href = res.billing_url;
+        return;
+      }
+      // Fallback — refresh supaya slot/order baharu nampak dalam senarai.
+      window.location.reload();
+    } catch (e) {
+      alert(e.message || 'Failed to create the additional traveller order.');
+    }
+  }
+
+  /* ── CABIN BAHARU + TETAMU (create_new_cabin_order) ──
+     Butang level page (header senarai): tambah cabin BAHARU beserta
+     tetamu — bukan sekadar isi kekosongan cabin sedia ada. Modal memilih
+     KATEGORI BILIK + KUANTITI TETAMU (Main Guest / Extra Bed / Infant)
+     dengan rule reservasi cruise yang sama dengan booknow (capFor):
+       - Main Guest 1..capacity; 1 tetamu = kadar solo (single supplement
+         terkandung), 2+ = kadar twin-share seorang
+       - Extra Bed hanya terbuka bila base capacity penuh
+       - Infant perlu >= 1 main guest; semua tetamu berkongsi
+         max_capacity cabin (0 = unlimited)
+       - Had peringkat trip: jumlah tetamu <= seats_left
+     Harga dipaparkan ikut _price_selection server; rule & harga DISEMAK
+     SEMULA di server masa submit (create_new_cabin_order). Server cipta
+     & submit SO BAHARU dan pautkan ke booking (custom_booking); customer
+     selesaikan bayaran di page billing. Slot traveller cabin baharu
+     aktif selepas SO dibayar penuh; detail traveller diisi melalui flow
+     sedia ada di page ini. */
+
+  /* Label kapasiti — cermin booknow: "2 Pax" bila capacity ==
+     max_capacity, "2-4 Pax" bila berbeza; capacity sahaja bila
+     max_capacity <= 0 (unlimited). */
+  function _cabinCapLabel(cat) {
+    if (!cat.max_capacity || Number(cat.max_capacity) <= 0) return cat.capacity + ' Pax';
+    return Number(cat.capacity) === Number(cat.max_capacity)
+      ? cat.capacity + ' Pax'
+      : cat.capacity + '-' + cat.max_capacity + ' Pax';
+  }
+
+  /* Had kuantiti tetamu — cermin capFor() booknow (model cruise),
+     ditutup lagi dengan had peringkat trip (seats_left). Return nilai
+     MAX ALLOWED bagi setiap kiraer. */
+  function _newCabinCaps(cat, sel) {
+    var unlimited = Number(cat.max_capacity) === 0;
+    var maxCap = unlimited ? Infinity : (Number(cat.max_capacity) || Number(cat.capacity) || 0);
+    var mainCap = Number(cat.capacity) > 0 ? Number(cat.capacity) : Infinity;
+    var caps = {
+      main_guests: Math.min(mainCap, maxCap - sel.extra_beds - sel.infants),
+      extra_beds: 0,
+      infants: 0
+    };
+    if (Number(cat.capacity) > 0) {
+      caps.extra_beds = (sel.main_guests === Number(cat.capacity))
+        ? Math.max(0, maxCap - sel.main_guests - sel.infants) : 0;
+    } else {
+      caps.extra_beds = sel.main_guests >= 1
+        ? Math.max(0, maxCap - sel.main_guests - sel.infants) : 0;
+    }
+    caps.infants = sel.main_guests >= 1
+      ? Math.max(0, maxCap - sel.main_guests - sel.extra_beds) : 0;
+    var gs = _newCabinOptions ? Number(_newCabinOptions.seats_left) : 0;
+    if (gs && gs < 100000) {  // 999999 = unlimited (marker server)
+      var total = sel.main_guests + sel.extra_beds + sel.infants;
+      ['main_guests', 'extra_beds', 'infants'].forEach(function (k) {
+        caps[k] = Math.min(caps[k], Math.max(0, gs - (total - sel[k])));
+      });
+    }
+    return caps;
+  }
+
+  /* Jumlah harga — cermin _price_selection() server (cruise):
+     1 main guest = kadar solo; >= 2 = kadar adult x setiap org; extra
+     bed & infant pada kadar penuh masing-masing. */
+  function _newCabinTotal(cat, sel) {
+    var total = 0;
+    if (sel.main_guests === 1) total += Number(cat.solo_rate || 0);
+    else if (sel.main_guests >= 2) total += Number(cat.adult_rate || 0) * sel.main_guests;
+    total += Number(cat.upperberth_rate || 0) * sel.extra_beds;
+    total += Number(cat.infant_rate || 0) * sel.infants;
+    return total;
+  }
+
+  /* Keadaan selection modal semasa (null bila modal tertutup). */
+  var _newCabinSel = null;
+
+  function openNewCabinModal() {
+    var opts = _newCabinOptions;
+    if (!opts || !(opts.categories || []).length) return;
+
+    var old = document.getElementById('rcNewCabinModal');
+    if (old) old.remove();
+
+    var first = opts.categories[0];
+    _newCabinSel = { room_category: first.room_category, main_guests: 1, extra_beds: 0, infants: 0 };
+
+    var ov = document.createElement('div');
+    ov.id = 'rcNewCabinModal';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(30,28,24,.55);display:flex;align-items:center;justify-content:center;padding:20px;';
+    ov.innerHTML =
+      '<div role="dialog" aria-modal="true" aria-label="Add new cabin and travellers" style="background:#fff;border-radius:14px;max-width:460px;width:100%;max-height:88vh;overflow:auto;padding:22px;box-shadow:0 18px 48px rgba(30,28,24,.3);font-family:inherit;color:#1E1C18;">' +
+        '<div id="rcNewCabinBody"></div>' +
+        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px;">' +
+          '<button type="button" id="rcNewCabinCancel" class="tv-btn tv-btn--ghost">Cancel</button>' +
+          '<button type="button" id="rcNewCabinConfirm" class="tv-btn tv-btn--primary">Submit Order</button>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(ov);
+
+    var closeFn = function () { ov.remove(); _newCabinSel = null; };
+    ov.querySelector('#rcNewCabinCancel').addEventListener('click', closeFn);
+    ov.addEventListener('click', function (e) { if (e.target === ov) closeFn(); });
+
+    // Tukar kategori bilik — reset kuantiti ke lalai (1 main guest).
+    ov.addEventListener('change', function (e) {
+      if (e.target && e.target.name === 'rcNewCabinCategory') {
+        _newCabinSel.room_category = e.target.value;
+        _newCabinSel.main_guests = 1;
+        _newCabinSel.extra_beds = 0;
+        _newCabinSel.infants = 0;
+        _renderNewCabinBody();
+      }
+    });
+
+    // Stepper +/- kuantiti tetamu (delegation — body dirender semula).
+    ov.addEventListener('click', function (e) {
+      var t = e.target.closest('[data-step]');
+      if (!t || t.disabled) return;
+      _onNewCabinStep(t.dataset.step, parseInt(t.dataset.dir, 10));
+    });
+
+    ov.querySelector('#rcNewCabinConfirm').addEventListener('click', function () {
+      if (!_newCabinSel) return;
+      var sel = Object.assign({}, _newCabinSel);
+      closeFn();
+      submitNewCabinOrder(sel);
+    });
+
+    _renderNewCabinBody();
+  }
+
+  function _renderNewCabinBody() {
+    var opts = _newCabinOptions, sel = _newCabinSel;
+    var body = document.getElementById('rcNewCabinBody');
+    if (!body || !opts || !sel) return;
+
+    var cat = opts.categories.find(function (c) {
+      return c.room_category === sel.room_category;
+    }) || opts.categories[0];
+    var sym = curSym(opts);
+    var caps = _newCabinCaps(cat, sel);
+
+    /* Kategori bilik (radio) — kapasiti + kadar solo setiap satu. */
+    var rows = '';
+    opts.categories.forEach(function (c) {
+      var checked = c.room_category === sel.room_category;
+      rows += '<label style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid #D8D3C6;border-radius:10px;margin-bottom:8px;font-size:13px;cursor:pointer;">';
+      rows += '<input type="radio" name="rcNewCabinCategory" value="' + _esc(c.room_category) + '"' +
+              (checked ? ' checked' : '') + ' style="margin-top:3px;flex-shrink:0;"/>';
+      rows += '<span style="flex:1;min-width:0;">';
+      rows += '<span style="display:flex;justify-content:space-between;gap:8px;font-weight:600;">' + _esc(c.room_name) +
+              '<span style="white-space:nowrap;font-weight:500;color:#6E6A5F;">' + _esc(_cabinCapLabel(c)) + ' · ' + fmtDual(c.solo_rate, sym) + '</span></span>';
+      rows += '<span style="display:block;font-size:11.5px;color:#6E6A5F;margin-top:3px;">Solo fare — single supplement included</span>';
+      rows += '</span>';
+      rows += '</label>';
+    });
+
+    /* Baris stepper kuantiti — butang +/- dihadkan oleh caps (mirip
+       capFor booknow: butang + disabled, BUKAN clamp senyap). */
+    function stepperRow(key, label, noteHtml, min) {
+      function btn(dir, dis) {
+        return '<button type="button" data-step="' + key + '" data-dir="' + dir + '"' + (dis ? ' disabled' : '') +
+               ' style="width:30px;height:30px;border-radius:8px;border:1px solid #D8D3C6;background:' + (dis ? '#F5F3EE' : '#fff') +
+               ';font-size:16px;font-weight:700;color:' + (dis ? '#B9B4A8' : '#1E1C18') +
+               ';cursor:' + (dis ? 'not-allowed' : 'pointer') + ';line-height:1;flex-shrink:0;">' + (dir < 0 ? '\u2212' : '+') + '</button>';
+      }
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #D8D3C6;border-radius:10px;margin-bottom:8px;font-size:13px;">' +
+        '<span style="flex:1;min-width:0;"><strong>' + _esc(label) + '</strong>' +
+        '<span style="display:block;font-size:11.5px;color:#6E6A5F;margin-top:2px;">' + noteHtml + '</span></span>' +
+        btn(-1, sel[key] <= min) +
+        '<span style="min-width:24px;text-align:center;font-weight:700;">' + sel[key] + '</span>' +
+        btn(1, sel[key] >= caps[key]) +
+        '</div>';
+    }
+
+    var mgNote = (sel.main_guests === 1)
+      ? fmtDual(cat.solo_rate, sym) + '/pax \u00b7 solo (single supplement included)'
+      : fmtDual(cat.adult_rate, sym) + '/pax \u00b7 twin-share';
+    var ebNote = (Number(cat.capacity) > 0)
+      ? fmtDual(cat.upperberth_rate, sym) + '/pax \u00b7 unlocked once the base capacity (' + _esc(cat.capacity) + ' pax) is filled'
+      : fmtDual(cat.upperberth_rate, sym) + '/pax';
+    var infNote = fmtDual(cat.infant_rate, sym) + '/pax \u00b7 requires at least 1 main guest';
+
+    var maxCapTxt = (Number(cat.max_capacity) === 0)
+      ? 'no limit'
+      : (Number(cat.max_capacity) || cat.capacity) + ' pax';
+    var gs = Number(opts.seats_left || 0);
+    var seatsTxt = (gs && gs < 100000) ? gs + ' seat(s) left for this trip date' : 'seats available';
+
+    /* Kotak peraturan reservasi cruise — ringkasan rule yang di-enforce
+       semula di server (_validate_selection_capacity + seats + max
+       cabins), supaya customer nampak SYARAT sebelum submit. */
+    var rules =
+      '<div style="background:#FAF8F3;border:1px solid #E5E1D8;border-radius:10px;padding:12px 14px;margin-top:6px;font-size:11.5px;color:#4C4739;line-height:1.7;">' +
+        '<div style="font-weight:700;font-size:12px;color:#633806;margin-bottom:4px;">\uD83D\uDDF3\uFE0F Cruise reservation rules</div>' +
+        '<ul style="margin:0;padding-left:16px;">' +
+          '<li>Main guests: up to ' + (Number(cat.capacity) > 0 ? _esc(cat.capacity) : '\u2014') + ' per cabin (base capacity). 1 guest pays the solo fare; 2+ guests pay the twin-share rate per person.</li>' +
+          '<li>Extra Bed is available only once the base capacity is filled. Infants require at least 1 main guest.</li>' +
+          '<li>All guests share the cabin maximum capacity (' + _esc(maxCapTxt) + ').</li>' +
+          '<li>Maximum ' + _esc(opts.max_cabins) + ' cabins per booking \u00b7 ' + _esc(seatsTxt) + '.</li>' +
+          '<li>Traveller slots are confirmed after full payment \u2014 traveller details are filled afterwards on this page.</li>' +
+        '</ul>' +
+      '</div>';
+
+    body.innerHTML =
+      '<h3 style="margin:0 0 4px;font-size:17px;">\uD83D\uDECF\uFE0F Add New Cabin &amp; Traveller</h3>' +
+      '<p style="margin:0 0 14px;font-size:12.5px;color:#6E6A5F;line-height:1.5;">' +
+        'A new cabin (Cabin ' + _esc(opts.next_cabin_no) + ') will be added to this booking. ' +
+        'Choose the room category and the number of guests \u2014 the order is submitted straight to a Sales Order; ' +
+        'complete the payment on the billing page to confirm it.</p>' +
+      '<div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:#6E6A5F;margin-bottom:6px;">ROOM CATEGORY</div>' +
+      rows +
+      '<div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:#6E6A5F;margin:12px 0 6px;">GUESTS IN THE NEW CABIN</div>' +
+      stepperRow('main_guests', 'Main Guest', mgNote, 1) +
+      stepperRow('extra_beds', 'Extra Bed', ebNote, 0) +
+      stepperRow('infants', 'Infant', infNote, 0) +
+      rules +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:14px;">' +
+        '<span style="color:#6E6A5F;">Total</span>' +
+        '<strong>' + fmtDual(_newCabinTotal(cat, sel), sym) + '</strong>' +
+      '</div>';
+  }
+
+  function _onNewCabinStep(key, dir) {
+    var opts = _newCabinOptions, sel = _newCabinSel;
+    if (!opts || !sel) return;
+    var cat = opts.categories.find(function (c) {
+      return c.room_category === sel.room_category;
+    }) || opts.categories[0];
+    var caps = _newCabinCaps(cat, sel);
+    var min = (key === 'main_guests') ? 1 : 0;
+    var next = sel[key] + dir;
+    if (next < min || next > caps[key]) return;
+    sel[key] = next;
+    _renderNewCabinBody();
+  }
+
+  async function submitNewCabinOrder(sel) {
+    try {
+      var res = await API_CS('create_new_cabin_order', {
+        booking_number: BOOKING_REF,
+        room_category: sel.room_category,
+        main_guests: sel.main_guests,
+        extra_beds: sel.extra_beds,
+        infants: sel.infants,
+      });
+      if (res && res.fully_covered) {
+        alert(res.message || 'New cabin added.');
+        // Refresh senarai — cabin + slot traveller baharu keluar terus.
+        window.location.reload();
+        return;
+      }
+      if (res && res.billing_url) {
+        window.location.href = res.billing_url;
+        return;
+      }
+      // Fallback — refresh supaya cabin/order baharu nampak dalam senarai.
+      window.location.reload();
+    } catch (e) {
+      alert(e.message || 'Failed to create the new cabin order.');
+    }
+  }
+
   /* ══════════════════════════════════════════════════════════
-     MOD 2: INDIVIDU SLOT (passport OCR wizard + form tabs)
+     MOD 2: INDIVIDU SLOT (form tabs + upload passport auto-scan)
      ══════════════════════════════════════════════════════════ */
 
   async function initDetailMode() {
@@ -335,22 +840,17 @@
       // Load countries for nationality dropdown
       try { countries = await API_TV('get_countries', {}); } catch (e) {}
 
-      // Determine starting view based on slot state
-      if (slot.filled || slot.traveller_id) {
-        // Slot already has data → go straight to form (edit mode)
-        _loadTravellerForm(slot);
-      } else {
-        // Empty slot → start with passport upload wizard (Step 1)
-        resetWizard();
-        showDetailView('V-wizard');
-      }
+      // Step 1 wizard passport check DIMANSUHKAN — terus buka borang.
+      // Upload passport berada di atas panel Passport dengan auto-scan
+      // selepas gambar dipilih (scanPassportIntoForm).
+      _loadTravellerForm(slot);
     } catch (e) {
       showDetailError(e.message || 'Failed to load traveller details.');
     }
   }
 
   function showDetailView(viewId) {
-    ['V-wizard', 'V-form'].forEach(function (v) {
+    ['V-form'].forEach(function (v) {
       var el = document.getElementById(v);
       if (el) el.style.display = (v === viewId) ? '' : 'none';
     });
@@ -366,76 +866,56 @@
     }
   }
 
-  /* ── WIZARD: Step 1 — Upload Passport for OCR ── */
+  /* ── Phone widgets (intl-tel-input — format antarabangsa, port dari
+     portal_traveller_page.js / guest_passport). Lib dimuatkan di page
+     (intlTelInputWithUtils.min.js — utils bundled, tiada utilsScript). ── */
+  var _itiPhone   = null;
+  var _itiEcPhone = null;
 
-  function resetWizard() {
-    _wizardFile = null;
-    _wizardResult = null;
-    _wizardExtracted = null;
+  function _initPhoneWidgets() {
+    if (typeof window.intlTelInput === 'undefined') return;
+    var opts = { initialCountry: 'my', separateDialCode: true, utilsScript: undefined };
+    var phoneEl = document.getElementById('tvl-phone-num');
+    if (phoneEl && !_itiPhone) _itiPhone = window.intlTelInput(phoneEl, opts);
+    var ecPhoneEl = document.getElementById('tvl-ec-phone');
+    if (ecPhoneEl && !_itiEcPhone) _itiEcPhone = window.intlTelInput(ecPhoneEl, opts);
+  }
 
-    // Badge enjin scan (AI / OCR) — papar sekali setiap kali wizard dibuka.
-    renderEngineBadge();
+  /* Nombor penuh E.164 (+60123456789) untuk save — fallback nilai input
+     bila widget gagal load. */
+  function _getFullPhoneNumber(iti, fallbackEl) {
+    if (!iti) return ((fallbackEl && fallbackEl.value) || '').trim();
+    var full = iti.getNumber().trim();
+    if (full) return full;
+    return ((fallbackEl && fallbackEl.value) || '').trim();
+  }
 
-    // Hide all messages
-    var msg = document.getElementById('wiz-msg');
-    if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+  /* Isi semula widget dari nilai tersimpan (format server "+60-123456789"
+     di-parse oleh libphonenumber tanpa masalah). */
+  function _setPhoneValue(iti, elId, rawValue) {
+    var el = document.getElementById(elId);
+    if (!rawValue) { if (iti) iti.setNumber(''); else if (el) el.value = ''; return; }
+    if (iti) iti.setNumber(rawValue); else if (el) el.value = rawValue;
+  }
 
-    // Hide result cards
-    var resultCard = document.getElementById('wiz-result-card');
-    var newCard = document.getElementById('wiz-new-card');
-    if (resultCard) resultCard.style.display = 'none';
-    if (newCard) newCard.style.display = 'none';
-
-    // Show input card with upload area visible, checking hidden
-    var inputCard = document.getElementById('wiz-input-card');
-    if (inputCard) inputCard.style.display = 'block';
-
-    var uploadArea = document.getElementById('wiz-upload-area');
-    var checkingState = document.getElementById('wiz-checking-state');
-    if (uploadArea) {
-      uploadArea.style.display = '';
-      uploadArea.style.borderColor = '';
+  /* Validasi guna isValidNumber() widget (utils bundled). Fallback longgar
+     (≥7 digit) bila widget gagal load — server tetap validate format. */
+  function _isPhoneValid(iti, num) {
+    if (iti) {
+      try { return iti.isValidNumber(); } catch (e) { /* fall through */ }
     }
-    if (checkingState) checkingState.style.display = 'none';
-
-    // Reset upload text
-    var uploadTxt = document.getElementById('wiz-upload-txt');
-    if (uploadTxt) uploadTxt.textContent = 'Upload passport copy';
-
-    // Reset button
-    var btn = document.getElementById('wiz-btn');
-    if (btn) { btn.disabled = false; btn.style.display = 'none'; btn.textContent = 'Check passport →'; }
+    return (num || '').replace(/\D/g, '').length >= 7;
   }
 
-  function triggerWizardPassportUpload(useCamera) {
-    _pickImage(function (file) {
-      _wizardFile = file;
-      var txt = document.getElementById('wiz-upload-txt');
-      if (txt) txt.textContent = '✓ ' + file.name;
-      var area = document.getElementById('wiz-upload-area');
-      if (area) area.style.borderColor = '#0F6E56';
-      var resultCard = document.getElementById('wiz-result-card');
-      var newCard = document.getElementById('wiz-new-card');
-      if (resultCard) resultCard.style.display = 'none';
-      if (newCard) newCard.style.display = 'none';
-      var msg = document.getElementById('wiz-msg');
-      if (msg) msg.style.display = 'none';
-      // AUTO-SCAN: scan bermula serta-merta selepas gambar dipilih/captured —
-      // tiada lagi butang "Check passport" (dibuang 2026-09-05).
-      checkWizardPassport();
-    }, 'wiz-msg', { capture: !!useCamera });
-  }
-
-  /* ── Badge enjin scan (AI vs OCR) — dipaparkan di kawasan upload ── */
-  function renderEngineBadge() {
-    var badge = document.getElementById('wiz-engine-badge');
+  /* ── Badge enjin scan (AI vs OCR) — dipaparkan di kawasan upload borang ── */  function renderEngineBadge() {
+    var badge = document.getElementById('passport-engine-badge');
     if (!badge) return;
     if (AI_SCAN_ENABLED) {
       badge.textContent = '🤖 AI-powered scanning';
       badge.style.color = '#0F6E56';
       badge.style.background = '#E8F4EF';
     } else {
-      badge.textContent = 'OCR (MRZ) scanning';
+      badge.textContent = 'OCR (Image + MRZ) scanning';
       badge.style.color = '#633806';
       badge.style.background = '#FAEEDA';
     }
@@ -443,12 +923,6 @@
     badge.style.padding = '4px 12px';
     badge.style.borderRadius = '12px';
   }
-
-  /* Label enjin ikut respons server ("ai" / "ocr") — untuk tag pada card. */
-  function _engineLabel(engine) {
-    return engine === 'ai' ? '🤖 Scanned with AI' : 'Scanned with OCR (MRZ)';
-  }
-
 
 /* ── Blocking scan progress modal — menghalang user daripada mengganggu
    proses AI/OCR scan passport. Tiada butang tutup; overlay click tidak
@@ -473,254 +947,13 @@ function _hidePassportScanProgress() {
   if (el) el.remove();
 }
 
-  async function checkWizardPassport() {
-    if (!_wizardFile) return;
-
-    // ── UI State: HIDE upload area, SHOW checking spinner ──
-    var uploadArea = document.getElementById('wiz-upload-area');
-    var checkingState = document.getElementById('wiz-checking-state');
-    var checkingTitle = document.getElementById('wiz-checking-title');
-    var msgEl = document.getElementById('wiz-msg');
-
-    if (uploadArea) uploadArea.style.display = 'none';
-    if (checkingState) checkingState.style.display = 'block';
-    // Hint enjin seawal proses scanning (AI dikonfigur → jangkaan AI;
-    // respons sebenar boleh berbeza jika AI gagal → fallback OCR, tag
-    // pada card hasil guna nilai respons).
-    if (checkingTitle) {
-      checkingTitle.textContent = AI_SCAN_ENABLED
-        ? 'Scanning passport with AI...'
-        : 'Scanning passport (OCR)...';
-    }
-    if (msgEl) msgEl.style.display = 'none';
-    _showPassportScanProgress(AI_SCAN_ENABLED ? 'Scanning passport with AI...' : 'Scanning passport (OCR)...');
-
-    try {
-      var filedata = await _readFileAsDataURL(_wizardFile);
-
-      var res = await API_TV('check_traveller_passport', { filedata: filedata });
-
-      // ── Hide checking state regardless of result ──
-      if (checkingState) checkingState.style.display = 'none';
-
-      // Imej tak dapat dibaca → show error + upload area again
-      _hidePassportScanProgress();
-      if (res.status === 'unreadable') {
-        _wizMsg('We could not read this passport image. Please upload a clearer photo of the passport photo page — all four corners visible, no glare, text sharp.', 'error');
-        if (uploadArea) uploadArea.style.display = '';
-        return;
-      }
-
-      // Success: hide upload area, show result card
-      if (uploadArea) uploadArea.style.display = 'none';
-
-      if (res.status === 'found' && res.data) {
-        _wizardResult = res.data;
-        _wizardExtracted = res.extracted || null;
-
-        // Merge existing traveller data with latest OCR extraction for complete display
-        var displayData = Object.assign({}, res.extracted || {}, res.data);
-
-        var fullName = displayData.full_name || '';
-        var initialEl = document.getElementById('wiz-result-initial');
-        var nameEl = document.getElementById('wiz-result-name');
-        var icEl = document.getElementById('wiz-result-ic');
-        if (initialEl) initialEl.textContent = fullName.trim().charAt(0).toUpperCase() || '?';
-        if (nameEl) nameEl.textContent = fullName;
-        if (icEl) icEl.textContent = 'IC: ' + (displayData.ic_number || '');
-
-        // Show ALL extracted fields in result card + tag enjin scan
-        var foundFieldsEl = document.getElementById('wiz-result-fields');
-        if (foundFieldsEl) {
-          foundFieldsEl.innerHTML =
-            '<div style="font-size:11px;font-weight:600;color:#6E6A5F;margin-bottom:8px;">' +
-            _engineLabel(res.engine) + '</div>' + _renderExtractedFields(displayData);
-          foundFieldsEl.style.display = 'block';
-        }
-
-        var resultCard = document.getElementById('wiz-result-card');
-        if (resultCard) resultCard.style.display = 'block';
-
-      } else {
-        _wizardResult = null;
-        _wizardExtracted = res.extracted || null;
-        var ex = res.extracted || {};
-
-        // Show ALL extracted fields — comprehensive list + tag enjin scan
-        var readEl = document.getElementById('wiz-new-read');
-        if (readEl) {
-          readEl.style.display = 'block';
-          readEl.innerHTML = '<div style="font-weight:600;margin-bottom:8px;">✓ Read from passport:</div>' +
-            '<div style="font-size:11px;font-weight:600;color:#6E6A5F;margin-bottom:8px;">' +
-            _engineLabel(res.engine) + '</div>' +
-            _renderExtractedFields(ex);
-        }
-
-        var newCard = document.getElementById('wiz-new-card');
-        if (newCard) newCard.style.display = 'block';
-      }
-    } catch (e) {
-      _hidePassportScanProgress();
-      // Restore UI: hide checking, show upload area with error
-      var checkingState = document.getElementById('wiz-checking-state');
-      var uploadArea = document.getElementById('wiz-upload-area');
-
-      if (checkingState) checkingState.style.display = 'none';
-      if (uploadArea) uploadArea.style.display = '';
-      _wizMsg(e.message || 'Something went wrong. Please try again.', 'error');
-    }
-  }
-
-  /* Passport dari wizard dibawa ke form */
-  function _applyWizardPassportFile() {
-    if (!_wizardFile) return;
-    _passportFile = _wizardFile;
-    var txt = document.getElementById('passport-upload-txt');
-    if (txt) txt.textContent = '✓ ' + _wizardFile.name;
-    var area = document.getElementById('passport-upload-area');
-    if (area) area.style.borderColor = '#0F6E56';
-  }
-
-  /* ── Render ALL extracted passport fields in a nice format ──
-     Maps raw field names to user-friendly labels and shows everything
-     that was successfully extracted from the passport OCR/MRZ. */
-  function _renderExtractedFields(data) {
-    if (!data || typeof data !== 'object') return '';
-
-    // Field definitions: [key, label, icon, transform fn]
-    var fieldDefs = [
-      ['full_name',        'Full Name',           '👤', null],
-      ['first_name',       'First Name',          '👤', null],
-      ['last_name',        'Last Name',           '👤', null],
-      ['passport_no',      'Passport Number',      '🛂', null],
-      ['ic_number',        'IC / National ID',    '🆔', null],
-      ['date_of_birth',    'Date of Birth',        '🎂', null],
-      ['gender',           'Gender',               '⚥',  function(v) { return v === 'M' ? 'Male' : (v === 'F' ? 'Female' : v); }],
-      ['nationality',      'Nationality',          '🌏', null],
-      ['nationality_code', 'Nationality Code',     '🌏', null],
-      ['passport_expiry',  'Passport Expiry',      '📅', null],
-      ['place_of_birth',   'Place of Birth',       '📍', null],  // if available from visual OCR
-      ['issue_date',       'Issue Date',           '📋', null]    // if available from visual OCR
-    ];
-
-    var rows = [];
-    var filledCount = 0;
-
-    fieldDefs.forEach(function (def) {
-      var key = def[0];
-      var label = def[1];
-      var icon = def[2];
-      var transform = def[3];
-      var value = data[key];
-
-      // Skip empty values (but show IC as "not detected" for visibility)
-      if (!value && value !== 0) {
-        if (key === 'ic_number') {
-          value = 'not detected — please fill in manually';
-        } else {
-          return; // skip other empty fields
-        }
-      }
-
-      // Apply transform if exists (e.g., gender M→Male)
-      if (transform && typeof transform === 'function') {
-        value = transform(value);
-      }
-
-      // Format value display
-      var displayVal = String(value).trim();
-      var isEmptyOrPlaceholder = !displayVal || displayVal === 'not detected — please fill in manually';
-
-      var rowClass = isEmptyOrPlaceholder ? 'style="color:var(--text-muted);"' : 'style="color:var(--text-primary);"';
-      var valClass = isEmptyOrPlaceholder ? 'font-style:italic;font-size:12px;' : 'font-weight:500;';
-
-      rows.push(
-        '<div style="display:flex;align-items:baseline;gap:8px;padding:4px 0;border-bottom:1px solid var(--border-light);">' +
-          '<span style="font-size:12px;color:var(--text-muted);min-width:24px;">' + icon + '</span>' +
-          '<span style="font-size:12px;color:var(--text-secondary);min-width:130px;flex-shrink:0;">' + label + '</span>' +
-          '<span ' + rowClass + ' class="' + valClass + '">' + _esc(displayVal) + '</span>' +
-        '</div>'
-      );
-
-      if (!isEmptyOrPlaceholder) filledCount++;
-    });
-
-    // Summary header with count
-    var html = '<div style="background:var(--c-success-bg);border-radius:8px;padding:14px;margin-top:8px;">';
-    html += '<div style="font-size:13px;font-weight:600;color:var(--c-success-text);margin-bottom:10px;display:flex;align-items:center;gap:6px;">';
-    html += '<span>✓</span> <span>' + filledCount + ' field(s) extracted from passport</span></div>';
-    html += '<div>';
-    html += rows.join('');
-    html += '</div></div>';
-
-    return html;
-  }
-
-  async function wizardConfirm() {
-    if (!_wizardResult) return;
-
-    // Merge: slot data → existing traveller record → latest OCR extraction
-    // Priority: OCR extraction (newest) > existing traveller > current slot
-    var merged = Object.assign({}, ACTIVE_SLOT || {}, _wizardResult, _wizardExtracted || {});
-
-    // Ensure first_name/last_name are properly split from full_name if needed
-    if (merged.full_name && (!merged.first_name && !merged.last_name)) {
-      var parts = String(merged.full_name).trim().split(/\s+/);
-      if (parts.length >= 2) {
-        merged.first_name = parts[0];
-        merged.last_name = parts.slice(1).join(' ');
-      } else if (parts.length === 1) {
-        merged.first_name = parts[0];
-      }
-    }
-
-    await _loadTravellerForm(merged);
-    _applyWizardPassportFile();
-  }
-
-  async function wizardContinueNew() {
-    // Use ALL extracted data for new traveller
-    var formData = Object.assign({}, _wizardExtracted || {});
-
-    // Ensure first_name/last_name are split from full_name
-    if (formData.full_name && (!formData.first_name && !formData.last_name)) {
-      var parts = String(formData.full_name).trim().split(/\s+/);
-      if (parts.length >= 2) {
-        formData.first_name = parts[0];
-        formData.last_name = parts.slice(1).join(' ');
-      } else if (parts.length === 1) {
-        formData.first_name = parts[0];
-      }
-    }
-
-    await _loadTravellerForm(formData);
-    _applyWizardPassportFile();
-  }
-
-  /* Fallback manual: scan hanyalah BANTUAN pre-fill — buka borang kosong
-     terus untuk pengisian manual (cth gambar tak dapat diverifikasi atau
-     user tiada dokumen di tangan). Gambar passport masih boleh diupload
-     kemudian melalui bahagian upload dalam borang. */
-  async function wizardManualEntry() {
-    _wizardFile = null;
-    _wizardResult = null;
-    _wizardExtracted = null;
-    await _loadTravellerForm({});
-  }
-
-  function _wizMsg(text, type) {
-    var el = document.getElementById('wiz-msg');
-    if (!el) return;
-    el.textContent = text;
-    el.style.display = 'block';
-    el.style.background = type === 'error' ? '#FCEBEB' : '#FAEEDA';
-    el.style.color = type === 'error' ? '#501313' : '#633806';
-  }
-
   /* ── FORM: Load & Display ── */
 
   async function _loadTravellerForm(slot) {
     await _loadCountries();
+    // Widget telefon antarabangsa — init SEBELUM nilai diisi supaya
+    // setNumber() mengesan dial code dengan betul.
+    _initPhoneWidgets();
     _sectionsSaved = { passport: false, contact: false, health: false };
 
     var isVerified      = slot && (slot.is_verified || slot.document_status === 'Verified');
@@ -731,12 +964,14 @@ function _hidePassportScanProgress() {
     _setVal('tvl-ic', slot?.ic_number || '');
     _setVal('tvl-firstname', slot?.first_name || '');
     _setVal('tvl-lastname', slot?.last_name || '');
+    _setVal('tvl-fullname-format', slot?.fullname_format || 'First Name + Last Name');
     _setVal('tvl-name', slot?.full_name || '');
+    _syncFullName();
     _setVal('tvl-dob', slot?.date_of_birth || '');
     _setVal('tvl-nat', slot?.nationality || '');
     _setVal('tvl-gender', slot?.gender || '');
-    _setVal('tvl-phone-num', slot?.phone || '');
-    _setVal('tvl-ec-phone', slot?.emergency_contact_phone || '');
+    _setPhoneValue(_itiPhone, 'tvl-phone-num', slot?.phone);
+    _setPhoneValue(_itiEcPhone, 'tvl-ec-phone', slot?.emergency_contact_phone);
     _setVal('tvl-email', slot?.email || '');
     _setVal('tvl-pp', slot?.passport_no || '');
     _setVal('tvl-ppexp', slot?.passport_expiry || '');
@@ -748,28 +983,26 @@ function _hidePassportScanProgress() {
     _setVal('tvl-special-needs', slot?.special_needs || '');
     _setVal('tvl-wheelchair', slot?.wheelchair_assistant || '');
 
-    // Reset errors + consent
+    // Reset errors + consent (checkbox consent wujud di SETIAP panel)
     _clearAllFieldErrors();
-    var consent = document.getElementById('tvl-pdpa-consent');
-    if (consent) consent.checked = false;
+    document.querySelectorAll('.tvl-pdpa-consent').forEach(function (cb) { cb.checked = false; });
     var formErr = document.getElementById('tvl-form-error');
     if (formErr) formErr.style.display = 'none';
 
     // Reset passport upload — toggle between "uploaded" and "empty" states
     _passportFile = null;
-    var ppUploaded = document.getElementById('passport-uploaded');   // State A: has image
-    var ppArea = document.getElementById('passport-upload-area');  // State B: empty, show upload
+    var ppUploaded = document.getElementById('passport-uploaded');      // State A: has image
+    var ppGrid = document.getElementById('passport-upload-grid');       // State B: contoh + upload grid
+    var ppArea = document.getElementById('passport-upload-area');       // kotak dashed dalam grid
     if (slot?.has_passport) {
       // Show uploaded state with preview
       if (ppUploaded) ppUploaded.style.display = '';
-      if (ppArea) ppArea.style.display = 'none';
+      if (ppGrid) ppGrid.style.display = 'none';
     } else {
-      // Show empty upload area
+      // Show empty upload area (grid: contoh kiri + upload kanan)
       if (ppUploaded) ppUploaded.style.display = 'none';
-      if (ppArea) {
-        ppArea.style.display = '';
-        ppArea.style.borderColor = '';
-      }
+      if (ppGrid) ppGrid.style.display = '';
+      if (ppArea) ppArea.style.borderColor = '';
       var ppTxt = document.getElementById('passport-upload-txt');
       if (ppTxt) ppTxt.textContent = 'Upload passport copy';
     }
@@ -798,6 +1031,16 @@ function _hidePassportScanProgress() {
     inputs.forEach(function (i) { i.disabled = !canEdit; });
     var confirmBtn = document.getElementById('tvl-confirm-btn');
     if (confirmBtn) confirmBtn.style.display = canEdit ? '' : 'none';
+    // Bar navigasi bawah (Back/Save/Next) + row consent hanya relevan
+    // bila borang boleh diedit (slot Verified & bukan Open for Update
+    // = baca sahaja).
+    document.querySelectorAll('#V-form .tvl-panel-nav, #V-form .tvl-consent-row')
+      .forEach(function (el) { el.style.display = canEdit ? '' : 'none'; });
+    // Confirm mula DISABLED — aktif selepas semua section disimpan.
+    _updateConfirmState();
+
+    // Badge enjin scan (AI vs OCR) di kawasan upload passport.
+    renderEngineBadge();
 
     // Check passport validity if expiry exists
     if (slot?.passport_expiry) _checkPassportValidity();
@@ -1008,7 +1251,10 @@ function _hidePassportScanProgress() {
     reader.readAsDataURL(file);
   }
 
-  function triggerPassportUpload() {
+  function triggerPassportUpload(useCamera, ev) {
+    // Butang kamera berada DALAM kawasan dashed yang juga klikabel —
+    // hentikan propagation supaya dialog fail tak terbuka dua kali.
+    if (ev && ev.stopPropagation) ev.stopPropagation();
     _pickImage(function (file) {
       _passportFile = file;
 
@@ -1036,7 +1282,7 @@ function _hidePassportScanProgress() {
       // terbaharu dibaca (AI didahulukan, fallback OCR) dan medan borang
       // dikemas kini supaya selari dengan dokumen baharu.
       scanPassportIntoForm(file);
-    }, 'passport-upload-err');
+    }, 'passport-upload-err', { capture: !!useCamera });
   }
 
   /* Imbas dokumen (upload/ganti) → kemas kini medan borang Passport.
@@ -1072,7 +1318,9 @@ function _hidePassportScanProgress() {
       }
 
       _hidePassportScanProgress();
-      var engineTag = res.engine === 'ai' ? '🤖 Scanned with AI' : 'Scanned with OCR (MRZ)';
+      var engineTag = (res.engine === 'ai') ? '🤖 Scanned with AI'
+        : (res.engine === 'ai+ocr') ? '🤖 Scanned with AI + OCR (Image + MRZ)'
+        : 'Scanned with OCR (Image + MRZ)';
 
       // Banding nilai imbasan dengan nilai semasa borang.
       function _norm(v) { return String(v || '').trim().toUpperCase(); }
@@ -1100,6 +1348,9 @@ function _hidePassportScanProgress() {
           mismatches.push({ el: f[0], label: f[2], current: current, next: next });
         }
       });
+      // Full Name (read-only) tak terjejas oleh event input pengisian
+      // senyap di atas — kira semula ikut First/Last + Full Name Format.
+      if (filled.length) _syncFullName();
 
       function _box(bg, border, color, html) {
         box.style.background = bg;
@@ -1117,6 +1368,7 @@ function _hidePassportScanProgress() {
               var el = document.getElementById(m.el);
               if (el) el.value = m.next;
             });
+            _syncFullName();
             _box('#EBF7F1', '#0F6E56', '#0F6E56',
               '<strong>' + engineTag + '</strong> — replaced with new passport data: ' +
               mismatches.map(function (m) { return _esc(m.label); }).join(', ') +
@@ -1228,29 +1480,46 @@ function _hidePassportScanProgress() {
     if (chev) chev.style.transform = open ? '' : 'rotate(90deg)';
   };
 
-  /* ── Save by Section ── */
+  /* ── Wizard Save (semua section sekali klik) ── */
 
-  window.saveTraveller = async function (section, btnEl) {
+  var _SECTION_LABELS = { passport: 'Passport', contact: 'Contact Info', health: 'Health' };
+
+  /* Butang confirm DISABLED sehingga ketiga-tiga section disimpan
+     (ATAU slot sudah terisi dari sesi sebelumnya — corak guest_passport).
+     Hint di bawah butang nyatakan section yang belum siap. */
+  function _updateConfirmState() {
+    var btn = document.getElementById('tvl-confirm-btn');
+    if (!btn) return;
+    var allSaved = _sectionsSaved.passport && _sectionsSaved.contact && _sectionsSaved.health;
+    var canConfirm = allSaved || !!(ACTIVE_SLOT && ACTIVE_SLOT.filled);
+    btn.disabled = !canConfirm;
+    var hint = document.getElementById('tvl-confirm-hint');
+    if (hint) {
+      if (canConfirm) {
+        hint.textContent = '\u2713 All sections complete \u2014 press confirm to submit for review.';
+        hint.style.color = '#0F6E56';
+      } else {
+        var pending = ['passport', 'contact', 'health']
+          .filter(function (s) { return !_sectionsSaved[s]; })
+          .map(function (s) { return _SECTION_LABELS[s]; });
+        hint.textContent = 'Please complete and save: ' + pending.join(', ') + '.';
+        hint.style.color = '#92400E';
+      }
+    }
+  }
+
+  /* Validasi medan wajib sesuatu section (tanpa panggilan API).
+     Return true jika lulus; gagal → tandakan medan + lompat ke tab. */
+  function _validateSection(section) {
     var get = function (id) { return document.getElementById(id); };
 
     var firstName = get('tvl-firstname').value.trim();
     var lastName  = get('tvl-lastname').value.trim();
-    var phoneNum  = get('tvl-phone-num').value.trim();
+    var phoneNum  = _getFullPhoneNumber(_itiPhone, get('tvl-phone-num'));
+    var ecPhone   = _getFullPhoneNumber(_itiEcPhone, get('tvl-ec-phone'));
     var ecName    = get('tvl-ec-name').value.trim();
-    var ecPhone   = get('tvl-ec-phone').value.trim();
     var ecRel     = get('tvl-ec-relationship').value.trim();
     var ic        = get('tvl-ic').value.trim();
-    var nat       = get('tvl-nat').value;
-    var dob       = get('tvl-dob').value;
-    var gender    = get('tvl-gender').value;
-    var pp        = get('tvl-pp').value.trim();
-    var ppexp     = get('tvl-ppexp').value;
-    var consent   = get('tvl-pdpa-consent').checked;
-
-    // Clear errors
-    _clearAllFieldErrors();
-    var formErr = get('tvl-form-error');
-    if (formErr) formErr.style.display = 'none';
 
     var fail = function (el, msg, tab) {
       if (el) el.style.borderColor = '#F87171';
@@ -1267,10 +1536,10 @@ function _hidePassportScanProgress() {
       tvlGoToTab(tab);
       if (el) el.focus({ preventScroll: false });
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return true;
+      // _validateSection() semak nilai pulangan ini — FALSE = gagal.
+      return false;
     };
 
-    // Validate section-specific fields
     if (section === 'passport') {
       if (!firstName) return fail(get('tvl-firstname'), 'First name is required.', 'passport');
       if (!lastName)  return fail(get('tvl-lastname'), 'Last name is required.', 'passport');
@@ -1279,75 +1548,181 @@ function _hidePassportScanProgress() {
     if (section === 'contact') {
       var emailVal = get('tvl-email').value.trim();
       if (!phoneNum) return fail(get('tvl-phone-num'), 'Phone number is required.', 'contact');
+      if (!_isPhoneValid(_itiPhone, phoneNum))
+        return fail(get('tvl-phone-num'), 'This does not look like a valid phone number. Please check the country code.', 'contact');
       if (!emailVal) return fail(get('tvl-email'), 'Email is required.', 'contact');
       if ((ecName || ecPhone || ecRel) && (!ecName || !ecPhone || !ecRel)) {
         if (!ecName) return fail(get('tvl-ec-name'), 'Please complete emergency contact.', 'contact');
         if (!ecPhone) return fail(get('tvl-ec-phone'), 'Please complete emergency contact.', 'contact');
         return fail(get('tvl-ec-relationship'), 'Please complete emergency contact.', 'contact');
       }
+      if (ecPhone && !_isPhoneValid(_itiEcPhone, ecPhone))
+        return fail(get('tvl-ec-phone'), 'This does not look like a valid phone number. Please check the country code.', 'contact');
+    }
+    return true;
+  }
+
+  /* Simpan SATU section ke server (andaian: validasi lulus).
+     Server wajib section passport dahulu — cipta Traveller + link ke
+     slot sebelum contact/health boleh disimpan. */
+  async function _saveSection(section) {
+    var get = function (id) { return document.getElementById(id); };
+    var payload = {
+      booking_number: BOOKING_REF,
+      slot_name: ACTIVE_SLOT.slot_name,
+      section: section,
+      pdpa_consent: true
+    };
+
+    if (section === 'passport') {
+      var filedata = '', filename = '';
+      if (_passportFile) {
+        var fd = await _readFileAsDataURL(_passportFile);
+        filedata = fd; filename = _passportFile.name;
+      }
+      Object.assign(payload, {
+        first_name: get('tvl-firstname').value.trim(),
+        last_name: get('tvl-lastname').value.trim(),
+        full_name: get('tvl-name').value.trim(),
+        fullname_format: (get('tvl-fullname-format') && get('tvl-fullname-format').value) || 'First Name + Last Name',
+        gender: get('tvl-gender').value,
+        ic_number: get('tvl-ic').value.trim(),
+        date_of_birth: get('tvl-dob').value,
+        nationality: get('tvl-nat').value,
+        passport_no: get('tvl-pp').value.trim(),
+        passport_expiry: get('tvl-ppexp').value,
+        filedata: filedata, filename: filename
+      });
+    } else if (section === 'contact') {
+      var visaFd = '', visaFn = '';
+      if (_visaPhotoFile) {
+        var vfd = await _readFileAsDataURL(_visaPhotoFile);
+        visaFd = vfd; visaFn = _visaPhotoFile.name;
+      }
+      Object.assign(payload, {
+        email: get('tvl-email').value || '',
+        phone: _getFullPhoneNumber(_itiPhone, get('tvl-phone-num')),
+        emergency_contact_name: get('tvl-ec-name').value.trim(),
+        emergency_contact_phone: _getFullPhoneNumber(_itiEcPhone, get('tvl-ec-phone')),
+        emergency_contact_relationship: get('tvl-ec-relationship').value.trim(),
+        visa_filedata: visaFd, visa_filename: visaFn
+      });
+    } else {
+      Object.assign(payload, {
+        dietary_requirements: get('tvl-dietary').value.trim(),
+        medical_conditions: get('tvl-medical').value.trim(),
+        special_needs: get('tvl-special-needs').value.trim(),
+        wheelchair_assistant: get('tvl-wheelchair').value,
+        medicine_treatment: get('tvl-medicine').value.trim()
+      });
     }
 
-    // PDPA consent required
-    if (!consent) {
-      fail(get('tvl-pdpa-consent'), 'Please accept the Privacy Notice.', 'passport');
-      _showInlineError('tvl-form-error', 'Please accept the Privacy Notice so we can store these details.');
+    await API_TV('save_booking_traveller', payload);
+    _sectionsSaved[section] = true;
+  }
+
+  /* Reset kawasan upload/preview selepas section passport disimpan. */
+  function _afterPassportSaved() {
+    _passportFile = null;
+
+    // Reset replace area (jika dalam mod ganti)
+    var replaceArea = document.getElementById('passport-replace-area');
+    if (replaceArea) {
+      replaceArea.innerHTML = '<span>\ud83d\udcf7</span> Replace passport image';
+      replaceArea.style.background = '';
+      replaceArea.style.borderColor = '';
+    }
+
+    // Reset upload area text (mod upload baharu)
+    var pptxt = document.getElementById('passport-upload-txt');
+    if (pptxt) pptxt.textContent = 'Upload passport copy';
+    var ppArea = document.getElementById('passport-upload-area');
+    if (ppArea) ppArea.style.borderColor = '';
+
+    // Reload preview to show updated state
+    _loadPassportPreview(ACTIVE_SLOT);
+  }
+
+  /* Reset kawasan upload visa selepas section contact disimpan. */
+  function _afterContactSaved() {
+    _visaPhotoFile = null;
+    var vtxt = document.getElementById('visa-photo-upload-txt');
+    if (vtxt) vtxt.textContent = 'Upload photo';
+    var ve = document.getElementById('visa-photo-existing');
+    if (ve) ve.style.display = (ACTIVE_SLOT && ACTIVE_SLOT.has_visa_photo) ? '' : 'none';
+  }
+
+  /* ── Save per-section (corak guest_passport) ──
+     Setiap bar navigasi bawah panel menyimpan section berkenaan sahaja
+     (Passport → Contact → Health). Bar confirm akhir aktif selepas
+     ketiga-tiga section disimpan (atau slot sudah terisi). */
+
+  /* PDPA consent — modal popup bila Save ditekan tanpa tick (corak sama
+     dengan portal_traveller_page.js). "Accept & Continue" tick semua
+     checkbox consent & tutup modal. */
+  function _showConsentModal() {
+    _hideConsentModal();
+    var overlay = document.createElement('div');
+    overlay.id = 'rc-consent-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(30,28,24,.6);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;';
+    overlay.innerHTML =
+      '<div role="dialog" aria-modal="true" aria-label="Privacy consent required" style="background:#fff;border-radius:14px;padding:28px 24px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(30,28,24,.35);font-family:inherit;">' +
+        '<div style="font-size:34px;margin-bottom:10px;text-align:center;">\uD83D\uDD12</div>' +
+        '<div style="font-size:15px;font-weight:700;color:#1E1C18;margin-bottom:8px;text-align:center;">Privacy consent required</div>' +
+        '<p style="font-size:12.5px;color:#6E6A5F;line-height:1.6;margin-bottom:18px;">Please accept the Privacy Notice before saving \u2014 we need your consent to store traveller and passport details for trip arrangements.</p>' +
+        '<div style="display:flex;gap:10px;">' +
+          '<button type="button" class="tv-btn tv-btn--ghost" style="flex:1;" data-consent-cancel>Cancel</button>' +
+          '<button type="button" class="tv-btn tv-btn--primary" style="flex:1;" data-consent-accept>\u2713 Accept &amp; Continue</button>' +
+        '</div>' +
+      '</div>';
+    overlay.querySelector('[data-consent-cancel]').addEventListener('click', _hideConsentModal);
+    overlay.querySelector('[data-consent-accept]').addEventListener('click', _acceptConsentFromModal);
+    document.body.appendChild(overlay);
+  }
+
+  function _hideConsentModal() {
+    var el = document.getElementById('rc-consent-modal');
+    if (el) el.remove();
+  }
+
+  function _acceptConsentFromModal() {
+    document.querySelectorAll('.tvl-pdpa-consent').forEach(function (cb) { cb.checked = true; });
+    _hideConsentModal();
+  }
+
+  window.tvlConsentToggled = function (el) {
+    document.querySelectorAll('.tvl-pdpa-consent').forEach(function (cb) { cb.checked = el.checked; });
+  };
+
+  /* Simpan SATU section. section = 'passport' | 'contact' | 'health'. */
+  window.saveTraveller = async function (section, btnEl) {
+    var get = function (id) { return document.getElementById(id); };
+    if (!ACTIVE_SLOT || TVL_TAB_ORDER.indexOf(section) === -1) return;
+
+    var formErr = get('tvl-form-error');
+    if (formErr) formErr.style.display = 'none';
+    _clearAllFieldErrors();
+
+    // Validasi inline section ini sahaja — gagal → lompat ke medan pertama.
+    if (!_validateSection(section)) return;
+
+    // PDPA — tiada tick → MODAL POPUP (bukan inline error), corak
+    // guest_passport. Server juga enforce (save_booking_traveller).
+    if (!document.querySelector('.tvl-pdpa-consent:checked')) {
+      _showConsentModal();
       return;
     }
 
-    var btn = btnEl || get('tvl-confirm-btn');
+    var btn = btnEl || get('tvl-save-btn-' + section);
     var btnLabel = btn ? btn.textContent : '';
     if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
 
     try {
-      var payload = {
-        booking_number: BOOKING_REF,
-        slot_name: ACTIVE_SLOT.slot_name,
-        section: section,
-        pdpa_consent: true
-      };
+      await _saveSection(section);
+      if (section === 'passport') _afterPassportSaved();
+      if (section === 'contact') _afterContactSaved();
 
-      if (section === 'passport') {
-        var filedata = '', filename = '';
-        if (_passportFile) { 
-          var fd = await _readFileAsDataURL(_passportFile);
-          filedata = fd; filename = _passportFile.name; 
-        }
-        Object.assign(payload, {
-          first_name: firstName, last_name: lastName,
-          full_name: get('tvl-name').value.trim(),
-          gender: gender, ic_number: ic,
-          date_of_birth: dob, nationality: nat,
-          passport_no: pp, passport_expiry: ppexp,
-          filedata: filedata, filename: filename
-        });
-      } else if (section === 'contact') {
-        var visaFd = '', visaFn = '';
-        if (_visaPhotoFile) { 
-          var vfd = await _readFileAsDataURL(_visaPhotoFile);
-          visaFd = vfd; visaFn = _visaPhotoFile.name; 
-        }
-        Object.assign(payload, {
-          email: get('tvl-email').value || '',
-          phone: phoneNum,
-          emergency_contact_name: ecName,
-          emergency_contact_phone: ecPhone,
-          emergency_contact_relationship: ecRel,
-          visa_filedata: visaFd, visa_filename: visaFn
-        });
-      } else {
-        Object.assign(payload, {
-          dietary_requirements: get('tvl-dietary').value.trim(),
-          medical_conditions: get('tvl-medical').value.trim(),
-          special_needs: get('tvl-special-needs').value.trim(),
-          wheelchair_assistant: get('tvl-wheelchair').value,
-          medicine_treatment: get('tvl-medicine').value.trim()
-        });
-      }
-
-      await API_TV('save_booking_traveller', payload);
-      _sectionsSaved[section] = true;
-
-      // Refresh data
+      // Refresh data + slot terkini (flag has_passport dll.)
       var fresh = await API_BK('get_booking_data', { booking_number: BOOKING_REF });
       bookingData = fresh;
       if (ACTIVE_SLOT) {
@@ -1355,44 +1730,21 @@ function _hidePassportScanProgress() {
         if (s) ACTIVE_SLOT = s;
       }
 
-      // Reset file fields after save
-      if (section === 'passport') {
-        _passportFile = null;
-        
-        // Reset replace area (if in replace mode)
-        var replaceArea = document.getElementById('passport-replace-area');
-        if (replaceArea) {
-          replaceArea.innerHTML = '<span>📷</span> Replace passport image';
-          replaceArea.style.background = '';
-          replaceArea.style.borderColor = '';
-        }
-        
-        // Reset upload area text (if in new upload mode)
-        var pptxt = document.getElementById('passport-upload-txt');
-        if (pptxt) pptxt.textContent = 'Upload passport copy';
-        
-        // Reload preview to show updated state
-        _loadPassportPreview(ACTIVE_SLOT);
-      }
-      if (section === 'contact') {
-        _visaPhotoFile = null;
-        var vtxt = document.getElementById('visa-photo-upload-txt');
-        if (vtxt) vtxt.textContent = 'Upload photo';
-        var ve = document.getElementById('visa-photo-existing');
-        if (ve) ve.style.display = (ACTIVE_SLOT && ACTIVE_SLOT.has_visa_photo) ? '' : 'none';
-      }
-
-      // Show saved notification
-      var note = document.getElementById('tvl-saved-note');
+      // Notis "section saved" — user boleh terus isi bahagian lain atau
+      // tekan Next / confirm bila dah selesai.
+      var note = get('tvl-saved-note');
       if (note) {
         note.style.display = 'block';
         note.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setTimeout(function () { note.style.display = 'none'; }, 4000);
       }
 
-      showToast(section.charAt(0).toUpperCase() + section.slice(1) + ' saved!', 'success');
+      showToast(_SECTION_LABELS[section] + ' section saved!', 'success');
+      _updateConfirmState();
     } catch (e) {
       _showInlineError('tvl-form-error', e.message || 'An error occurred. Please try again.');
+      var errBox = get('tvl-form-error');
+      if (errBox) errBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
     } finally {
       if (btn) { btn.textContent = btnLabel; btn.disabled = false; }
     }
@@ -1409,6 +1761,8 @@ function _hidePassportScanProgress() {
 
     var notSaved = ['passport', 'contact', 'health'].filter(function (s) { return !_sectionsSaved[s]; });
     if (notSaved.length && !ACTIVE_SLOT.filled) {
+      // Butang confirm disabled sehingga semua saved (atau slot sudah
+      // terisi dari sesi sebelumnya) — ini guard tambahan.
       _showInlineError('tvl-form-error', 'Please save every section (Passport, Contact Info, Health) before confirming.');
       return;
     }
@@ -1426,7 +1780,7 @@ function _hidePassportScanProgress() {
     } catch (e) {
       _showInlineError('tvl-form-error', e.message || 'An error occurred. Please try again.');
       btn.textContent = '✓ I confirm all information is complete';
-      btn.disabled = false;
+      _updateConfirmState();
     }
   };
 
@@ -1449,7 +1803,25 @@ function _hidePassportScanProgress() {
   };
 
   window.tvlGoToTab = function (tabId) { tvlShowTab(tabId); };
-  
+
+  /* Navigasi bawah panel (corak guest_passport): Next → tab berikutnya,
+     ← Back → tab sebelumnya, ← Back (panel 1) → senarai traveller. */
+  window.tvlNext = function (tabId) {
+    var idx = TVL_TAB_ORDER.indexOf(tabId);
+    if (idx === -1 || idx >= TVL_TAB_ORDER.length - 1) return;
+    tvlShowTab(TVL_TAB_ORDER[idx + 1]);
+  };
+
+  window.tvlBack = function (tabId) {
+    var idx = TVL_TAB_ORDER.indexOf(tabId);
+    if (idx <= 0) return;
+    tvlShowTab(TVL_TAB_ORDER[idx - 1]);
+  };
+
+  window.tvlBackToList = function () {
+    window.location.href = '/traveller/travellers?ref=' + encodeURIComponent(BOOKING_REF);
+  };
+
   function _resetTabs() { tvlShowTab('passport'); }
 
   /* ── Passport Preview ── */
@@ -1461,9 +1833,9 @@ function _hidePassportScanProgress() {
     // If no passport or element missing, ensure upload state is shown
     if (!preview || !slot || !slot.has_passport) {
       var ppUploaded = document.getElementById('passport-uploaded');
-      var ppArea = document.getElementById('passport-upload-area');
+      var ppGrid = document.getElementById('passport-upload-grid');
       if (ppUploaded) ppUploaded.style.display = 'none';
-      if (ppArea) ppArea.style.display = '';
+      if (ppGrid) ppGrid.style.display = '';
       return;
     }
 
@@ -1485,26 +1857,26 @@ function _hidePassportScanProgress() {
           filenameEl.textContent = res.filename || 'passport_image.jpg';
         }
 
-        // Ensure uploaded container is visible, hide empty upload area
+        // Ensure uploaded container is visible, hide empty upload grid
         var ppUploaded = document.getElementById('passport-uploaded');
-        var ppArea = document.getElementById('passport-upload-area');
+        var ppGrid = document.getElementById('passport-upload-grid');
         if (ppUploaded) ppUploaded.style.display = '';
-        if (ppArea) ppArea.style.display = 'none';
+        if (ppGrid) ppGrid.style.display = 'none';
 
       } else {
-        // No image data — show upload area instead
+        // No image data — show upload grid instead
         var ppUploaded = document.getElementById('passport-uploaded');
-        var ppArea = document.getElementById('passport-upload-area');
+        var ppGrid = document.getElementById('passport-upload-grid');
         if (ppUploaded) ppUploaded.style.display = 'none';
-        if (ppArea) ppArea.style.display = '';
+        if (ppGrid) ppGrid.style.display = '';
       }
     } catch (e) {
-      // Error loading — show upload area as fallback
+      // Error loading — show upload grid as fallback
       console.warn('Failed to load passport preview:', e);
       var ppUploaded = document.getElementById('passport-uploaded');
-      var ppArea = document.getElementById('passport-upload-area');
+      var ppGrid = document.getElementById('passport-upload-grid');
       if (ppUploaded) ppUploaded.style.display = 'none';
-      if (ppArea) ppArea.style.display = '';
+      if (ppGrid) ppGrid.style.display = '';
     }
   }
 
@@ -1531,13 +1903,29 @@ function _hidePassportScanProgress() {
     if (el) el.style.display = 'none';
   }
 
-  /* Sync full name from first + last */
+  /* Sync Full Name (read-only) dari First + Last mengikut Full Name
+     Format — kelakian sama dengan doctype Traveller (set_full_name):
+     "First Name + Last Name" (default) atau "Last Name + First Name". */
+  function _syncFullName() {
+    var first = (document.getElementById('tvl-firstname')?.value || '').trim();
+    var last  = (document.getElementById('tvl-lastname')?.value || '').trim();
+    var nameEl = document.getElementById('tvl-name');
+    if (!nameEl) return;
+    if (!first && !last) return; // kekalkan nilai sedia ada bila kedua-dua kosong
+    var fmtEl = document.getElementById('tvl-fullname-format');
+    var fmt = (fmtEl && fmtEl.value) || 'First Name + Last Name';
+    nameEl.value = fmt === 'Last Name + First Name'
+      ? [last, first].filter(Boolean).join(' ')
+      : [first, last].filter(Boolean).join(' ');
+  }
   document.addEventListener('input', function (e) {
-    if (e.target.id === 'tvl-firstname' || e.target.id === 'tvl-lastname') {
-      var first = (document.getElementById('tvl-firstname')?.value || '').trim();
-      var last  = (document.getElementById('tvl-lastname')?.value || '').trim();
-      var nameEl = document.getElementById('tvl-name');
-      if (nameEl) nameEl.value = [first, last].filter(Boolean).join(' ');
+    if (e.target.id === 'tvl-firstname' || e.target.id === 'tvl-lastname' || e.target.id === 'tvl-fullname-format') {
+      _syncFullName();
+    }
+  });
+  document.addEventListener('change', function (e) {
+    if (e.target.id === 'tvl-fullname-format') {
+      _syncFullName();
     }
   });
 
@@ -1549,11 +1937,6 @@ function _hidePassportScanProgress() {
   }
 
   /* ── Expose functions to global scope for HTML onclick handlers ── */
-  window.triggerWizardPassportUpload = triggerWizardPassportUpload;
-  window.checkWizardPassport = checkWizardPassport;
-  window.wizardConfirm = wizardConfirm;
-  window.wizardContinueNew = wizardContinueNew;
-  window.wizardManualEntry = wizardManualEntry;
   window.triggerPassportUpload = triggerPassportUpload;
   window.triggerVisaPhotoUpload = triggerVisaPhotoUpload;
 

@@ -110,7 +110,7 @@ function set_filter_group_date(frm){
 
         // update package type option
         frm.set_df_property('package_type', 'options', [
-            'Fly Cruise',
+            'Cruise+Flight',
             'Cruise Only'
         ]);
 
@@ -144,7 +144,7 @@ function set_filter_group_date(frm){
         // is a cruise trip
         if(frm.doc.is_cruise_only == 0){
 
-            // LIST KAN DATE TRIP FLY-CRUISE
+            // LIST KAN DATE TRIP CRUISE+FLIGHT
             frm.fields_dict['select_group_by_date'].get_query = function(doc) {
                 return {
                     filters: {
@@ -154,7 +154,7 @@ function set_filter_group_date(frm){
                 };
             };
 
-            frm.set_value("package_type", "Fly Cruise");
+            frm.set_value("package_type", "Cruise+Flight");
         }
 
     }

@@ -126,10 +126,12 @@
    "precision": "0"
   },
   {
-   "depends_on": "eval:doc.manual_transfer_cashback_enabled",
+   "default": "0",
+   "depends_on": "eval:doc.manual_transfer_cashback_enabled==1",
+   "description": "Fallback akaun deduction cashback (Marketing Expenses) pada Payment Entry Manual Transfer — digunakan HANYA jika baris Travel Settings > Multi Currency Account untuk currency SO tiada 'Cashback Discount Account' sendiri, DAN akaun ni milik company yang sama dengan SO. Amaun cashback dicatat sebagai deduction (debit) pada akaun ni dalam Payment Entry.",
    "fieldname": "cashback_discount_account",
    "fieldtype": "Link",
-   "label": "Cashback Discount Account",
+   "label": "Cashback Discount Account (Fallback)",
    "link_filters": "[[\"Account\",\"is_group\",\"=\",0],[\"Account\",\"account_category\",\"=\",\"Operating Expenses\"]]",
    "options": "Account"
   },

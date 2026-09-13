@@ -43,7 +43,8 @@ class Traveller(Document):
 		title: DF.Literal["Mr", "Mrs"]
 		visa_photo: DF.Attach | None
 		wheelchair_assistant: DF.Literal["", "Not Required", "Long Walk Only", "All Time"]
-		# end: auto-generated types
+	# end: auto-generated types
+
 	
 		_DOCTYPE_NAME = "Traveller"
  

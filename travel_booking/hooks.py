@@ -65,6 +65,29 @@ doc_events = {
 	"Booking": {
 		"on_update": "travel_booking.api.booking_engine.on_booking_update",
 	},
+	# Sync occupancy & availability kabin pada Trip Cruise Schedule setiap
+	# kali reservasi berubah. Pemetaan: reservation.trip_cruise_schedule +
+	# reservation.room_category → baris cabin_rates (Trip Package Price)
+	# dengan pricing_for_class yang sama. after_delete (bukan on_trash)
+	# sebab baris dah didelete dari DB masa hook itu jadi — kiraan tak
+	# termasuk rekod yang sedang dipadam.
+	"Booking Reservation": {
+		"after_insert": "travel_booking.travel_booking_management.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
+		"on_update": "travel_booking.travel_booking_management.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
+		"after_delete": "travel_booking.travel_booking_management.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
+	},
+	# on_update berjalan selepas insert & setiap save — sync Trip Group
+	# Date "Cruise Only" dengan schedule: update group date sedia ada,
+	# atau cipta baru jika belum ada (trip linked mesti wujud).
+	# recompute_cabin_availability: normalisasi occupancy & availability
+	# SEMUA kelas cabin_rates bila schedule disimpan (admin tambah/ganti
+	# baris → nilai terus selari dengan reservasi sebenar).
+	"Trip Cruise Schedule": {
+		"on_update": [
+			"travel_booking.travel_booking_management.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cruise_only_group_date",
+			"travel_booking.travel_booking_management.doctype.trip_cruise_schedule.trip_cruise_schedule.recompute_cabin_availability",
+		],
+	},
 }
 
 # Scheduled Tasks

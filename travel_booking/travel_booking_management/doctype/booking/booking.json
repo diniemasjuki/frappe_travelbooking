@@ -1,6 +1,5 @@
 {
  "actions": [],
- "allow_import": 1,
  "allow_rename": 1,
  "autoname": "naming_series:naming_series",
  "creation": "2026-04-08 18:55:47.144024",
@@ -10,31 +9,39 @@
   "sec_booking",
   "booking_number",
   "status",
-  "naming_series",
   "column_break_nrfb",
   "prog_payment",
   "payment_status",
+  "naming_series",
   "section_break_wqvr",
   "column_break_hwbu",
   "customer",
-  "company",
-  "get_cust_phone",
+  "get_cust_booking_phone",
   "cust_email",
+  "column_break_luhk",
   "booking_channel",
   "booked_by",
+  "column_break_isdd",
+  "b2b_partner",
+  "end_customer",
   "section_break_eyrl",
   "order_summary",
   "payment_section",
-  "column_break_betz",
-  "currency",
-  "total_amount",
-  "balance_amount",
   "column_break_jnes",
   "affiliate",
   "referral_code_used",
-  "pre_discount_total",
+  "referral_discount",
   "column_break_qemr",
   "voucher",
+  "voucher_discount",
+  "column_break_mbgv",
+  "currency",
+  "total_amount",
+  "balance_amount",
+  "pre_discount_total",
+  "column_break_betz",
+  "company",
+  "checkout_method",
   "details_information_section",
   "total_pax",
   "column_break_gige",
@@ -49,20 +56,24 @@
   "trip_title",
   "trip_date",
   "trip_package",
-  "column_break_ckkw",
-  "trip_status",
-  "trip_date_group_status",
-  "trip_package_status",
   "column_break_tgtv",
-  "departure_date",
-  "return_date",
   "is_a_cruise_trip",
   "is_cruise_only",
+  "trip_status",
+  "trip_package_status",
+  "trip_date_group_status",
   "section_break_lewo",
+  "column_break_ruru",
+  "departure_date",
+  "return_date",
+  "total_days",
+  "total_night",
   "column_break_wyaj",
   "cruise_start",
   "cruise_end",
-  "column_break_ruru",
+  "column_break_jvfy",
+  "package_type",
+  "ground_arrangement",
   "tab_2_tab",
   "flight",
   "flight_pnr",
@@ -76,7 +87,7 @@
   "flight_return_arrival_date",
   "flight_destination_airport",
   "section_break_ahwx",
-  "text_editor_logm"
+  "flight_itinerary"
  ],
  "fields": [
   {
@@ -98,7 +109,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Booking Status",
-   "options": "Pending\nProcessing\nAccepted\nConfirmed\nCompleted\nAbandoned\nCancelled"
+   "options": "Pending\nAccepted\nProcessing\nConfirmed\nCompleted\nAbandoned\nCancelled"
   },
   {
    "fieldname": "payment_status",
@@ -134,7 +145,7 @@
    "options": "Customer"
   },
   {
-   "description": "Company yang mengeluarkan Sales Order utama booking ini (dari paksi currency — currency native pakej menentukan company).",
+   "description": "Company yang mengeluarkan Sales Order utama booking ini (dari paksi currency \u2014 currency native pakej menentukan company).",
    "fieldname": "company",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -200,6 +211,22 @@
    "read_only": 1
   },
   {
+   "description": "Snapshot diskaun voucher order-level semasa booking disahkan (SO kekal GROSS; diskaun diserap sebagai Payment Entry deduction ke akaun Marketing Expenses).",
+   "fieldname": "voucher_discount",
+   "fieldtype": "Currency",
+   "label": "Voucher Discount Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "description": "Snapshot diskaun referral/affiliate order-level semasa booking disahkan (% atas baki selepas voucher).",
+   "fieldname": "referral_discount",
+   "fieldtype": "Currency",
+   "label": "Referral Discount Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
    "fieldname": "details_information_section",
    "fieldtype": "Section Break",
    "label": "Details Information"
@@ -223,7 +250,7 @@
    "label": "Pending Traveller"
   },
   {
-   "description": "Jumlah pax (Main Guest + Extra Bed + Infant) dirayang masa booking dicipta — sumber kebenaran untuk gate overbooking (sum merentasi semua booking tak-cancelled vs Trip Group Date.max_participants). Berbeza dari Total Traveller (virtual, kira Booking Reservation Confirmed).",
+   "description": "Jumlah pax (Main Guest + Extra Bed + Infant) dirayang masa booking dicipta \u2014 sumber kebenaran untuk gate overbooking (sum merentasi semua booking tak-cancelled vs Trip Group Date.max_participants). Berbeza dari Total Traveller (virtual, kira Booking Reservation Confirmed).",
    "fieldname": "booked_pax",
    "fieldtype": "Int",
    "label": "Booked Pax",
@@ -268,10 +295,6 @@
   },
   {
    "fieldname": "column_break_whlk",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "column_break_ckkw",
    "fieldtype": "Column Break"
   },
   {
@@ -363,13 +386,6 @@
    "label": "Cruise End"
   },
   {
-   "fieldname": "get_cust_phone",
-   "fieldtype": "Phone",
-   "is_virtual": 1,
-   "label": "Customer Phone",
-   "read_only": 1
-  },
-  {
    "fieldname": "flight",
    "fieldtype": "Link",
    "label": "Flight Arrangment",
@@ -395,7 +411,7 @@
   },
   {
    "default": "Direct",
-   "description": "Saluran booking: Direct = customer tempah sendiri; Staff = sales user (role Sales User) tempah bagi pihak customer tanpa OTP; Affiliate = rakan kongsi affiliate (role Affiliate) tempah bagi pihak customer tanpa OTP; B2B = business partner (fasa hadapan).",
+   "description": "Saluran booking: Direct = customer tempah sendiri; Staff = sales user (role Sales User) tempah bagi pihak customer tanpa OTP; Affiliate = rakan kongsi affiliate (role Affiliate) tempah bagi pihak customer tanpa OTP; B2B = partner/agen/reseller tempah bagi pihak pelanggan mereka \u2014 SO & billing kepada Customer partner, harga net (deducted price), end-customer lihat status sahaja di portal.",
    "fieldname": "booking_channel",
    "fieldtype": "Select",
    "in_standard_filter": 1,
@@ -483,11 +499,6 @@
    "fieldtype": "Section Break"
   },
   {
-   "fetch_from": "flight.flight_itinerary",
-   "fieldname": "text_editor_logm",
-   "fieldtype": "Text Editor"
-  },
-  {
    "fieldname": "trip_info_tab",
    "fieldtype": "Tab Break",
    "label": "Trip Info"
@@ -505,8 +516,84 @@
    "fieldname": "trip_title",
    "fieldtype": "Data",
    "hidden": 1,
-   "label": "Trip Title",
-   "options": "Trip"
+   "label": "Trip Title"
+  },
+  {
+   "description": "Partner B2B yang DIBILKAN untuk tempahan ini (booking_channel = B2B). Sales Order / Payment Entry / Sales Invoice semua atas Customer milik partner \u2014 pelanggan end-customer tidak melihat sebarang harga.",
+   "fieldname": "b2b_partner",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "B2B Partner",
+   "options": "Travel B2B Partner",
+   "search_index": 1
+  },
+  {
+   "description": "Customer end-customer (contact traveller) yang datanya diisi partner semasa tempah bagi pihak. Memberi akses portal traveller \u2014 status/dokumen SAHAJA, tanpa harga/billing.",
+   "fieldname": "end_customer",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "End Customer",
+   "options": "Customer",
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_isdd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "checkout_method",
+   "fieldtype": "Select",
+   "label": "Checkout Method",
+   "options": "\nOnline Payment Gateway\nManual Transfer\nHeld Booking",
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "column_break_luhk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "get_cust_booking_phone",
+   "fieldtype": "Data",
+   "label": "Customer Phone",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "column_break_mbgv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "flight.flight_itinerary",
+   "fieldname": "flight_itinerary",
+   "fieldtype": "Text Editor",
+   "label": "Flight Itinerary"
+  },
+  {
+   "fetch_from": "trip_date.total_days",
+   "fieldname": "total_days",
+   "fieldtype": "Read Only",
+   "label": "Total Days"
+  },
+  {
+   "fetch_from": "trip_date.total_nights",
+   "fieldname": "total_night",
+   "fieldtype": "Read Only",
+   "label": "Total Night"
+  },
+  {
+   "fieldname": "column_break_jvfy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip_package.package_type",
+   "fieldname": "package_type",
+   "fieldtype": "Read Only",
+   "label": "Package Type"
+  },
+  {
+   "fetch_from": "trip_package.ground_arrangement",
+   "fieldname": "ground_arrangement",
+   "fieldtype": "Read Only",
+   "label": "Ground Arrangement"
   }
  ],
  "grid_page_length": 50,
@@ -524,7 +611,7 @@
    "link_fieldname": "booking"
   }
  ],
- "modified": "2026-09-04 16:32:11.750396",
+ "modified": "2026-09-13 03:55:58.529112",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking",
@@ -536,7 +623,6 @@
    "delete": 1,
    "email": 1,
    "export": 1,
-   "import": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -548,7 +634,6 @@
    "create": 1,
    "email": 1,
    "export": 1,
-   "import": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -564,7 +649,36 @@
  "show_title_field_in_link": 1,
  "sort_field": "creation",
  "sort_order": "DESC",
- "states": [],
+ "states": [
+  {
+   "color": "Red",
+   "title": "Pending"
+  },
+  {
+   "color": "Yellow",
+   "title": "Accepted"
+  },
+  {
+   "color": "Orange",
+   "title": "Processing"
+  },
+  {
+   "color": "Blue",
+   "title": "Confirmed"
+  },
+  {
+   "color": "Light Blue",
+   "title": "Completed"
+  },
+  {
+   "color": "Red",
+   "title": "Abandoned"
+  },
+  {
+   "color": "Pink",
+   "title": "Canceled"
+  }
+ ],
  "title_field": "booking_number",
  "track_changes": 1
 }

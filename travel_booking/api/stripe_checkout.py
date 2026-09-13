@@ -190,6 +190,11 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
                              ["customer", "currency", "grand_total", "advance_paid"], as_dict=True)
     if not so:
         frappe.throw("Sales Order not found.")
+    # Snapshot diskaun order-level disimpan pada Booking (SO kekal GROSS) —
+    # rujuk _get_booking_discount_snapshot().
+    from travel_booking.api.so_helpers import _get_booking_discount_snapshot
+    so_voucher_discount, so_referral_discount, _so_cashback_pct = \
+        _get_booking_discount_snapshot(sales_order)
 
     # Currency fallback axis (bukan hardcoded MYR) untuk SO rekod lama.
     from travel_booking.api.currency_axis import get_default_currency
@@ -243,16 +248,21 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
         online_min = 0
 
     effective_so_total = float(so.grand_total or 0)
-    min_deposit = round(effective_so_total * (min_deposit_pct / 100), 2)
+    # NET PAYABLE — SO kekal GROSS; diskaun order-level (voucher/referral,
+    # snapshot pada Booking) diserap sebagai PE deduction/settlement, jadi
+    # jumlah yang dicaj customer ialah gross ditolak diskaun tu. Min deposit
+    # & pengecualian full-payment diukur atas nilai NET ni.
+    net_payable = round(effective_so_total - so_voucher_discount - so_referral_discount, 2)
+    min_deposit = round(net_payable * (min_deposit_pct / 100), 2)
 
     # Jika amount kurang dari minimum deposit (dan bukan full payment), reject
-    if amount < min_deposit and abs(amount - effective_so_total) > 0.01:
+    if amount < min_deposit and abs(amount - net_payable) > 0.01:
         frappe.throw(
             _("Minimum payment is {0}% ({1}) of total order amount {2}. "
               "Please contact support for special arrangements.").format(
                 min_deposit_pct,
                 frappe.utils.fmt_currency(min_deposit, currency=so.currency or default_currency),
-                frappe.utils.fmt_currency(effective_so_total, currency=so.currency or default_currency)
+                frappe.utils.fmt_currency(net_payable, currency=so.currency or default_currency)
             ),
             title="Amount Below Minimum"
         )
@@ -807,6 +817,23 @@ def _mark_payment_request_paid(pr_name):
         pr = frappe.get_doc("Payment Request", pr_name)
         pr.run_method("set_as_paid")
         frappe.db.commit()
+
+        # DISKAUN ORDER-LEVEL (voucher/referral) — PE ERPNext allocate cash
+        # net sahaja; serap BAKI diskaun yang belum diserap supaya SO settle
+        # tepat selepas bayaran penuh secara net. Di-run SELEPAS commit
+        # pengesahan bayaran: error di-log sahaja, TIDAK PERNAH gagalkan
+        # rekod bayaran customer.
+        try:
+            if pr.reference_doctype == "Sales Order" and pr.reference_name:
+                from travel_booking.api.so_helpers import _settle_order_discount_residue
+                _settle_order_discount_residue(pr.reference_name)
+                frappe.db.commit()
+        except Exception as settle_err:
+            frappe.db.rollback()
+            frappe.log_error(
+                "Order discount residue settlement failed for PR " + pr_name +
+                " (SO " + str(pr.reference_name) + "): " + str(settle_err),
+                "Stripe Order Discount Settlement Error")
         return True
     except Exception as e:
         frappe.db.rollback()
@@ -1017,10 +1044,16 @@ def get_payment_result(payment_intent: str):
                 "Payment Result - Webhook Miss Fallback Failed"
             )
 
+    result_currency = (intent.currency or default_currency).upper()
+    result_currency_symbol = frappe.get_cached_value(
+        "Currency", result_currency, "symbol"
+    ) or result_currency
+
     return {
         "status":          result_status,
         "amount":          float(intent.amount) / 100.0,
-        "currency":        (intent.currency or "myr").upper(),
+        "currency":        result_currency,
+        "currency_symbol": result_currency_symbol,
         "sales_order":     so_name or "",
         "trip_label":      trip_label,
         "booking_number":  booking_number,

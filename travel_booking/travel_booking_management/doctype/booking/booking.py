@@ -15,36 +15,45 @@ class Booking(Document):
 		from frappe.types import DF
 
 		affiliate: DF.Link | None
+		b2b_partner: DF.Link | None
 		balance_amount: DF.Currency
 		booked_by: DF.Link | None
 		booked_pax: DF.Int
 		booking_channel: DF.Literal["Direct", "Staff", "Affiliate", "B2B"]
 		booking_number: DF.Data
+		checkout_method: DF.Literal["", "Online Payment Gateway", "Manual Transfer", "Held Booking"]
 		company: DF.Link | None
 		cruise_end: DF.Date | None
 		cruise_start: DF.Date | None
 		cust_email: DF.Data | None
 		customer: DF.Link | None
 		departure_date: DF.Date | None
+		end_customer: DF.Link | None
 		flight: DF.Link | None
 		flight_airline: DF.Link | None
 		flight_departure_date: DF.Date | None
 		flight_destination_airport: DF.Link | None
 		flight_from_airport: DF.Link | None
+		flight_itinerary: DF.TextEditor | None
 		flight_pnr: DF.Data | None
 		flight_return_arrival_date: DF.Date | None
 		flight_ticket_type: DF.Data | None
+		get_cust_booking_phone: DF.Data | None
+		ground_arrangement: DF.ReadOnly | None
 		is_a_cruise_trip: DF.Check
 		is_cruise_only: DF.Check
 		naming_series: DF.Literal["BK.YY.MM.###"]
+		package_type: DF.ReadOnly | None
 		payment_status: DF.Literal["Pending", "Partially Paid", "Paid", "Request Refund", "Pending Refund", "Refunded"]
 		pre_discount_total: DF.Currency
 		prog_payment: DF.Percent
 		referral_code_used: DF.Data | None
+		referral_discount: DF.Currency
 		return_date: DF.Date | None
-		status: DF.Literal["Pending", "Processing", "Accepted", "Confirmed", "Completed", "Abandoned", "Cancelled"]
-		text_editor_logm: DF.TextEditor | None
+		status: DF.Literal["Pending", "Accepted", "Processing", "Confirmed", "Completed", "Abandoned", "Cancelled"]
 		total_amount: DF.Currency
+		total_days: DF.ReadOnly | None
+		total_night: DF.ReadOnly | None
 		trip_date: DF.Link | None
 		trip_date_group_status: DF.ReadOnly | None
 		trip_name: DF.Link | None
@@ -53,6 +62,7 @@ class Booking(Document):
 		trip_status: DF.ReadOnly | None
 		trip_title: DF.Data | None
 		voucher: DF.Link | None
+		voucher_discount: DF.Currency
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Booking"
@@ -68,8 +78,11 @@ class Booking(Document):
 		sebenar. Guna get_customer_phone() (_helpers.py) — sumber
 		kebenaran YANG SAMA dipakai send_otp() untuk auto-fill wizard.
 
-		PENTING: nama property (dan fieldname doctype) ialah 'get_cust_phone'
-		(bukan 'cust_phone') — rename disegerakkan dengan skema terkini.
+		PENTING: nama property ialah 'get_cust_phone' — BERBEZA dari field
+		snapshot 'get_cust_booking_phone' (Phone) yang ditulis SEKALI semasa
+		booking dicipta (salinan sejarah, sama corak dengan cust_email).
+		Property ni pula sentiasa live; guna field snapshot bila nilai
+		masa booking diperlukan.
 		"""
 		from travel_booking.api._helpers import get_customer_phone
 		if not self.customer:
@@ -93,11 +106,12 @@ class Booking(Document):
 		untuk angka tepat. Fallback MYR kalau tiada SO lagi.
 		"""
 		from travel_booking.api.booking import _get_all_booking_sales_orders
+		from travel_booking.api.currency_axis import get_default_currency
 		for so_name in _get_all_booking_sales_orders(self.name):
 			so_currency = frappe.db.get_value("Sales Order", so_name, "currency")
 			if so_currency:
 				return so_currency
-		return "MYR"
+		return get_default_currency()
 
 	@property
 	def total_amount(self):

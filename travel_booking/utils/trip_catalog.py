@@ -14,6 +14,7 @@
 # mula, tarikh seterusnya — untuk card katalog).
 
 import frappe
+from frappe.utils import cint
 
 from travel_booking.utils.website_config import web_date
 from travel_booking.api._helpers import get_company_currency
@@ -73,7 +74,8 @@ def get_ready_bundle() -> tuple[list, dict, dict, dict]:
 		       td.departure_date, td.return_date, td.total_days, td.total_nights,
 		       td.sailing_start, td.sailing_end, td.cruise_schedule,
 		       td.embarkation_port, td.disembarkation_port,
-		       td.max_participants, td.current_participants
+		       td.max_participants, td.current_participants,
+		       td.is_cruise_only
 		FROM `tabTrip Group Date` td
 		WHERE td.trip IN %(trips)s
 		  AND td.status = 'Active'
@@ -128,16 +130,25 @@ def get_ready_bundle() -> tuple[list, dict, dict, dict]:
 				"disembarkation_port": d.disembarkation_port or "",
 				"total_days": d.total_days or 0,
 				"total_nights": d.total_nights or 0,
+				"is_cruise_only": bool(d.is_cruise_only),
 				"max_participants": max_pax,
 				"seats_left": seats_left,
 			}
 		)
 
 	# Susun semula per-trip: cruise ikut SAILING date (sailing_start),
-	# lain-lain ikut departure_date. Cruise cuma papar sailing terawal.
+	# lain-lain ikut departure_date. Cruise cuma papar sailing terawal —
+	# dan dalam sailing yang sama, TGD cruise_only didahulukan supaya
+	# kad katalog ambil duration sailing sebenar (Cruise+Flight TGD membawa
+	# hari penerbangan, durationnya lebih panjang).
 	for _trip_name, _groups in trip_group_dates.items():
 		if trip_is_cruise.get(_trip_name):
-			_groups.sort(key=lambda g: g["sailing_start"] or g["departure_date"])
+			_groups.sort(
+				key=lambda g: (
+					g["sailing_start"] or g["departure_date"],
+					not g["is_cruise_only"],
+				)
+			)
 		else:
 			_groups.sort(key=lambda g: g["departure_date"])
 
@@ -147,9 +158,12 @@ def get_ready_bundle() -> tuple[list, dict, dict, dict]:
 		pkgs = frappe.db.sql(
 			"""
 			SELECT tp.name, sel.trip_group_date, tp.package_title, tp.package_type,
-			       tp.airport_form, ap.airport_name, tp.currency, cur.symbol AS currency_symbol
+			       tp.airport_form, ap.airport_name, tp.currency, cur.symbol AS currency_symbol,
+			       td.departure_date, td.return_date, td.sailing_start, td.sailing_end,
+			       td.total_days, td.total_nights, td.is_cruise_only, tp.ground_arrangement
 			FROM `tabTrip Package` tp
 			JOIN `tabTrip Package Group Date Select` sel ON sel.parent = tp.name
+			JOIN `tabTrip Group Date` td ON td.name = sel.trip_group_date
 			LEFT JOIN `tabFlight Airport` ap ON ap.name = tp.airport_form
 			LEFT JOIN `tabCurrency` cur ON cur.name = tp.currency
 			WHERE sel.trip_group_date IN %(dates)s
@@ -173,6 +187,18 @@ def get_ready_bundle() -> tuple[list, dict, dict, dict]:
 					"flight_label": flight_label,
 					"currency": p.currency or "MYR",
 					"currency_symbol": p.currency_symbol or (p.currency or "MYR"),
+					# ── Detail TGD pautan pakej (tarikh penerbangan / sailing,
+					# durasi, ground arrangement) — untuk baris detail pakej
+					# dalam modal pemilihan /cruise-schedule. str() wajib:
+					# medan date tak boleh lalu json.dumps (pageData wizard).
+					"departure_date": str(p.departure_date) if p.departure_date else "",
+					"return_date": str(p.return_date) if p.return_date else "",
+					"sailing_start": str(p.sailing_start) if p.sailing_start else "",
+					"sailing_end": str(p.sailing_end) if p.sailing_end else "",
+					"total_days": p.total_days or 0,
+					"total_nights": p.total_nights or 0,
+					"is_cruise_only": bool(p.is_cruise_only),
+					"ground_arrangement": bool(p.ground_arrangement),
 				}
 			)
 
@@ -204,20 +230,24 @@ def _enrich_trips(trips: list) -> None:
 		t["trip_organizer"] = m.get("trip_organizer") or ""
 		t["published"] = bool(m.get("published"))
 
-	# Destinasi per-trip: join child destination_list -> master Trip
-	# Destination Point (nama + negara). Cruise turut sertakan port
-	# start/end dari Trip Cruise Schedule aktif trip tu.
-	# ORDER BY sel.idx — destinasi pada trip card mesti ikut urutan
-	# susunan yang admin tetapkan dalam child table Trip (sama seperti
-	# page detail /trip/<slug>). Tanpa ni, urutan MySQL tak menentu.
+	# Destinasi per-trip: ambil terus dari destination yang tersenarai
+	# dalam itinerary (Trip Itinerary.destination_point -> master Trip
+	# Destination Point, nama + negara) — sumber sama dengan section
+	# Destination pada page detail /trip/<slug>. Destination yang sama
+	# boleh muncul beberapa hari (cth: pulang ke port asal) — dedup dan
+	# kekal kemunculan HARI TERAWAL supaya urutan pada trip card =
+	# urutan lawatan sebenar ikut itinerary.
 	dest_rows = frappe.db.sql(
 		"""
-		SELECT sel.parent AS trip, dp.name AS dest_name,
-		       dp.destination_name, dp.destination_country
-		FROM `tabTrip Destination Point Select` sel
-		JOIN `tabTrip Destination Point` dp ON dp.name = sel.select_destination_point
-		WHERE sel.parent IN %(names)s AND sel.parenttype = 'Trip'
-		ORDER BY sel.parent, sel.idx
+		SELECT it.parent AS trip, dp.name AS dest_name,
+		       dp.destination_name, dp.destination_country,
+		       MIN(it.day) AS first_day
+		FROM `tabTrip Itinerary` it
+		JOIN `tabTrip Destination Point` dp ON dp.name = it.destination_point
+		WHERE it.parent IN %(names)s AND it.parenttype = 'Trip'
+		  AND it.destination_point IS NOT NULL AND it.destination_point != ''
+		GROUP BY it.parent, dp.name, dp.destination_name, dp.destination_country
+		ORDER BY it.parent, first_day
 		""",
 		{"names": names},
 		as_dict=True,
@@ -297,6 +327,10 @@ def get_catalog_trips(filters: dict | None = None) -> dict:
 	    cruise       — "1" cruise-sahaja | "0" non-cruise-sahaja | "" semua
 	    date_from    — tarikh mula (YYYY-MM-DD)
 	    date_to      — tarikh tamat (YYYY-MM-DD)
+	    month        — bulan pelayaran 1–12 (match bebas: bulan itu pada
+	                   mana-mana tahun — ganti from/to date pada bar penapis
+	                   katalog cruise)
+	    year         — tahun pelayaran (cth 2026; match bebas ikut tahun)
 	    sort         — "date" | "price" | "duration" (default "date")
 	    currency     — currency pilihan customer (paksi multi-currency):
 	                   trip yang TIADA pakej Active dalam currency ini
@@ -325,6 +359,11 @@ def get_catalog_trips(filters: dict | None = None) -> dict:
 	cruise = (filters.get("cruise") or "").strip()
 	date_from = (filters.get("date_from") or "").strip()
 	date_to = (filters.get("date_to") or "").strip()
+	# Bulan/tahun pelayaran (bar penapis katalog cruise): match bebas atas
+	# sailing date — bulan tanpa tahun bermakna bulan itu pada mana-mana
+	# tahun. cint elak 500 pada query string tak sah (cth ?month=abc).
+	month = cint(filters.get("month"))
+	year = cint(filters.get("year"))
 	sort = (filters.get("sort") or "date").strip()
 
 	# --- Penapis destinasi + item_group + carian + cruise/normal ---
@@ -341,16 +380,33 @@ def get_catalog_trips(filters: dict | None = None) -> dict:
 				return False
 		return True
 
-	# --- Penapis julat tarikh pada group dates setiap trip ---
+	# --- Penapis julat/bulan/tahun tarikh pada group dates setiap trip ---
 	def _date_in_range(g: dict) -> bool:
 		base = g.get("sailing_start") or g.get("departure_date")
 		if not base:
 			return True
+		# base ISO "YYYY-MM-DD" (sailing_start/disbursement di-str() di
+		# get_ready_bundle) — slice terus ikut kedudukan aksara.
+		if month and int(base[5:7]) != month:
+			return False
+		if year and int(base[:4]) != year:
+			return False
 		if date_from and base < date_from:
 			return False
 		if date_to and base > date_to:
 			return False
 		return True
+
+	# TGD yang ada sekurang-kurangnya satu pakej Active dalam currency
+	# pilihan — polisi yang sama dengan get_trip_detail ("group date tanpa
+	# pakej currency itu dikeluarkan"): sailing yang tak boleh dibayar dalam
+	# currency listing tidak dipapar (kad / modal / next departure).
+	tgds_with_currency_pkg = {
+		p["trip_group_date"]
+		for pkgs in trip_packages.values()
+		for p in pkgs
+		if p.get("currency") == currency
+	}
 
 	keep = []
 	for t in trips:
@@ -369,24 +425,38 @@ def get_catalog_trips(filters: dict | None = None) -> dict:
 		if currency and t.get("starting_from_price") is None:
 			trip_group_dates.pop(t.name, None)
 			continue
-		# tapis group dates ikut julat tarikh
-		gs = [g for g in (trip_group_dates.get(t.name) or []) if _date_in_range(g)]
-		if date_from or date_to:
-			if not gs:
-				# tiada group date dalam julat -> buang trip (elak dead-end)
-				trip_group_dates.pop(t.name, None)
-				continue
-			trip_group_dates[t.name] = gs
+		# tapis group dates ikut julat/bulan/tahun + kewujudan pakej currency
+		gs = [
+			g for g in (trip_group_dates.get(t.name) or [])
+			if _date_in_range(g) and g["name"] in tgds_with_currency_pkg
+		]
+		if not gs:
+			# tiada sailing yang boleh dibayar dalam currency ini (dalam
+			# julat tarikh dipilih) -> buang trip (elak dead-end)
+			trip_group_dates.pop(t.name, None)
+			continue
+		trip_group_dates[t.name] = gs
 		# next_departure ikut group dates yang tinggal
-		if gs:
-			g = gs[0]
-			base = g.get("sailing_start") or g.get("departure_date")
-			t["next_departure"] = base or ""
-			t["next_departure_label"] = (
-				("Sail " if t.get("is_a_cruise_trip") else "Departs ") + web_date(base)
-			)
+		g = gs[0]
+		base = g.get("sailing_start") or g.get("departure_date")
+		t["next_departure"] = base or ""
+		t["next_departure_label"] = (
+			("Sail " if t.get("is_a_cruise_trip") else "Departs ") + web_date(base)
+		)
 		keep.append(t)
 	trips = keep
+
+	# Pakej dipapar juga HANYA dalam currency terpilih — untuk TGD yang
+	# masih kekal (konsisten dengan penapis TGD di atas; modal pemilihan
+	# pakej & template lain yang guna trip_packages auto ikut).
+	trip_packages = {
+		g["name"]: [
+			p for p in (trip_packages.get(g["name"]) or [])
+			if p.get("currency") == currency
+		]
+		for t in trips
+		for g in (trip_group_dates.get(t.name) or [])
+	}
 
 	# --- Susunan ---
 	if sort == "price":
@@ -602,9 +672,13 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 		)
 		booked = {r.trip_date: int(r.pax or 0) for r in rows}
 
-		group_dates: list = []
-		for d in dates:
-			mx = int(d.max_participants or 0)
+	# Bina SATU entri group date bagi SETIAP baris `dates` — SELURUH blok
+	# bawah (termasuk group_dates.append) MESTI berada dalam for loop.
+	# Bug silam: hanya `mx = ...` yang dalam loop; baki blok laksana sekali
+	# dengan baris TERAKHIR — page detail papar satu sailing date sahaja.
+	group_dates: list = []
+	for d in dates:
+		mx = int(d.max_participants or 0)
 		bk = int(booked.get(d.name, 0))
 		# max_participants == 0 -> UNLIMITED (None -> frontend "Available").
 		# Cruise: tentukan kunci/label grouping sailing (cluster group date
@@ -647,7 +721,7 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 		group_dates.sort(key=lambda g: g["sailing_start"] or g["departure_date"])
 
 		# ── Cruise dedup: papar SATU option tarikh sahaja per sailing_start ──
-		# (Fly Cruise + Cruise Only yang sama sailing jadi satu radio.) Pakej
+		# (Cruise+Flight + Cruise Only yang sama sailing jadi satu radio.) Pakej
 		# TIDAK dimerge lagi — trip_packages kekal dikey ikut TGD sebenar dan
 		# sailing_tgds bawah memberi peta lengkap sailing → TGD untuk frontend.
 		_seen_sail: set = set()
@@ -777,14 +851,22 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 	)
 	starting_from_price = float(sp[0][0]) if sp and sp[0][0] else None
 
-    # --- destinasi: join child destination_list -> master ---
+    # --- destinasi: ambil terus dari destination yang tersenarai dalam
+    # itinerary (Trip Itinerary.destination_point -> master Trip
+    # Destination Point) — sumber sama dengan timeline Itinerary di bawah.
+    # Destination yang sama boleh muncul beberapa hari (cth: pulang ke
+    # port asal) — dedup, kekal kemunculan HARI TERAWAL supaya urutan
+    # strip rc-planning-route = urutan lawatan sebenar ikut itinerary.
 	dest_rows = frappe.db.sql(
         """
-        SELECT dp.name, dp.destination_name, dp.destination_country
-        FROM `tabTrip Destination Point Select` sel
-        JOIN `tabTrip Destination Point` dp ON dp.name = sel.select_destination_point
-        WHERE sel.parent = %(t)s AND sel.parenttype = 'Trip'
-        ORDER BY sel.idx
+        SELECT dp.name, dp.destination_name, dp.destination_country,
+               MIN(it.day) AS first_day
+        FROM `tabTrip Itinerary` it
+        JOIN `tabTrip Destination Point` dp ON dp.name = it.destination_point
+        WHERE it.parent = %(t)s AND it.parenttype = 'Trip'
+          AND it.destination_point IS NOT NULL AND it.destination_point != ''
+        GROUP BY dp.name, dp.destination_name, dp.destination_country
+        ORDER BY first_day
         """,
         {"t": trip_name},
         as_dict=True,

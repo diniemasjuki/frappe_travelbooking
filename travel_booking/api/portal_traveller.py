@@ -26,7 +26,8 @@ def _ai_extract_passport(content: bytes) -> dict | None:
     lahir).
 
     Pulangkan dict medan berjaya diekstrak, atau None jika AI tidak
-    dikonfigur / gagal (caller fallback ke Tesseract MRZ sahaja).
+    dikonfigur / gagal (caller fallback — dan bila perlu, gabungkan —
+    dengan OCR Tesseract Image+MRZ; lih. check_traveller_passport).
     """
     try:
         from travel_booking.api.receipt_ocr import _get_settings, _parse_ai_json
@@ -49,6 +50,9 @@ def _ai_extract_passport(content: bytes) -> dict | None:
         "- date_of_birth: YYYY-MM-DD\n"
         "- passport_no: passport number\n"
         "- passport_expiry: YYYY-MM-DD\n"
+        "IMPORTANT: 'Date of Issue' and 'Date of Expiry' are two DIFFERENT "
+        "dates. passport_expiry must come from the EXPIRY row only — never "
+        "from the issue date.\n"
         "- nationality_code: ISO 3166 alpha-3 country code of nationality "
         "(from MRZ, e.g. 'MYS' for Malaysia)\n"
         "- place_of_birth: if visible\n"
@@ -255,6 +259,7 @@ def save_booking_traveller(booking_number: str, slot_name: str,
                             last_name: str = "", full_name: str = "", gender: str = "",
                             date_of_birth: str = "", nationality: str = "",
                             passport_no: str = "", passport_expiry: str = "",
+                            fullname_format: str = "First Name + Last Name",
                             email: str = "", phone: str = "",
                             filedata: str = "", filename: str = "",
                             visa_filedata: str = "", visa_filename: str = "",
@@ -335,6 +340,11 @@ def save_booking_traveller(booking_number: str, slot_name: str,
     last_name  = (last_name  or "").strip()
     nationality = (nationality or "").strip()
     passport_no = _normalize_id(passport_no)
+    # Format full name — pilihan dari doctype Traveller (Select fullname_format).
+    # Nilai luar senarai → fallback default (selari dengan controller).
+    _FULLNAME_FORMATS = ("First Name + Last Name", "Last Name + First Name")
+    if fullname_format not in _FULLNAME_FORMATS:
+        fullname_format = "First Name + Last Name"
     emergency_contact_name         = (emergency_contact_name         or "").strip()
     emergency_contact_phone        = (emergency_contact_phone        or "").strip()
     emergency_contact_relationship = (emergency_contact_relationship or "").strip()
@@ -361,12 +371,18 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         frappe.throw("Please fill in the emergency contact phone number as well.")
 
     if section == "passport":
-        # Medan asas wajib — perlu untuk cipta dokumen Traveller yang
-        # dinamakan ikut IC. full_name auto-dikira oleh controller
+        # SEMUA maklumat Identity & Passport WAJIB (cermin validasi
+        # frontend) — perlu untuk cipta dokumen Traveller lengkap &
+        # pengesahan dokumen. full_name auto-dikira oleh controller
         # Traveller (before_save) dari first/last name.
-        if not first_name:  frappe.throw("First name is required.")
-        if not last_name:   frappe.throw("Last name is required.")
-        if not ic_number:   frappe.throw("IC Number is required.")
+        if not first_name:    frappe.throw("First name is required.")
+        if not last_name:     frappe.throw("Last name is required.")
+        if not ic_number:     frappe.throw("IC Number is required.")
+        if not nationality:   frappe.throw("Nationality is required.")
+        if not date_of_birth: frappe.throw("Date of birth is required.")
+        if not gender:        frappe.throw("Gender is required.")
+        if not passport_no:   frappe.throw("Passport number is required.")
+        if not passport_expiry: frappe.throw("Passport expiry is required.")
 
         # Padanan normalized — rekod lama yang mungkin tersimpan dengan
         # simbol tetap dijumpai.
@@ -394,6 +410,7 @@ def save_booking_traveller(booking_number: str, slot_name: str,
             tvl = frappe.get_doc("Traveller", existing)
             tvl.first_name      = first_name
             tvl.last_name       = last_name
+            tvl.fullname_format = fullname_format
             tvl.nationality     = nationality
             tvl.ic_number       = ic_number
             tvl.passport_no     = passport_no
@@ -407,6 +424,7 @@ def save_booking_traveller(booking_number: str, slot_name: str,
             tvl = frappe.new_doc("Traveller")
             tvl.first_name      = first_name
             tvl.last_name       = last_name
+            tvl.fullname_format = fullname_format
             tvl.gender          = gender
             tvl.ic_number       = ic_number
             tvl.date_of_birth   = date_of_birth   or None
@@ -539,6 +557,7 @@ def _traveller_payload(traveller, ic_fallback: str = "") -> dict:
         "full_name":       traveller.get("full_name")      or "",
         "first_name":      traveller.get("first_name")     or "",
         "last_name":       traveller.get("last_name")      or "",
+        "fullname_format": traveller.get("fullname_format") or "First Name + Last Name",
         "gender":          traveller.get("gender")         or "",
         "date_of_birth":   str(traveller.get("date_of_birth")) if traveller.get("date_of_birth") else "",
         "nationality":     traveller.get("nationality")    or "",
@@ -941,9 +960,9 @@ def _extract_visual_fallback(extracted: dict, text: str) -> None:
     """Fallback apabila MRZ gagal: ekstrak medan daripada teks visual OCR
     (bahagian mesra-baca passport — label + nilai).
 
-    Kurang可靠 daripada MRZ (format berbeza ikut negara) tetapi lebih baik
-    daripada kosong — customer masih perlu semak. Hanya isi medan yang
-    MASIH KOSONG (jangan timpa MRZ yang berjaya).
+    Kurang boleh dipercayai daripada MRZ (format berbeza ikut negara)
+    tetapi lebih baik daripada kosong — customer masih perlu semak. Hanya
+    isi medan yang MASIH KOSONG (jangan timpa MRZ yang berjaya).
     """
     import re
 
@@ -961,23 +980,17 @@ def _extract_visual_fallback(extracted: dict, text: str) -> None:
 
     # DOB: label "DATE OF BIRTH" / "TARIKH LAHIR".
     if not extracted.get("date_of_birth"):
-        m = re.search(
-            r"(?:DATE\s*OF\s*BIRTH|TARIKH\s*LAHIR)\s*:?\s*"
-            r"(\d{1,2}\s*[A-Z]{3}\s*\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
-            raw,
+        extracted["date_of_birth"] = _visual_date_after_label(
+            raw, r"(?:DATE\s*OF\s*BIRTH|TARIKH\s*LAHIR|TEMPAT\s*&?\s*TARIKH\s*LAHIR)",
+            pick="earliest",
         )
-        if m:
-            extracted["date_of_birth"] = _parse_visual_date(m.group(1))
 
     # Expiry: label "DATE OF EXPIRY" / "EXPIRY" / "TAMAT TEMPOH".
     if not extracted.get("passport_expiry"):
-        m = re.search(
-            r"(?:DATE\s*OF\s*EXPIRY|EXPIRY|TAMAT\s*TEMPOH)\s*:?\s*"
-            r"(\d{1,2}\s*[A-Z]{3}\s*\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})",
-            raw,
+        extracted["passport_expiry"] = _visual_date_after_label(
+            raw, r"(?:DATE\s*OF\s*EXPIRY|DATE\s*OF\s*EXPIRE|EXPIRY|EXPIRE|TAMAT\s*TEMPOH|LUPUT)",
+            pick="latest",
         )
-        if m:
-            extracted["passport_expiry"] = _parse_visual_date(m.group(1))
 
     # Gender: label "SEX" / "JANTINA" + M/F.
     if not extracted.get("gender"):
@@ -986,11 +999,122 @@ def _extract_visual_fallback(extracted: dict, text: str) -> None:
             extracted["gender"] = {"M": "Male", "F": "Female"}.get(m.group(1), "")
 
 
-def _ocr_passport(content: bytes) -> dict:
+_DATE_TOKEN_RE = r"\d{1,2}\s*[A-Z]{3}\s*\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4}"
+
+
+def _visual_date_after_label(raw: str, label_re: str, pick: str) -> str:
+    """Cari tarikh selepas label (cth 'DATE OF EXPIRY') dalam teks OCR.
+
+    PUNCA BUG 'expiry dapat tarikh issue': layout dua kolum passport
+    (cth '[DATE OF ISSUE | DATE OF EXPIRY]') kerap diratakan oleh OCR
+    menjadi label-label pada satu baris dan NILAI pada baris seterusnya
+    — 'DATE OF EXPIRY\\n03 MAR 2022  03 MAR 2032'. Regex lama guna \\s*
+    yang melintasi newline dan menangkap tarikh PERTAMA pada baris nilai
+    itu (kolum ISSUE), bukan expiry.
+
+    Pendekatan sekarang:
+      1. Tarikh pada BARIS YANG SAMA dengan label (nilai sebaris).
+      2. Kalau tiada, tarikh-tarikh pada baris SETEPERASNYA dan pilih
+         ikut 'pick': 'latest' (expiry — sentiasa tarikh terbaru antara
+         kolum issue/expiry) atau 'earliest' (DOB — tarikh terawal).
+    """
+    import re
+
+    same_line = re.compile(label_re + r"[ \t]*:?[ \t]*(" + _DATE_TOKEN_RE + r")")
+    m = same_line.search(raw)
+    if m:
+        val = _parse_visual_date(m.group(1))
+        if val:
+            return val
+
+    next_line = re.compile(label_re + r"[^\n]*\n([^\n]*)")
+    for m in next_line.finditer(raw):
+        tokens = re.findall(_DATE_TOKEN_RE, m.group(1))
+        parsed = [d for d in (_parse_visual_date(t) for t in tokens) if d]
+        if parsed:
+            return max(parsed) if pick == "latest" else min(parsed)
+    return ""
+
+
+def _extract_visual_names(extracted: dict, text: str) -> None:
+    """Lengkapkan nama daripada zona visual OCR (bahagian atas passport)
+    bila MRZ gagal membawanya.
+
+    Konservatif — format visual berbeza ikut negara:
+      1. Label berpasangan ICAO: "SURNAME"/"NAMA KELUARGA" +
+         "GIVEN NAME(S)"/"NAMA SENDIRI".
+      2. Label umum "NAME"/"NAMA"/"FULL NAME" → sekurang-kurangnya 2 patah
+         perkataan.
+    Hanya mengisi medan yang MASIH kosong — nilai MRZ/AI kekal diutamakan.
+    """
+    import re
+
+    if extracted.get("first_name") and extracted.get("last_name"):
+        return
+
+    raw = text.upper()
+    lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+
+    def _clean(val: str) -> str:
+        # Kekalkan huruf, apostrof, hyphen, space sahaja (buang digit/simbol
+        # sisa OCR) dan buang label yang tersangkut pada awal nilai.
+        val = re.sub(r"[^A-Z'\- ]", " ", val)
+        val = re.sub(r"\s+", " ", val).strip(" : ")
+        for lbl in ("SURNAME", "GIVEN NAMES", "GIVEN NAME", "NAMA KELUARGA",
+                    "NAMA SENDIRI", "NAMA PENUH", "NAMA", "FULL NAME", "NAME"):
+            if val.startswith(lbl):
+                val = val[len(lbl):].strip(" : ")
+        return val.strip()
+
+    surname = given = ""
+    for i, ln in enumerate(lines):
+        if not surname and re.search(r"\b(?:SURNAME|NAMA\s+KELUARGA)\b", ln):
+            rest = _clean(re.sub(r".*?\b(?:SURNAME|NAMA\s+KELUARGA)\b\s*:?", "", ln, count=1))
+            if not rest and i + 1 < len(lines):
+                rest = _clean(lines[i + 1])
+            if 2 <= len(rest) <= 40:
+                surname = rest.title()
+        if not given and re.search(r"\b(?:GIVEN\s+NAMES?|NAMA\s+SENDIRI)\b", ln):
+            rest = _clean(re.sub(r".*?\b(?:GIVEN\s+NAMES?|NAMA\s+SENDIRI)\b\s*:?", "", ln, count=1))
+            if not rest and i + 1 < len(lines):
+                rest = _clean(lines[i + 1])
+            if 2 <= len(rest) <= 60:
+                given = rest.title()
+
+    if surname and given:
+        extracted.setdefault("last_name", surname)
+        extracted.setdefault("first_name", given)
+        return
+
+    if extracted.get("first_name") or extracted.get("last_name"):
+        return
+
+    # Label umum — langkau baris yang mengandungi label kompaun
+    # (GIVEN NAME / NAMA KELUARGA / SURNAME) supaya nilai tidak tercampur.
+    for i, ln in enumerate(lines):
+        if re.search(r"\b(?:SURNAME|GIVEN|KELUARGA|SENDIRI)\b", ln):
+            continue
+        m = re.search(r"\b(?:FULL\s+NAME|NAMA\s+PENUH|NAME|NAMA)\b\s*:?\s*(.+)", ln)
+        if not m:
+            continue
+        val = _clean(m.group(1))
+        if len(val.split()) < 2 and i + 1 < len(lines):
+            nxt = _clean(lines[i + 1])
+            if (len(nxt.split()) >= 2 and
+                    not re.search(r"\b(?:SURNAME|GIVEN|KELUARGA|SENDIRI|DATE|TARIKH|SEX|JANTINA|NATIONALITY|PASSPORT|NO)\b", nxt)):
+                val = nxt
+        if len(val.split()) >= 2 and len(val) <= 60:
+            parts = val.split()
+            extracted.setdefault("last_name", parts[-1].title())
+            extracted.setdefault("first_name", " ".join(parts[:-1]).title())
+            return
+
+
+def _ocr_passport(content: bytes, deadline_seconds: int = 60) -> dict:
     """OCR gambar passport guna tesseract (binary sistem, bahasa 'eng').
 
-    Strategi berlapis KONSERVATIF untuk tangkap medan diperlukan dari passport:
-    
+    Strategi GABUNGAN (MRZ + OCR imej visual) — bukan MRZ sahaja:
+
     PREPROCESSING (MINIMAL):
     - Resize ke minimum 1200px lebar (Tesseract perlsa saiz besar)
     - Grayscale + binarize standard (autocontrast + fixed threshold)
@@ -1005,9 +1129,13 @@ def _ocr_passport(content: bytes) -> dict:
     - PSM 4: Single column — fallback
 
     CROP ZONE:
-    - 35% bawah (MRZ zone standard) — sama seperti original
-    
-    Ini adalah versi SELAMAT yang mengekalkan approach asal tanpa over-engineering.
+    - 35% bawah (MRZ zone standard) + imej penuh (zona visual)
+
+    PENGGABUNGAN HASIL:
+    - MRZ diutamakan (fon OCR-B standard, format tetap)
+    - Zona visual (label nama/tarikh/passport no/IC/jantina) SENTIASA
+      diproses untuk mengisi medan yang MRZ gagal baca atau memang tiada
+      (cth. IC Malaysia tiada dalam MRZ). Nilai MRZ tidak ditimpa.
     """
     import io
     import os
@@ -1074,13 +1202,13 @@ def _ocr_passport(content: bytes) -> dict:
                 (full_path,    "4",  [],      "FULL-gray-PSM4"),
             ]
             
-            # Deadline keseluruhan (60s) — tesseract boleh lambat bila
-            # beban sistem tinggi (diukur 151s untuk 10 passes penuh);
+            # Deadline keseluruhan (default 60s) — tesseract boleh lambat
+            # bila beban sistem tinggi (diukur 151s untuk 10 passes penuh);
             # tanpa ni request web worker mati pada timeout 120s dan
             # client tergantung. Bantu fallback sahaja — bukan jalan utama
             # (AI didahulukan di check_traveller_passport).
             import time as _t
-            _ocr_deadline = _t.monotonic() + 60
+            _ocr_deadline = _t.monotonic() + deadline_seconds
 
             for path, psm, cfg, desc in passes:
                 if _t.monotonic() > _ocr_deadline:
@@ -1111,13 +1239,17 @@ def _ocr_passport(content: bytes) -> dict:
             extracted = _extract_mrz(full_text) or extracted
 
         # IC Malaysia (NRIC 12 digit) — dicari dalam keseluruhan teks OCR
+        # (MRZ tidak membawa IC — hanya zona visual yang ada)
         m = re.search(r"\b(\d{6}[-\s]?\d{2}[-\s]?\d{4})\b", full_text)
         if m:
             extracted["ic_number"] = re.sub(r"\D", "", m.group(1))
 
-        # Fallback visual: kalau MRZ gagal beri medan utama
-        if not extracted.get("passport_no"):
-            _extract_visual_fallback(extracted, full_text)
+        # GABUNGAN MRZ + OCR VISUAL: zona visual SENTIASA diproses (bukan
+        # hanya bila MRZ gagal total) untuk mengisi medan yang MRZ tak bawa
+        # atau gagal baca. Kedua-dua fungsi hanya mengisi medan MASIH
+        # kosong — nilai MRZ kekal diutamakan.
+        _extract_visual_fallback(extracted, full_text)
+        _extract_visual_names(extracted, full_text)
             
         # Log hasil
         if extracted:
@@ -1176,29 +1308,45 @@ def check_traveller_passport(filedata: str, guest_token: str = ""):
 
     exact_hash = hashlib.sha256(content).hexdigest()
 
-    # ── Ekstraksi maklumat passport: AI DULU, Tesseract MRZ fallback ──
-    # AI vision baca keseluruhan halaman (MRZ + visual zone) — medan lebih
-    # lengkap & tepat. Tesseract MRZ kekal sebagai fallback offline bila AI
-    # tidak dikonfigur / gagal. Nilai AI mengatasi Tesseract untuk medan
-    # yang kedua-duanya baca; Tesseract mengisi kekosongan AI.
-    # AI DULU (pantas ~2-30s); Tesseract HANYA fallback bila AI gagal /
-    # tidak dikonfigur. PENTING: jangan jalan Tesseract bersama AI —
-    # tesseract boleh ambil BERMINIT (diukur 151s pada imej ujian semasa
-    # beban sistem tinggi) dan request web worker mati pada timeout 120s
-    # → client tergantung pada "Scanning...". AI vision baca keseluruhan
-    # halaman (MRZ + visual zone) — medan lebih lengkap daripada MRZ
-    # sahaja; Tesseract MRZ kekal sebagai fallback offline.
+    # ── Ekstraksi maklumat passport: AI DULU, Tesseract (Image + MRZ)
+    # fallback & pengisi kekosongan ──
+    # AI vision baca keseluruhan halaman (MRZ + visual zone) — bila AI
+    # dikonfigur, ia adalah enjin utama. Tesseract menjalankan OCR
+    # GABUNGAN (MRZ + zona visual imej) dan digunakan:
+    #   1. fallback bila AI tidak dikonfigur / gagal, dan
+    #   2. pengisi kekosongan bila AI tinggalkan medan teras kosong
+    #      (combine — nilai AI tidak ditimpa).
+    # PENTING (latency): jangan jalan Tesseract bersama AI secara serentak
+    # — tesseract boleh ambil BERMINIT pada beban tinggi (diukur 151s) dan
+    # request web worker mati pada timeout 120s. Sebab itu pengisi
+    # kekosongan dihadkan deadline 30s (bukan 60s penuh): AI (≤45s) + OCR
+    # (≤30s) kekal dalam budget 120s.
     ai_extracted = None
     try:
         ai_extracted = _ai_extract_passport(content)
     except Exception:
         ai_extracted = None
 
+    _engine = "ocr"
     if ai_extracted:
-        extracted = ai_extracted
+        extracted = dict(ai_extracted)
+        _engine = "ai"
+        # Combine: AI kurang lengkap (ada medan teras kosong) → lengkapkan
+        # daripada OCR Image+MRZ. Nilai AI kekal diutamakan.
+        _CORE_FIELDS = ("passport_no", "passport_expiry", "date_of_birth",
+                        "first_name", "full_name")
+        if not all(extracted.get(k) for k in _CORE_FIELDS):
+            ocr_fill = _ocr_passport(content, deadline_seconds=30)
+            filled = False
+            for k, v in ocr_fill.items():
+                if v and not extracted.get(k):
+                    extracted[k] = v
+                    filled = True
+            if filled:
+                _engine = "ai+ocr"
     else:
         extracted = _ocr_passport(content)
-    _engine = "ai" if ai_extracted else "ocr"
+        _engine = "ocr"
 
     # Semua ID dinormalisasi ke [A-Z0-9] sebelum matching.
     # Padanan #1: nombor passport. #2: IC number. #3 (fallback terakhir):
@@ -1214,6 +1362,7 @@ def check_traveller_passport(filedata: str, guest_token: str = ""):
             extracted["nationality"] = country
 
     _MATCH_FIELDS = ["name", "ic_number", "full_name", "first_name", "last_name", "gender",
+                     "fullname_format",
                      "date_of_birth", "nationality", "phone", "email",
                      "passport_no", "passport_expiry",
                      "emergency_contact_name", "emergency_contact_phone",
@@ -1457,12 +1606,19 @@ def confirm_traveller_documents(booking_number: str, slot_name: str,
 
     tvl = frappe.get_doc("Traveller", slot.traveller)
 
-    # Kelengkapan — cermin 3 section form.
+    # Kelengkapan — cermin 3 section form. Medan Identity & Passport
+    # kini WAJIB kesemuanya.
     missing = []
     if not (tvl.first_name and tvl.last_name):
         missing.append("First & last name (Passport section)")
     if not _normalize_id(tvl.ic_number):
         missing.append("IC number (Passport section)")
+    if not tvl.nationality:
+        missing.append("Nationality (Passport section)")
+    if not tvl.date_of_birth:
+        missing.append("Date of birth (Passport section)")
+    if not tvl.gender:
+        missing.append("Gender (Passport section)")
     if not _normalize_id(tvl.passport_no):
         missing.append("Passport number (Passport section)")
     if not tvl.passport_expiry:
@@ -1654,8 +1810,34 @@ def verify_guest_token(token: str = ""):
     frappe.flags.ignore_permissions = True
     booking, slot, _actor = _resolve_guest_token(token)
 
+    # Trip info untuk header guest (trip title, tarikh pergi/pulang, pakej).
+    # Tarikh diutamakan dari Trip Group Date (sumber kebenaran jadual trip),
+    # fallback ke tarikh pada Booking itu sendiri.
     trip_name      = frappe.db.get_value("Booking", booking.name, "trip_name") or ""
-    departure_date = frappe.db.get_value("Booking", booking.name, "departure_date")
+    trip_row = frappe.db.sql("""
+        SELECT
+            tm.trip_name       AS trip_title,
+            b.departure_date   AS booking_departure,
+            b.return_date      AS booking_return,
+            td.departure_date  AS group_departure,
+            td.return_date     AS group_return,
+            td.trip_group_name,
+            tp.package_title,
+            tp.package_code,
+            tp.package_type
+        FROM `tabBooking` b
+        LEFT JOIN `tabTrip`            tm ON tm.name = b.trip_name
+        LEFT JOIN `tabTrip Group Date` td ON td.name = b.trip_date
+        LEFT JOIN `tabTrip Package`    tp ON tp.name = b.trip_package
+        WHERE b.name = %s
+    """, booking.name, as_dict=True)
+    trip_row = trip_row[0] if trip_row else None
+
+    # Tarikh: Trip Group Date diutamakan, fallback tarikh pada Booking.
+    departure_date = (trip_row.group_departure if trip_row else None) or \
+        (trip_row.booking_departure if trip_row else None)
+    return_date    = (trip_row.group_return if trip_row else None) or \
+        (trip_row.booking_return if trip_row else None)
 
     ctx = {
         "mode":            "guest",
@@ -1664,7 +1846,14 @@ def verify_guest_token(token: str = ""):
         "slot_name":       slot.name,
         "slot_label":      "Guest Traveller",
         "trip_name":       trip_name,
+        "trip_title":      ((trip_row.trip_title if trip_row else "") or trip_name or ""),
+        "fullname_format": "First Name + Last Name",
         "departure_date":  str(departure_date) if departure_date else "",
+        "return_date":     str(return_date) if return_date else "",
+        "trip_group_name": (trip_row.trip_group_name if trip_row else "") or "",
+        "package_title":   ((trip_row.package_title if trip_row else "") or ""),
+        "package_code":    ((trip_row.package_code if trip_row else "") or ""),
+        "package_type":    ((trip_row.package_type if trip_row else "") or ""),
         "document_status": slot.document_status or "Pending",
         "is_verified":     slot.document_status == "Verified",
         "traveller_id":    slot.traveller or "",
@@ -1694,7 +1883,7 @@ def verify_guest_token(token: str = ""):
     if slot.traveller:
         t = frappe.db.get_value(
             "Traveller", slot.traveller,
-            ["full_name", "first_name", "last_name", "ic_number", "passport_no",
+            ["full_name", "first_name", "last_name", "fullname_format", "ic_number", "passport_no",
              "passport_expiry", "nationality", "date_of_birth", "email", "phone",
              "gender", "passport_image", "visa_photo", "emergency_contact_name",
              "emergency_contact_phone", "emergency_contact_relationship",
@@ -1707,6 +1896,7 @@ def verify_guest_token(token: str = ""):
                 "full_name":                       t.full_name or "",
                 "first_name":                      t.first_name or "",
                 "last_name":                       t.last_name or "",
+                "fullname_format":                 t.fullname_format or "First Name + Last Name",
                 "ic_number":                       t.ic_number or "",
                 "passport_no":                     t.passport_no or "",
                 "passport_expiry":                 str(t.passport_expiry) if t.passport_expiry else "",

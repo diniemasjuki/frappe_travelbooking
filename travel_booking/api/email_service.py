@@ -124,7 +124,9 @@ def _send_set_password_email(email, first_name):
 
 def _booking_email_context(booking_name):
     b = frappe.db.get_value("Booking", booking_name,
-                            ["booking_number", "customer", "trip_date"],
+                            ["booking_number", "customer", "trip_date",
+                             "booking_channel", "b2b_partner", "end_customer",
+                             "cust_email"],
                             as_dict=True)
     if not b:
         return None
@@ -151,6 +153,12 @@ def _booking_email_context(booking_name):
             advance_paid += so_vals.advance_paid or 0
             if not currency:
                 currency = so_vals.currency
+    # B2B: nama partner (paparan "urusan bayaran diuruskan oleh <agent>")
+    b2b_partner_name = ""
+    if b.b2b_partner:
+        b2b_partner_name = frappe.db.get_value(
+            "Travel B2B Partner", b.b2b_partner, "partner_name"
+        ) or ""
     return {
         "email":           get_customer_email(b.customer),
         "full_name":       frappe.db.get_value("Customer", b.customer, "customer_name") or "Customer",
@@ -161,6 +169,44 @@ def _booking_email_context(booking_name):
         "advance_paid":    advance_paid,
         "currency":        currency or "MYR",
         "payment_status":  _compute_payment_status(advance_paid, grand_total),
+        # B2B — penerima kedua (traveller) + maklumat partner
+        "booking_channel":     b.booking_channel or "Direct",
+        "end_customer":        b.end_customer,
+        "end_customer_email":  b.cust_email,
+        "b2b_partner_name":    b2b_partner_name,
+    }
+
+
+# Sufiks template varian TRAVELLER (tanpa harga) untuk saluran B2B —
+# dicipta dalam install.py / patch. Kalau varian tiada (site lama), fallback
+# ke template asas dengan nilai harga None (baris harga kosong).
+_TRAVELLER_TEMPLATE_SUFFIX = " (Traveller)"
+
+
+def _status_email_context(ctx, status, first_name, site_url, include_prices=True):
+    """Bina context Jinja untuk emel status. include_prices=False (varian
+    traveller B2B): angka & payment status = string kosong (Jinja render
+    None sebagai teks "None" — string kosong lebih selamat untuk template
+    lama yang tiada guard {% if %}) supaya tiada maklumat billing terlepas
+    kepada pelanggan end-customer partner."""
+    return {
+        "booking_number":   ctx["booking_number"],
+        "first_name":       first_name,
+        "trip_name":        ctx["trip_name"],
+        "group_name":       ctx["group_name"],
+        "total_fmt":        (fmt_currency(ctx["grand_total"] or 0, ctx.get("currency"))
+                              if include_prices else ""),
+        # Pending: payment belum masuk, tak perlu papar Amount Paid/Payment
+        # Status (dah jelas dari konteks) — kekalkan kosong untuk status ni.
+        "amount_paid_fmt":  (fmt_currency(ctx.get("advance_paid") or 0, ctx.get("currency"))
+                              if (include_prices and status != "Pending") else ""),
+        "payment_status":   (ctx["payment_status"] if (include_prices and status != "Pending")
+                              else ""),
+        # B2B traveller — nama agen + penanda varian (template boleh guna
+        # syarat {% if b2b_traveller %}).
+        "agent_name":       ctx.get("b2b_partner_name") or "your travel agent",
+        "b2b_traveller":    not include_prices,
+        "booking_url":      site_url + "/traveller",
     }
 
 
@@ -176,6 +222,16 @@ def _send_status_email(booking_name, status, email_override=None):
     (rujuk _send_set_password_email(), dipanggil terus di confirm_booking()
     bila User baru dicipta) — bukan lagi disertakan bersyarat ke dalam
     emel status ni ikut flag is_new_user.
+
+    B2B: DUA emel berasingan bagi setiap status —
+      1. Partner (entiti bil, contact Booking.customer): template asas
+         LENGKAP dengan jumlah/payment status.
+      2. End customer/traveller (Booking.cust_email): template varian
+         "<Status> (Traveller)" TANPA sebarang angka harga/billing —
+         pemakluman status & perjalanan sahaja (fallback ke template asas
+         dengan harga None kalau varian belum wujud).
+    email_override (cth notifikasi pembayaran gagal ke email pembayar)
+    mematikan mod kembar — satu emel ke override sahaja, seperti lama.
     """
     STATUS_TEMPLATE_MAP = {
         "Pending":    "Booking Pending",
@@ -188,34 +244,68 @@ def _send_status_email(booking_name, status, email_override=None):
     if not template_name:
         return
 
+    def _render(template, context):
+        email_template = frappe.get_doc("Email Template", template)
+        message = email_template.get_formatted_response(context)
+        subject = frappe.render_template(email_template.subject, context)
+        return subject, message
+
     try:
         ctx = _booking_email_context(booking_name)
         if not ctx:
             return
+        site_url = get_site_url()
+
+        is_b2b = (ctx.get("booking_channel") == "B2B" and ctx.get("end_customer"))
+
+        if is_b2b and not email_override:
+            # (1) PARTNER — penerima bil, template penuh dengan harga.
+            partner_email = ctx["email"]
+            if partner_email:
+                first_name = ctx["full_name"].split()[0] if ctx["full_name"] else "Customer"
+                context = _status_email_context(ctx, status, first_name, site_url,
+                                                include_prices=True)
+                subject, message = _render(template_name, context)
+                frappe.sendmail(
+                    recipients=[partner_email],
+                    # Sender TIDAK di-hardcode — rujuk nota di _send_set_password_email().
+                    subject=subject,
+                    message=message,
+                    now=True
+                )
+
+            # (2) END CUSTOMER / TRAVELLER — status & perjalanan sahaja,
+            # TIADA harga/billing (keperluan utama model B2B).
+            traveller_email = ctx.get("end_customer_email")
+            if traveller_email:
+                t_template = template_name + _TRAVELLER_TEMPLATE_SUFFIX
+                if not frappe.db.exists("Email Template", t_template):
+                    t_template = template_name  # fallback site lama
+                end_name = frappe.db.get_value(
+                    "Customer", ctx["end_customer"], "customer_name"
+                ) or "Customer"
+                t_first = end_name.split()[0] if end_name else "Customer"
+                t_context = _status_email_context(ctx, status, t_first, site_url,
+                                                  include_prices=False)
+                subject, message = _render(t_template, t_context)
+                frappe.sendmail(
+                    recipients=[traveller_email],
+                    subject=subject,
+                    message=message,
+                    now=True
+                )
+            return
+
         email = email_override or ctx["email"]
         if not email:
             return
 
         first_name  = ctx["full_name"].split()[0] if ctx["full_name"] else "Customer"
-        site_url    = get_site_url()
 
-        context = {
-            "booking_number":   ctx["booking_number"],
-            "first_name":       first_name,
-            "trip_name":        ctx["trip_name"],
-            "group_name":       ctx["group_name"],
-            "total_fmt":        fmt_currency(ctx["grand_total"] or 0, ctx.get("currency")),
-            # Pending: payment belum masuk, tak perlu papar Amount Paid/Payment
-            # Status (dah jelas dari konteks) — kekalkan None untuk status ni.
-            "amount_paid_fmt":  (fmt_currency(ctx.get("advance_paid") or 0, ctx.get("currency"))
-                                  if status != "Pending" else None),
-            "payment_status":   ctx["payment_status"] if status != "Pending" else None,
-            "booking_url":      site_url + "/traveller",
-        }
+        context = _status_email_context(ctx, status, first_name, site_url,
+                                        include_prices=True)
 
-        email_template = frappe.get_doc("Email Template", template_name)
-        message = email_template.get_formatted_response(context)
-        subject = frappe.render_template(email_template.subject, context)
+        subject, message = _render(template_name, context)
 
         frappe.sendmail(
             recipients=[email],

@@ -1,6 +1,9 @@
 {% extends "templates/base_travel.html" %}
 
-{% block title %}{{ trip_name }} — {{ site_name or 'Rarecation' }}{% endblock %}
+{# <title>: hormati Meta Title (SEO) bila diisi — guna apa adanya tanpa
+   imbuhan brand supaya admin ada kawalan penuh; fallback corak lama. #}
+{% set _page_title = seo.title if seo and seo.title and seo.title != (trip_name or name) else (trip_name ~ ' — ' ~ (site_name or 'Rarecation')) %}
+{% block title %}{{ _page_title }}{% endblock %}
 
 {% block head_extra %}
 <link rel="stylesheet" href="/assets/travel_booking/css/trip_card.css?v={{ asset_v('css/trip_card.css') }}"/>
@@ -94,10 +97,12 @@
       </p>
       {% endif %}
 
+      
+
       {# ── Destinations (sebelum description) ── #}
       {% if destinations %}
       <section class="rc-trip-section rc-tour-planning">
-        <h2 class="rc-section-h">Destination</h2>
+        <!-- <h2 class="rc-section-h">Destination</h2> -->
         <div class="rc-planning-route">
           {% for d in destinations %}
           <div class="rc-route-point">
@@ -110,6 +115,14 @@
           {% if not loop.last %}<div class="rc-route-arrow"><i class="ti ti-arrow-right"></i></div>{% endif %}
           {% endfor %}
         </div>
+      </section>
+      {% endif %}
+
+      {# ── Description (tanpa "Overview" heading, hanya text) ── #}
+      {% if description %}
+      <section class="rc-trip-section rc-description-only" style="margin-top:35px; ">
+        <!-- <h2 class="rc-section-h">Overview</h2> -->
+        <div class="rc-trip-description">{{ description }}</div>
       </section>
       {% endif %}
 
@@ -137,27 +150,18 @@
       </section>
       {% endif %}
 
-      {# ── Description (tanpa "Overview" heading, hanya text) ── #}
-      {% if description %}
-      <section class="rc-trip-section rc-description-only">
-        <h2 class="rc-section-h">Overview</h2>
-        <div class="rc-trip-description">{{ description }}</div>
+      {# ── Highlights ── #}
+      {% if highlights %}
+      <section class="rc-trip-section">
+        <h2 class="rc-section-h">Highlights</h2>
+        <ul class="rc-highlights">
+          {% for h in highlights %}
+          <li><i class="ti ti-star-filled"></i><span>{{ h.highlight }}</span></li>
+          {% endfor %}
+        </ul>
       </section>
       {% endif %}
 
-      {# ── Facilities (full width, tanpa Travel Styles) ── #}
-      {% if facilities %}
-      <section class="rc-trip-section">
-        <div class="rc-chips-block">
-          <h2 class="rc-section-h">Facilities</h2>
-          <ul class="rc-chips">
-            {% for f in facilities %}
-            <li class="rc-chip"><i class="ti {{ f.icon or 'ti-circle-check' }}"></i><span>{{ f.facility }}</span></li>
-            {% endfor %}
-          </ul>
-        </div>
-      </section>
-      {% endif %}
 
       {# ── Included / Excluded ── #}
       {% if included or excluded %}
@@ -181,23 +185,28 @@
       </section>
       {% endif %}
 
-      {# ── Highlights ── #}
-      {% if highlights %}
+      {# ── Facilities (full width, tanpa Travel Styles) ── #}
+      {% if facilities %}
       <section class="rc-trip-section">
-        <h2 class="rc-section-h">Highlights</h2>
-        <ul class="rc-highlights">
-          {% for h in highlights %}
-          <li><i class="ti ti-star-filled"></i><span>{{ h.highlight }}</span></li>
-          {% endfor %}
-        </ul>
+        <div class="rc-chips-block">
+          <h2 class="rc-section-h">Facilities</h2>
+          <ul class="rc-chips">
+            {% for f in facilities %}
+            <li class="rc-chip"><i class="ti {{ f.icon or 'ti-circle-check' }}"></i><span>{{ f.facility }}</span></li>
+            {% endfor %}
+          </ul>
+        </div>
       </section>
       {% endif %}
+
+
+
 
       {# ── Itinerary timeline (day-by-day) ── #}
       {% if itinerary %}
       <section class="rc-trip-section">
-        <h2 class="rc-section-h">Itinerary</h2>
-        <p class="rc-section-sub">Day-by-day plan.</p>
+        <h2 class="rc-section-h">{{ itinerary_title or 'Itinerary' }}</h2>
+        <p class="rc-section-sub">{{ itinerary_caption or 'Day-by-day planning' }}</p>
         <ol class="rc-itinerary">
           {% for row in itinerary %}
           <li class="rc-itin-day" data-day="{{ row.day }}">
@@ -206,13 +215,13 @@
               <div class="rc-itin-head">
                 <h3 class="rc-itin-title">{{ row.day_title }}</h3>
                 {% if row.destination_name %}<span class="rc-itin-dest">{{ row.destination_name }}{% if row.country %} · {{ row.country }}{% endif %}</span>{% endif %}
-                <i class="ti ti-chevron-down rc-itin-toggle" aria-hidden="true"></i>
               </div>
               {% if row.day_image %}
               <img src="{{ row.day_image }}" alt="{{ row.day_title }}" class="rc-itin-img" onerror="this.style.display='none'"/>
               {% endif %}
               {% if row.description %}<div class="rc-itin-desc">{{ row.description }}</div>{% endif %}
               {% if row.meals %}<p class="rc-itin-meals"><i class="ti ti-tools-kitchen2"></i> {{ row.meals }}</p>{% endif %}
+              <button type="button" class="rc-itin-toggle">more</button>
             </div>
           </li>
           {% endfor %}
@@ -252,10 +261,6 @@
         <p class="rc-trip-fromprice"><small>Start from</small> {{ currency_symbol or get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }} <span class="rc-muted">/ person{% if currency_native_only %} · package currency{% endif %}</span></p>
         {% endif %}
 
-        {# Selector currency (paksi multi-company) — menapis pakej yang
-           dipaparkan pada widget ini. #}
-        {% include "templates/includes/currency_selector.html" %}
-
         {# ── meta bar (duration, max pax, type) ── #}
         {% if g %}
         <ul class="rc-booking-meta">
@@ -268,18 +273,27 @@
         {% if group_dates %}
         <div class="rc-booking-widget">
           {# ── FLOW: Date first → Package second ── #}
-          <label class="rc-field">
+          {# DIV, bukan <label> — bila >1 tarikh, rcDetailGroupDate mengandungi
+             BUTANG trigger popup date selector (labelable element); wrapper
+             <label> akan implicitly label BUTANG tersebut dan Chrome
+             mempropagasi :hover/:active label ke labeled control (bug sama
+             seperti wrapper butang pakej di bawah). #}
+          <div class="rc-field">
             <span class="rc-field-label">{% if is_cruise %}Choose Sailing Date{% else %}Departure date{% endif %}</span>
             <div id="rcDetailGroupDate" class="rc-date-radios">
               <p class="rc-muted">Loading dates…</p>
             </div>
-          </label>
-          <label class="rc-field">
+          </div>
+          {# DIV, bukan <label> — butang pakej adalah labelable element;
+             wrapper <label> akan implicitly label BUTANG PERTAMA dan Chrome
+             mempropagasi :hover/:active label ke labeled control tersebut
+             (hover butang lain turut "menyalakan" butang pertama). #}
+          <div class="rc-field">
             <span class="rc-field-label">Select Package</span>
             <div id="rcDetailPackage" class="rc-pkg-buttons">
               <p class="rc-muted">Pick a date to see available packages.</p>
             </div>
-          </label>
+          </div>
 
           <div id="rcDetailCabins" class="rc-cabins-empty">
             <p class="rc-muted">Pick a package to see room options and prices.</p>

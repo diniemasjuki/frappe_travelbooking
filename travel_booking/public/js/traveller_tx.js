@@ -56,7 +56,7 @@
             grandTotal: so.grand_total,
             bookingRef: bookingRef,
             tripName: tripName,
-            currency: so.currency_symbol || RC.company_symbol || 'RM',
+            currency: so.currency_symbol || RC.company_symbol,
             // Invoice if available
             invoice: (so.invoices && so.invoices[0]) || null
           });

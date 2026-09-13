@@ -4,12 +4,17 @@
 
 import frappe
 from travel_booking.api.portal_booking import (
+    _booking_accessible,
     _get_customer,
     _portal_access,
+    _price_hidden_for,
     _so_action_allowed,
 )
+from travel_booking.api._helpers import (
+    get_on_behalf_access_level,
+    sanitize_portal_return_path,
+)
 from travel_booking.api.constants import PRINT_FORMAT_RECEIPT
-from travel_booking.api._helpers import sanitize_portal_return_path
 
 
 # ══════════════════════════════════════════════
@@ -41,6 +46,27 @@ def get_all_so_payments():
         ORDER BY so.creation DESC
     """, customer_name, as_dict=True)
 
+    orders = _build_orders(so_rows, customer_name)
+
+    return {"orders": orders}
+
+
+def _build_orders(so_rows, customer_name, booking_name=None):
+    """Serialize baris Sales Order → payload billing portal (items, payment
+    entries, invoices, proformas). Dipakai oleh get_all_so_payments() (semua
+    SO milik customer) DAN get_booking_so_payments() (SO satu booking —
+    termasuk konteks on-behalf).
+
+    `booking_name` bila ditetapkan: SO ni TELAH disahkan boleh diakses
+    pemanggil (milik sendiri / managed on-behalf), jadi query booking di
+    bawah padankan terus melalui b.name — BUKAN b.customer (manager
+    on-behalf bukan customer booking 3rd party yang diurusnya).
+    """
+    # Currency fallback axis (bukan hardcoded MYR) untuk SO rekod lama
+    # yang currency-nya kosong.
+    from travel_booking.api.currency_axis import get_default_currency
+    default_currency = get_default_currency()
+
     orders = []
     for so in so_rows:
         so_name = so.name
@@ -49,14 +75,24 @@ def get_all_so_payments():
         # ATAU SO addon (dikaitkan melalui Sales Order.custom_booking), jadi
         # JOIN terus melalui custom_booking (bukan Booking.sales_order yang
         # cuma menyimpan rujukan sehala dari Booking → SO utama).
-        bk_rows = frappe.db.sql("""
-            SELECT b.name, b.booking_number, tm.trip_name AS trip_label, td.trip_group_name
-            FROM `tabSales Order` so
-            JOIN `tabBooking` b ON b.name = so.custom_booking
-            LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
-            LEFT JOIN `tabTrip` tm ON tm.name = td.trip
-            WHERE so.name = %s AND b.customer = %s
-        """, (so_name, customer_name), as_dict=True)
+        if booking_name:
+            bk_rows = frappe.db.sql("""
+                SELECT b.name, b.booking_number, tm.trip_name AS trip_label, td.trip_group_name
+                FROM `tabSales Order` so
+                JOIN `tabBooking` b ON b.name = so.custom_booking
+                LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
+                LEFT JOIN `tabTrip` tm ON tm.name = td.trip
+                WHERE so.name = %s AND b.name = %s
+            """, (so_name, booking_name), as_dict=True)
+        else:
+            bk_rows = frappe.db.sql("""
+                SELECT b.name, b.booking_number, tm.trip_name AS trip_label, td.trip_group_name
+                FROM `tabSales Order` so
+                JOIN `tabBooking` b ON b.name = so.custom_booking
+                LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
+                LEFT JOIN `tabTrip` tm ON tm.name = td.trip
+                WHERE so.name = %s AND b.customer = %s
+            """, (so_name, customer_name), as_dict=True)
         booking_names   = []
         booking_numbers = []
         for b in bk_rows:
@@ -167,19 +203,26 @@ def get_all_so_payments():
                 "proof_of_payment": proof,
             })
 
-        # Sales Invoice (kalau admin dah generate)
+        # Sales Invoice (kalau admin dah generate). SI biasanya dalam currency
+        # yang sama dengan SO (ERPNext cipta daripada SO), tapi baca terus
+        # currency SI supaya frontend papar simbol yang BETUL walau SI
+        # dicipta manual dalam currency lain.
         inv_rows = frappe.db.sql("""
             SELECT DISTINCT sii.parent, si.posting_date,
-                   si.grand_total, si.status
+                   si.grand_total, si.status, si.currency,
+                   cur.symbol AS currency_symbol
             FROM `tabSales Invoice Item` sii
             JOIN `tabSales Invoice` si ON si.name = sii.parent
+            LEFT JOIN `tabCurrency` cur ON cur.name = si.currency
             WHERE sii.sales_order = %s AND si.docstatus = 1
         """, so_name, as_dict=True)
         invoices = [{
-            "name":         r.parent,
-            "posting_date": str(r.posting_date) if r.posting_date else "",
-            "grand_total":  float(r.grand_total or 0),
-            "status":       r.status
+            "name":            r.parent,
+            "posting_date":    str(r.posting_date) if r.posting_date else "",
+            "grand_total":     float(r.grand_total or 0),
+            "status":          r.status,
+            "currency":        r.currency or so.currency or default_currency,
+            "currency_symbol": r.currency_symbol or r.currency or so.currency or default_currency,
         } for r in inv_rows]
 
         # Proforma Invoice sebenar (ERPNext doctype, dipaut ke SO melalui
@@ -236,7 +279,90 @@ def get_all_so_payments():
             "has_booking_addon": bool(so.custom_booking_addon),
         })
 
-    return {"orders": orders}
+    return orders
+
+
+# ══════════════════════════════════════════════
+# GET BOOKING PAYMENTS (SATU booking — pemilik ATAU manager on-behalf)
+# ══════════════════════════════════════════════
+
+@frappe.whitelist()
+def get_booking_so_payments(booking_number: str = None):
+    """Billing data SATU booking — endpoint page billing portal (pemilik)
+    dan /traveller/onbehalf-billing (manager on-behalf).
+
+    Bezanya dari get_all_so_payments() (semua SO milik customer session):
+    di sini SO DISARING KEPADA SATU booking (so.custom_booking) DAN akses
+    disahkan melalui _booking_accessible() — customer pemilik booking ATAU
+    manager on-behalf (booked_by = user, booking_channel != Direct).
+
+    Payload tambahan untuk mod on-behalf (page papar blok customer akhir +
+    kawal butang ikut tahap akses, selari dengan get_booking_data()):
+      - on_behalf             — True bila akses melalui hak manager
+      - end_customer_name     — nama customer akhir (booking 3rd party)
+      - on_behalf_access_level — View/Docs/Full (role tertinggi user)
+    """
+    frappe.flags.ignore_permissions = True
+    _user, customer_name, managed = _portal_access()
+
+    if not booking_number:
+        frappe.throw("Booking number is required.")
+
+    booking = frappe.db.get_value(
+        "Booking", {"booking_number": booking_number},
+        ["name", "customer", "booking_channel", "end_customer"], as_dict=True
+    )
+    if not booking:
+        frappe.throw("Booking not found.")
+
+    if not _booking_accessible(booking, customer_name, managed):
+        frappe.throw("Access denied.", frappe.PermissionError)
+
+    # B2B: end-customer tempahan partner TIADA hak paparan billing —
+    # Sales Order/resit/invois semuanya atas Customer partner. Pulangkan
+    # payload kosong + flag (frontend papar notis "diuruskan oleh agen").
+    if _price_hidden_for(booking, customer_name):
+        return {
+            "orders":             [],
+            "booking_number":     booking_number,
+            "price_hidden":       True,
+            "on_behalf":          False,
+            "end_customer_name":  "",
+            "on_behalf_access_level": "",
+        }
+
+    so_rows = frappe.db.sql("""
+        SELECT so.name, so.grand_total, so.advance_paid, so.status, so.docstatus,
+               so.currency, so.transaction_date, so.custom_booking_addon,
+               cur.symbol AS currency_symbol
+        FROM `tabSales Order` so
+        LEFT JOIN `tabCurrency` cur ON cur.name = so.currency
+        WHERE so.custom_booking = %s AND so.docstatus IN (1, 2)
+        ORDER BY so.creation DESC
+    """, booking.name, as_dict=True)
+
+    orders = _build_orders(so_rows, customer_name, booking_name=booking.name)
+
+    on_behalf = not (customer_name and booking.customer == customer_name)
+    end_customer = None
+    if on_behalf:
+        end_customer = frappe.db.get_value(
+            "Customer", booking.customer, "customer_name"
+        )
+        access_level = get_on_behalf_access_level() or "View"
+    else:
+        # Pemilik booking — hak penuh. (Manager yang KEBETULAN juga pemilik
+        # customer booking — contact sama — layak hak pemilik; payload mesti
+        # tetap bawa tahap muktamad supaya frontend tak tersilap gate UI.)
+        access_level = "Full"
+
+    return {
+        "orders":                orders,
+        "booking_number":        booking_number,
+        "on_behalf":             on_behalf,
+        "end_customer_name":     end_customer or "",
+        "on_behalf_access_level": access_level,
+    }
 
 
 # ══════════════════════════════════════════════
@@ -374,6 +500,13 @@ def submit_manual_payment(amount: float, payment_date: str,
     import base64
     from erpnext.accounts.party import get_party_account
 
+    from travel_booking.api.so_helpers import (
+        _resolve_cashback_deduction,
+        _build_discount_deduction_rows,
+        _get_absorbed_order_discount,
+        _get_booking_discount_snapshot,
+    )
+
     # --- Verify customer DULU (keselamatan) ---
     # ON-BEHALF: manager (booked_by) dibenarkan hantar resit manual untuk
     # SO booking yang diurusnya — rujuk _so_accessible_by().
@@ -388,7 +521,8 @@ def submit_manual_payment(amount: float, payment_date: str,
         frappe.throw("Sales Order not found.")
 
     so = frappe.db.get_value("Sales Order", target_so,
-                             ["customer", "company", "currency"], as_dict=True)
+                             ["customer", "company", "currency", "grand_total",
+                              "advance_paid"], as_dict=True)
     if not _so_action_allowed(target_so, customer_name, managed, "Full"):
         frappe.throw("Access denied.", frappe.PermissionError)
 
@@ -403,15 +537,24 @@ def submit_manual_payment(amount: float, payment_date: str,
 
     # --- Cipta Payment Entry dengan hak sistem (customer dah verified atas) ---
     #
-    # PENTING: guna frappe.flags.ignore_permissions, BUKAN frappe.set_user()
-    # — set_user() MEMADAM frappe.local.session.data dan menulis-ganti
-    # session.sid (rujuk frappe/__init__.py). Session.update() yang Frappe
-    # panggil di hujung SETIAP request (frappe/app.py) kemudian menulis
-    # data sesi yang telah dikosongkan itu ke cache di bawah sid sebenar
-    # customer — request berikutnya membaca sesi rosak → dianggap tamat
-    # → "User None not found" / terlogout selepas hantar resit.
-    # flags.ignore_permissions memberi laluan kepada pe.insert() tanpa
-    # menyentuh session — corak yang sama dengan create_payment_request().
+    # PENTING: JANGAN guna frappe.set_user() — set_user() MEMADAM
+    # frappe.local.session.data dan menulis-ganti session.sid (rujuk
+    # frappe/__init__.py). Session.update() yang Frappe panggil di hujung
+    # SETIAP request (frappe/app.py) kemudian menulis data sesi yang telah
+    # dikosongkan itu ke cache di bawah sid sebenar customer — request
+    # berikutnya membaca sesi rosak → dianggap tamat → "User None not
+    # found" / terlogout selepas hantar resit.
+    #
+    # flags.ignore_permissions SAHAJA TIDAK CUKUP: ERPNext
+    # get_party_account() (party.py) dan PaymentEntry.validate() (laluan
+    # advance-payment bila references-nya Sales Order) melakukan SEMAKAN
+    # KECHENARAN Account secara eksplisit — frappe.has_permission() versi
+    # semasa TIDAK menghormati flags.ignore_permissions — jadi sesi portal
+    # tanpa role Accounts gagal "User don't have permissions to
+    # select/read this account". Corak yang terbukti (sama dengan
+    # _create_manual_payment_entry() dalam so_helpers.py): tukar user
+    # session SEMENTARA ke Administrator semasa membina dokumen, pulihkan
+    # dalam finally.
     frappe.flags.ignore_permissions = True
 
     company = so.company or frappe.db.get_single_value("Global Defaults", "default_company")
@@ -438,50 +581,131 @@ def submit_manual_payment(amount: float, payment_date: str,
             {"account_type": "Bank", "company": company, "is_group": 0},
             "name"
         )
-    party_account = get_party_account("Customer", party_customer, company)
-    # MULTI-CURRENCY — DIRINGKASKAN, sama dengan _create_manual_payment_entry()
-    # (api/booking.py): akaun Debtors DEFAULT company selamat diguna
-    # terus untuk apa-apa currency SO, sejak Accounts Settings "Allow
-    # multi-currency invoices against single party account" dihidupkan.
 
-    pe = frappe.new_doc("Payment Entry")
-    pe.payment_type    = "Receive"
-    pe.company         = company
-    pe.posting_date    = payment_date or frappe.utils.today()
-    pe.party_type      = "Customer"
-    pe.party           = party_customer
-    pe.party_account   = party_account
-    pe.paid_from       = party_account
-    pe.paid_to         = paid_to
-    pe.paid_amount     = float(amount)
-    pe.received_amount = float(amount)
-    pe.reference_no    = reference_no or target_so
-    pe.reference_date  = payment_date or frappe.utils.today()
+    _original_user = frappe.local.session.user
+    frappe.local.session.user = "Administrator"
+    try:
+        party_account = get_party_account("Customer", party_customer, company)
+        # MULTI-CURRENCY — DIRINGKASKAN, sama dengan _create_manual_payment_entry()
+        # (api/so_helpers.py): akaun Debtors DEFAULT company selamat diguna
+        # terus untuk apa-apa currency SO, sejak Accounts Settings "Allow
+        # multi-currency invoices against single party account" dihidupkan.
 
-    pe.append("references", {
-        "reference_doctype": "Sales Order",
-        "reference_name":    target_so,
-        "allocated_amount":  float(amount),
-    })
+        # CASHBACK + DISKAUN ORDER-LEVEL Manual Transfer — Booking SO ni
+        # layak cashback bila checkout_method == "Manual Transfer" DAN
+        # promosi masih aktif di Travel Settings (benefit transaksional —
+        # dibaca semasa bayaran, tiada snapshot; SO kekal GROSS), dan
+        # boleh membawa baki diskaun voucher/referral (voucher_discount +
+        # referral_discount pada Booking) yang belum diserap mana-mana PE
+        # terdahulu (deposit wizard manual dah serap; deposit Stripe
+        # tidak). Cash yang customer transfer ialah NET; PE diterjemah
+        # balik ke bahagian GROSS SO untuk allocation, dengan beza tu
+        # sebagai DEDUCTION ke akaun Marketing Expenses company tersebut
+        # (received + deductions = allocated → PE seimbang). SO lama /
+        # bukan cashback tanpa baki diskaun: allocated = cash penuh
+        # (behavior lama).
+        cash = round(float(amount), 2)
+        allocated = cash
+        _b_voucher_disc, _b_ref_disc, cashback_percent = _get_booking_discount_snapshot(target_so)
+        pct = cashback_percent / 100.0 if cashback_percent > 0 else 0.0
+        cashback_row = None
+        disc_rows = None
+        outstanding = round(float(so.grand_total or 0) - float(so.advance_paid or 0), 2)
+        order_discount = round(_b_voucher_disc + _b_ref_disc, 2)
+        residue = 0.0
+        if order_discount > 0 and outstanding > 0:
+            residue = round(order_discount - _get_absorbed_order_discount(
+                target_so, company, so.currency), 2)
+            residue = max(0.0, min(residue, outstanding))
+        if outstanding > 0 and cash <= outstanding and (residue > 0 or pct > 0):
+            # Cash yang melengkapkan SEKALI baki gross (selepas diserap
+            # baki diskaun & cashback % atas baki gross).
+            net_full = round(outstanding - residue - (outstanding * pct), 2)
+            if cash >= net_full - 0.01:
+                # Customer bayar (hampir) keseluruhan baki net — allocate
+                # baki gross penuh supaya SO settle sekali.
+                allocated = outstanding
+            elif pct > 0:
+                allocated = min(outstanding,
+                                round((cash + residue) / (1 - pct), 2))
+            else:
+                allocated = min(outstanding, cash + residue)
+            if allocated < cash:
+                allocated = cash
+            # Bahagian deduction = allocated − cash: agih BAKI DISKAUN
+            # dahulu, cashback pula bakinya (di-clamp ikut ruang supaya PE
+            # kekal seimbang).
+            ded_space = round(allocated - cash, 2)
+            residue_used = min(residue, ded_space)
+            disc_rows, disc_used = _build_discount_deduction_rows(
+                company, so.currency, target_so,
+                [("Voucher/Referral balance", residue_used)])
+            if disc_rows is None:
+                # Akaun marketing expenses company tiada — fallback behavior
+                # lama (allocate cash penuh, tiada deduction); error di-log
+                # oleh _build_discount_deduction_rows untuk admin. Baki
+                # diskaun kekal untuk bayaran seterusnya.
+                allocated = cash
+            else:
+                if cashback_percent > 0:
+                    cashback_row = _resolve_cashback_deduction(
+                        company, so.currency, target_so, cashback_percent,
+                        cash, allocated, other_deductions=disc_used)
 
-    pe.remarks = notes or ("Manual transfer for " + target_so + ". Pending verification.")
-    pe.insert(ignore_permissions=True)   # draft
+        pe = frappe.new_doc("Payment Entry")
+        pe.payment_type    = "Receive"
+        pe.company         = company
+        pe.posting_date    = payment_date or frappe.utils.today()
+        pe.party_type      = "Customer"
+        pe.party           = party_customer
+        pe.party_account   = party_account
+        pe.paid_from       = party_account
+        pe.paid_to         = paid_to
+        pe.paid_amount     = cash
+        pe.received_amount = cash
+        pe.reference_no    = reference_no or target_so
+        pe.reference_date  = payment_date or frappe.utils.today()
 
-    if filedata and filename:
-        if "," in filedata:
-            filedata = filedata.split(",")[1]
-        file_content = base64.b64decode(filedata)
-        frappe.get_doc({
-            "doctype":             "File",
-            "file_name":           filename,
-            "attached_to_doctype": "Payment Entry",
-            "attached_to_name":    pe.name,
-            "is_private":          1,
-            "content":             file_content
-        }).insert(ignore_permissions=True)
+        pe.append("references", {
+            "reference_doctype": "Sales Order",
+            "reference_name":    target_so,
+            "allocated_amount":  allocated,
+        })
+        if disc_rows:
+            for _row in disc_rows:
+                pe.append("deductions", _row)
+        if cashback_row:
+            pe.append("deductions", cashback_row)
 
-    frappe.db.commit()
-    pe_name = pe.name
+        pe.remarks = notes or ("Manual transfer for " + target_so + ". Pending verification.")
+        if disc_rows:
+            pe.remarks += (" Order discount balance " + str(round(allocated - cash - (cashback_row["amount"] if cashback_row else 0), 2)) + " " + str(so.currency) +
+                           " deducted to Marketing Expenses (" +
+                           disc_rows[0]["account"] + ").")
+        if cashback_row:
+            pe.remarks += (" Cashback " + str(cashback_percent) + "% (" +
+                           str(cashback_row["amount"]) + " " + str(so.currency) +
+                           ") deducted to Marketing Expenses (" +
+                           cashback_row["account"] + ").")
+        pe.insert(ignore_permissions=True)   # draft
+
+        if filedata and filename:
+            if "," in filedata:
+                filedata = filedata.split(",")[1]
+            file_content = base64.b64decode(filedata)
+            frappe.get_doc({
+                "doctype":             "File",
+                "file_name":           filename,
+                "attached_to_doctype": "Payment Entry",
+                "attached_to_name":    pe.name,
+                "is_private":          1,
+                "content":             file_content
+            }).insert(ignore_permissions=True)
+
+        frappe.db.commit()
+        pe_name = pe.name
+    finally:
+        frappe.local.session.user = _original_user
 
     return {
         "status":     "ok",

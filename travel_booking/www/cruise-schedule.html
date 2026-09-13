@@ -1,0 +1,232 @@
+{% extends "templates/base_travel.html" %}
+
+{# ============================================================
+   travel_booking/www/cruise-schedule.html
+   Page /cruise-schedule — TIMELINE pelayaran CRUISE sahaja
+   (is_a_cruise_trip = 1).
+
+   Satu node = satu SAILING DATE; dalam setiap sailing date, trip
+   dengan nama berbeza kekal kad berasingan (tidak digabung), manakala
+   variant TGD trip yang sama (Cruise Only + Cruise+Flight) digabung jadi
+   satu kad. Data dari cruise_schedule.py — lapisan kongsi trip_catalog,
+   definisi "ready" SAMA dengan katalog.
+
+   Konteks:
+     dates         — [{key (ISO sailing date), events: [kad, ...],
+                      new_month (kumpulan pertama bulan itu),
+                      month_label (cth "October 2026")}]
+     year_options  — [tahun, ...] yang ada sailing
+     stats         — {sailings, trips}
+     active        — penapis semasa (q, destination, month, year, currency)
+     destination_label — label destinasi terpilih (paparan semula input)
+     options.destinations — pilihan autocomplete destinasi (cruise)
+     currency / currency_symbol / currency_options — meta listing
+   ============================================================ #}
+
+{% block title %}Cruise Schedule — {{ site_name or 'Rarecation' }}{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/assets/travel_booking/css/trip_card.css?v={{ asset_v('css/trip_card.css') }}"/>
+<link rel="stylesheet" href="/assets/travel_booking/css/trips.css?v={{ asset_v('css/trips.css') }}"/>
+<link rel="stylesheet" href="/assets/travel_booking/css/cruise_schedule.css?v={{ asset_v('css/cruise_schedule.css') }}"/>
+{% endblock %}
+
+{% block page_content %}
+<section class="rc-sched">
+  <div class="rc-catalog-hero">
+    <h1>Cruise Schedule</h1>
+    <p>Every upcoming sailing across our cruises — grouped by sailing date.</p>
+  </div>
+
+  {# ── Bar penapis — include kongsi dengan /cruises
+        (templates/includes/cruise_filters.html). Cruise dipaksa
+        server-side; destinasi guna autocomplete destination_search.js
+        (corak hero search /cruise). ── #}
+  {% with filter_action="/cruise-schedule", filter_id="rcSchedFilters",
+          filter_reset_href="/cruise-schedule", filter_force_cruise=0,
+          filter_dest_mode="autocomplete" %}
+    {% include "templates/includes/cruise_filters.html" %}
+  {% endwith %}
+
+  {# ── Meta: jumlah sailing + cruise ── #}
+  <div class="rc-catalog-meta">
+    <span>{{ stats.sailings }} sailing{{ 's' if stats.sailings != 1 else '' }} across {{ stats.trips }} cruise{{ 's' if stats.trips != 1 else '' }}</span>
+  </div>
+
+  {# ── Timeline: kumpul ikut sailing date, dengan PEMISAH BULAN ── #}
+  {% if dates %}
+  <div class="rc-sched-timeline">
+    {% for dg in dates %}
+
+    {# Header bulan — kumpulan pertama setiap (tahun, bulan). Node bulat
+       duduk di atas rel, chip nama bulan + garis hairline memisahkan
+       timeline per bulan (cth October 2026 | November 2026). #}
+    {% if dg.new_month %}
+    <div class="rc-sched-month">
+      <span class="rc-sched-month-label"><i class="ti ti-anchor"></i>{{ dg.month_label }}</span>
+    </div>
+    {% endif %}
+
+    <article class="rc-sched-item">
+
+      {# Penanda sailing date di atas rel #}
+      <div class="rc-sched-marker" title="{{ dg.events[0].date_label }}">
+        <span class="rc-sched-weekday">{{ dg.events[0].weekday }}</span>
+        <span class="rc-sched-day">{{ dg.events[0].day }}</span>
+        {# Bulan & tahun SENTIASA 2 baris — dua span block (rc-sched-mmm
+           dah display:block), tak bergantung pada lebar ruang. #}
+        <span class="rc-sched-mmm">{{ dg.events[0].mmm }}</span>
+        <span class="rc-sched-mmm rc-sched-mmm-year">{{ dg.events[0].year }}</span>
+      </div>
+
+      {# Stack kad: SATU kad per trip — trip nama lain TIDAK digabung #}
+      <div class="rc-sched-stack">
+        {% for e in dg.events %}
+        <div class="rc-sched-card">
+
+          {# Media: gambar + ikon sauh (badge bulat, corak rc-card-icon) #}
+          <a class="rc-sched-thumb" href="/{{ e.route }}" aria-label="{{ e.trip_name }}">
+            <img src="{{ e.trip_image }}" alt="{{ e.trip_name }}" loading="lazy"
+                 onerror="this.src='/assets/travel_booking/img/defaultaroya.jpg'"/>
+            <!-- <span class="rc-sched-ico"><i class="ti ti-anchor"></i></span> -->
+          </a>
+
+          {# Info trip: tiada group chip #}
+          <div class="rc-sched-info">
+            <h3 class="rc-sched-title"><a href="/{{ e.route }}">{{ e.trip_name }}</a></h3>
+
+            <p class="rc-sched-dest">
+              <i class="ti ti-map-pin"></i>
+              {% if e.destinations %}{{ e.destinations | join(', ') }}{% else %}Undisclosed Location{% endif %}
+            </p>
+
+            {# Meta terorgan: Duration | Sailing | Port | Ship #}
+            <div class="rc-sched-meta">
+              {% if e.total_days %}
+              <div class="rc-sched-mi">
+                <i class="ti ti-clock-2"></i>
+                <span class="rc-sched-mlabel">Duration</span>
+                <span class="rc-sched-mval">{{ e.total_days }}D / {{ e.total_nights }}N</span>
+              </div>
+              {% endif %}
+              {% if e.range_label %}
+              <div class="rc-sched-mi">
+                <i class="ti ti-calendar-event"></i>
+                <span class="rc-sched-mlabel">Sailing</span>
+                <span class="rc-sched-mval">{{ e.range_label }}</span>
+              </div>
+              {% endif %}
+              {% if e.route_label %}
+              <div class="rc-sched-mi">
+                <i class="ti ti-location-arrow"></i>
+                <span class="rc-sched-mlabel">Port</span>
+                <span class="rc-sched-mval">{{ e.route_label }}</span>
+              </div>
+              {% endif %}
+              {% if e.ship %}
+              <div class="rc-sched-mi">
+                <i class="ti ti-ship"></i>
+                <span class="rc-sched-mlabel">Ship</span>
+                <span class="rc-sched-mval">{{ e.ship }}</span>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          {# Sisi kanan: harga + status tempat duduk + CTA #}
+          <div class="rc-sched-side">
+            <div class="rc-sched-price">
+              {% if e.starting_from_price is not none %}
+                {% set sym = currency_symbol if currency_symbol else get_company_symbol() %}
+                <span class="rc-sched-plabel">From</span>
+                <span class="rc-sched-pvalue">{{ sym }}{{ "{:,.0f}".format(e.starting_from_price) }} <small>per person</small></span>
+              {% else %}
+                <span class="rc-sched-plabel">Price</span>
+                <span class="rc-sched-tba">On Request</span>
+              {% endif %}
+            </div>
+
+            {# Badge penerbangan: sailing ni ada pakej dgn flight
+               (group bukan cruise-only) — flag dari cruise_schedule.py #}
+            {% if e.has_flight %}
+            <span class="rc-sched-flight"><i class="ti ti-plane-takeoff"></i> With Flight</span>
+            {% endif %}
+
+            {% if e.seats_left is none %}
+              {# max_participants == 0 → UNLIMITED #}
+              <span class="rc-sched-seats rc-sched-seats-ok"><i class="ti ti-armchair"></i> Available</span>
+            {% elif e.seats_left == 0 %}
+              <span class="rc-sched-seats rc-sched-seats-out"><i class="ti ti-armchair-x"></i> Sold Out</span>
+            {% elif e.seats_left <= 5 %}
+              <span class="rc-sched-seats rc-sched-seats-low"><i class="ti ti-armchair"></i> Only {{ e.seats_left }} left</span>
+            {% else %}
+              <span class="rc-sched-seats rc-sched-seats-ok"><i class="ti ti-armchair"></i> {{ e.seats_left }} seats left</span>
+            {% endif %}
+
+            {% if e.seats_left is none or e.seats_left > 0 %}
+            {# Book Now TIDAK terus ke /booknow — buka modal pilih pakej
+               (cruise_schedule.js). data-tgd = fallback behavior lama
+               kalau JSON pilihan tak tersedia. #}
+            <button type="button" class="rc-card-cta rc-sched-book"
+                    data-trip="{{ e.trip }}" data-tgd="{{ e.tgd }}">Book Now</button>
+            <a class="rc-card-cta-outline" href="/{{ e.route }}">View Details</a>
+            {% else %}
+            <a class="rc-card-cta-outline" href="/{{ e.route }}">View Details</a>
+            {% endif %}
+          </div>
+
+          {# Pilihan tempahan kad ini (variant sailing + pakej + harga),
+             di-preload server-side — dibaca cruise_schedule.js untuk modal
+             pemilihan pakej. #}
+          <script type="application/json" class="rc-sched-data">{{ e.options_json }}</script>
+
+        </div>
+        {% endfor %}
+      </div>
+
+    </article>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="rc-empty">
+    <i class="ti ti-calendar-off"></i>
+    <h3>No sailings scheduled</h3>
+    <p>Try widening your search or clearing some filters.</p>
+    <a href="/cruise-schedule" class="rc-btn-primary">Clear filters</a>
+  </div>
+  {% endif %}
+</section>
+
+{# ── Modal pilih pakej (Book Now) — shell kosong, badan diisi
+      cruise_schedule.js daripada options_json kad yang diklik ── #}
+<div class="rc-pkgmodal" id="rcPkgModal" hidden>
+  <div class="rc-pkgmodal-overlay" data-pkgmodal-close></div>
+  <div class="rc-pkgmodal-dialog" role="dialog" aria-modal="true" aria-labelledby="rcPkgModalTitle">
+    <button type="button" class="rc-pkgmodal-x" data-pkgmodal-close aria-label="Close">
+      <i class="ti ti-x"></i>
+    </button>
+
+    <div class="rc-pkgmodal-head">
+      <span class="rc-pkgmodal-eyebrow"><i class="ti ti-anchor"></i> Choose your package</span>
+      <h3 class="rc-pkgmodal-title" id="rcPkgModalTitle"></h3>
+      <p class="rc-pkgmodal-sub" id="rcPkgModalSub"></p>
+    </div>
+
+    <div class="rc-pkgmodal-body" id="rcPkgModalBody">{# senarai variant + pakej, diisi JS #}</div>
+
+    <div class="rc-pkgmodal-foot">
+      <button type="button" class="rc-btn-ghost" data-pkgmodal-close>Cancel</button>
+      <button type="button" class="rc-btn-primary rc-pkgmodal-go" id="rcPkgModalGo" disabled>
+        Continue to Booking <i class="ti ti-arrow-right"></i>
+      </button>
+    </div>
+  </div>
+</div>
+
+{# Logik modal hidup di /assets/travel_booking/js/cruise_schedule.js
+   (corak sama dengan trip_detail.js); autocomplete destinasi guna
+   destination_search.js (sama dengan hero search /cruise + /tour). #}
+<script src="/assets/travel_booking/js/destination_search.js?v={{ asset_v('js/destination_search.js') }}"></script>
+<script src="/assets/travel_booking/js/cruise_schedule.js?v={{ asset_v('js/cruise_schedule.js') }}"></script>
+{% endblock %}

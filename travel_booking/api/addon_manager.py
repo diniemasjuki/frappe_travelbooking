@@ -16,7 +16,11 @@
 import frappe
 import json
 
-from travel_booking.api.portal_booking import _portal_access, _booking_action_allowed
+from travel_booking.api.portal_booking import (
+    _portal_access,
+    _booking_action_allowed,
+    _price_hidden_for,
+)
 from travel_booking.api.constants import ADDON_PACKAGE_ITEM_CODE
 from travel_booking.api.so_helpers import (
     _get_or_create_travel_item,
@@ -30,20 +34,26 @@ from travel_booking.api.so_helpers import (
 
 def _get_owned_booking(booking_number):
     """Sahkan booking_number wujud DAN milik customer yang sedang login.
-    Pulang dict {name, customer, trip_package, trip_date, status}, atau
-    throw PermissionError. Dipanggil di SETIAP endpoint dalam modul ni
-    sebelum apa-apa operasi — jangan percaya booking_number dari client
-    tanpa verify ownership.
+    Pulang dict {name, customer, trip_package, trip_date, status, affiliate,
+    booking_channel, end_customer}, atau throw PermissionError. Dipanggil
+    di SETIAP endpoint dalam modul ni sebelum apa-apa operasi — jangan
+    percaya booking_number dari client tanpa verify ownership.
 
     ON-BEHALF: manager (booked_by) juga dibenarkan — addon/upsell
     melibatkan maklumat traveller, jadi perlukan tahap akses "Docs"
     (rujuk _booking_action_allowed). Downstream SO dibina atas
     booking.customer (bukan session user) supaya IDOR kekal terkawal.
+
+    B2B: end-customer tempahan partner turut dibenarkan pada tahap Docs
+    (lihat status addon) — tapi endpoint transaksi (checkout) MENAFIKAN
+    dia secara eksplisit melalui _price_hidden_for() kerana SO addon
+    dibilkan kepada Customer partner.
     """
     _user, customer_name, managed = _portal_access()
     booking = frappe.db.get_value(
         "Booking", {"booking_number": booking_number},
-        ["name", "customer", "trip_package", "trip_date", "status", "affiliate"], as_dict=True
+        ["name", "customer", "trip_package", "trip_date", "status", "affiliate",
+         "booking_channel", "end_customer"], as_dict=True
     )
     if not booking or not _booking_action_allowed(booking, customer_name, managed, "Docs"):
         frappe.throw("Booking not found.", frappe.PermissionError)
@@ -132,6 +142,8 @@ def get_available_addons(booking_number: str, currency: str = None):
     client.
     """
     booking = _get_owned_booking(booking_number)
+    _b2b_user, b2b_customer_name, _b2b_managed = _portal_access()
+    hide_prices = _price_hidden_for(booking, b2b_customer_name)
 
     # Default currency = currency booking utama (SO utama booking ni).
     from travel_booking.api.currency_axis import get_declared_currencies, get_default_currency
@@ -272,6 +284,15 @@ def get_available_addons(booking_number: str, currency: str = None):
     # Convert to list, sorted by addon_type then title
     out = sorted(addon_map.values(), key=lambda x: (x["addon_type"], x["addon_title"]))
 
+    # B2B end-customer: harga addon DITAPIS dari respons (katalog tetap
+    # nampak — maklumat perjalanan) dan checkout disekat.
+    if hide_prices:
+        for addon in out:
+            for pkg in addon["packages"]:
+                pkg["unit_price"] = None
+                pkg["currency"] = ""
+                pkg["purchasable"] = False
+
     # Meta currency untuk selector portal (pilihan bebas — setiap currency
     # yang diisytiharkan dalam axis, walaupun tiada addon punya rate
     # untuknya; frontend hanya disable/hide pilihan tanpa hasil).
@@ -286,6 +307,10 @@ def get_available_addons(booking_number: str, currency: str = None):
         "currency": currency,
         "currency_symbol": _currency_symbol(currency),
         "currency_options": currency_options,
+        # B2B end-customer: tiada pembelian sendiri — addon diuruskan oleh
+        # staf partner (SO addon dibilkan kepada Customer partner).
+        "can_checkout": not hide_prices,
+        "price_hidden": hide_prices,
     }
 
 
@@ -318,6 +343,17 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
     Selepas cipta SO + Booking Addon, redirect ke billing page.
     """
     booking = _get_owned_booking(booking_number)
+
+    # B2B: end-customer TIDAK boleh menempah addon berbayar — tempahan
+    # addon adalah transaksi kewangan yang dibilkan kepada Customer
+    # partner. Staf partner (managed set) kekal dibenarkan.
+    _ck_user, ck_customer_name, _ck_managed = _portal_access()
+    if _price_hidden_for(booking, ck_customer_name):
+        frappe.throw(
+            "Add-ons for this booking are managed by your travel agent. "
+            "Please contact your agent to add extras.",
+            frappe.PermissionError,
+        )
 
     if isinstance(lines, str):
         lines = json.loads(lines)
@@ -670,6 +706,34 @@ def get_booking_addons(booking_number: str):
             l["sales_order"] = o.get("sales_order")
             l["order_date"] = o.get("order_date")
             l["addon_package_name"] = pkg_name_map.get(l.get("addon_package"), "")
+
+    # Simbol currency (MYR->RM, SGD->S$) pada order & baris — frontend papar
+    # simbol yang BETUL ikut currency order, bukan simbol company sahaja.
+    sym_cache = {}
+    def _sym(cur):
+        if not cur:
+            return ""
+        if cur not in sym_cache:
+            sym_cache[cur] = frappe.get_cached_value("Currency", cur, "symbol") or cur
+        return sym_cache[cur]
+
+    for o in orders:
+        o["currency_symbol"] = _sym(o.get("currency"))
+        for l in o["lines"]:
+            l["currency_symbol"] = _sym(l.get("currency"))
+
+    # B2B end-customer: angka harga/order payment status DITAPIS — paparan
+    # "apa yang saya dah beli" untuk traveller hanya nama & status item.
+    _ga_user, ga_customer_name, _ga_managed = _portal_access()
+    if _price_hidden_for(booking, ga_customer_name):
+        for o in orders:
+            o["total_amount"] = None
+            o["payment_status"] = None
+            for l in o["lines"]:
+                l["unit_price"] = None
+                l["amount"] = None
+                l["order_total"] = None
+                l["order_payment_status"] = None
 
     return orders
 

@@ -3,6 +3,12 @@
    Billing page — SO cards (accordion), items, documents,
    transactions, and new payment form.
    Requires: traveller_common.js (loaded before this)
+
+   Melayani DUA page:
+   - /traveller/billing          (mode lalai "self"   — billing pemilik)
+   - /traveller/onbehalf-billing (mode "onbehalf" — billing booking
+     3rd party yang diurus manager; endpoint booking-scoped, butang
+     bayaran/muat turun ikut tahap akses View/Docs/Full)
    ============================================================ */
 
 'use strict';
@@ -11,6 +17,27 @@
   var BOOKING_REF = _pageData.booking_ref || '';
   var allOrders = [];
   var _bankSettings = null; // cache for get_payment_settings() response
+
+  // mode "onbehalf" = page /traveller/onbehalf-billing (manager mengurus
+  // billing booking pelanggan). mode lalai = /traveller/billing pemilik.
+  var MODE = _pageData.mode === 'onbehalf' ? 'onbehalf' : 'self';
+
+  // Tahap akses on-behalf (server-authoritative dari endpoint data):
+  //   View (0): baca sahaja · Docs (1): + add-ons · Full (2): + bayaran/PDF
+  var LEVEL_RANK = { 'View': 0, 'Docs': 1, 'Full': 2 };
+  var ACCESS_LEVEL = 'Full';
+  var END_CUSTOMER_NAME = ''; // customer akhir (mod onbehalf sahaja)
+
+  function canDocs() { return MODE !== 'onbehalf' || LEVEL_RANK[ACCESS_LEVEL] >= 1; }
+  function canFull() { return MODE !== 'onbehalf' || LEVEL_RANK[ACCESS_LEVEL] >= 2; }
+
+  function billingPageUrl() {
+    return MODE === 'onbehalf' ? '/traveller/onbehalf-billing' : '/traveller/billing';
+  }
+  function backToBookingUrl() {
+    return (MODE === 'onbehalf' ? '/traveller/onbehalf-booking' : '/traveller/booking')
+      + '?ref=' + encodeURIComponent(BOOKING_REF);
+  }
 
   /* ── Init ── */
   async function init() {
@@ -22,6 +49,22 @@
     } catch (e) {
       console.error('Failed to load billing:', e);
     }
+  }
+
+  /* ── Cari SO dalam senarai yang dimuatkan ── */
+  function soByName(soName) {
+    return allOrders.find(function (o) { return o.name === soName; }) || null;
+  }
+
+  /* ── Online Payment tersedia untuk currency SO ni? Gateway dikonfig
+     per-currency di Travel Settings > Currency Accounts — SO dalam
+     currency tanpa gateway jatuh ke Manual Bank Transfer. ── */
+  function onlinePayEnabledFor(so) {
+    if (!_bankSettings || _bankSettings.online_payment_enabled === false) return false;
+    var byCur = (_bankSettings && _bankSettings.online_payment_by_currency) || {};
+    var cur = so && so.currency;
+    if (cur && Object.keys(byCur).length && !byCur[cur]) return false;
+    return true;
   }
 
   /* ── Load bank details from Travel Settings ── */
@@ -41,7 +84,11 @@
 
   /* ── Populate bank table cells with live data ── */
   function populateBankTable(soName) {
-    var currency = RC.company_currency || 'MYR';
+    // Bank account ikut CURRENCY SO (bank_accounts dari server di-key
+    // per currency) — bukan company currency, supaya SO SGD tunjuk
+    // akaun bank SGD.
+    var so = soByName(soName);
+    var currency = (so && so.currency) || RC.company_currency || 'MYR';
     var banks = (_bankSettings && _bankSettings.bank_accounts) || {};
     var info = banks[currency] || {};
 
@@ -83,6 +130,8 @@
       var status = (result && result.status) || 'unknown';
       var amount = (result && result.amount) || 0;
       var currency = (result && result.currency) || '';
+      // Simbol currency caj sebenar (dari Stripe / master Currency)
+      var currencySymbol = (result && result.currency_symbol) || currency || RC.company_symbol;
 
       var cardHtml = '';
       if (status === 'succeeded') {
@@ -91,8 +140,8 @@
           '<div style="text-align:center;padding:32px 20px;">' +
           '<div style="font-size:48px;margin-bottom:12px;">✅</div>' +
           '<h3 style="margin:0 0 8px;color:var(--c-success);">Payment Successful!</h3>' +
-          '<p style="font-size:18px;font-weight:700;color:var(--text-primary);margin:0 0 4px;">' + fmtDual(amount) + '</p>' +
-          (currency ? '<p style="font-size:13px;color:var(--text-muted);margin:0;">Payment verified via Stripe</p>' : '') +
+          '<p style="font-size:18px;font-weight:700;color:var(--text-primary);margin:0 0 4px;">' + fmtDual(amount, currencySymbol) + '</p>' +
+          (currency ? '<p style="font-size:13px;color:var(--text-muted);margin:0;">Payment verified via Stripe · ' + _esc(currency) + '</p>' : '') +
           '</div></div>';
       } else if (status === 'processing') {
         cardHtml =
@@ -110,7 +159,7 @@
           '<div style="font-size:48px;margin-bottom:12px;">❌</div>' +
           '<h3 style="margin:0 0 8px;color:var(--c-danger-text);">Payment Failed</h3>' +
           '<p style="color:var(--text-secondary);margin:0 0 16px;">' + (result?.last_error || 'Could not complete payment. Please try again.') + '</p>' +
-          '<a href="/traveller/billing?ref=' + encodeURIComponent(BOOKING_REF) + '" class="tv-btn tv-btn--primary tv-btn--sm" style="margin-top:16px;">← Try Again</a>' +
+          '<a href="' + billingPageUrl() + '?ref=' + encodeURIComponent(BOOKING_REF) + '" class="tv-btn tv-btn--primary tv-btn--sm" style="margin-top:16px;">← Try Again</a>' +
           '</div></div>';
       }
 
@@ -124,7 +173,7 @@
       content.innerHTML =
         '<div class="tv-card tv-text-center" style="padding:40px;border:1px solid var(--c-danger-text);">' +
         '<p style="color:var(--c-danger-text);">Failed to verify payment: ' + _esc(e.message || 'Unknown error') + '</p>' +
-        '<a href="/traveller/billing?ref=' + encodeURIComponent(BOOKING_REF) + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:16px;">← Back to Billing</a>' +
+        '<a href="' + billingPageUrl() + '?ref=' + encodeURIComponent(BOOKING_REF) + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:16px;">← Back to Billing</a>' +
         '</div>';
     }
   }
@@ -148,8 +197,35 @@
     }
 
     try {
-      var data = await API_PM('get_all_so_payments', { booking_number: BOOKING_REF });
+      // Mod onbehalf: endpoint booking-scoped (SO satu booking, akses
+      // manager on-behalf disaring server) + tahap akses dari respons.
+      // Mod self: kelakuan sedia ada — semua SO milik customer session.
+      var data;
+      if (MODE === 'onbehalf') {
+        data = await API_PM('get_booking_so_payments', { booking_number: BOOKING_REF });
+        ACCESS_LEVEL = (data && data.on_behalf_access_level) || 'View';
+        END_CUSTOMER_NAME = (data && data.end_customer_name) || '';
+      } else {
+        data = await API_PM('get_all_so_payments', { booking_number: BOOKING_REF });
+      }
       allOrders = data.orders || [];
+
+      // ── B2B end-customer: server pulangkan payload kosong + flag ──
+      // (SO dibilkan kepada partner; billing bukan urusan traveller).
+      if (data && data.price_hidden) {
+        if (loading) loading.style.display = 'none';
+        if (content) {
+          content.style.display = 'block';
+          content.innerHTML =
+            '<div class="tv-card tv-text-center" style="padding:40px;">' +
+            '<div style="font-size:34px;margin-bottom:8px;">🧾</div>' +
+            '<h3 class="tv-empty__title" style="margin:0 0 8px 0;">Billing Managed by Your Agent</h3>' +
+            '<p class="tv-empty__desc" style="max-width:420px;margin:0 auto;line-height:1.6;">Billing and payments for this booking are handled by your travel agent. For invoices or receipts, please contact your agent directly.</p>' +
+            '<a href="/traveller/booking?ref=' + encodeURIComponent(BOOKING_REF) + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:16px;">← Back to Booking</a>' +
+            '</div>';
+        }
+        return;
+      }
 
       // If ?bill= param present, filter to show only that specific SO
       if (targetBill) {
@@ -181,7 +257,7 @@
         content.innerHTML =
           '<div class="tv-card tv-text-center" style="padding:40px;">' +
           '<p style="color:var(--c-danger-text);">' + _esc(e.message || 'Failed to load billing.') + '</p>' +
-          '<a href="/traveller/booking?ref=' + encodeURIComponent(BOOKING_REF) + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:16px;">← Back to Booking</a>' +
+          '<a href="' + backToBookingUrl() + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:16px;">← Back to Booking</a>' +
           '</div>';
       }
     }
@@ -208,11 +284,11 @@
       return '<div class="tv-empty"><div class="tv-empty__icon">💳</div>' +
              '<h3 class="tv-empty__title">No Billing Data</h3>' +
              '<p class="tv-empty__desc">' + (targetBill ? 'Sales Order <strong>' + _esc(targetBill) + '</strong> not found or no access.' : 'No sales orders found for this booking.') + '</p>' +
-             '<a href="/traveller/booking?ref=' + encodeURIComponent(BOOKING_REF) + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:12px;">← Back to Booking</a></div>';
+             '<a href="' + backToBookingUrl() + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:12px;">← Back to Booking</a></div>';
     }
 
     var html = '';
-    var backLink = '<a href="/traveller/booking?ref=' + encodeURIComponent(BOOKING_REF) + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="text-decoration:none;">← Back to Booking</a>';
+    var backLink = '<a href="' + backToBookingUrl() + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="text-decoration:none;">← Back to Booking</a>';
 
     // Back link — TOP (before content)
     html += '<div style="margin-bottom:16px;">' + backLink + '</div>';
@@ -253,6 +329,7 @@
   /* ── Card 1: Billing Information ── */
   function renderBillingInfo(so) {
     var name = _esc(so.name || '');
+    var sym = curSym(so); // currency SO — papar jumlah ikut currency ini
     var grandTotal = parseFloat(so.grand_total) || 0;
     var advancePaid = parseFloat(so.advance_paid) || 0;
     var balance = grandTotal - advancePaid;
@@ -271,6 +348,16 @@
     html += '<span style="font-family:\'SF Mono\',Monaco,monospace;font-size:14px;font-weight:600;color:var(--c-gold-dark);">' + name + '</span>';
     html += '</div>';
 
+    // Mod onbehalf — customer akhir yang billing ini untuk (identiti
+    // utama page, selari dengan blok customer di onbehalf-booking).
+    if (MODE === 'onbehalf' && END_CUSTOMER_NAME) {
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:10px 14px;background:var(--bg-secondary);border-radius:8px;">';
+      html += '<span style="font-size:13px;color:var(--text-muted);">Customer</span>';
+      html += '<span style="font-size:14px;font-weight:700;color:var(--text-primary);">' + _esc(END_CUSTOMER_NAME) + '</span>';
+      html += '<span class="tv-badge tv-badge--info" style="margin-left:auto;">On-Behalf</span>';
+      html += '</div>';
+    }
+
     // Progress bar
     html += '<div class="tv-progress" role="progressbar" aria-valuenow="' + payPct + '" aria-valuemin="0" aria-valuemax="100">';
     html += '<div class="tv-progress__fill' + (isSettled ? ' done' : '') + '" style="width:' + payPct + '%"></div>';
@@ -283,15 +370,15 @@
     } else if (isCancelled) {
       html += '<span class="tv-badge tv-badge--' + statusCls + '">' + statusLabel + '</span>';
     } else {
-      html += '<span>' + fmtDual(balance) + ' remaining to settle</span>';
+      html += '<span>' + fmtDual(balance, sym) + ' remaining to settle</span>';
     }
     html += '</div>';
 
     // 3-column totals grid
     html += '<div class="tv-hero-grid" style="margin-bottom:16px;">';
-    html += '<div class="tv-hero-cell"><div class="tv-hero-label">Total Amount</div><div class="tv-hero-value" style="font-family:var(--font-heading);font-weight:700;">' + fmtDual(grandTotal) + '</div></div>';
-    html += '<div class="tv-hero-cell"><div class="tv-hero-label">Total Paid</div><div class="tv-hero-value tv-bk-fin-value--success" style="font-family:var(--font-heading);font-weight:700;">' + fmtDual(advancePaid) + '</div></div>';
-    html += '<div class="tv-hero-cell"><div class="tv-hero-label">Balance Due</div><div class="tv-hero-value ' + (isSettled ? 'tv-bk-fin-value--success' : 'tv-bk-fin-value--warning') + '" style="font-family:var(--font-heading);font-weight:700;">' + fmtDual(balance) + '</div></div>';
+    html += '<div class="tv-hero-cell"><div class="tv-hero-label">Total Amount</div><div class="tv-hero-value" style="font-family:var(--font-heading);font-weight:700;">' + fmtDual(grandTotal, sym) + '</div></div>';
+    html += '<div class="tv-hero-cell"><div class="tv-hero-label">Total Paid</div><div class="tv-hero-value tv-bk-fin-value--success" style="font-family:var(--font-heading);font-weight:700;">' + fmtDual(advancePaid, sym) + '</div></div>';
+    html += '<div class="tv-hero-cell"><div class="tv-hero-label">Balance Due</div><div class="tv-hero-value ' + (isSettled ? 'tv-bk-fin-value--success' : 'tv-bk-fin-value--warning') + '" style="font-family:var(--font-heading);font-weight:700;">' + fmtDual(balance, sym) + '</div></div>';
     html += '</div>'; // grid
 
     // Additional info row
@@ -309,8 +396,9 @@
     if (so.currency_symbol) {
       html += '<span>Currency: ' + _esc(so.currency_symbol) + '</span>';
     }
-    // Manage Add-ons link — hanya kalau SO ada booking addon
-    if (so.has_booking_addon) {
+    // Manage Add-ons link — hanya kalau SO ada booking addon. Add-on
+    // endpoints digate "Docs" di server — View nampak tanpa butang.
+    if (so.has_booking_addon && canDocs()) {
       html += '<a href="/traveller/manage_addon?ref=' + encodeURIComponent(BOOKING_REF) + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="text-decoration:none;">🎁 Manage Add-ons</a>';
     }
     html += '</div>';
@@ -322,6 +410,7 @@
   /* ── Card 2: Items List ── */
   function renderItemsCard(so) {
     var items = so.items || [];
+    var sym = curSym(so);
     var grandTotal = parseFloat(so.grand_total) || 0;
 
     var html = '';
@@ -345,14 +434,14 @@
         }
         html += '</td>';
         html += '<td>' + (item.qty || 1) + '</td>';
-        html += '<td>' + fmtDual(item.rate) + '</td>';
-        html += '<td>' + fmtDual(amount) + '</td>';
+        html += '<td>' + fmtDual(item.rate, sym) + '</td>';
+        html += '<td>' + fmtDual(amount, sym) + '</td>';
         html += '</tr>';
       });
       // Grand Total row
       html += '<tr style="background:var(--bg-secondary);">';
       html += '<td colspan="3" style="text-align:right;font-weight:600;">Grand Total</td>';
-      html += '<td style="font-weight:700;">' + fmtDual(grandTotal) + '</td>';
+      html += '<td style="font-weight:700;">' + fmtDual(grandTotal, sym) + '</td>';
       html += '</tr>';
       html += '</tbody></table>';
       html += '</div>'; // .tv-items-scroll
@@ -367,6 +456,7 @@
   /* ── Card 3: Transaction List ── */
   function renderTransactionsCard(so) {
     var payments = so.payments || [];
+    var sym = curSym(so); // paid_amount direkod dalam currency SO
 
     var html = '';
     html += '<div class="tv-card tv-animate-in">';
@@ -385,14 +475,16 @@
         html += '</div>';
         html += '<div class="tv-tx-details">';
         html += '<div class="tv-tx-date">' + (pay.payment_date ? fmtDate(pay.payment_date) : '') + '</div>';
-        html += '<div class="tv-tx-desc">' + channelLabel + ' · ' + fmtDual(pay.paid_amount) + '</div>';
+        html += '<div class="tv-tx-desc">' + channelLabel + ' · ' + fmtDual(pay.paid_amount, sym) + '</div>';
         if (pay.reference_no) {
           html += '<div class="tv-tx-meta">Ref: ' + _esc(pay.reference_no) + '</div>';
         }
         html += '</div>'; // details
         html += '<div class="tv-tx-actions">';
         html += '<span class="tv-badge tv-badge--' + txCls + '">' + txStatus + '</span>';
-        if (txStatus === 'Verified') {
+        // Muat turun resit digate "Full" di server (get_document_pdf) —
+        // sembunyikan butang bila tahap akses tak sampai.
+        if (txStatus === 'Verified' && canFull()) {
           html += '<button class="tv-btn tv-btn--ghost tv-btn--sm" data-act="download-receipt" data-name="' + _esc(pay.name) + '">📥 Receipt</button>';
         }
         html += '</div>'; // actions
@@ -408,7 +500,6 @@
 
   /* ── Card 4: Payment Form (or settled/cancelled message) ── */
   function renderPaymentFormCard(so) {
-    var name = _esc(so.name || '');
     var grandTotal = parseFloat(so.grand_total) || 0;
     var advancePaid = parseFloat(so.advance_paid) || 0;
     var balance = grandTotal - advancePaid;
@@ -417,8 +508,11 @@
 
     var html = '';
 
-    if (isCancelled) {
-      // Cancelled — no card rendered
+    // Mod onbehalf: kad pembayaran & muat turun dokumen untuk tahap
+    // Full sahaja (server gate: create_payment_request,
+    // submit_manual_payment, get_document_pdf = "Full").
+    if (isCancelled || !canFull()) {
+      // Cancelled / tanpa hak pembayaran — no card rendered
       return '';
     }
 
@@ -426,7 +520,7 @@
 
     if (!isSettled) {
       // Payment form needed
-      html += renderPaymentForm(name, grandTotal, advancePaid);
+      html += renderPaymentForm(so, grandTotal, advancePaid);
     } else {
       // Fully settled message
       html += '<div style="padding:24px;text-align:center;background:var(--c-success-bg);border-radius:8px;">';
@@ -443,7 +537,7 @@
           html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border-light);">';
           html += '<div style="min-width:0;">';
           html += '<div style="font-size:13px;font-weight:600;color:var(--text-primary);">' + _esc(inv.name) + '</div>';
-          html += '<div style="font-size:12px;color:var(--text-muted);">' + (inv.posting_date ? fmtDate(inv.posting_date) : '') + ' · ' + fmtDual(inv.grand_total) + '</div>';
+          html += '<div style="font-size:12px;color:var(--text-muted);">' + (inv.posting_date ? fmtDate(inv.posting_date) : '') + ' · ' + fmtDual(inv.grand_total, curSym(inv)) + '</div>';
           html += '</div>';
           html += '<div style="display:flex;gap:6px;flex-shrink:0;">';
           html += '<button class="tv-btn tv-btn--ghost tv-btn--sm" title="Download PDF" data-act="download-doc" data-type="invoice" data-name="' + _esc(inv.name) + '">📥 Download</button>';
@@ -460,7 +554,9 @@
   }
 
   /* ── Payment Form Section ── */
-  function renderPaymentForm(soName, grandTotal, alreadyPaid) {
+  function renderPaymentForm(so, grandTotal, alreadyPaid) {
+    var soName = _esc(so.name || '');
+    var sym = curSym(so); // amaun dibayar & di-validate ikut currency SO
     var outstanding = Math.round((grandTotal - alreadyPaid) * 100) / 100;
 
     var html = '';
@@ -469,15 +565,15 @@
     // Inline alert bar (validation errors appear here, right after title)
     html += '<div class="tv-msg tv-msg--error pay-inline-error" role="alert" style="display:none;margin-bottom:16px;"></div>';
 
-    html += '<form id="pay-form-' + _esc(soName) + '" data-so="' + _esc(soName) + '" autocomplete="off">';
+    html += '<form id="pay-form-' + soName + '" data-so="' + soName + '" autocomplete="off">';
 
     // Amount input — min 0.01 (method-specific minimums enforced in JS handlers)
     html += '<div class="tv-form-group">';
-    html += '<label class="tv-label">Payment Amount (' + _esc(RC.company_symbol || 'RM') + ')</label>';
+    html += '<label class="tv-label">Payment Amount (' + _esc(sym) + ')</label>';
     html += '<input type="number" class="tv-input pay-amount-input" min="0.01" step="0.01" max="' + outstanding + '" placeholder="Enter amount"/>';
     var minHint = outstanding < 2.00
-      ? 'Max: ' + fmtDual(outstanding) + ' · Online payment unavailable below RM 2.00 — please use Manual Bank Transfer'
-      : 'Min: RM 2.00 (online) · Max: ' + fmtDual(outstanding);
+      ? 'Max: ' + fmtDual(outstanding, sym) + ' · Online payment unavailable below ' + _esc(sym) + ' 2.00 — please use Manual Bank Transfer'
+      : 'Min: ' + _esc(sym) + ' 2.00 (online) · Max: ' + fmtDual(outstanding, sym);
     html += '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">' + minHint + '</div>';
     html += '</div>';
 
@@ -485,17 +581,18 @@
     var depositPct = parseInt(_bankSettings && _bankSettings.default_deposit_percent) || 20;
     html += '<div class="tv-pay-chips" style="display:flex;gap:12px;">';
     html += '<button type="button" class="tv-pay-chip" data-pct="' + depositPct + '" style="flex:0.4;">Deposit<br/><span style="font-size:11px;">(' + depositPct + '%)</span></button>';
-    html += '<button type="button" class="tv-pay-chip" data-pct="100" style="flex:0.6;">Full Balance<br/><span style="font-size:11px;">' + fmtDual(outstanding) + '</span></button>';
+    html += '<button type="button" class="tv-pay-chip" data-pct="100" style="flex:0.6;">Full Balance<br/><span style="font-size:11px;">' + fmtDual(outstanding, sym) + '</span></button>';
     html += '</div>';
 
     // Method selection — Online Payment hanya dipaparkan kalau payment
-    // gateway diconfigure di Travel Settings. Kalau tiada, default ke Manual.
-    var onlineEnabled = _bankSettings && _bankSettings.online_payment_enabled !== false;
+    // gateway diconfigure untuk CURRENCY SO ni di Travel Settings. Kalau
+    // tiada, default ke Manual.
+    var onlineEnabled = onlinePayEnabledFor(so);
 
     html += '<div class="tv-pay-methods">';
     if (onlineEnabled) {
       html += '<label class="tv-pay-method selected" data-method="online">';
-      html += '<input type="radio" name="pay-method-' + _esc(soName) + '" value="online" checked class="tv-pay-radio"/>';
+      html += '<input type="radio" name="pay-method-' + soName + '" value="online" checked class="tv-pay-radio"/>';
       html += '<span>💳 Online Payment (Stripe)</span>';
       html += '</label>';
     } else {
@@ -504,23 +601,23 @@
       html += '</div>';
     }
     html += '<label class="tv-pay-method' + (onlineEnabled ? '' : ' selected') + '" data-method="manual">';
-    html += '<input type="radio" name="pay-method-' + _esc(soName) + '" value="manual"' + (onlineEnabled ? '' : ' checked') + ' class="tv-pay-radio"/>';
+    html += '<input type="radio" name="pay-method-' + soName + '" value="manual"' + (onlineEnabled ? '' : ' checked') + ' class="tv-pay-radio"/>';
     html += '<span>🏦 Manual Bank Transfer</span>';
     html += '</label>';
     html += '</div>';
 
     // Online panel — sembunyi default kalau Online dilumpuhkan
-    html += '<div class="tv-pay-panel' + (onlineEnabled ? ' on' : '') + '" id="panel-online-' + _esc(soName) + '">';
+    html += '<div class="tv-pay-panel' + (onlineEnabled ? ' on' : '') + '" id="panel-online-' + soName + '">';
     html += '<p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;">You will be redirected to Stripe secure checkout to complete your payment.</p>';
     html += '<button type="submit" class="tv-btn tv-btn--primary" style="width:100%;" data-act="pay-online">Proceed to Payment →</button>';
     html += '</div>';
 
     // Manual transfer panel — papar default kalau Online dilumpuhkan
-    html += '<div class="tv-pay-panel' + (onlineEnabled ? '' : ' on') + '" id="panel-manual-' + _esc(soName) + '">';
+    html += '<div class="tv-pay-panel' + (onlineEnabled ? '' : ' on') + '" id="panel-manual-' + soName + '">';
     // Bank details table (populated dynamically after API load)
-    html += '<div style="margin-bottom:16px;" id="bank-details-' + _esc(soName) + '">';
+    html += '<div style="margin-bottom:16px;" id="bank-details-' + soName + '">';
     html += '<p style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Bank Details:</p>';
-    html += '<table class="tv-bank-table" id="bank-table-' + _esc(soName) + '">';
+    html += '<table class="tv-bank-table" id="bank-table-' + soName + '">';
     html += '<tr><td>Bank</td><td class="bank-name-el">Loading...</td></tr>';
     html += '<tr><td>Account Name</td><td class="bank-acct-el">Loading...</td></tr>';
     html += '<tr><td>Account Number</td><td class="bank-no-el">Loading...</td></tr>';
@@ -531,7 +628,7 @@
     // dengan booknow Step 3. Scan bermula AUTOMATIK selepas pilih/capture.
     html += '<div class="tv-form-group">';
     html += '<label class="tv-label">Upload Proof of Payment</label>';
-    html += '<div class="tv-file-upload" id="file-upload-' + _esc(soName) + '">';
+    html += '<div class="tv-file-upload" id="file-upload-' + soName + '">';
     html += '<div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;">';
     html += '<button type="button" class="tv-btn tv-btn--ghost tv-btn--sm pay-cam-btn" style="display:none;">📷 Take Photo</button>';
     html += '<button type="button" class="tv-btn tv-btn--ghost tv-btn--sm pay-up-btn">⬆ Upload Image</button>';
@@ -813,19 +910,21 @@
   /* Popup hasil scan — pengesahan sebelum auto-fill borang. */
   function showScanConfirmPopup(form, scanned) {
     var engineTag = scanned.engine === 'ai' ? '🤖 Scanned with AI' : 'Scanned with OCR';
+    // Amaun resit dibanding dalam currency SO borang ini
+    var sym = curSym(soByName(form.dataset.so));
     var rows = '';
     if (scanned.reference) rows += '<div><strong>Reference No:</strong> ' + _esc(scanned.reference) + '</div>';
     if (scanned.date) rows += '<div><strong>Transfer Date:</strong> ' + _esc(fmtDate(scanned.date)) + '</div>';
-    if (scanned.amount != null) rows += '<div><strong>Amount:</strong> ' + fmtDual(scanned.amount) + '</div>';
+    if (scanned.amount != null) rows += '<div><strong>Amount:</strong> ' + fmtDual(scanned.amount, sym) + '</div>';
 
     var declared = round2(form.querySelector('.pay-amount-input')?.value);
     var amtNote = '';
     if (scanned.amount != null && declared > 0) {
       var diff = Math.abs(scanned.amount - declared);
       if (diff <= 0.5) {
-        amtNote = '<div style="margin-top:10px;color:var(--c-success);font-weight:600;">✓ Amount matches your entered amount (' + fmtDual(declared) + ')</div>';
+        amtNote = '<div style="margin-top:10px;color:var(--c-success);font-weight:600;">✓ Amount matches your entered amount (' + fmtDual(declared, sym) + ')</div>';
       } else {
-        amtNote = '<div style="margin-top:10px;color:var(--c-warning-text);font-weight:600;">⚠ Document amount (' + fmtDual(scanned.amount) + ') differs from your entered amount (' + fmtDual(declared) + ') by ' + fmtDual(diff) + '. This is normal for partial payments — our team will verify.</div>';
+        amtNote = '<div style="margin-top:10px;color:var(--c-warning-text);font-weight:600;">⚠ Document amount (' + fmtDual(scanned.amount, sym) + ') differs from your entered amount (' + fmtDual(declared, sym) + ') by ' + fmtDual(diff, sym) + '. This is normal for partial payments — our team will verify.</div>';
       }
     }
 
@@ -1017,12 +1116,17 @@
         fileInput && fileInput.click();
       });
 
+      // Simpan fail pada form — input.value dilesenkan semula (supaya fail
+      // SAMA boleh dipilih lagi) dan itu MEMBERSIHKAN FileList input, jadi
+      // handleManualPay TIDAK boleh baca semula dari .files. Corak sama
+      // dengan booknow Step 3 (state_receipt_file).
       [fileInput, camInput].forEach(function (input) {
         if (!input) return;
         input.addEventListener('change', async function () {
           var file = this.files[0];
           this.value = ''; // benarkan pilih fail sama semula
           if (!file) return;
+          if (form) form._payReceiptFile = file;
           if (form) autoFillFromReceipt(form, file);
         });
       });
@@ -1077,31 +1181,32 @@
     var amountInput = form.querySelector('.pay-amount-input');
     var amount = round2(amountInput?.value);
 
-    // Guard: elak Online Payment kalau tiada payment gateway diconfigure
-    var onlineEnabled = _bankSettings && _bankSettings.online_payment_enabled !== false;
-    if (!onlineEnabled) {
-      showPayError(form, 'Online payment is not available. Please use Manual Bank Transfer.');
-      return;
-    }
-
     var so = allOrders.find(function (o) { return o.name === soName; });
     var outstanding = so ? round2((parseFloat(so.grand_total) || 0) - (parseFloat(so.advance_paid) || 0)) : 0;
+    var sym = curSym(so);
 
     if (amount <= 0) {
       showPayError(form, 'Please enter a valid payment amount.');
       return;
     }
 
-    // Stripe minimum amount (RM 2.00) — below that only manual transfer works
+    // Guard currency: Online Payment hanya untuk SO yang currency-nya
+    // ada payment gateway dikonfigur.
+    if (!onlinePayEnabledFor(so)) {
+      showPayError(form, 'Online payment is not available for this currency. Please use Manual Bank Transfer.');
+      return;
+    }
+
+    // Stripe minimum amount (2.00 dalam currency caj SO) — below that only manual transfer works
     var STRIPE_MIN_AMOUNT = 2.00;
     if (amount < STRIPE_MIN_AMOUNT) {
-      showPayError(form, 'Minimum online payment is RM ' + STRIPE_MIN_AMOUNT.toFixed(2) + '. For amounts below RM ' + STRIPE_MIN_AMOUNT.toFixed(2) + ', please use Manual Bank Transfer.');
+      showPayError(form, 'Minimum online payment is ' + sym + ' ' + STRIPE_MIN_AMOUNT.toFixed(2) + '. For amounts below ' + sym + ' ' + STRIPE_MIN_AMOUNT.toFixed(2) + ', please use Manual Bank Transfer.');
       return;
     }
 
     // Max = outstanding balance (both rounded to 2dp)
     if (outstanding > 0 && amount > outstanding) {
-      showPayError(form, 'Amount exceeds the outstanding balance (' + fmtDual(outstanding) + ').');
+      showPayError(form, 'Amount exceeds the outstanding balance (' + fmtDual(outstanding, sym) + ').');
       return;
     }
 
@@ -1112,7 +1217,8 @@
 
     try {
       // Build return URL — come back to this billing page after Stripe
-      var returnUrl = '/traveller/billing?ref=' + encodeURIComponent(BOOKING_REF);
+      // (page onbehalf-billing bila bayaran dibuat dari situ)
+      var returnUrl = billingPageUrl() + '?ref=' + encodeURIComponent(BOOKING_REF);
       var targetBill = allOrders[0] ? allOrders[0].name : '';
       if (targetBill) returnUrl += '&bill=' + encodeURIComponent(targetBill);
 
@@ -1224,7 +1330,10 @@
     var amountInput = form.querySelector('.pay-amount-input');
     var dateInput = form.querySelector('.pay-date');
     var refInput = form.querySelector('.pay-ref-no');
-    var fileInput = form.querySelector('.pay-file-input');
+
+    // Fail resit dari state form (Bukan dari .files — input.value telah
+    // dikosongkan selepas pilih/capture supaya fail sama boleh dipilih lagi)
+    var payFile = form._payReceiptFile || null;
 
     var amount = round2(amountInput?.value);
     var refNo = (refInput?.value || '').trim();
@@ -1237,7 +1346,7 @@
     var soObj = allOrders.find(function (o) { return o.name === soName; });
     var outst = soObj ? round2((parseFloat(soObj.grand_total) || 0) - (parseFloat(soObj.advance_paid) || 0)) : 0;
     if (outst > 0 && amount > outst) {
-      showPayError(form, 'Amount exceeds the outstanding balance (' + fmtDual(outst) + ').');
+      showPayError(form, 'Amount exceeds the outstanding balance (' + fmtDual(outst, curSym(soObj)) + ').');
       return;
     }
     if (!refNo) {
@@ -1253,9 +1362,8 @@
     try {
       // Read file as base64
       var fileData = null;
-      if (fileInput && fileInput.files[0]) {
-        var file = fileInput.files[0];
-        if (file.size > 5 * 1024 * 1024) {
+      if (payFile) {
+        if (payFile.size > 5 * 1024 * 1024) {
           showPayError(form, 'File size must be under 5MB.');
           submitBtn.disabled = false;
           submitBtn.textContent = 'Submit Payment Proof';
@@ -1264,7 +1372,7 @@
         fileData = await new Promise(function (resolve) {
           var reader = new FileReader();
           reader.onload = function () { resolve(reader.result.split(',')[1]); };
-          reader.readAsDataURL(file);
+          reader.readAsDataURL(payFile);
         });
       }
 
@@ -1275,7 +1383,7 @@
         reference_no: refNo,
         payment_date: dateInput?.value || '',
         filedata: fileData || '',
-        filename: fileInput?.files[0]?.name || ''
+        filename: payFile ? payFile.name : ''
       });
 
       // Show success modal, then refresh page to show new transaction

@@ -15,6 +15,7 @@
 import frappe
 
 from travel_booking.utils.trip_catalog import get_catalog_trips, get_filter_options
+from travel_booking.utils.website_config import get_website_config
 
 
 def get_context(context):
@@ -46,6 +47,22 @@ def get_context(context):
     context.active_nav = "cruise"  # highlight nav if needed
     context.no_cache = 1
     context.title = "Luxury Cruise Vacations — Rarecation"
+    # SEO: meta + Open Graph + JSON-LD WebSite (rujuk utils/seo.py).
+    # Description default dari hero intro Travel Website (config cruise),
+    # OG image dari hero background.
+    from travel_booking.utils.seo import apply_seo, build_website_json_ld
+
+    wc = get_website_config()
+    # wc ialah plain dict (attr access hanya berfungsi dalam Jinja) —
+    # python guna .get() bersarang.
+    hero_cfg = (wc.get("cruise") or {}).get("hero") or {}
+    apply_seo(
+        context,
+        title="Luxury Cruise Vacations — Rarecation",
+        description=(hero_cfg.get("intro") or ""),
+        image=(hero_cfg.get("background") or ""),
+        json_ld=build_website_json_ld(search_path="/cruises"),
+    )
     # Meta currency listing (selector + simbol harga)
     context.currency = cruise_data["currency"]
     context.currency_symbol = cruise_data["currency_symbol"]

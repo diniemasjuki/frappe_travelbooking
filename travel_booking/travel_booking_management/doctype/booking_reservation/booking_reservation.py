@@ -42,6 +42,7 @@ class BookingReservation(Document):
 		flight_return_date: DF.Date | None
 		flight_ticket_type: DF.Data | None
 		guest_label: DF.Data | None
+		guest_sequence: DF.Int
 		is_a_cruise: DF.Check
 		is_cruise_only: DF.Check
 		naming_series: DF.Literal[".{booking}.-.#", "RES.YY.MM.###"]
@@ -52,6 +53,8 @@ class BookingReservation(Document):
 		passport_link_token: DF.Data | None
 		pax_type: DF.Data | None
 		room_category: DF.Link | None
+		room_id: DF.Data | None
+		room_privacy: DF.Literal["Private", "Open Sharing"]
 		stateroom_no: DF.Data | None
 		status: DF.Literal["Pending Review", "Confirmed", "Cancelled"]
 		traveller: DF.Link | None
@@ -84,7 +87,36 @@ class BookingReservation(Document):
 	# kemaskini booking.js sekali buat masa ni.
 
 	def validate(self):
+		self.assign_room_id()
 		self.validate_cabin_capacity()
+
+	def assign_room_id(self):
+		"""Auto Room ID = [booking_number] + "-Room_" + [cabin_no] —cth:
+		"RTEOU462609-Room_2". Laksana pada validate() (INSERT dan SAVE
+		setiap kali) supaya mana-mana jalan penciptaan (wizard portal,
+		_activate_booking, ATAU admin manual di Desk) dapat ID yang sama,
+		tanpa perlu ulang logik di setiap caller. Assign SEKALI SAHAJA:
+		hanya bila room_id kosong — ID yang admin isi manual TIDAK
+		ditimpa. Skip senyap bila booking/cabin_no kosong (rekod lama),
+		selari dengan gaya validate_cabin_capacity().
+		"""
+		if self.room_id:
+			return
+		if not (self.booking and self.cabin_no):
+			return
+
+		# booking_number pada reservation ni fetch_from Booking — tapi
+		# fetch_from hanya terisi bila link diset melalui UI; rekod yang
+		# dicipta server-side (so_helpers._activate_booking) tinggal
+		# kosong. Fallback ke DB, kemudian ke docname Booking (docname
+		# sendiri pun rujukan sah kalau booking_number tiada).
+		ref = self.booking_number
+		if not ref:
+			ref = frappe.db.get_value("Booking", self.booking, "booking_number")
+		if not ref:
+			ref = self.booking
+
+		self.room_id = str(ref) + "-Room_" + str(self.cabin_no)
 
 	def validate_cabin_capacity(self):
 		"""Sahkan kapasiti cabin — jaring keselamatan di PERINGKAT DOCTYPE,
@@ -198,6 +230,7 @@ class BookingReservation(Document):
 
 	def before_insert(self):
 		self.set_slot_label()
+		self.set_guest_sequence()
 
 	def after_insert(self):
 		self.refresh_related()
@@ -214,6 +247,28 @@ class BookingReservation(Document):
 			return
 		existing = frappe.db.count("Booking Reservation", {"booking": self.booking})
 		self.guest_label = "Traveller " + str(existing + 1)
+
+	def set_guest_sequence(self):
+		"""Guest Sequence = urutan tetamu DALAM cabin (booking + cabin_no):
+		cabin 4-tetamu → 1,2,3,4; cabin seterusnya bermula 1 semula. Format
+		rooming list kapal (Stateroom: Guest 1, Guest 2, ...).
+
+		Dilaksana di before_insert supaya SEMUA laluan penciptaan terliput
+		(wizard → _activate_booking, tambah traveller → cabin_sharing,
+		atau admin manual di Desk). Assign SEKALI SAHAJA — nilai yang
+		diisi manual admin TIDAK ditimpa. Slot Cancelled tidak dikira
+		(nombor tak dibazorkan); skip senyap bila booking/cabin_no kosong
+		(rekod lama), selari dengan gaya assign_room_id().
+		"""
+		if self.guest_sequence:
+			return
+		if not (self.booking and self.cabin_no):
+			return
+		self.guest_sequence = frappe.db.count("Booking Reservation", {
+			"booking":     self.booking,
+			"cabin_no":    self.cabin_no,
+			"status":      ["!=", "Cancelled"],
+		}) + 1
 
 	def refresh_related(self):
 		"""Update Trip Group Date & Flight yang berkaitan."""

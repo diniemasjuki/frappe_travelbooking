@@ -4,6 +4,7 @@
 import frappe
 from travel_booking.api._helpers import (
     get_customer_by_email,
+    get_user_b2b_partner,
     has_on_behalf_role,
     on_behalf_level_ok,
 )
@@ -53,17 +54,31 @@ def _get_customer():
 # logged in — bukan urusan 3rd party).
 
 def _managed_booking_names(user):
-    """Set nama Booking yang user ini urus bagi pihak customer lain
-    (booked_by = user, booking_channel bukan Direct). Kosong untuk user
-    tanpa role on-behalf / tiada booking sebegini.
+    """Set nama Booking yang user ini urus bagi pihak orang lain:
+      - Staff/Affiliate (role-based): booking yang DIA tempah sendiri
+        (booked_by = user, booking_channel bukan Direct).
+      - B2B (Travel B2B Partner User): SEMUA booking saluran B2B milik
+        partner yang diwakilinya — staf partner bertukar-tukar mengurus
+        tempahan rakan se-partner, bukan terkurung pada yang ditempah
+        sendiri. Isolasi antara partner dijamin oleh kewibadaan
+        per-partner (bukan role global).
+    Kosong untuk user tanpa kewibadaan on-behalf.
     """
     if not user or user == "Guest" or not has_on_behalf_role(user):
         return set()
-    return set(frappe.get_all(
+    names = set(frappe.get_all(
         "Booking",
         filters={"booked_by": user, "booking_channel": ["!=", "Direct"]},
         pluck="name",
     ))
+    b2b = get_user_b2b_partner(user)
+    if b2b:
+        names.update(frappe.get_all(
+            "Booking",
+            filters={"booking_channel": "B2B", "b2b_partner": b2b["partner"]},
+            pluck="name",
+        ))
+    return names
 
 
 def _portal_access(require_customer=True):
@@ -99,12 +114,37 @@ def _portal_access(require_customer=True):
 
 def _booking_accessible(booking, customer_name, managed_bookings):
     """True jika booking boleh diakses session semasa: milik customer
-    user ATAU dalam set booking on-behalf yang diurusnya. `booking` perlu
-    bawa sekurang-kurangnya field .name dan .customer.
+    user, END CUSTOMER tempahan B2B yang diwakilinya, ATAU dalam set
+    booking on-behalf yang diurusnya. `booking` perlu bawa sekurang-
+    kurangnya field .name dan .customer (field .end_customer/.booking_
+    channel dibaca berhati-hati via .get() — tidak semua caller fetch).
     """
     if customer_name and booking.customer == customer_name:
         return True
+    if customer_name and booking.get("end_customer") == customer_name:
+        # End customer tempahan B2B — akses status/dokumen sahaja
+        # (penapisan harga ditangani _price_hidden_for di paparan data).
+        return True
     return booking.name in (managed_bookings or set())
+
+
+def _price_hidden_for(booking, customer_name):
+    """True bila viewer ialah END CUSTOMER tempahan B2B — SEMUA angka
+    harga/billing mesti ditapis keluar dari respons portal. Staf partner
+    (dalam managed set) kekal melihat harga net; pemilik tempahan
+    Direct/Staff/Affiliate tidak terjejas (end_customer kosong).
+    """
+    if not customer_name:
+        return False
+    if booking.get("booking_channel") != "B2B":
+        return False
+    end = booking.get("end_customer")
+    if not end or end != customer_name:
+        return False
+    # Partner sendiri tiada akaun end-customer berasingan — jika
+    # Booking.customer == viewer, dia dibilkan, bukan pelanggan yang
+    # perlu dilindungi.
+    return booking.get("customer") != customer_name
 
 
 def _so_accessible_by(so_name, customer_name, managed_bookings):
@@ -132,11 +172,17 @@ def _booking_action_allowed(booking, customer_name, managed_bookings, required_l
         Access Level) mesti >= tahap yang diminta:
           "Docs" — urus maklumat & dokumen traveller
           "Full" — bayaran + muat turun resit/invois
+      - End customer tempahan B2B: layak TINDAKAN tahap Docs ke bawah
+        sahaja (isi maklumat/dokumen traveller sendiri). Tindakan
+        pembayaran ("Full") SENTIASA dinafikan — bil adalah urusan
+        partner, bukannya pelanggan.
 
     Pulangkan False jika tidak dibenarkan (caller throw PermissionError).
     """
     if customer_name and booking.customer == customer_name:
         return True
+    if customer_name and booking.get("end_customer") == customer_name:
+        return on_behalf_level_ok(required_level) and required_level != "Full"
     if booking.name not in (managed_bookings or set()):
         return False
     return on_behalf_level_ok(required_level)
@@ -169,6 +215,7 @@ def get_booking_data(booking_number: str):
         SELECT
             b.name, b.booking_number, b.customer, b.cust_email, b.trip_date,
             b.trip_package, b.status, b.flight,
+            b.booking_channel, b.b2b_partner, b.end_customer,
             -- Trip info
             tm.trip_name,
             tm.is_a_cruise_trip AS trip_is_cruise,
@@ -209,15 +256,27 @@ def get_booking_data(booking_number: str):
     # "managed on behalf") — khususnya page /traveller/onbehalf-booking.
     on_behalf_view = not (customer_name and booking.customer == customer_name)
 
+    # B2B: viewer ialah end-customer tempahan partner — SEMUA angka
+    # harga/billing ditapis keluar dari respons (status/dokumen sahaja).
+    price_hidden = _price_hidden_for(booking, customer_name)
+
     # Maklumat customer akhir + tahap akses — HANYA untuk akses on-behalf
     # (page booking.html pemilik tidak memaparkan maklumat diri sendiri).
     # Tahap akses menentukan tindakan yang dibenarkan UI (View/Docs/Full).
     end_customer = None
     on_behalf_access_level = None
     if on_behalf_view:
-        end_customer = frappe.db.get_value(
-            "Customer", booking.customer, "customer_name"
-        )
+        if (booking.get("booking_channel") == "B2B"
+                and booking.get("end_customer")):
+            # B2B — end customer sebenar ialah Booking.end_customer;
+            # Booking.customer kini ialah entiti BIL partner.
+            end_customer = frappe.db.get_value(
+                "Customer", booking.end_customer, "customer_name"
+            )
+        else:
+            end_customer = frappe.db.get_value(
+                "Customer", booking.customer, "customer_name"
+            )
         from travel_booking.api._helpers import get_on_behalf_access_level
         on_behalf_access_level = get_on_behalf_access_level() or "View"
 
@@ -239,6 +298,8 @@ def get_booking_data(booking_number: str):
             res.stateroom_no,
             res.aroya_guest_no,
             res.delegate_no,
+            res.room_id,
+            res.guest_sequence,
             res.flight,
             res.document_status,
             res.traveller,
@@ -250,6 +311,7 @@ def get_booking_data(booking_number: str):
             t.first_name,
             t.last_name,
             t.full_name,
+            t.fullname_format,
             t.ic_number,
             t.passport_no,
             t.passport_expiry,
@@ -302,6 +364,8 @@ def get_booking_data(booking_number: str):
             "stateroom_no":      raw.stateroom_no      or "",
             "delegate_no":       raw.delegate_no       or "",
             "aroya_guest_no":    raw.aroya_guest_no    or "",
+            "room_id":           raw.room_id           or "",
+            "guest_sequence":    raw.guest_sequence    or "",
             "flight":            raw.flight            or "",
             "flight_pnr":        raw.flight_pnr        or "",
             "flight_departure":  raw.flight_home_airport        or "",
@@ -311,6 +375,7 @@ def get_booking_data(booking_number: str):
             "is_verified":       is_verified,
             "traveller_id":      raw.traveller         or "",
             "full_name":         raw.full_name         or "",
+            "fullname_format":   raw.fullname_format   or "First Name + Last Name",
             "first_name":        raw.first_name        or "",
             "last_name":         raw.last_name         or "",
             "ic_number":         raw.ic_number         or "",
@@ -412,30 +477,56 @@ def get_booking_data(booking_number: str):
 
     primary_so = _get_primary_so(booking_name)
 
-    # Bina senarai SEMUA SO (untuk paparan "Bill Orders" di portal)
+    # Bina senarai SEMUA SO (untuk paparan "Bill Orders" di portal).
+    # MULTI-CURRENCY: setiap SO bawa currency + symbol masing-masing supaya
+    # frontend papar simbol yang BETUL (bukan simbol company sahaja).
+    from travel_booking.api.currency_axis import get_default_currency
     so_list = []
     grand_total  = 0.0
     advance_paid = 0.0
+    symbol_cache = {}
     for so_name in _get_all_booking_sales_orders(booking_name):
         so_vals = frappe.db.get_value("Sales Order", so_name,
-                                      ["grand_total", "advance_paid", "status"], as_dict=True)
+                                      ["grand_total", "advance_paid", "status", "currency"], as_dict=True)
         if so_vals:
             gt = float(so_vals.grand_total or 0)
             ap = float(so_vals.advance_paid or 0)
             grand_total  += gt
             advance_paid += ap
+            so_currency = so_vals.currency or get_default_currency()
+            if so_currency not in symbol_cache:
+                symbol_cache[so_currency] = frappe.db.get_value(
+                    "Currency", so_currency, "symbol"
+                ) or so_currency
             so_list.append({
                 "name":         so_name,
                 "grand_total":  gt,
                 "advance_paid": ap,
                 "balance":      gt - ap,
                 "status":       so_vals.status or "Draft",
+                "currency":        so_currency,
+                "currency_symbol": symbol_cache[so_currency],
             })
+
+    # Currency ringkasan agregat = currency SO UTAMA (guardrail reka bentuk:
+    # semua SO satu booking patut sama currency; kalau SO addon berlainan
+    # currency, pecahan tepat ada di so_list & addon_orders — setiap satu
+    # bawa currency sendiri).
+    summary_currency = (frappe.db.get_value("Sales Order", primary_so, "currency")
+                        if primary_so else None) \
+        or (so_list[0]["currency"] if so_list else None) \
+        or get_default_currency()
+    if summary_currency not in symbol_cache:
+        symbol_cache[summary_currency] = frappe.db.get_value(
+            "Currency", summary_currency, "symbol"
+        ) or summary_currency
 
     so_data = {
         "grand_total":  grand_total,
         "advance_paid": advance_paid,
         "status":       frappe.db.get_value("Sales Order", primary_so, "status") if primary_so else None,
+        "currency":        summary_currency,
+        "currency_symbol": symbol_cache[summary_currency],
     }
 
     # Kunci "Traveller Details di-lock sehingga Confirmed/Completed" DIBUANG —
@@ -455,8 +546,8 @@ def get_booking_data(booking_number: str):
     if is_cruise:
         if cruise_only:
             trip_category = "Cruise Only"
-        elif pkg_type == "Fly Cruise":
-            trip_category = "Fly Cruise"
+        elif pkg_type == "Cruise+Flight":
+            trip_category = "Cruise+Flight"
         elif pkg_type == "Customed":
             trip_category = "Cruise (Custom)"
         else:
@@ -561,12 +652,19 @@ def get_booking_data(booking_number: str):
             "total_slots":        total_slots,
             "filled_count":       filled_count,
             "booking_status":     booking.status or "",
-            "payment_status":     payment_status,
+            # B2B end-customer: payment_status disembunyikan (bukan maklumat
+            # perjalanan — ia billing partner).
+            "payment_status":     None if price_hidden else payment_status,
             "can_edit_traveller_details": can_edit_traveller_details,
             # ON-BEHALF: true bila dibuka oleh manager (bukan pemilik) —
             # sertakan maklumat customer akhir + tahap akses untuk page
             # onbehalf-booking (UI kawal butang ikut tahap).
             "on_behalf_view":     on_behalf_view,
+            # B2B: penapis harga aktif untuk end-customer (frontend sembunyi
+            # kad harga/baki & papar notis "bil diuruskan agen").
+            "price_hidden":       price_hidden,
+            "booking_channel":    booking.get("booking_channel") or "Direct",
+            "is_b2b":             booking.get("booking_channel") == "B2B",
             "end_customer_name":  end_customer or "",
             "end_customer_email": booking.cust_email if on_behalf_view else "",
             "on_behalf_access_level": on_behalf_access_level or "",
@@ -575,15 +673,24 @@ def get_booking_data(booking_number: str):
         },
         "slots":   slots,
         "cabins":  cabins,
-        "payment": {"so": so_data, "so_list": so_list},
-        "addon_orders": _get_addon_orders_for_booking(booking.name),
+        # B2B end-customer: payload kewangan DITAPIS sepenuhnya — bukan
+        # sekadar disembunyi di UI (angka tak boleh bocor melalui API).
+        "payment": ({"so": {}, "so_list": []} if price_hidden
+                    else {"so": so_data, "so_list": so_list}),
+        "addon_orders": _get_addon_orders_for_booking(
+            booking.name, hide_prices=price_hidden
+        ),
     }
 
 
-def _get_addon_orders_for_booking(booking_name: str) -> list:
+def _get_addon_orders_for_booking(booking_name: str, hide_prices: bool = False) -> list:
     """Ambil senarai Booking Addon untuk satu booking (untuk paparan panel
     Add-ons & Extras dalam booking detail). Return list of dicts dengan ringkasan
     setiap order — bukan detail penuh baris (itu tugas get_booking_addons()).
+
+    hide_prices=True (end-customer tempahan B2B): jumlah & payment status
+    dibuang — order status (Confirmed/Pending) kekal sebagai maklumat
+    perjalanan.
     """
     orders = frappe.get_all(
         "Booking Addon",
@@ -591,7 +698,80 @@ def _get_addon_orders_for_booking(booking_name: str) -> list:
         fields=["name", "status", "payment_status", "total_amount", "currency", "order_date"],
         order_by="order_date desc",
     )
+    # Simbol currency (MYR->RM, SGD->S$) supaya frontend tak perlu tafsir
+    # kod currency sendiri.
+    _attach_currency_symbols(orders)
+    if hide_prices:
+        for o in orders:
+            o["total_amount"] = None
+            o["payment_status"] = None
     return orders
+
+
+def _attach_currency_symbols(rows: list) -> None:
+    """Isi `currency_symbol` pada setiap row (dict dengan field `currency`)
+    daripada master Currency — in-place, fallback kepada kod currency."""
+    currencies = {r.get("currency") for r in rows if r.get("currency")}
+    if not currencies:
+        return
+    sym_map = {}
+    for name, sym in frappe.db.sql(
+        "SELECT name, symbol FROM `tabCurrency` WHERE name IN %s",
+        (tuple(currencies),), as_list=True,
+    ):
+        sym_map[name] = sym or name
+    for r in rows:
+        cur = r.get("currency") or ""
+        r["currency_symbol"] = sym_map.get(cur, cur)
+
+
+def _flight_map_for(flight_links: list) -> dict:
+    """Resolve maklumat ringkas Flight untuk senarai booking — SATU query
+    per master (Flight / Flight Airline / Flight Airport) untuk semua link
+    unik. Return {flight_docname: {...}}; kosong jika tiada link.
+
+    Paparan kad My Bookings perlukan: airline, PNR, laluan airport
+    (kod + bandar), tarikh berlepas & tarikh tiba-pulang, kelas."""
+    links = [f for f in flight_links if f]
+    if not links:
+        return {}
+
+    flights = frappe.get_all(
+        "Flight", filters={"name": ["in", links]},
+        fields=["name", "pnr", "airline", "home_airport", "destination_airport",
+                "departure_date", "arrival_date", "flight_class"],
+    )
+
+    airline_links = {f.airline for f in flights if f.airline}
+    airline_names = dict(frappe.get_all(
+        "Flight Airline", filters={"name": ["in", list(airline_links)]},
+        fields=["name", "airline_name"], as_list=True,
+    )) if airline_links else {}
+
+    airport_links = set()
+    for f in flights:
+        airport_links.update(a for a in (f.home_airport, f.destination_airport) if a)
+    airports = {a.name: a for a in frappe.get_all(
+        "Flight Airport", filters={"name": ["in", list(airport_links)]},
+        fields=["name", "airport_code", "airport_city"],
+    )} if airport_links else {}
+
+    out = {}
+    for f in flights:
+        home = airports.get(f.home_airport) if f.home_airport else None
+        dest = airports.get(f.destination_airport) if f.destination_airport else None
+        out[f.name] = {
+            "pnr":             f.pnr or f.name,
+            "airline":         airline_names.get(f.airline, f.airline or ""),
+            "from_code":       (home.airport_code if home else "") or "",
+            "from_city":       (home.airport_city if home else "") or "",
+            "to_code":         (dest.airport_code if dest else "") or "",
+            "to_city":         (dest.airport_city if dest else "") or "",
+            "dep_date":        str(f.departure_date) if f.departure_date else "",
+            "ret_arrival_date": str(f.arrival_date) if f.arrival_date else "",
+            "flight_class":    f.flight_class or "",
+        }
+    return out
 
 
 @frappe.whitelist()
@@ -600,11 +780,12 @@ def get_bookings_list():
     portal) — data mini-info setiap kad booking dalam satu panggilan.
 
     Pulangkan list (disusun ikut departure_date ASC):
-      booking_number, trip_name, group_name, departure_date, return_date,
-      booking_status, payment_status, total_slots, filled_count,
-      billed (grand_total semua SO sah), paid (advance_paid), balance,
-      currency + currency_symbol (SO pertama booking — guardrail reka
-      bentuk: semua SO satu booking mesti currency sama).
+      booking_number, trip_name, package_title/code, group_name,
+      trip_category (Cruise/Fly Package/Tour...), departure_date,
+      return_date, total_days/nights, cruise info (is_cruise, ship_name,
+      ports, sailing_start/end), flight info (pnr, airline, airports,
+      dep/return-arrival dates), booking_status, payment_status,
+      total_slots, filled_count, billed/paid/balance + currency.
 
     Grouping visual (Upcoming/Future/Past) dibuat di CLIENT ikut tarikh —
     server cuma bekalkan data; peraturan grouping ialah urusan paparan.
@@ -621,18 +802,33 @@ def get_bookings_list():
 
     from travel_booking.api.booking import _compute_payment_status
 
+    # Tempahan user sendiri ATAU tempahan B2B yang DIA end-customernya
+    # (ditempah oleh partner bagi pihaknya — paparan tanpa harga).
     bookings = frappe.db.sql("""
         SELECT b.name, b.booking_number, b.status,
+               b.booking_channel, b.end_customer, b.customer,
+               b.flight,
                tm.trip_name, td.trip_group_name,
                td.departure_date, td.return_date,
                td.embarkation_port, td.disembarkation_port,
-               td.sailing_start, td.sailing_end
+               td.sailing_start, td.sailing_end,
+               td.ship_name, td.total_days, td.total_nights,
+               td.is_a_cruise_trip, td.is_cruise_only AS tgd_cruise_only,
+               tp.package_title, tp.package_code, tp.package_type,
+               tp.is_cruise_only AS pkg_cruise_only
         FROM `tabBooking` b
         LEFT JOIN `tabTrip Group Date` td ON td.name = b.trip_date
         LEFT JOIN `tabTrip` tm ON tm.name = td.trip
-        WHERE b.customer = %s
+        LEFT JOIN `tabTrip Package` tp ON tp.name = b.trip_package
+        WHERE b.customer = %s OR b.end_customer = %s
         ORDER BY td.departure_date ASC, b.creation ASC
-    """, customer_name, as_dict=True)
+    """, (customer_name, customer_name), as_dict=True)
+
+    # Flight per booking — resolve SEKALI secara pukal (distinct link) supaya
+    # senarai panjang tidak bertambah query N+1. Booking.flight ialah Link ke
+    # tabFlight; maklumat penerbangan diambil terus dari doc Flight (bukan
+    # medan fetch_from Booking yang sebahagiannya tidak konsisten).
+    flight_map = _flight_map_for(list({bk.flight for bk in bookings if bk.get("flight")}))
 
     out = []
     for bk in bookings:
@@ -659,31 +855,76 @@ def get_bookings_list():
         paid   = float(totals[0].paid or 0)
 
         # Currency: SO PERTAMA (creation asc) — wakil sah untuk booking ni.
+        # Fallback ikut currency axis (bukan hardcoded MYR).
+        from travel_booking.api.currency_axis import get_default_currency
         currency = frappe.db.get_value(
             "Sales Order", {"custom_booking": bk.name},
             "currency", order_by="creation asc"
-        ) or "MYR"
+        ) or get_default_currency()
         currency_symbol = frappe.db.get_value("Currency", currency, "symbol") or currency
+
+        # B2B: end-customer melihat tempahan partner — angka kewangan
+        # DITAPIS (None) di peringkat API, bukan sekadar disembunyi UI.
+        price_hidden = _price_hidden_for(bk, customer_name)
+
+        # Klasifikasi trip — logik sama dengan get_booking_data() supaya
+        # label kad konsisten dengan page detail (Cruise / Cruise+Flight /
+        # Fly Package / Tour ...).
+        is_cruise    = bool(bk.is_a_cruise_trip)
+        cruise_only  = bool(bk.pkg_cruise_only or bk.tgd_cruise_only)
+        pkg_type     = bk.package_type or ""
+        if is_cruise:
+            if cruise_only:
+                trip_category = "Cruise Only"
+            elif pkg_type == "Cruise+Flight":
+                trip_category = "Cruise+Flight"
+            elif pkg_type == "Customed":
+                trip_category = "Cruise (Custom)"
+            else:
+                trip_category = "Cruise Trip"
+        else:
+            if pkg_type == "Ground Only":
+                trip_category = "Ground Only"
+            elif pkg_type == "Fly Package":
+                trip_category = "Fly Package"
+            elif pkg_type == "Customed":
+                trip_category = "Tour (Custom)"
+            else:
+                trip_category = "Tour Package"
 
         out.append({
             "booking_number":  bk.booking_number or bk.name,
             "trip_name":       bk.trip_name       or "-",
+            # Package (varian yang ditempah) & kodnya
+            "package_title":   bk.package_title   or "",
+            "package_code":    bk.package_code    or "",
             "group_name":      bk.trip_group_name or "",
+            "trip_category":   trip_category,
             "departure_date":  str(bk.departure_date) if bk.departure_date else "",
             "return_date":     str(bk.return_date)    if bk.return_date    else "",
+            "total_days":      int(bk.total_days or 0),
+            "total_nights":    int(bk.total_nights or 0),
+            # Cruise — hanya diisi untuk trip cruise
+            "is_cruise":       is_cruise,
+            "cruise_only":     cruise_only,
+            "ship_name":       bk.ship_name or "",
             "embarkation_port":   bk.embarkation_port    or "",
             "disembarkation_port": bk.disembarkation_port or "",
             "sailing_start":   str(bk.sailing_start) if bk.sailing_start else "",
             "sailing_end":     str(bk.sailing_end)   if bk.sailing_end   else "",
+            # Flight (dari Flight doc via Booking.flight — {} jika tiada)
+            "flight":          flight_map.get(bk.flight, {}) if bk.get("flight") else {},
             "booking_status":  bk.status or "",
-            "payment_status":  _compute_payment_status(paid, billed),
+            "payment_status":  None if price_hidden else _compute_payment_status(paid, billed),
             "total_slots":     total_slots,
             "filled_count":    filled_count,
-            "billed":          billed,
-            "paid":            paid,
-            "balance":         max(0.0, billed - paid),
-            "currency":        currency,
-            "currency_symbol": currency_symbol,
+            "price_hidden":    price_hidden,
+            "booking_channel": bk.get("booking_channel") or "Direct",
+            "billed":          None if price_hidden else billed,
+            "paid":            None if price_hidden else paid,
+            "balance":         None if price_hidden else max(0.0, billed - paid),
+            "currency":        "" if price_hidden else currency,
+            "currency_symbol": "" if price_hidden else currency_symbol,
         })
 
     return {"bookings": out}
@@ -709,19 +950,25 @@ def get_on_behalf_bookings_list():
         return {"bookings": []}
 
     from travel_booking.api.booking import _compute_payment_status
+    from travel_booking.api._helpers import get_customer_phone
+    from travel_booking.api.currency_axis import get_default_currency
 
     bookings = frappe.db.sql("""
         SELECT b.name, b.booking_number, b.status, b.booking_channel,
-               b.cust_email, b.customer,
+               b.cust_email, b.customer, b.end_customer,
                c.customer_name,
+               ec.customer_name AS end_customer_display_name,
                tm.trip_name, td.trip_group_name,
+               tp.package_title,
                td.departure_date, td.return_date,
                td.embarkation_port, td.disembarkation_port,
                td.sailing_start, td.sailing_end
         FROM `tabBooking` b
         LEFT JOIN `tabCustomer` c ON c.name = b.customer
+        LEFT JOIN `tabCustomer` ec ON ec.name = b.end_customer
         LEFT JOIN `tabTrip Group Date` td ON td.name = b.trip_date
         LEFT JOIN `tabTrip` tm ON tm.name = td.trip
+        LEFT JOIN `tabTrip Package` tp ON tp.name = b.trip_package
         WHERE b.name IN %(names)s
         ORDER BY td.departure_date ASC, b.creation ASC
     """, {"names": tuple(managed)}, as_dict=True)
@@ -750,17 +997,25 @@ def get_on_behalf_bookings_list():
         currency = frappe.db.get_value(
             "Sales Order", {"custom_booking": bk.name},
             "currency", order_by="creation asc"
-        ) or "MYR"
+        ) or get_default_currency()
         currency_symbol = frappe.db.get_value("Currency", currency, "symbol") or currency
 
+        # B2B: customer akhir yang dipapar ialah Booking.end_customer —
+        # BUKAN Booking.customer (itu entiti bil partner).
+        is_b2b = (bk.booking_channel == "B2B")
+        end_cust_link = bk.end_customer if (is_b2b and bk.end_customer) else bk.customer
         out.append({
             "booking_number":  bk.booking_number or bk.name,
             "booking_channel": bk.booking_channel or "",
+            "is_b2b":          is_b2b,
             # Customer akhir — paparan utama yang membezakan kad ini dari
             # My Bookings (manager tahu serta-merta booking milik siapa).
-            "end_customer_name":  bk.customer_name or bk.customer or "",
+            "end_customer_name":  (bk.end_customer_display_name or end_cust_link or "") if is_b2b
+                                  else (bk.customer_name or bk.customer or ""),
             "end_customer_email": bk.cust_email or "",
+            "end_customer_phone": get_customer_phone(end_cust_link) or "",
             "trip_name":       bk.trip_name       or "-",
+            "package_title":   bk.package_title   or "",
             "group_name":      bk.trip_group_name or "",
             "departure_date":  str(bk.departure_date) if bk.departure_date else "",
             "return_date":     str(bk.return_date)    if bk.return_date    else "",

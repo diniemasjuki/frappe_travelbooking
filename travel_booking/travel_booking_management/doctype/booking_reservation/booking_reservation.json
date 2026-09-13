@@ -73,19 +73,24 @@
   "section_break_exjx",
   "flight_itinerary",
   "cabin_arrangement_tab",
-  "html_qodw",
   "section_break_uvat",
   "cabin_is_confirmed",
   "section_break_cakg",
   "rooming_column",
-  "room_category",
   "guest_label",
-  "cabin_no",
+  "room_category",
   "pax_type",
+  "room_privacy",
+  "column_break_pofn",
+  "room_id",
+  "cabin_no",
+  "guest_sequence",
+  "sales_order",
   "aroya_column",
   "stateroom_no",
   "delegate_no",
   "aroya_guest_no",
+  "others_tab",
   "guest_passport_link_section",
   "passport_link_token",
   "column_break_gplt",
@@ -364,14 +369,13 @@
    "description": "Sequence Number like \"1,2,3,....\"",
    "fieldname": "cabin_no",
    "fieldtype": "Int",
-   "label": "Cabin Sequence (in order)",
+   "label": "Rooming Sequence (in order)",
    "read_only_depends_on": "eval:doc.cabin_is_confirmed"
   },
   {
    "fieldname": "pax_type",
    "fieldtype": "Data",
    "label": "Passenger / Bed Type Label",
-   "options": "Main Guest\nExtra Bed\nInfant",
    "read_only_depends_on": "eval:doc.cabin_is_confirmed"
   },
   {
@@ -408,7 +412,7 @@
    "depends_on": "eval:doc.is_a_cruise",
    "fieldname": "cabin_arrangement_tab",
    "fieldtype": "Tab Break",
-   "label": "Room & Cabin"
+   "label": "Accomodation"
   },
   {
    "fetch_from": "flight.flight_itinerary",
@@ -506,11 +510,6 @@
    "label": "Return Date"
   },
   {
-   "fieldname": "html_qodw",
-   "fieldtype": "HTML",
-   "options": "<h3>Cruise Note:</h3>\n<p>Total days require from sail date : ?? days</p>\n<br/>&nbsp;<br/>"
-  },
-  {
    "fieldname": "section_break_cakg",
    "fieldtype": "Section Break"
   },
@@ -522,7 +521,7 @@
    "default": "0",
    "fieldname": "cabin_is_confirmed",
    "fieldtype": "Check",
-   "label": "Cabin Arrangement Confirmed"
+   "label": "Room Arrangement Confirmed"
   },
   {
    "fetch_from": "traveller.full_name",
@@ -631,12 +630,52 @@
    "fieldtype": "Datetime",
    "label": "Passport Link Expires On",
    "read_only": 1
+  },
+  {
+   "fieldname": "others_tab",
+   "fieldtype": "Tab Break",
+   "label": "Others"
+  },
+  {
+   "default": "Private",
+   "fieldname": "room_privacy",
+   "fieldtype": "Select",
+   "label": "Room Privacy",
+   "options": "Private\nOpen Sharing",
+   "read_only_depends_on": "eval:doc.cabin_is_confirmed"
+  },
+  {
+   "fieldname": "room_id",
+   "fieldtype": "Data",
+   "label": "Room ID",
+   "read_only_depends_on": "eval:doc.cabin_is_confirmed"
+  },
+  {
+   "description": "Sequence Number like \"1,2,3,....\"",
+   "fieldname": "guest_sequence",
+   "fieldtype": "Int",
+   "label": "Guest Sequence",
+   "read_only_depends_on": "eval:doc.cabin_is_confirmed"
+  },
+  {
+   "fieldname": "sales_order",
+   "fieldtype": "Link",
+   "label": "Sales Order",
+   "options": "Sales Order",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "column_break_pofn",
+   "fieldtype": "Column Break",
+   "label": "Room Arrangement"
   }
  ],
  "grid_page_length": 50,
  "links": [],
- "modified": "2026-08-19 07:44:33.022415",
- "modified_by": "diniemasjuki@gmail.com",
+ "modified": "2026-09-12 20:47:16.323813",
+ "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Booking Reservation",
  "naming_rule": "By \"Naming Series\" field",

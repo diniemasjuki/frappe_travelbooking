@@ -21,6 +21,7 @@
   "room_profile",
   "image_ogyu",
   "youtube_url",
+  "attachment_gallery_ktzn",
   "section_break_dvve",
   "description"
  ],
@@ -115,6 +116,10 @@
    "fieldname": "youtube_url",
    "fieldtype": "Data",
    "label": "Youtube Url"
+  },
+  {
+   "fieldname": "attachment_gallery_ktzn",
+   "fieldtype": "Attachment Gallery"
   }
  ],
  "grid_page_length": 50,
@@ -122,7 +127,7 @@
  "image_field": "room_profile",
  "links": [],
  "make_attachments_public": 1,
- "modified": "2026-08-27 16:28:43.573518",
+ "modified": "2026-09-13 04:52:06.614642",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Price Category",

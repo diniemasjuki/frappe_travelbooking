@@ -14,68 +14,15 @@
     <p>Luxury voyages to the world's most breathtaking destinations.</p>
   </div>
 
-  {# ── Bar penapis (GET form → reload dgn query string; cruise dipaksa = 1) ── #}
-  <form class="rc-filters" method="get" action="/cruises" id="rcTripFilters">
-    <input type="hidden" name="cruise" value="1"/>
-    <div class="rc-filter-row">
-      <label class="rc-field rc-field-search">
-        <i class="ti ti-search"></i>
-        <input type="text" name="q" value="{{ active.q or '' }}" placeholder="Search cruises…"/>
-      </label>
-      <label class="rc-field">
-        <span class="rc-field-label">Destination</span>
-        <select name="destination">
-          <option value="">All destinations</option>
-          {% for d in options.destinations %}
-          <option value="{{ d.name }}" {% if active.destination == d.name %}selected{% endif %}>{{ d.destination_name }}{% if d.destination_country %} — {{ d.destination_country }}{% endif %}</option>
-          {% endfor %}
-        </select>
-      </label>
-      <label class="rc-field">
-        <span class="rc-field-label">Item group</span>
-        <select name="item_group">
-          <option value="">All groups</option>
-          {% for g in options.item_groups %}
-          <option value="{{ g }}" {% if active.item_group == g %}selected{% endif %}>{{ g }}</option>
-          {% endfor %}
-        </select>
-      </label>
-    </div>
-    <div class="rc-filter-row">
-      <label class="rc-field rc-field-date">
-        <span class="rc-field-label">From</span>
-        <input type="date" name="date_from" value="{{ active.date_from or '' }}"/>
-      </label>
-      <label class="rc-field rc-field-date">
-        <span class="rc-field-label">To</span>
-        <input type="date" name="date_to" value="{{ active.date_to or '' }}"/>
-      </label>
-      <label class="rc-field">
-        <span class="rc-field-label">Sort by</span>
-        <select name="sort">
-          <option value="date" {% if (active.sort or 'date') == 'date' %}selected{% endif %}>Departure date</option>
-          <option value="price" {% if active.sort == 'price' %}selected{% endif %}>Price (low to high)</option>
-          <option value="duration" {% if active.sort == 'duration' %}selected{% endif %}>Duration (longest)</option>
-        </select>
-      </label>
-      {# Currency listing (paksi multi-company) — menapis pakej & harga
-         yang dipaparkan. #}
-      {% if currency_options and currency_options|length > 1 %}
-      <label class="rc-field">
-        <span class="rc-field-label">Currency</span>
-        <select name="currency" onchange="this.form.submit()">
-          {% for o in currency_options %}
-          <option value="{{ o.currency }}" {% if o.currency == currency %}selected{% endif %}>{{ o.symbol }} {{ o.currency }}</option>
-          {% endfor %}
-        </select>
-      </label>
-      {% endif %}
-      <div class="rc-filter-actions">
-        <button type="submit" class="rc-btn-primary"><i class="ti ti-search"></i> Search</button>
-        <a href="/cruises" class="rc-btn-ghost">Reset</a>
-      </div>
-    </div>
-  </form>
+  {# ── Bar penapis — include kongsi dengan /cruise-schedule
+        (templates/includes/cruise_filters.html). From/To date diganti
+        BULAN & TAHUN pelayaran; item_group & sort dibuang khas untuk
+        katalog cruise. trips.js auto-submit form ini bila select berubah. ── #}
+  {% with filter_action="/cruises", filter_id="rcTripFilters",
+          filter_reset_href="/cruises", filter_force_cruise=1,
+          filter_dest_mode="select" %}
+    {% include "templates/includes/cruise_filters.html" %}
+  {% endwith %}
 
   {# ── Result count ── #}
   <div class="rc-catalog-meta">

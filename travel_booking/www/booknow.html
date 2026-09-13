@@ -110,10 +110,12 @@ if ('serviceWorker' in navigator) {
           </button>
         </div>
 
-        {# RIGHT: Summary Panel #}
+        {# RIGHT: Summary Panel — kad ni RUJUKAN canonical: struktur sama
+           dipaparkan di Step 2 & 3, pecahan bilik/tetamu dibawa ke Step 4 #}
         <div class="bnw-summary-col">
           <div class="bnw-summary-card">
             <h4 class="bnw-summary-title">Payment Summary</h4>
+            <p class="bnw-order-trip" id="bnwStep1TripLine"></p>
             <div class="bnw-order-line">
               <span>Total Guests</span>
               <span id="bnwStep1TotalGuests">0</span>
@@ -266,19 +268,27 @@ if ('serviceWorker' in navigator) {
 
         </div>{# /.bnw-bill-col #}
 
-        {# RIGHT COLUMN: Booking Summary #}
+        {# RIGHT COLUMN: Payment Summary — struktur & format SAMA dengan kad
+           Step 1; info yang sama dibawa ke Step 3 & skrin pengesahan #}
         <div class="bnw-summary-col">
           <div class="bnw-summary-card">
-            <h4 class="bnw-summary-title">Booking Summary</h4>
+            <h4 class="bnw-summary-title">Payment Summary</h4>
             <p class="bnw-order-trip" id="bnwBookingSummaryTrip"></p>
-            <p class="bnw-order-sub" id="bnwBookingSummarySub" style="margin-bottom:16px"></p>
 
-            <div id="bnwBookingSummaryLines"></div>
+            <div class="bnw-order-line">
+              <span>Total Guests</span>
+              <span id="bnwBookingTotalGuests">0</span>
+            </div>
+            <div class="bnw-order-lines" id="bnwBookingSummaryLines"></div>
 
             <div class="bnw-divider"></div>
             <div class="bnw-grand-total">
               <span>Total</span>
               <strong id="bnwBookingGrandTotal">RM 0</strong>
+            </div>
+            <div class="bnw-total-row bnw-total-row-muted" style="margin-top:6px">
+              <span id="bnwBookingDepositLabel">Deposit (20%)</span>
+              <span id="bnwBookingDeposit">RM 0</span>
             </div>
           </div>
         </div>
@@ -417,8 +427,17 @@ if ('serviceWorker' in navigator) {
                   <small style="width:100%;text-align:center;">JPG, PNG or PDF — images auto-compressed, PDF max 5MB</small>
                 </div>
               </div>
-              <div id="bnwReceiptFileName" style="display:none;margin-top:8px;font-size:12px;color:#2e7d32">
-                <i class="ti ti-check"></i> <span id="bnwReceiptFileNameText"></span>
+              {# Preview resit selepas muat naik — maklum balas visual jelas:
+                 imej dipapar sebagai thumbnail, PDF dipapar inline dalam
+                 iframe. Nama fail + tanda ✓ dipapar di bawah preview. #}
+              <div id="bnwReceiptPreview" style="display:none;margin-top:12px;padding:10px;border-radius:var(--bnw-radius-sm,8px);background:var(--bnw-cream,#F7F5F0);border:1px solid var(--bnw-border,#E8E5DF);">
+                <img id="bnwReceiptPreviewImg" src="" alt="Payment receipt preview"
+                     style="display:none;max-width:180px;max-height:180px;border-radius:6px;border:1px solid var(--bnw-border,#E8E5DF);background:#fff;object-fit:contain;"/>
+                <iframe id="bnwReceiptPreviewPdf" title="Payment receipt PDF preview"
+                        style="display:none;width:100%;height:240px;border:1px solid var(--bnw-border,#E8E5DF);border-radius:6px;background:#fff;"></iframe>
+                <div id="bnwReceiptFileName" style="margin-top:8px;font-size:12px;color:#2e7d32">
+                  <i class="ti ti-check"></i> <span id="bnwReceiptFileNameText"></span>
+                </div>
               </div>
 
               {# OCR analysis result — auto-runs after image receipt is selected #}
@@ -444,16 +463,25 @@ if ('serviceWorker' in navigator) {
 
         </div>{# /.bnw-pay-col #}
 
-        {# RIGHT COLUMN: Booking Summary #}
+        {# RIGHT COLUMN: Payment Summary — kad yang sama dengan Step 1 & 2
+           (Total Guests + bilik/guest + Total + Deposit), dengan tambahan
+           baris diskaun, voucher/referral & sales person khas Step 3 #}
         <div class="bnw-summary-col">
           <div class="bnw-summary-card">
-            <h4 class="bnw-summary-title">Booking Summary</h4>
+            <h4 class="bnw-summary-title">Payment Summary</h4>
             <p class="bnw-order-trip" id="bnwOrderSummaryTrip"></p>
-            <p class="bnw-order-sub" id="bnwOrderSummarySub" style="margin-bottom:20px"></p>
 
-            <div id="bnwOrderLines"></div>
+            <div class="bnw-order-line">
+              <span>Total Guests</span>
+              <span id="bnwOrderTotalGuests">0</span>
+            </div>
+            <div class="bnw-order-lines" id="bnwOrderLines"></div>
 
             {# Discount rows #}
+            <div class="bnw-discount-row" id="bnwB2bDiscountRow" style="display:none">
+              <span><i class="ti ti-building"></i> B2B Net Rate (<span id="bnwB2bPercentApplied"></span>% off)</span>
+              <span id="bnwB2bDiscountAmt" class="bnw-discount-amt">-RM 0</span>
+            </div>
             <div class="bnw-discount-row" id="bnwVoucherDiscountRow" style="display:none">
               <span><i class="ti ti-tag"></i> Voucher (<span id="bnwVoucherCodeApplied"></span>)</span>
               <span id="bnwVoucherDiscountAmt" class="bnw-discount-amt">-RM 0</span>
@@ -515,6 +543,10 @@ if ('serviceWorker' in navigator) {
             <div class="bnw-grand-total">
               <span>Total</span>
               <strong id="bnwOrderGrandTotal">RM 0</strong>
+            </div>
+            <div class="bnw-total-row bnw-total-row-muted" style="margin-top:6px">
+              <span id="bnwOrderDepositLabel">Deposit (20%)</span>
+              <span id="bnwOrderDeposit">RM 0</span>
             </div>
 
           </div>{# /.bnw-summary-card #}
@@ -589,7 +621,7 @@ if ('serviceWorker' in navigator) {
 
 {# ── Page Data JSON (dari Frappe context) ── #}
 <script id="pageData" type="application/json">
-{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_cruise_flags": {{ trip_cruise_flags }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "csrf_token": "{{ csrf_token }}", "current_user": "{{ current_user }}", "booking_actor": {{ booking_actor_json }}, "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}"}
+{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_cruise_flags": {{ trip_cruise_flags }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "currency": "{{ currency }}", "currency_native_only": {{ 'true' if currency_native_only else 'false' }}, "csrf_token": "{{ csrf_token }}", "current_user": "{{ current_user }}", "user_profile": {{ user_profile_json }}, "booking_actor": {{ booking_actor_json }}, "own_affiliate_code": "{{ own_affiliate_code }}", "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}"}
 </script>
 
 {% endblock %}

@@ -64,6 +64,21 @@ def get_context(context):
     context.active_nav = "trips"
     context.no_cache = 1
     context.title = "Trips — Rarecation"
+    # SEO: meta + Open Graph + JSON-LD WebSite/SearchAction (rujuk
+    # utils/seo.py). OG image guna cover trip pertama bila tersedia.
+    from travel_booking.utils.seo import apply_seo, build_website_json_ld
+
+    apply_seo(
+        context,
+        title="Trips — Rarecation",
+        description=(
+            "Explore all cruise & tour packages — curated trips with "
+            "guaranteed departure dates, transparent pricing and easy "
+            "online booking."
+        ),
+        image=(context.trips[0].trip_image if context.trips else ""),
+        json_ld=build_website_json_ld(search_path="/trips"),
+    )
     # Meta currency listing (selector + simbol harga card).
     context.currency = data["currency"]
     context.currency_symbol = data["currency_symbol"]

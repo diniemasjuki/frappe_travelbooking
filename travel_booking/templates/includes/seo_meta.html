@@ -1,0 +1,67 @@
+{# ============================================================
+   travel_booking/templates/includes/seo_meta.html
+   Include SEO untuk <head> page awam — dimuat oleh
+   templates/base_travel.html supaya SEMUA page turunannya
+   (trip detail, trips/tours/cruises, homepage tour/cruise,
+   cruise-schedule) dapat meta tag asas secara konsisten.
+
+   Sumber data: dict `seo` yang disuntik oleh
+   travel_booking.utils.seo.apply_seo() dari get_context page.
+   Bila page tak panggil apply_seo (cth. page wizard/transaksi),
+   include ini tetap render canonical + Open Graph minimum dari
+   context.title — tiada error, tiada tag kosong.
+
+   Render:
+     meta description / robots(noindex) / canonical
+     Open Graph (og:title, og:description, og:image, og:url, og:type,
+     og:site_name, og:locale)
+     Twitter Card (summary_large_image bila ada image)
+     JSON-LD structured data (satu <script> setiap blok)
+   ============================================================ #}
+{% set _seo = seo if seo is defined else none %}
+{% set _sn = (_seo.site_name if _seo and _seo.site_name else (site_name or 'Rarecation')) %}
+{% set _t = (_seo.title if _seo and _seo.title else (title or _sn)) %}
+{% set _url = (_seo.canonical if _seo and _seo.canonical else '') %}
+
+{% if _seo and _seo.description %}
+<meta name="description" content="{{ _seo.description }}"/>
+{% endif %}
+{% if _seo and _seo.noindex %}
+<meta name="robots" content="noindex, follow"/>
+{% endif %}
+{% if _url %}
+<link rel="canonical" href="{{ _url }}"/>
+{% endif %}
+
+{# ── Open Graph (Facebook / WhatsApp / LinkedIn preview) ── #}
+<meta property="og:title" content="{{ _t }}"/>
+<meta property="og:site_name" content="{{ _sn }}"/>
+<meta property="og:type" content="{{ _seo.page_type if _seo and _seo.page_type else 'website' }}"/>
+{% if _seo and _seo.description %}
+<meta property="og:description" content="{{ _seo.description }}"/>
+{% endif %}
+{% if _url %}
+<meta property="og:url" content="{{ _url }}"/>
+{% endif %}
+{% if _seo and _seo.image %}
+<meta property="og:image" content="{{ _seo.image }}"/>
+<meta property="og:image:alt" content="{{ _t }}"/>
+{% endif %}
+<meta property="og:locale" content="{{ _seo.locale if _seo and _seo.locale else 'en_US' }}"/>
+
+{# ── Twitter Card ── #}
+<meta name="twitter:card" content="{{ 'summary_large_image' if _seo and _seo.image else 'summary' }}"/>
+<meta name="twitter:title" content="{{ _t }}"/>
+{% if _seo and _seo.description %}
+<meta name="twitter:description" content="{{ _seo.description }}"/>
+{% endif %}
+{% if _seo and _seo.image %}
+<meta name="twitter:image" content="{{ _seo.image }}"/>
+{% endif %}
+
+{# ── JSON-LD structured data (schema.org) — satu blok setiap dict ── #}
+{% if _seo and _seo.json_ld %}
+{% for ld in _seo.json_ld %}
+<script type="application/ld+json">{{ ld | tojson }}</script>
+{% endfor %}
+{% endif %}

@@ -42,7 +42,7 @@ class TripGroupDate(Document):
 		sailing_start: DF.Date | None
 		ship_code: DF.Data | None
 		ship_name: DF.Data | None
-		status: DF.Literal["Active", "Full", "Closed", "Running", "Completed", "Pending Review", "Cancelled"]
+		status: DF.Literal["Pending Review", "Active", "Running", "Sailing", "Full", "Closed", "Completed", "Cancelled"]
 		total_days: DF.Int
 		total_nights: DF.Int
 		trip: DF.Link
@@ -115,9 +115,9 @@ class TripGroupDate(Document):
 		if self.sailing_start and self.sailing_end:
 			date_format_sailing = sailing_start.strftime("%d %b %Y") + " - " + sailing_end.strftime("%d %b %Y")
 
-		# this is for FLY CRUISE trip = group title use sailing date
+		# this is for CRUISE+FLIGHT trip = group title use sailing date
 		if (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (not self.is_cruise_only or self.is_cruise_only == 0):
-			self.trip_group_name = date_format_departure + (" : " + self.trip or "") + " : Fly Cruise"
+			self.trip_group_name = date_format_departure + (" : " + self.trip or "") + " : Cruise+Flight"
 			self.trip_group_code = (str(self.departure_date) + "-" + str(self.return_date) + ":" + self.trip + ":" + "FC").replace("-", "")
 
 		# this is for CRUISE ONLY trip

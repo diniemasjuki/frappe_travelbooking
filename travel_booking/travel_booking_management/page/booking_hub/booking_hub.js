@@ -1371,7 +1371,12 @@ window.BookingHubPage = (function () {
 			<div class="bh-cabin-card ${status_class}" data-cabin="${esc(cab.cabin_no)}">
 				<div class="bh-cabin-card-header">
 					<span class="bh-cabin-number">${__('Cabin')} ${esc(cab.cabin_no || '-')}</span>
-					<span class="bh-cabin-category">${esc(cab.room_category || '-')}</span>
+					<span>
+						<span class="bh-cabin-category">${esc(cab.room_category || '-')}</span>
+						${cab.room_privacy === 'Open Sharing'
+							? `<span class="bh-cabin-privacy" title="${__('Customer asked us to match a roommate — refund the single-occupancy difference when matched.')}">🤝 ${__('Open Sharing')}</span>`
+							: ''}
+					</span>
 				</div>
 				<div class="bh-cabin-card-body">
 					<div class="bh-cabin-occupancy">
@@ -2445,6 +2450,15 @@ window.BookingHubPage = (function () {
 				background: #f1f5f9;
 				padding: 2px 6px;
 				border-radius: 4px;
+			}
+			.bh-cabin-privacy {
+				font-size: 11px;
+				font-weight: 600;
+				color: #92400e;
+				background: #fef3c7;
+				padding: 2px 6px;
+				border-radius: 4px;
+				margin-left: 4px;
 			}
 			.bh-cabin-card-body {
 				padding: 12px;

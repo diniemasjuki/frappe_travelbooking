@@ -21,6 +21,10 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>{% block title %}{{ site_name or 'Rarecation' }}{% endblock %}</title>
+  {# SEO: meta description, canonical, Open Graph, Twitter Card +
+     JSON-LD structured data. Dijana oleh utils/seo.apply_seo() dari
+     get_context setiap page (rujuk templates/includes/seo_meta.html). #}
+  {% include "templates/includes/seo_meta.html" %}
   {# Favicon dinamik: tour homepage/site guna tour_favicon, selainnya
      cruise_favicon. Fallback ke faviconportal.png lalai jika kosong. Mengikut
      corak header logo (active_nav == 'tour'). #}

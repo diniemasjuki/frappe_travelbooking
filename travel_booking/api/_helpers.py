@@ -140,43 +140,101 @@ def get_on_behalf_role_map():
     return {r["role"]: r["booking_channel"] for r in get_on_behalf_role_rows()}
 
 
+# ══════════════════════════════════════════════
+# B2B PARTNER (agen / reseller — saluran B2B)
+# ══════════════════════════════════════════════
+# Berbeza dari on-behalf role-based (Staff/Affiliate): kewibadaan B2B
+# DIKONFIGUR PER-PARTNER melalui child table Travel B2B Partner User —
+# bukan melalui role global. Ini menjamin isolasi data: staf partner A
+# hanya nampak booking partner A. Satu user hanya boleh milik SATU
+# partner Active (dikuatkuasakan di Travel B2B Partner.validate()).
+
+def get_user_b2b_partner(user=None):
+    """Partner B2B Active bagi session user ini, melalui child table
+    Travel B2B Partner User. Pulang dict:
+
+        {partner, partner_name, access_level, customer, contact_email,
+         default_discount_percent}
+
+    atau None kalau user bukan staf mana-mana partner Active. BUKAN
+    endpoint — helper dalaman untuk resolve_booking_actor(), guard
+    portal, dan _managed_booking_names().
+    """
+    user = user or frappe.session.user
+    if not user or user == "Guest":
+        return None
+    rows = frappe.db.sql("""
+        SELECT p.name              AS partner,
+               p.partner_name      AS partner_name,
+               pu.access_level     AS access_level,
+               p.customer          AS customer,
+               p.contact_email     AS contact_email,
+               p.default_discount_percent AS default_discount_percent
+        FROM `tabTravel B2B Partner User` pu
+        JOIN `tabTravel B2B Partner` p ON p.name = pu.parent
+        WHERE pu.user = %s AND p.status = 'Active'
+    """, (user,), as_dict=True)
+    if not rows:
+        return None
+    # Berbilang baris (konfigurasi luar jangka) — ambil tahap TERTINGGI;
+    # partner dijamin tunggal oleh validation doctype.
+    best = max(rows, key=lambda r: _ON_BEHALF_LEVEL_ORDER.get(r.access_level or "Full", 2))
+    return {
+        "partner":                  best.partner,
+        "partner_name":             best.partner_name,
+        "access_level":             best.access_level or "Full",
+        "customer":                 best.customer,
+        "contact_email":            best.contact_email,
+        "default_discount_percent": best.default_discount_percent or 0,
+    }
+
+
 def has_on_behalf_role(user=None):
     """True jika user memiliki mana-mana role yang dikonfigurasi dalam
-    Travel Settings.on_behalf_roles (layak urus/book on-behalf). Bukan
-    endpoint — helper dalaman untuk guard portal & resolver wizard.
+    Travel Settings.on_behalf_roles ATAU merupakan staf partner B2B
+    Active (Travel B2B Partner User). Bukan endpoint — helper dalaman
+    untuk guard portal & resolver wizard.
     """
     user = user or frappe.session.user
     if not user or user == "Guest":
         return False
     role_map = get_on_behalf_role_map()
-    if not role_map:
-        return False
-    return bool(set(role_map.keys()) & set(frappe.get_roles(user)))
+    if role_map and (set(role_map.keys()) & set(frappe.get_roles(user))):
+        return True
+    return get_user_b2b_partner(user) is not None
 
 
 def get_on_behalf_access_level(user=None):
     """Tahap akses on-behalf user (View/Docs/Full) — TERTINGGI antara
-    semua role yang dikonfigurasi dan dimiliki user (punya role lebih
-    tinggi = dapat kebenaran lebih). Pulangkan None jika user tiada
-    role on-behalf. Bukan endpoint — helper dalaman untuk gate
-    tindakan portal (traveller/payment) pada booking on-behalf.
+    semua sumber kewibadaan user: role yang dikonfigurasi (Travel
+    Settings.on_behalf_roles) DAN barisan staf partner B2B (Travel B2B
+    Partner User). Pulangkan None jika user tiada kewibadaan on-behalf.
+    Bukan endpoint — helper dalaman untuk gate tindakan portal
+    (traveller/payment) pada booking on-behalf.
     """
     user = user or frappe.session.user
     if not user or user == "Guest":
         return None
-    rows = get_on_behalf_role_rows()
-    if not rows:
-        return None
-    roles = set(frappe.get_roles(user))
     best = None
-    for row in rows:
-        if row["role"] not in roles:
-            continue
-        lvl = row["access_level"]
+
+    def _raise(lvl):
+        nonlocal best
         if lvl not in _ON_BEHALF_LEVEL_ORDER:
             lvl = "Full"
         if best is None or _ON_BEHALF_LEVEL_ORDER[lvl] > _ON_BEHALF_LEVEL_ORDER[best]:
             best = lvl
+
+    rows = get_on_behalf_role_rows()
+    if rows:
+        roles = set(frappe.get_roles(user))
+        for row in rows:
+            if row["role"] in roles:
+                _raise(row["access_level"])
+
+    b2b = get_user_b2b_partner(user)
+    if b2b:
+        _raise(b2b["access_level"])
+
     return best
 
 
@@ -201,18 +259,43 @@ def resolve_booking_actor():
       2. booking_engine.confirm_booking() — gate OTP: actor yang sah
          boleh langkau pengesahan email customer.
 
-    Kelayakan ikut ROLE session user — senarai role + channel dipaparkan
-    admin dalam Travel Settings.on_behalf_roles (default seed: Affiliate →
-    channel "Affiliate", Sales User → channel "Staff"). User tanpa role
-    yang dikonfigurasi (termasuk Guest/customer biasa) → None — flow
-    direct biasa, OTP kekal seperti sedia ada.
+    Dua sumber kewibadaan (disemak mengikut keutamaan):
+      1. B2B — staf partner Active dalam Travel B2B Partner User.
+         channel = "B2B"; dict turut bawa `partner`, `partner_name`,
+         `access_level`, `customer` (Customer BIL partner) dan
+         `default_discount_percent` — sumber resolusi harga net.
+      2. Role-based (Staff/Affiliate) — senarai role + channel
+         dipaparkan admin dalam Travel Settings.on_behalf_roles
+         (default seed: Affiliate → channel "Affiliate", Sales User →
+         channel "Staff").
 
-    Pulangkan dict {channel, user, full_name} atau None. BUKAN endpoint —
-    helper dalaman sahaja (tiada @whitelist).
+    User tanpa kewibadaan (termasuk Guest/customer biasa) → None —
+    flow direct biasa, OTP kekal seperti sedia ada.
+
+    Pulangkan dict {channel, user, full_name, ...} atau None. BUKAN
+    endpoint — helper dalaman sahaja (tiada @whitelist).
     """
     user = frappe.session.user
     if not user or user == "Guest":
         return None
+
+    # 1) B2B partner (spesifik kepada user — disemak lebih dahulu daripada
+    # role global supaya staff dalaman yang juga staf partner dapat channel
+    # B2B yang lebih spesifik).
+    b2b = get_user_b2b_partner(user)
+    if b2b:
+        return {
+            "channel":     "B2B",
+            "user":        user,
+            "full_name":   frappe.db.get_value("User", user, "full_name") or user,
+            "partner":     b2b["partner"],
+            "partner_name": b2b["partner_name"],
+            "access_level": b2b["access_level"],
+            "customer":    b2b["customer"],
+            "default_discount_percent": b2b["default_discount_percent"],
+        }
+
+    # 2) Role-based Staff / Affiliate
     role_map = get_on_behalf_role_map()
     if not role_map:
         return None
@@ -231,6 +314,40 @@ def resolve_booking_actor():
         "user":      user,
         "full_name": frappe.db.get_value("User", user, "full_name") or user,
     }
+
+
+def get_own_affiliate_code(user=None):
+    """Kod referral SENDIRI session user — asas pre-aktivasi affiliate di
+    wizard /booknow: user yang membuat order dan didapati ada profil
+    affiliate yang SAH booking-nya di-attributkan kepada kod dia sendiri
+    tanpa perlu taip kod itu manual.
+
+    "Sah" bila SEMUA terpenuhi:
+      - Affiliate Profile (app 'affiliate') milik user ini wujud;
+      - status = "Verified" — referral_code & Sales Partner baru wujud
+        semasa verification (rujuk AffiliateProfile.on_update());
+      - referral_code DAN sales_partner berisi — kod untuk validasi,
+        Sales Partner untuk attribution commission (SO.sales_partner /
+        Booking.affiliate). Kedua-duanya wajib; profile Verified tanpa
+        salah satu (data luar jangka) dianggap tidak sah.
+
+    Pulangkan kod (uppercase, padanan format validate_affiliate_code())
+    atau None. Bukan endpoint — helper dalaman untuk www/booknow.py
+    (paparan wizard) dan booking_engine.confirm_booking() (enforcement
+    server-side — nilai client tidak pernah dipercayai).
+    """
+    user = user or frappe.session.user
+    if not user or user == "Guest":
+        return None
+    row = frappe.db.get_value(
+        "Affiliate Profile",
+        {"user": user, "status": "Verified"},
+        ["referral_code", "sales_partner"],
+        as_dict=True,
+    )
+    if row and row.referral_code and row.sales_partner:
+        return (row.referral_code or "").strip().upper()
+    return None
 
 
 def _as_bool(value):

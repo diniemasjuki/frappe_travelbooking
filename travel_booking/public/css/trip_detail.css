@@ -260,14 +260,17 @@
 .rc-itin-img { width: 100%; height:auto; object-fit: cover; border-radius: 8px; margin: 12px 0; }
 .rc-itin-desc { font-size: 14px; line-height: 1.6; color: #3A3730; }
 .rc-itin-meals { margin: 10px 0 0; font-size: 13px; color: #5C5850; display: flex; gap: 6px; align-items: center; }
-/* Collapsible itinerary — head bertindak sebagai toggle */
+/* Collapsible itinerary — teks more/hide kecil di bucu kanan bawah kad */
 .rc-itin-head { cursor: pointer; user-select: none; }
 .rc-itin-head:hover .rc-itin-title { color: #C9A84C; }
 .rc-itin-toggle {
-  margin-left: auto; flex-shrink: 0; align-self: center;
-  font-size: 18px; color: #7D7A70; transition: transform .25s;
+  display: block;
+  margin-left: auto; margin-top: 12px;
+  background: none; border: 0; padding: 0;
+  font-size: 11px; line-height: 1;
+  color: #7D7A70; cursor: pointer;
 }
-.rc-itin-day.rc-itin-open .rc-itin-toggle { transform: rotate(180deg); }
+.rc-itin-toggle:hover { color: #C9A84C; }
 .rc-itin-day.rc-itin-collapsed .rc-itin-img,
 .rc-itin-day.rc-itin-collapsed .rc-itin-desc,
 .rc-itin-day.rc-itin-collapsed .rc-itin-meals { display: none; }
@@ -406,6 +409,92 @@
   .rc-date-radio-label { padding: 10px 12px; }
   .rc-date-radio-text { font-size: 13px; }
 }
+
+/* ── Date trigger (>1 tarikh: buka popup date selector) ── */
+.rc-date-trigger {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 16px; border: 2px solid #E8E5DF; border-radius: 8px; background: #fff;
+  font-family: var(--font-jost); font-size: 14px; color: #1E1C18; cursor: pointer;
+  text-align: left; transition: border-color .2s ease, background .2s ease; box-sizing: border-box;
+}
+.rc-date-trigger:hover { border-color: #C9A84C; background: #FBFAF7; }
+.rc-date-trigger > i { color: #C9A84C; font-size: 16px; flex-shrink: 0; }
+.rc-date-trigger-text { min-width: 0; line-height: 1.4; }
+.rc-date-trigger-text strong { color: #dc2626; }
+
+/* ── Date selector modal (popup pilihan sailing/departure date) ── */
+.rc-datemodal {
+  position: fixed; inset: 0; z-index: 10000;
+  background: rgba(30,28,24,.6); backdrop-filter: blur(3px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; visibility: hidden;
+  transition: opacity .25s ease, visibility .25s ease;
+}
+.rc-datemodal-show { opacity: 1; visibility: visible; }
+.rc-datemodal-card {
+  position: relative; background: #fff; border-radius: 16px;
+  width: 420px; max-width: 92vw; max-height: 80vh;
+  display: flex; flex-direction: column;
+  padding: 22px 20px 14px; box-shadow: 0 12px 48px rgba(0,0,0,.25);
+  font-family: var(--font-jost); box-sizing: border-box;
+  transform: translateY(14px) scale(.97); transition: transform .25s ease;
+}
+.rc-datemodal-show .rc-datemodal-card { transform: translateY(0) scale(1); }
+.rc-datemodal-close {
+  position: absolute; top: 10px; right: 12px; background: none; border: none;
+  font-size: 24px; line-height: 1; color: #9C9789; cursor: pointer;
+  padding: 4px 8px; border-radius: 6px;
+}
+.rc-datemodal-close:hover { background: rgba(0,0,0,.05); color: #1E1C18; }
+.rc-datemodal-title { font-size: 17px; font-weight: 700; color: #1E1C18; margin: 0 0 14px; }
+.rc-datemodal-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; flex-shrink: 0; }
+.rc-datemodal-chip {
+  padding: 6px 12px; border-radius: 999px; border: 1.5px solid #E8E5DF; background: #fff;
+  font-family: var(--font-jost); font-size: 12.5px; font-weight: 600; color: #5C5850;
+  cursor: pointer; transition: all .2s ease;
+}
+.rc-datemodal-chip:hover { border-color: #C9A84C; color: #1E1C18; }
+.rc-datemodal-chip-active,
+.rc-datemodal-chip-active:hover { background: #C9A84C; border-color: #C9A84C; color: #fff; }
+.rc-datemodal-list {
+  display: flex; flex-direction: column; gap: 8px;
+  overflow-y: auto; min-height: 0; padding: 2px 4px 8px 2px;
+}
+.rc-datemodal-list::-webkit-scrollbar { width: 6px; }
+.rc-datemodal-list::-webkit-scrollbar-track { background: #f5f5f5; border-radius: 3px; }
+.rc-datemodal-list::-webkit-scrollbar-thumb { background: #d4c5a9; border-radius: 3px; }
+.rc-datemodal-item {
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  padding: 12px 14px; border: 2px solid #E8E5DF; border-radius: 10px; background: #fff;
+  font-family: var(--font-jost); font-size: 14px; color: #1E1C18; cursor: pointer;
+  text-align: left; transition: all .2s ease; box-sizing: border-box;
+}
+.rc-datemodal-item::before {
+  content: ""; width: 18px; height: 18px; min-width: 18px;
+  border: 2px solid #d4c5a9; border-radius: 50%; background: #fff; flex-shrink: 0;
+  transition: all .2s ease;
+}
+.rc-datemodal-item:hover { border-color: #C9A84C; background: #FBFAF7; }
+.rc-datemodal-item-active,
+.rc-datemodal-item-active:hover { border-color: #C9A84C; background: #FBFAF7; }
+.rc-datemodal-item-active::before {
+  border-color: #C9A84C; background: #C9A84C; box-shadow: inset 0 0 0 3px #fff;
+}
+.rc-datemodal-item-text { flex: 1; min-width: 0; line-height: 1.4; }
+.rc-datemodal-item-text strong { color: #dc2626; }
+.rc-datemodal-flight { color: #2E7D32; font-size: 17px; flex-shrink: 0; }
+.rc-datemodal-legend {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  margin: 8px 0 4px; font-size: 12px; color: #9C9789;
+}
+.rc-datemodal-legend i { color: #2E7D32; font-size: 14px; }
+
+@media (max-width: 480px) {
+  .rc-datemodal-card { width: 94vw; padding: 18px 14px 12px; }
+  .rc-datemodal-item { padding: 10px 12px; }
+  .rc-datemodal-item-text { font-size: 13px; }
+}
+
 #rcDetailCabins { margin-bottom: 16px; min-height: 40px; }
 .rc-cabins-empty, .rc-cabins-loading, .rc-cabins-error { padding: 6px 0; }
 .rc-cabin-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -579,7 +668,7 @@
   font-size: 12.5px; line-height: 1.45;
 }
 .rc-pkg-meta-label { color: #8A857A; white-space: nowrap; }
-.rc-pkg-meta-value { color: #1E1C18; font-weight: 600; text-align: right; min-width: 0; }
+.rc-pkg-meta-value { color: #1E1C18; text-align: right; min-width: 0; }
 .rc-pkg-meta-value.rc-pkg-included   { color: #2E7D32; }
 .rc-pkg-meta-value.rc-pkg-not-included { color: #B0603A; }
 
@@ -619,7 +708,7 @@
   display:block;
   width:auto;
   font-size: 18px;
-  font-weight: 700;
+  font-weight: 600;
   color: #1E1C18;
 }
 
@@ -647,4 +736,5 @@
   align-items: flex-start;
   padding-top: 12px;
   padding-bottom: 12px;
+  line-height:1.1;
 }

@@ -42,7 +42,9 @@ const fmt = (n) => parseFloat(n || 0).toLocaleString('en-MY', {
 
 /* ── Company currency (mata wang caj) daripada #rcCurrencyData ── */
 const RC = (function () {
-  let companyCurrency = 'MYR', companySymbol = 'RM';
+  // Fallback terakhir sahaja (page sebenar sentiasa embed #rcCurrencyData).
+  // Simbol fallback = kod currency — jangan teka simbol (RM) yang mungkin salah.
+  let companyCurrency = 'MYR', companySymbol = 'MYR';
   try {
     const el = document.getElementById('rcCurrencyData');
     if (el) {
@@ -54,8 +56,16 @@ const RC = (function () {
   return { company_currency: companyCurrency, company_symbol: companySymbol };
 })();
 
-function fmtDual(amount, companySym) {
-  return _esc(companySym || RC.company_symbol || 'RM') + ' ' + fmt(amount);
+function fmtDual(amount, currencySym) {
+  return _esc(currencySym || RC.company_symbol) + ' ' + fmt(amount);
+}
+
+/* ── Simbol currency SESUATU dokumen (SO / booking / addon order / baris).
+   Semua jumlah yang dipaparkan mesti rujuk currency dokumen asal (Sales
+   Order / Booking) — BUKAN default ke currency company. Objek dijangka
+   bawa `currency_symbol` (utama) atau sekurang-kurangnya `currency` (kod). */
+function curSym(obj) {
+  return (obj && (obj.currency_symbol || obj.currency)) || RC.company_symbol;
 }
 
 const _MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -148,6 +158,7 @@ const API_TV = (m, p = {}) => _post(`/api/method/travel_booking.api.portal_trave
 const API_PF = (m, p = {}) => _post(`/api/method/travel_booking.api.portal_profile.${m}`, p);
 const API_STRIPE = (m, p = {}) => _post(`/api/method/travel_booking.api.stripe_checkout.${m}`, p);
 const API_ADDON = (m, p = {}) => _post(`/api/method/travel_booking.api.addon_manager.${m}`, p);
+const API_CS = (m, p = {}) => _post(`/api/method/travel_booking.api.cabin_sharing.${m}`, p);
 
 /* ── Session ── */
 let SESSION = null;

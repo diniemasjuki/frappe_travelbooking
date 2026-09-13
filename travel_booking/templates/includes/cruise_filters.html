@@ -1,0 +1,88 @@
+{# ============================================================
+   travel_booking/templates/includes/cruise_filters.html
+   Bar penapis katalog cruise (GET form → reload dgn query string).
+
+   Dipakai oleh /cruises (www/cruises.html) dan /cruise-schedule
+   (www/cruise-schedule.html) — struktur kad penapis SAMA, perbezaan
+   hanya melalui parameter yang di-pass dengan {% with %}:
+
+     filter_action       — URL action form (cth "/cruises")
+     filter_id           — id form (#rcTripFilters di-auto-submit trips.js
+                           bila <select> berubah; #rcSchedFilters tak load JS itu)
+     filter_reset_href   — pautan Reset (set semula ke URL bersih page)
+     filter_force_cruise — 1 → hidden input cruise=1 (katalog cruise paksakan
+                           penapis cruise melalui query string; /cruise-schedule
+                           paksakan server-side, jadi tak perlu)
+     filter_dest_mode    — "select" | "autocomplete". Autocomplete guna
+                           destination_search.js + destination_label (label
+                           destinasi terpilih untuk paparan semula), jadi page
+                           yang pilih mod itu mesti load JS tersebut.
+
+   Konteks halaman yang dibaca: active (penapis semasa), options.destinations,
+   month_options, year_options, currency.
+   ============================================================ #}
+<form class="rc-filters" method="get" action="{{ filter_action }}" id="{{ filter_id }}">
+  {% if filter_force_cruise %}<input type="hidden" name="cruise" value="1"/>{% endif %}
+  <div class="rc-filter-row">
+    <label class="rc-field rc-field-search">
+      <i class="ti ti-search"></i>
+      <input type="text" name="q" value="{{ active.q or '' }}" placeholder="Search cruises…"/>
+    </label>
+
+    {% if filter_dest_mode == "autocomplete" %}
+    {# Destinasi: autocomplete (destination_search.js) — nilai sebenar
+       (Trip Destination Point name) dibawa hidden input name="destination". #}
+    <div class="rc-field rc-field-dest">
+      <span class="rc-field-label">Destination</span>
+      <div class="rc-autocomplete" data-rc-autocomplete>
+        <i class="ti ti-map-pin"></i>
+        <input type="text" class="rc-ac-input" placeholder="All destinations"
+               value="{{ destination_label or '' }}"
+               autocomplete="off" aria-label="Destination"
+               aria-autocomplete="list" aria-expanded="false"/>
+        <input type="hidden" name="destination" value="{{ active.destination or '' }}"/>
+        <ul class="rc-ac-list" role="listbox" hidden></ul>
+      </div>
+    </div>
+    <script type="application/json" id="rcSearchDestinations">{{ options.destinations | tojson }}</script>
+    {% else %}
+    <label class="rc-field">
+      <span class="rc-field-label">Destination</span>
+      <select name="destination">
+        <option value="">All destinations</option>
+        {% for d in options.destinations %}
+        <option value="{{ d.name }}" {% if active.destination == d.name %}selected{% endif %}>{{ d.destination_name }}{% if d.destination_country %} — {{ d.destination_country }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
+
+    <label class="rc-field">
+      <span class="rc-field-label">Sailing month</span>
+      <select name="month">
+        <option value="">All months</option>
+        {% for m in month_options %}
+        <option value="{{ m.value }}" {% if (active.month or '')|int == m.value %}selected{% endif %}>{{ m.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="rc-field">
+      <span class="rc-field-label">Sailing year</span>
+      <select name="year">
+        <option value="">All years</option>
+        {% for y in year_options %}
+        <option value="{{ y }}" {% if (active.year or '')|int == y %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    {# Selector currency ada di MENUBAR (public_nav.html) — hidden input
+       kekalkan currency aktif bila form ini disubmit (GET), kalau tak
+       param ?currency= hilang dan listing fallback ke default. #}
+    <input type="hidden" name="currency" value="{{ currency or '' }}"/>
+    <div class="rc-filter-actions">
+      <button type="submit" class="rc-btn-primary"><i class="ti ti-search"></i> Search</button>
+      <a href="{{ filter_reset_href }}" class="rc-btn-ghost">Reset</a>
+    </div>
+  </div>
+</form>

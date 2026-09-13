@@ -34,5 +34,13 @@
     {% endfor %}
   </div>
 
-  <a href="{{ cta.url }}" class="rc-nav-btn">{{ cta.label }}</a>
+  {# Right cluster — selector currency + CTA duduk sebelah-menepi.
+     Selector currency (paksi multi-company) hidup dalam MENUBAR untuk
+     semua page katalog (homepage cruise/tour, listing, trip detail) —
+     include auto-sembunyi bila page tiada context currency_options
+     (cth checkout/booknow) atau axis cuma ada satu currency. #}
+  <div class="rc-nav-right">
+    {% include "templates/includes/currency_selector.html" %}
+    <a href="{{ cta.url }}" class="rc-nav-btn">{{ cta.label }}</a>
+  </div>
 </nav>

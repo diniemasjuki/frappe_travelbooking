@@ -208,7 +208,7 @@
       html += '<span class="ma-group-chevron">▾</span>';
       html += '<span style="font-weight:700;font-size:14px;">' + _esc(s.order_name) + '</span>';
       html += '<span style="font-size:12px;color:var(--text-muted);">'
-        + g.lines.length + ' item(s) · Total: ' + fmtDual(totalAmount) + '</span>';
+        + g.lines.length + ' item(s) · Total: ' + fmtDual(totalAmount, curSym(s)) + '</span>';
       html += '</div>';
       html += '<div style="display:flex;gap:6px;">';
       html += statusBadge(s.order_status, 'booking');
@@ -284,9 +284,9 @@
 
     /* Right: amount + status badges */
     html += '<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">';
-    html += '<div style="font-weight:700;font-size:14px;">' + fmtDual(l.amount) + '</div>';
+    html += '<div style="font-weight:700;font-size:14px;">' + fmtDual(l.amount, curSym(l)) + '</div>';
     if (l.unit_price && l.qty > 1)
-      html += '<div style="font-size:11px;color:var(--text-muted);">' + fmtDual(l.unit_price) + ' × ' + l.qty + '</div>';
+      html += '<div style="font-size:11px;color:var(--text-muted);">' + fmtDual(l.unit_price, curSym(l)) + ' × ' + l.qty + '</div>';
     html += '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">';
     html += statusBadge(l.order_status, 'booking');
     html += statusBadge(l.order_payment_status, 'payment');

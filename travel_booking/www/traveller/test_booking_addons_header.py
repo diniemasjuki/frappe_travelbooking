@@ -37,9 +37,9 @@ class HeaderDerivedFieldsTestCase(UnitTestCase):
 		self.assertEqual(out["route_display"], "Sharm El Sheikh → Istanbul")
 		self.assertEqual(out["departure_display"], "")
 
-	def test_fly_cruise_shows_departure_with_airport(self):
+	def test_cruise_flight_shows_departure_with_airport(self):
 		raw = _cruise_only()
-		raw["package_type"] = "Fly Cruise"
+		raw["package_type"] = "Cruise+Flight"
 		raw["airport_name"] = "Kuala Lumpur International Airport"
 		raw["departure_date"] = date(2026, 10, 2)
 		out = _header_derived_fields(raw)

@@ -1,6 +1,7 @@
 [pre_model_sync]
 # Patches added in this section will be executed before doctypes are migrated
 # Read docs to understand patches: https://docs.frappe.io/framework/user/en/database-migrations
+travel_booking.patches.v9_backfill_checkout_method
 
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
@@ -14,3 +15,15 @@ travel_booking.patches.v2_seed_addon_rates
 travel_booking.patches.v2_seed_voucher_currency
 travel_booking.patches.v2_seed_geo_currency_map
 travel_booking.patches.v2_seed_on_behalf_roles
+travel_booking.patches.v3_so_item_room_privacy
+travel_booking.patches.v3_b2b_partner_setup
+travel_booking.patches.v4_so_cashback_percent_field
+travel_booking.patches.v5_so_order_discount_fields
+travel_booking.patches.v6_remove_share_traveller_fields
+travel_booking.patches.v7_guest_sequence_backfill
+travel_booking.patches.v8_move_order_discount_fields_to_booking
+travel_booking.patches.v10_drop_manual_transfer_cashback_column
+travel_booking.patches.v11_reservation_so_to_so_flag
+travel_booking.patches.v12_rename_fly_cruise_to_cruise_flight
+travel_booking.patches.v13_room_id_backfill
+travel_booking.patches.v15_share_flag_to_reservation_link

@@ -12,6 +12,7 @@
   "selling_price_list",
   "bank_account",
   "manual_transfer_paid_to_account",
+  "cashback_discount_account",
   "payment_gateway_account"
  ],
  "fields": [
@@ -50,6 +51,15 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Manual Transfer Paid To Account",
+   "options": "Account"
+  },
+  {
+   "description": "Akaun Marketing Expenses (Operating Expenses, bukan group) MILIK company baris ini — akaun deduction cashback Manual Transfer pada Payment Entry untuk SO dalam currency ni. Kosong = fallback ke Travel Settings > Cashback Discount Account (hanya jika akaun tu milik company yang sama).",
+   "fieldname": "cashback_discount_account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Cashback Discount Account (Marketing Expenses)",
+   "link_filters": "[[\"Account\",\"is_group\",\"=\",0],[\"Account\",\"account_category\",\"=\",\"Operating Expenses\"]]",
    "options": "Account"
   },
   {

@@ -48,6 +48,7 @@ def after_install():
 	_create_default_travel_settings()
 	_create_default_travel_website()
 	_create_email_templates()
+	_create_b2b_email_templates()
 	_create_print_format()
 
 
@@ -382,6 +383,57 @@ def _create_email_templates():
 		doc.insert(ignore_permissions=True)
 
 
+def _create_b2b_email_templates():
+	"""Varian TRAVELLER (tanpa harga) bagi 5 emel status — untuk tempahan
+	saluran B2B di mana pelanggan end-customer TIDAK boleh nampak sebarang
+	maklumat harga/billing (bil adalah urusan partner). Dipanggil oleh
+	_send_status_email() (email_service.py) melalui sufiks " (Traveller)".
+
+	Context tersedia: booking_number, first_name, trip_name, group_name,
+	agent_name (nama Travel B2B Partner), booking_url. TIADA total_fmt /
+	amount_paid_fmt / payment_status — memang tidak dihantar.
+	"""
+	templates = [
+		{
+			"name":    "Booking Pending (Traveller)",
+			"subject": "Your Trip Booking — {{ booking_number }}",
+			"response_html": _TPL_B2B_PENDING,
+		},
+		{
+			"name":    "Booking Accepted (Traveller)",
+			"subject": "Booking Accepted — {{ booking_number }}",
+			"response_html": _TPL_B2B_ACCEPTED,
+		},
+		{
+			"name":    "Booking Processing (Traveller)",
+			"subject": "Booking Update — {{ booking_number }}",
+			"response_html": _TPL_B2B_PROCESSING,
+		},
+		{
+			"name":    "Booking Confirmed (Traveller)",
+			"subject": "Trip Confirmed — {{ booking_number }}",
+			"response_html": _TPL_B2B_CONFIRMED,
+		},
+		{
+			"name":    "Booking Completed (Traveller)",
+			"subject": "Thank You for Travelling — {{ booking_number }}",
+			"response_html": _TPL_B2B_COMPLETED,
+		},
+	]
+
+	for tpl in templates:
+		if frappe.db.exists("Email Template", tpl["name"]):
+			continue
+		doc = frappe.get_doc({
+			"doctype":       "Email Template",
+			"name":          tpl["name"],
+			"subject":       tpl["subject"],
+			"use_html":      1,
+			"response_html": tpl["response_html"],
+		})
+		doc.insert(ignore_permissions=True)
+
+
 # ══════════════════════════════════════════════
 # 5. PRINT FORMAT — "Rarecation Receipt"
 # ══════════════════════════════════════════════
@@ -497,6 +549,66 @@ _TPL_RECEIPT = """\
   <p>Hi {{ first_name }},</p>
   <p>We've received your payment of <strong>{{ amount_fmt }}</strong> for booking <strong>{{ booking_number }}</strong>.</p>
   <p>A detailed PDF receipt is attached to this email for your records.</p>
+</div>
+"""
+
+# ── Varian TRAVELLER (B2B) — TIADA harga/billing ─────────────────────
+# Context: booking_number, first_name, trip_name, group_name, agent_name,
+# booking_url. Varian ini sentiasa menyebut "travel agent" supaya pelanggan
+# end-customer tahu urusan bayaran bukan pada mereka.
+
+_TPL_B2B_PENDING = """\
+<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+  <h2 style="color: #B8860B;">Your Trip Booking — {{ booking_number }}</h2>
+  <p>Hi {{ first_name }},</p>
+  <p>Your booking for <strong>{{ trip_name }}{% if group_name %} · {{ group_name }}{% endif %}</strong>, arranged by your travel agent{% if agent_name %} <strong>{{ agent_name }}</strong>{% endif %}, has been received.</p>
+  <p>We will keep you updated on your booking progress here. Payment arrangements are handled by your travel agent.</p>
+  <p style="margin: 24px 0;">
+    <a href="{{ booking_url }}" style="display: inline-block; padding: 10px 28px; background: #B8860B; color: #fff; text-decoration: none; border-radius: 6px;">View Booking</a>
+  </p>
+</div>
+"""
+
+_TPL_B2B_ACCEPTED = """\
+<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+  <h2 style="color: #B8860B;">Booking Accepted — {{ booking_number }}</h2>
+  <p>Hi {{ first_name }},</p>
+  <p>Good news! Your booking for <strong>{{ trip_name }}{% if group_name %} · {{ group_name }}{% endif %}</strong> has been accepted.</p>
+  <p>Payment arrangements are handled by your travel agent{% if agent_name %} ({{ agent_name }}){% endif %}. You can follow your booking progress anytime in the portal.</p>
+  <p style="margin: 24px 0;">
+    <a href="{{ booking_url }}" style="display: inline-block; padding: 10px 28px; background: #B8860B; color: #fff; text-decoration: none; border-radius: 6px;">View Booking</a>
+  </p>
+</div>
+"""
+
+_TPL_B2B_PROCESSING = """\
+<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+  <h2 style="color: #B8860B;">Booking Update — {{ booking_number }}</h2>
+  <p>Hi {{ first_name }},</p>
+  <p>Your booking for <strong>{{ trip_name }}{% if group_name %} · {{ group_name }}{% endif %}</strong> is now being processed. Our team is arranging your flights and cabin assignments.</p>
+  <p style="margin: 24px 0;">
+    <a href="{{ booking_url }}" style="display: inline-block; padding: 10px 28px; background: #B8860B; color: #fff; text-decoration: none; border-radius: 6px;">View Booking</a>
+  </p>
+</div>
+"""
+
+_TPL_B2B_CONFIRMED = """\
+<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+  <h2 style="color: #B8860B;">Trip Confirmed — {{ booking_number }}</h2>
+  <p>Hi {{ first_name }},</p>
+  <p>Your trip <strong>{{ trip_name }}{% if group_name %} · {{ group_name }}{% endif %}</strong> has been fully confirmed! Flight and cabin details are finalized.</p>
+  <p style="margin: 24px 0;">
+    <a href="{{ booking_url }}" style="display: inline-block; padding: 10px 28px; background: #B8860B; color: #fff; text-decoration: none; border-radius: 6px;">View Booking</a>
+  </p>
+</div>
+"""
+
+_TPL_B2B_COMPLETED = """\
+<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+  <h2 style="color: #B8860B;">Thank You for Travelling — {{ booking_number }}</h2>
+  <p>Hi {{ first_name }},</p>
+  <p>We hope you enjoyed your trip <strong>{{ trip_name }}{% if group_name %} · {{ group_name }}{% endif %}</strong>!</p>
+  <p>Thank you for choosing Rarecruise{% if agent_name %} and {{ agent_name }}{% endif %}. We look forward to seeing you on your next adventure.</p>
 </div>
 """
 

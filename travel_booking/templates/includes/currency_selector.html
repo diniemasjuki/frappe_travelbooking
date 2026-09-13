@@ -1,9 +1,11 @@
 {# ============================================================
    travel_booking/templates/includes/currency_selector.html
 
-   SELECTOR CURRENCY AWAM (paksi multi-company) — boleh include di
-   mana-mana page listing/detail. Pilihan currency = pilihan company
-   yang mengeluarkan bil (MYR=HQ, SGD=Branch SG, IDR=Branch ID).
+   SELECTOR CURRENCY AWAM (paksi multi-company) — di-include oleh
+   public_nav.html sahaja (menubar), jadi ia dipaparkan pada SEMUA
+   page katalog yang share base_travel.html. Pilihan currency =
+   pilihan company yang mengeluarkan bil (MYR=HQ, SGD=Branch SG,
+   IDR=Branch ID).
 
    Variable jinja (diperlukan):
      currency         — currency aktif (string, cth "MYR")
@@ -12,17 +14,15 @@
 
    Behavior JS (rc-currency-select):
      - tukar pilihan → simpan localStorage["rc_currency"] + reload page
-       dengan ?currency=XXX dipush ke URL (render kekal server-side).
+       dengan ?currency=XXX dipush ke URL (render kekal server-side;
+       query param lain cth filter listing dikekalkan).
        Semasa reload tu, public/js/geo_currency.js turut simpan pilihan
        sebagai cookie rc_currency — supaya server render pilihan user
        pada kunjungan seterusnya tanpa reload bootstrap.
    ============================================================ #}
 {% if currency_options and currency_options|length > 1 %}
 <div class="rc-currency-selector">
-  <label for="rc-currency-select" class="rc-currency-label">
-    <i class="ti ti-currency-dollar"></i> Currency
-  </label>
-  <select id="rc-currency-select" class="rc-currency-select">
+  <select id="rc-currency-select" class="rc-currency-select" aria-label="Currency">
     {% for o in currency_options %}
     <option value="{{ o.currency }}" {% if o.currency == currency %}selected{% endif %}>
       {{ o.symbol }} — {{ o.currency }}
@@ -31,16 +31,20 @@
   </select>
 </div>
 <style>
-.rc-currency-selector{display:inline-flex;align-items:center;gap:.5rem;}
-.rc-currency-selector .rc-currency-label{font-size:.85rem;color:inherit;opacity:.85;display:inline-flex;align-items:center;gap:.25rem;}
+.rc-currency-selector{display:inline-flex;align-items:center;}
 .rc-currency-selector .rc-currency-select{
-  padding:.4rem 2rem .4rem .75rem;border-radius:.5rem;border:1px solid rgba(255,255,255,.35);
-  background:rgba(255,255,255,.12);color:inherit;font-size:.9rem;cursor:pointer;outline:none;
-  -webkit-appearance:none;appearance:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right .6rem center;
+  padding:0.65rem 2rem 0.65rem 1rem;border-radius:8px;border:1px solid #E3DFD6;
+  background-color:#fff;color:#1E1C18;font-size:13px;font-weight:500;cursor:pointer;outline:none;
+  -webkit-appearance:none;appearance:none;transition:border-color .2s;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C5850' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right .55rem center;
 }
+.rc-currency-selector .rc-currency-select:hover,
+.rc-currency-selector .rc-currency-select:focus{border-color:#C9A84C;}
 .rc-currency-selector .rc-currency-select option{color:#111;}
+@media (max-width:500px){
+  .rc-currency-selector .rc-currency-select{padding:.35rem 1.7rem .35rem .55rem;font-size:12px;}
+}
 </style>
 <script>
 (function () {

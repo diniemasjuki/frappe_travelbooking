@@ -1,6 +1,9 @@
 /* ============================================================
    travel_booking/public/js/traveller_detail.js
-   Booking detail page — Main Info, Payment Summary, Traveller Summary.
+   Booking detail page — dashboard grid: Trip Hero (penuh),
+   Payment Summary + Traveller Summary (50% grid), Add-ons &
+   Extras (50%). Panel tambah-peserta-cabin penuh ada di page
+   /traveller/travellers — di sini hanya notis pintasan.
    Requires: traveller_common.js (loaded before this)
    ============================================================ */
 
@@ -11,9 +14,14 @@
   // mode "onbehalf" = page /traveller/onbehalf-booking (manager mengurus
   // booking pelanggan). mode lalai = booking.html pemilik.
   var MODE = _pageData.mode === 'onbehalf' ? 'onbehalf' : 'self';
+  // B2B end-customer: harga disembunyikan (server-authoritative flag dari
+  var PRICE_HIDDEN = false;
 
   function backListUrl() { return MODE === 'onbehalf' ? '/traveller/onbehalf' : '/traveller/bookings'; }
   function backListLabel() { return MODE === 'onbehalf' ? '← Back to On-Behalf Bookings' : '← Back to My Bookings'; }
+  // Page billing ikut mod — onbehalf guna page berasingan supaya
+  // endpoint data (booking-scoped) & gate tahap akses jelas.
+  function billingPageUrl() { return MODE === 'onbehalf' ? '/traveller/onbehalf-billing' : '/traveller/billing'; }
 
   /* ── Init ── */
   async function init() {
@@ -39,7 +47,7 @@
       if (content) {
         content.style.display = 'block';
         content.innerHTML = renderDetail(data);
-        wireCollapsibles();
+        wireBillsModal();
       }
     } catch (e) {
       if (loading) loading.style.display = 'none';
@@ -78,6 +86,12 @@
     var canDocs = LEVEL_RANK[level] >= 1;
     var canFull = LEVEL_RANK[level] >= 2;
 
+    // ── B2B: end-customer tempahan partner — TIADA harga/billing ──
+    // Server (get_booking_data) dah menapis payload kewangan; di sini kita
+    // gantikan kad Payment Summary dengan notis "diuruskan oleh agen".
+    var priceHidden = !!b.price_hidden;
+    PRICE_HIDDEN = priceHidden;
+
     // Trip classification from API
     var isCruise = !!b.is_cruise;
     var cruiseOnly = !!b.cruise_only;
@@ -107,7 +121,9 @@
     var groupName = _esc(b.group_name || '');
     var packageTitle = _esc(b.package_title || '');
 
-    // Financials
+    // Financials — papar ikut currency SO utama (server kembalikan
+    // currency/currency_symbol ringkasan; pecahan per-SO ada di so_list)
+    var soSym = curSym(so);
     var grandTotal = parseFloat(so.grand_total) || 0;
     var advancePaid = parseFloat(so.advance_paid) || 0;
     var balance = grandTotal - advancePaid;
@@ -291,161 +307,159 @@
     html += '</div>'; // hero
 
     /* ══════════════════════════════════════
-       SECTION B: PAYMENT SUMMARY (Collapsible)
-       Header: title + progress bar (always visible)
-       Body: stats + bill orders (collapsible)
+       DASHBOARD GRID — ROW 1
+       Card 2: Payment Summary (50%) · Card 3: Traveller Summary (50%)
+       B2B end-customer: kad Payment diganti notis billing-agen (tiada angka).
        ══════════════════════════════════════ */
-    html += '<div class="tv-card tv-animate-in">';
-    // Header (always visible): title + progress bar
-    html += '<div class="tv-collapse-header" data-toggle="payment-summary" style="cursor:pointer;">';
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
-    html += '<h3 class="tv-card__title">💰 Payment Summary</h3>';
-    html += '<button type="button" class="tv-btn tv-btn--ghost tv-btn--sm tv-collapse-toggle" style="flex-shrink:0;">' + (noPayment ? 'Hide' : 'Open') + '</button>';
-    html += '</div>';
-    // Summary line (replaces stats grid) — always visible, left aligned
-    html += '<div style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-top:8px;">Total Billed: ' + fmtDual(grandTotal) + ' · Balance Due: ' + fmtDual(balance) + '</div>';
-    // Progress bar
-    html += '<div class="tv-progress" role="progressbar" aria-valuenow="' + payPct + '" aria-valuemin="0" aria-valuemax="100" style="margin-top:12px;">';
-    html += '<div class="tv-progress__fill' + (isPaid ? ' done' : '') + '" style="width:' + payPct + '%"></div>';
-    html += '</div>';
-    var progressLabel = isPaid
-      ? '<span class="tv-progress-label--success">✓ Paid in full — thank you!</span>'
-      : '<span class="tv-progress-label">' + fmtDual(balance) + ' remaining to settle</span>';
-    html += '<div class="tv-progress-label" style="justify-content:flex-end;margin-bottom:0;">' + progressLabel + '</div>';
-    html += '</div>'; // header
-
-    // Body (collapsible): bill orders list
-    html += '<div class="tv-collapse-body" id="payment-summary-body" style="display:' + (noPayment ? 'block' : 'none') + ';padding-top:16px;">';
-
-    // Bill Orders list
     var soList = (data.payment && data.payment.so_list) || [];
-    html += '<div class="tv-sec">Bill Orders</div>';
+    html += '<div class="tv-dash-grid">';
 
-    if (soList.length > 0) {
-      soList.forEach(function (sso) {
-        var soName = _esc(sso.name || '');
-        var soAmt = parseFloat(sso.grand_total) || 0;
-        var soPaid = parseFloat(sso.advance_paid) || 0;
-        var soBal = soAmt - soPaid;
-        // Compute payment status (not SO status)
-        var payStatus, payCls;
-        if (soBal <= 0) { payStatus = 'Paid'; payCls = 'success'; }
-        else if (soPaid > 0) { payStatus = 'Partially Paid'; payCls = 'warning'; }
-        else { payStatus = 'Unpaid'; payCls = 'neutral'; }
-        var soBillingUrl = '/traveller/billing?ref=' + encodeURIComponent(ref) + '&bill=' + encodeURIComponent(sso.name);
-
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-light);">';
-        // Left: SO name + payment status + amount
-        html += '<div style="min-width:0;flex:1;">';
-        html += '<div style="font-family:\'SF Mono\',Monaco,monospace;font-size:13px;font-weight:600;color:var(--text-primary);">' + soName + '</div>';
-        html += '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">';
-        html += '<span class="tv-badge tv-badge--' + payCls + '">' + payStatus + '</span> · ' + fmtDual(soAmt);
-        html += '</div>';
-        html += '</div>';
-        // Right: Manage button — pembayaran/PDF di tahap Full sahaja
-        // (server gate: create_payment_request, submit_manual_payment,
-        // get_document_pdf = "Full").
-        if (canFull) {
-          html += '<a href="' + soBillingUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;">Manage →</a>';
-        }
-        html += '</div>';
-      });
-    } else {
-      html += '<p style="font-size:13px;color:var(--text-muted);padding:12px 0;">No bill orders found.</p>';
-    }
-
-    html += '</div>'; // collapse body
-
-    html += '</div>'; // payment card
-
-    if (noPayment && canFull) {
-      /* ══════════════════════════════════════
-         PAYMENT REQUIRED — Traveller Summary & Add-ons are locked
-         until a payment is made. Hanya papar pada yang BOLEH bayar
-         (level Full) — kalau tak, jadi dead-end tanpa fungsi.
-         ══════════════════════════════════════ */
-      html += '<div class="tv-card tv-animate-in" style="border:1px solid var(--c-warning);background:var(--c-warning-bg);">';
+    if (priceHidden) {
+      // ── Card 2 (B2B): notis billing-agen — tiada angka kewangan ──
+      html += '<div class="tv-card tv-animate-in">';
       html += '<div style="display:flex;align-items:flex-start;gap:12px;">';
-      html += '<div style="font-size:22px;line-height:1.2;">🔒</div>';
+      html += '<div style="font-size:22px;line-height:1.2;">🧾</div>';
       html += '<div style="flex:1;min-width:0;">';
-      html += '<h3 class="tv-card__title" style="margin:0 0 6px 0;color:var(--c-warning-text);">Payment Required</h3>';
-      var whoPays = isOnbehalf ? 'this booking' : 'this booking';
-      html += '<p style="font-size:13px;color:var(--text-secondary);margin:0 0 14px 0;line-height:1.6;">Make a payment for ' + whoPays + ' to start managing travellers, add-ons &amp; extras.</p>';
-      var payUrl = '/traveller/billing?ref=' + encodeURIComponent(ref);
-      if (b.sales_order) payUrl += '&bill=' + encodeURIComponent(b.sales_order);
-      html += '<a href="' + payUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;">Pay Now →</a>';
+      html += '<h3 class="tv-card__title" style="margin:0 0 6px 0;">Billing</h3>';
+      html += '<p style="font-size:13px;color:var(--text-secondary);margin:0;line-height:1.6;">Billing and payments for this booking are handled by your travel agent. Your booking status and trip progress will be updated here.</p>';
       html += '</div>';
       html += '</div>';
-      html += '</div>'; // payment-required card
-    }
-
-    if (!noPayment || isOnbehalf) {
-      // (mod onbehalf: manager terus boleh urus traveller/add-ons walau
-      //  belum bayar — sekatan bayaran untuk aliran pemilik sahaja)
-
-    /* ══════════════════════════════════════
-       SECTION C: TRAVELLER SUMMARY (compact)
-       Header: title + small summary string + Manage button
-       ══════════════════════════════════════ */
-    var roomLabel = isCruise ? 'Cabin' : 'Room';
-
-    html += '<div class="tv-card tv-animate-in">';
-    // Header: title + summary string (left) + Manage button (right)
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">';
-    html += '<div>';
-    html += '<h3 class="tv-card__title" style="margin:0;">👥 Traveller Summary</h3>';
-    html += '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">' + cabinCount + ' ' + roomLabel.toLowerCase() + '(s) · ' + filledCount + '/' + totalSlots + ' travellers · ' + docPct + '% completed</div>';
-    html += '</div>';
-    // Butang urus traveller — tahap Docs ke atas sahaja (server gate:
-    // save_booking_traveller dkk = "Docs"). View nampak ringkasan sahaja.
-    if (canDocs) {
-      html += '<a href="/traveller/travellers?ref=' + encodeURIComponent(ref) + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;margin-left:auto;">Manage Travellers →</a>';
-    }
-    html += '</div>'; // header row
-    html += '</div>'; // traveller card
-
-    /* ══════════════════════════════════════
-       SECTION D: ADD-ONS & EXTRAS (Smart Panel)
-       - If no existing orders → "Browse Add-ons" link
-       - If has orders → "Manage Add-ons" link + summary
-       ══════════════════════════════════════ */
-    var addonOrders = (data.addon_orders || []);
-    var hasAddonOrders = addonOrders.length > 0;
-    var addonUrl  = '/traveller/booking_addons?booking=' + encodeURIComponent(ref);
-    var manageUrl = '/traveller/manage_addon?ref=' + encodeURIComponent(ref);
-
-    html += '<div class="tv-card tv-animate-in">';
-    // Header
-    html += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">';
-    html += '<div>';
-    html += '<h3 class="tv-card__title" style="margin:0;">🎁 Add-ons & Extras</h3>';
-
-    if (!hasAddonOrders) {
-      // No orders yet → encourage browsing
-      html += '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Enhance your trip with optional activities, upgrades & more</div>';
+      html += '</div>';
     } else {
-      // Has orders → show summary
-      var totalAddonOrders = addonOrders.length;
-      var totalAddonAmount = 0;
-      addonOrders.forEach(function(o) { totalAddonAmount += parseFloat(o.total_amount) || 0; });
-      html += '<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">';
-      html += totalAddonOrders + ' order(s) · Total: ' + fmtDual(totalAddonAmount);
+      // ── Card 2: Payment Summary — numeric tiles + payment progress ──
+      html += '<div class="tv-card tv-animate-in">';
+      // Header: title + butang modal pemilihan bill/SO
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">';
+      html += '<h3 class="tv-card__title">💰 Payment Summary</h3>';
+      // Butang urus bill — pembayaran/PDF di tahap Full sahaja (server gate:
+      // create_payment_request, submit_manual_payment, get_document_pdf).
+      if (canFull) {
+        html += '<button type="button" class="tv-btn tv-btn--primary tv-btn--sm" data-act="open-bills" style="white-space:nowrap;">Manage Bill →</button>';
+      }
       html += '</div>';
+
+      // Numeric tiles — angka utama ringkasan bayaran
+      html += '<div class="tv-num-row" style="margin-top:16px;">';
+      html += _numTile('Total Billed', fmtDual(grandTotal, soSym), '');
+      html += _numTile('Paid', fmtDual(advancePaid, soSym), 'success');
+      html += _numTile('Balance Due', fmtDual(balance, soSym), isPaid ? 'success' : 'warning');
+      html += '</div>';
+
+      // Payment progress bar
+      html += '<div class="tv-progress" role="progressbar" aria-valuenow="' + payPct + '" aria-valuemin="0" aria-valuemax="100" style="margin-top:16px;">';
+      html += '<div class="tv-progress__fill' + (isPaid ? ' done' : '') + '" style="width:' + payPct + '%"></div>';
+      html += '</div>';
+      var progressLabel = isPaid
+        ? '<span class="tv-progress-label--success">✓ Paid in full — thank you!</span>'
+        : '<span>' + payPct + '% paid · ' + fmtDual(balance, soSym) + ' remaining to settle</span>';
+      html += '<div class="tv-progress-label" style="justify-content:center;margin-bottom:0;">' + progressLabel + '</div>';
+
+      // Belum bayar langsung → amaran + pintasan bayar (level Full sahaja)
+      if (noPayment && canFull) {
+        var payUrl = billingPageUrl() + '?ref=' + encodeURIComponent(ref);
+        if (b.sales_order) payUrl += '&bill=' + encodeURIComponent(b.sales_order);
+        html += '<div style="display:flex;align-items:flex-start;gap:10px;margin-top:14px;padding:10px 12px;border:1px solid var(--c-warning);background:var(--c-warning-bg);border-radius:10px;">';
+        html += '<span style="font-size:15px;line-height:1.4;">🔒</span>';
+        html += '<div style="flex:1;min-width:0;font-size:12.5px;color:var(--text-secondary);line-height:1.5;">Payment required to unlock traveller &amp; add-on management. <a href="' + payUrl + '" style="font-weight:600;color:var(--c-warning-text);">Pay Now →</a></div>';
+        html += '</div>';
+      }
+      html += '</div>'; // payment card
     }
 
-    html += '</div>';
-    // CTA Button — Browse (no orders) or Manage (has orders).
-    // Add-on endpoints digate "Docs" (addon_manager) — View nampak
-    // ringkasan sahaja tanpa butang.
-    if (canDocs) {
-      var btnUrl = hasAddonOrders ? manageUrl : addonUrl;
-      html += '<a href="' + btnUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;margin-left:auto;">';
-      html += hasAddonOrders ? 'Manage Addon →' : 'Browse Addon →';
-      html += '</a>';
+    // ── Card 3: Traveller Summary — status ringkas + pintasan ke page
+    //    /traveller/travellers. Dilock jika belum bayar (self mode).
+    if (!noPayment || isOnbehalf) {
+      var roomLabel = isCruise ? 'Cabin' : 'Room';
+
+      html += '<div class="tv-card tv-animate-in">';
+      // Header: title + Manage Travellers (tahap Docs ke atas — server gate:
+      // save_booking_traveller dkk = "Docs". View nampak ringkasan sahaja).
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">';
+      html += '<h3 class="tv-card__title">👥 Traveller Summary</h3>';
+      if (canDocs) {
+        html += '<a href="/traveller/travellers?ref=' + encodeURIComponent(ref) + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;">Manage Travellers →</a>';
+      }
+      html += '</div>';
+
+      // Numeric tiles — status traveller
+      html += '<div class="tv-num-row" style="margin-top:16px;">';
+      html += _numTile(roomLabel + 's', String(cabinCount), '');
+      html += _numTile('Travellers', filledCount + '/' + totalSlots, '');
+      html += _numTile('Docs Verified', docPct + '%', docPct >= 100 ? 'success' : '');
+      html += '</div>';
+      html += '</div>'; // traveller card
     }
-    html += '</div>'; // header row
-    html += '</div>'; // addons card
+
+    html += '</div>'; // end dash grid row 1
+
+    /* ══════════════════════════════════════
+       DASHBOARD GRID — ROW 2
+       Card 4: Add-ons & Extras (50%) · notis tambah traveller cabin (50%)
+       (dilock jika belum bayar — self mode; onbehalf sentiasa nampak)
+       ══════════════════════════════════════ */
+    if (!noPayment || isOnbehalf) {
+      var addonOrders = (data.addon_orders || []);
+      var hasAddonOrders = addonOrders.length > 0;
+      var addonUrl  = '/traveller/booking_addons?booking=' + encodeURIComponent(ref);
+      var manageUrl = '/traveller/manage_addon?ref=' + encodeURIComponent(ref);
+
+      html += '<div class="tv-dash-grid">';
+
+      // ── Card 4: Add-ons & Extras — simple status (bilangan order) ──
+      html += '<div class="tv-card tv-animate-in">';
+      // Header: title + CTA. Add-on endpoints digate "Docs" (addon_manager)
+      // — View nampak ringkasan sahaja tanpa butang.
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">';
+      html += '<h3 class="tv-card__title">🎁 Add-ons &amp; Extras</h3>';
+      if (canDocs) {
+        var btnUrl = hasAddonOrders ? manageUrl : addonUrl;
+        html += '<a href="' + btnUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;">';
+        html += hasAddonOrders ? 'Manage Addon →' : 'Browse Addon →';
+        html += '</a>';
+      }
+      html += '</div>';
+
+      // Angka utama — berapa pakej order
+      html += '<div style="display:flex;align-items:baseline;gap:10px;margin-top:14px;">';
+      html += '<span style="font-family:var(--font-heading);font-size:28px;font-weight:700;color:var(--text-primary);line-height:1;">' + addonOrders.length + '</span>';
+      html += '<span style="font-size:13px;color:var(--text-muted);">package order' + (addonOrders.length === 1 ? '' : 's') + '</span>';
+      html += '</div>';
+
+      if (!hasAddonOrders) {
+        // No orders yet → encourage browsing
+        html += '<div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Enhance your trip with optional activities, upgrades &amp; more</div>';
+      } else if (priceHidden) {
+        // B2B — jumlah addon juga maklumat billing; papar bilangan sahaja.
+        html += '<div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Billed via your travel agent</div>';
+      } else {
+        // Jumlah addon DIKUMPULKAN PER CURRENCY (addon SO boleh berlainan
+        // currency dari SO utama) — sesama currency digabung, antara
+        // currency dipaparkan berasingan.
+        var addonBySym = {};
+        addonOrders.forEach(function(o) {
+          var s = curSym(o);
+          addonBySym[s] = (addonBySym[s] || 0) + (parseFloat(o.total_amount) || 0);
+        });
+        var addonTotalTxt = Object.keys(addonBySym).map(function (s) {
+          return fmtDual(addonBySym[s], s);
+        }).join(' &nbsp;+&nbsp; ');
+        html += '<div style="font-size:12px;color:var(--text-muted);margin-top:6px;">Total: ' + addonTotalTxt + '</div>';
+      }
+      html += '</div>'; // addons card
+
+      // Notis cabin sharing (self mode sahaja) — diisi oleh loadShareCabins()
+      // selepas mount; panel penuh tambah peserta ada di /traveller/travellers.
+      if (!isOnbehalf) {
+        html += '<div id="tvShareNotice"></div>';
+      }
+
+      html += '</div>'; // end dash grid row 2
     } // end if (!noPayment || isOnbehalf)
+
+    // Modal pemilihan bill/SO (level Full, bukan B2B)
+    if (!priceHidden && canFull) {
+      html += _buildBillsModal(soList, ref);
+    }
 
     /* Page nav: Back (bottom) */
     html += '<div style="margin-top:24px;">';
@@ -455,34 +469,85 @@
     return html;
   }
 
-  /* ── Wire collapsible card headers ──
-     Convention: header has data-toggle="key", body has id="key-body".
-     Toggle button (.tv-collapse-toggle) shows Open/Hide. */
-  function wireCollapsibles() {
-    var headers = document.querySelectorAll('[data-toggle]');
-    for (var i = 0; i < headers.length; i++) {
-      (function (header) {
-        var key    = header.getAttribute('data-toggle');
-        var body   = document.getElementById(key + '-body');
-        var toggle = header.querySelector('.tv-collapse-toggle');
-        if (!body) return;
 
-        function setLabel(collapsed) {
-          if (toggle) toggle.textContent = collapsed ? 'Open' : 'Hide';
-        }
+  /* ── Numeric tile helper (dashboard cards) ── */
+  function _numTile(label, value, tone) {
+    return '<div class="tv-num-card' + (tone ? ' tv-num-card--' + tone : '') + '">' +
+      '<div class="tv-num-card__label">' + label + '</div>' +
+      '<div class="tv-num-card__value">' + value + '</div>' +
+      '</div>';
+  }
 
-        /* Sync initial collapsed state */
-        var collapsed = body.style.display === 'none' || !body.style.display;
-        body.style.display = collapsed ? 'none' : 'block';
-        setLabel(collapsed);
+  /* ── Modal: pilih bill/SO untuk diuruskan ──
+     Dibina sekali dalam renderDetail (hidden), dibuka melalui butang
+     "Manage Bill " pada kad Payment Summary. Setiap baris link ke
+     page billing dengan param bill — aliran bayaran sama seperti dulu. */
+  function _buildBillsModal(soList, ref) {
+    var rows = '';
+    if (soList.length > 0) {
+      soList.forEach(function (sso) {
+        var soAmt = parseFloat(sso.grand_total) || 0;
+        var soPaid = parseFloat(sso.advance_paid) || 0;
+        var soBal = soAmt - soPaid;
+        // Payment status (bukan SO status)
+        var payStatus, payCls;
+        if (soBal <= 0) { payStatus = 'Paid'; payCls = 'success'; }
+        else if (soPaid > 0) { payStatus = 'Partially Paid'; payCls = 'warning'; }
+        else { payStatus = 'Unpaid'; payCls = 'neutral'; }
+        var soBillingUrl = billingPageUrl() + '?ref=' + encodeURIComponent(ref) + '&bill=' + encodeURIComponent(sso.name || '');
 
-        header.addEventListener('click', function () {
-          var hidden = body.style.display === 'none';
-          body.style.display = hidden ? 'block' : 'none';
-          setLabel(!hidden);
-        });
-      })(headers[i]);
+        rows += '<div class="tv-modal__row">';
+        rows += '<div style="min-width:0;flex:1;">';
+        rows += '<div class="tv-modal__so">' + _esc(sso.name || '') + '</div>';
+        rows += '<div class="tv-modal__meta"><span class="tv-badge tv-badge--' + payCls + '">' + payStatus + '</span> · Total ' + fmtDual(soAmt, curSym(sso)) + ' · Balance ' + fmtDual(soBal, curSym(sso)) + '</div>';
+        rows += '</div>';
+        rows += '<a href="' + soBillingUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;">Manage →</a>';
+        rows += '</div>';
+      });
+    } else {
+      rows = '<p style="font-size:13px;color:var(--text-muted);padding:12px 0;">No bill orders found.</p>';
     }
+
+    var html = '';
+    html += '<div class="tv-modal-overlay" id="tvBillsModal" hidden>';
+    html += '<div class="tv-modal" role="dialog" aria-modal="true" aria-label="Select bill to manage">';
+    html += '<div class="tv-modal__head">';
+    html += '<h3 class="tv-modal__title">Manage Bill</h3>';
+    html += '<button type="button" class="tv-modal__close" data-act="close-bills" aria-label="Close">&times;</button>';
+    html += '</div>';
+    html += '<p class="tv-modal__sub">Booking ' + _esc(ref) + ' — select which bill order (Sales Order) you want to manage.</p>';
+    html += rows;
+    html += '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  /* ── Wire modal pemilihan bill/SO ──
+     Buka: butang data-act="open-bills". Tutup: butang ×, klik overlay,
+     atau Escape. Scroll body dikunci semasa modal terbuka. */
+  function wireBillsModal() {
+    var modal = document.getElementById('tvBillsModal');
+    if (!modal) return;
+
+    function open() {
+      modal.removeAttribute('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+    function close() {
+      modal.setAttribute('hidden', '');
+      document.body.style.overflow = '';
+    }
+
+    document.querySelectorAll('[data-act="open-bills"]').forEach(function (btn) {
+      btn.addEventListener('click', open);
+    });
+    modal.querySelectorAll('[data-act="close-bills"]').forEach(function (btn) {
+      btn.addEventListener('click', close);
+    });
+    modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !modal.hasAttribute('hidden')) close();
+    });
   }
 
   /* ── Start on DOM ready ── */

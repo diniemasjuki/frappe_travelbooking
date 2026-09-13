@@ -144,7 +144,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Package Type",
-   "options": "\nFly Package\nGround Only\nFly Cruise\nCruise Only\nCustomed",
+   "options": "\nFly Package\nGround Only\nCruise+Flight\nCruise Only\nCustomed",
    "reqd": 1,
    "set_only_once": 1
   },

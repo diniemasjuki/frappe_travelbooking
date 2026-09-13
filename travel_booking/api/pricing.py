@@ -736,12 +736,21 @@ def search_packages_by_date(start_date: str, end_date: str, trip: str = None):
     departure_date:return_date (non-cruise). Dipanggil oleh
     trip_detail.js bila user pilih tarikh — bukan pre-loaded.
     Filter `trip` (Trip doctype name) hadkan carian kepada trip yang aktif sahaja.
+
+    Currency listing (paksi multi-company — rantaian sama dengan page
+    katalog): hanya pakej Active dalam currency terpilih dipulangkan.
+    Fallback: bila tiada pakej currency itu pada tarikh tersebut, SEMUA
+    pakej native dipulangkan (elak tarikh mati di page detail).
     """
     if not start_date or not end_date:
         return []
 
-    params = {"start": start_date, "end": end_date, "trip": trip}
+    from travel_booking.www.trips import _get_currency_filter
+    currency = _get_currency_filter()
+
+    params = {"start": start_date, "end": end_date, "trip": trip, "currency": currency}
     trip_clause = "AND tgd.trip = %(trip)s" if trip else ""
+    currency_clause = "AND tp.currency = %(currency)s"
 
     packages = frappe.db.sql(
         """
@@ -757,6 +766,7 @@ def search_packages_by_date(start_date: str, end_date: str, trip: str = None):
         LEFT JOIN `tabCurrency` cur ON cur.name = tp.currency
         WHERE tp.status = 'Active'
           {trip_clause}
+          {currency_clause}
           AND (
             (tgd.sailing_start = %(start)s AND tgd.sailing_end = %(end)s)
             OR
@@ -764,10 +774,40 @@ def search_packages_by_date(start_date: str, end_date: str, trip: str = None):
           )
         ORDER BY tp.package_type ASC, tp.package_title ASC
         LIMIT 100
-        """.format(trip_clause=trip_clause),
+        """.format(trip_clause=trip_clause, currency_clause=currency_clause),
         params,
         as_dict=True,
     )
+
+    # Fallback native: trip ni tiada pakej dalam currency pilihan pada
+    # tarikh tersebut — pulangkan semua pakej (currency native pakej,
+    # wizard tetap caj dalam currency native).
+    if not packages:
+        packages = frappe.db.sql(
+            """
+            SELECT tp.name AS trip_package, sel.trip_group_date AS group_date,
+                   tp.package_title, tp.package_type, tp.airport_form,
+                   ap.airport_name, tp.currency, cur.symbol AS currency_symbol,
+                   tgd.departure_date, tgd.return_date, tgd.sailing_start, tgd.sailing_end,
+                   tgd.total_days, tgd.total_nights, tgd.is_cruise_only, tp.ground_arrangement
+            FROM `tabTrip Package` AS tp
+            JOIN `tabTrip Package Group Date Select` AS sel ON sel.parent = tp.name
+            JOIN `tabTrip Group Date` AS tgd ON tgd.name = sel.trip_group_date
+            LEFT JOIN `tabFlight Airport` ap ON ap.name = tp.airport_form
+            LEFT JOIN `tabCurrency` cur ON cur.name = tp.currency
+            WHERE tp.status = 'Active'
+              {trip_clause}
+              AND (
+                (tgd.sailing_start = %(start)s AND tgd.sailing_end = %(end)s)
+                OR
+                (tgd.departure_date = %(start)s AND tgd.return_date = %(end)s)
+              )
+            ORDER BY tp.package_type ASC, tp.package_title ASC
+            LIMIT 100
+            """.format(trip_clause=trip_clause),
+            params,
+            as_dict=True,
+        )
 
     result = []
     for p in packages:

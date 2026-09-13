@@ -11,6 +11,9 @@
   <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') }}"/>
   <link rel="stylesheet" href="/assets/travel_booking/css/traveller.css?v={{ asset_v('css/traveller.css') }}"/>
   <link rel="stylesheet" href="/assets/travel_booking/css/trip_detail.css?v={{ asset_v('css/trip_detail.css') }}"/>
+  {# Widget telefon format antarabangsa (intl-tel-input) — corak sama
+     dengan guest_passport.html. #}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/css/intlTelInput.min.css"/>
 </head>
 <body class="tv-page">
 
@@ -30,7 +33,8 @@
     {% elif slot_res %}
     <!-- ════════════════════════════════════════════
          MOD INDIVIDU (res=slot_name)
-         Passport OCR wizard → form traveller
+         Form traveller — upload passport digabung terus
+         ke panel Passport (Step 1 wizard dimansuhkan)
          ════════════════════════════════════════════ -->
 
     <!-- Loading State -->
@@ -39,126 +43,11 @@
       <p style="color:var(--text-muted);">Loading traveller details...</p>
     </div>
 
-    <!-- Wizard View: Step 1 — Upload passport for OCR -->
-    <div id="V-wizard" style="display:none;">
-      <div style="margin-bottom:20px;">
-        <a href="/traveller/travellers?ref={{ booking_ref | e }}" class="tv-btn-link">← Back to Traveller List</a>
-      </div>
-
-      <!-- Upload area -->
-      <div id="wiz-input-card" class="tv-card">
-        <h2 style="font-family:var(--font-heading);font-size:18px;margin-bottom:4px;">Step 1: Passport Verification</h2>
-        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;">Upload a clear photo of the passport page. We'll extract the details automatically.</p>
-
-        <!-- Photo Tips (collapsible) -->
-        <details style="margin-bottom:16px;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border-light);">
-          <summary style="padding:10px 14px;font-size:12px;font-weight:600;color:var(--c-gold-dark);cursor:pointer;display:flex;align-items:center;gap:6px;">
-            💡 Tips for best OCR results
-            <span style="margin-left:auto;font-size:10px;background:var(--c-gold-light);padding:2px 8px;border-radius:10px;">Click to expand</span>
-          </summary>
-          <div style="padding:0 14px 12px;font-size:11px;color:var(--text-secondary);line-height:1.6;">
-            <div class="wiz-tips-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-              <div>
-                <strong style="color:var(--c-success);">✓ Do:</strong><br>
-                • Lay flat on dark surface<br>
-                • Include MRZ zone (bottom)<br>
-                • Use even lighting (no flash)<br>
-                • Ensure text is sharp & clear<br>
-                • Photo at least 1200px wide
-              </div>
-              <div>
-                <strong style="color:var(--c-danger);">✗ Avoid:</strong><br>
-                • Glare from flash/lamination<br>
-                • Blurry or out-of-focus shots<br>
-                • Cropped MRZ zone<br>
-                • Dark or underexposed photos<br>
-                • Angled/rotated images
-              </div>
-            </div>
-          </div>
-        </details>
-
-        <!-- Notification: placed INSIDE card after subtitle for visibility -->
-        <div id="wiz-msg" class="tv-msg" style="display:none;margin-bottom:16px;" role="alert"></div>
-
-        <div id="wiz-upload-area"
-             style="border:2px dashed var(--border-default);border-radius:12px;padding:32px 20px;text-align:center;transition:border-color .2s;background:var(--bg-secondary);">
-          <div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;">
-            {# Kamera terus (peranti sentuh sahaja) — capture=environment buka
-               kamera belakang untuk snap halaman passport. NOTA: JANGAN letak
-               inline display:none pada butang — inline style mengatasi media
-               query di bawah (bug 2026-09-05: butang tak muncul di phone). #}
-            <button type="button" id="wiz-cam-btn" class="tv-btn"
-                    onclick="triggerWizardPassportUpload(true)">
-              📷 Take Photo
-            </button>
-            <button type="button" class="tv-btn"
-                    onclick="triggerWizardPassportUpload(false)">
-              ⬆ Upload Image
-            </button>
-          </div>
-          <div id="wiz-upload-txt" style="font-size:14px;font-weight:600;color:var(--text-primary);margin-top:12px;">Upload passport copy</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">JPG or PNG, max 5MB • Scan starts automatically after upload</div>
-          {# Badge enjin scan — AI atau OCR (dipaparkan oleh JS ikut konfigurasi). #}
-          <div id="wiz-engine-badge" style="display:none;margin-top:10px;font-size:11px;font-weight:600;letter-spacing:.02em;"></div>
-        </div>
-        <style>
-          /* Butang kamera hanya relevan di peranti sentuh — sama corak dengan
-             wizard booking (booknow). Keadaan lalai dikawal DI SINI sahaja
-             (bukan inline style — inline mengatasi media query). */
-          #wiz-cam-btn { display: none; }
-          @media (hover: none) and (pointer: coarse) {
-            #wiz-cam-btn { display: inline-flex; }
-          }
-        </style>
-
-        {# Fallback: scan hanyalah bantuan pre-fill — user sentiasa boleh
-           teruskan pengisian manual tanpa scan (cth gambar tak dapat
-           diverifikasi). #}
-        <div style="margin-top:12px;text-align:center;font-size:13px;">
-          <a href="#" onclick="wizardManualEntry(); return false;" style="color:var(--c-gold-dark);text-decoration:underline;font-weight:500;">
-            Skip scan — fill in manually
-          </a>
-        </div>
-
-        <!-- Checking state (shown while scan processing) — subtext dikemaskini
-             oleh JS ikut enjin (AI / OCR). -->
-        <div id="wiz-checking-state" style="display:none;padding:32px 20px;text-align:center;">
-          <div style="font-size:36px;margin-bottom:12px;animation:spin 1s linear infinite;">⏳</div>
-          <div id="wiz-checking-title" style="font-size:14px;font-weight:600;color:var(--c-gold-dark);">Scanning passport...</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">Extracting your details automatically</div>
-        </div>
-      </div>
-
-      <!-- Result: Existing traveller found -->
-      <div id="wiz-result-card" class="tv-card" style="display:none;margin-top:16px;">
-        <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
-          <div id="wiz-result-initial" style="width:48px;height:48px;border-radius:50%;background:var(--c-gold);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;"></div>
-          <div>
-            <div id="wiz-result-name" style="font-size:16px;font-weight:600;"></div>
-            <div id="wiz-result-ic" style="font-size:13px;color:var(--text-muted);"></div>
-          </div>
-        </div>
-
-        <!-- All extracted fields display -->
-        <div id="wiz-result-fields" style="display:none;"></div>
-
-        <p style="font-size:13px;color:var(--text-secondary);margin-top:12px;margin-bottom:16px;">
-          ✅ <strong>Existing traveller record found.</strong> We'll pre-fill the form with their details.
-        </p>
-        <button type="button" class="tv-btn tv-btn--primary" onclick="wizardConfirm()">Continue to form →</button>
-      </div>
-
-      <!-- Result: New traveller (OCR extracted) -->
-      <div id="wiz-new-card" class="tv-card" style="display:none;margin-top:16px;">
-        <h3 style="font-size:15px;margin-bottom:8px;">✓ Passport scanned successfully</h3>
-        <div id="wiz-new-read" style="font-size:13px;color:var(--text-secondary);display:none;margin-bottom:16px;"></div>
-        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">Please verify the extracted information and fill in any missing details.</p>
-        <button type="button" class="tv-btn tv-btn--primary" onclick="wizardContinueNew()">Continue to form →</button>
-      </div>
-    </div>
-
-    <!-- Form View: Tabs (Passport / Contact / Health) -->
+    <!-- Form View: 3 panel — SETIAP panel ada bar navigasi bawah sendiri
+         (← Back | Save [Section] | Next →) selepas consent PDPA, corak
+         sama dengan guest_passport (templates/includes/traveller_docs_form.html).
+         Simpanan per-section; butang confirm di bar akhir kekal disabled
+         sehingga ketiga-tiga section disimpan. -->
     <div id="V-form" style="display:none;">
       <div style="margin-bottom:16px;">
         <a href="/traveller/travellers?ref={{ booking_ref | e }}" class="tv-btn-link">← Back to Traveller List</a>
@@ -167,53 +56,57 @@
       <!-- Slot header info -->
       <div id="tvl-slot-header" class="tv-card" style="margin-bottom:16px;"></div>
 
-      <!-- Error message -->
-      <div id="tvl-form-error" class="tv-msg tv-msg--error" style="display:none;margin-bottom:16px;" role="alert"></div>
-
       <!-- Saved notification -->
       <div id="tvl-saved-note" class="tv-msg tv-msg--success" style="display:none;margin-bottom:16px;" role="status">
-        ✓ Section saved successfully!
+        ✓ Section saved — you can continue with the rest, or come back later.
       </div>
 
       <!-- Tabs -->
       <div class="tvl-tabs" style="margin-bottom:0;">
-        <button class="tvl-tab on" data-tab="passport" onclick="tvlShowTab('passport')" aria-selected="true">Passport</button>
-        <button class="tvl-tab" data-tab="contact" onclick="tvlShowTab('contact')" aria-selected="false">Contact</button>
-        <button class="tvl-tab" data-tab="health" onclick="tvlShowTab('health')" aria-selected="false">Health</button>
+        <button class="tvl-tab on" data-tab="passport" onclick="tvlShowTab('passport')" aria-selected="true">1 · Passport</button>
+        <button class="tvl-tab" data-tab="contact" onclick="tvlShowTab('contact')" aria-selected="false">2 · Contact Info</button>
+        <button class="tvl-tab" data-tab="health" onclick="tvlShowTab('health')" aria-selected="false">3 · Health</button>
       </div>
 
-      <!-- Panels -->
-      <div class="tv-card" style="border-top-left-radius:0;border-top-right-radius:0;">
+      <!-- ══ PANEL 1: PASSPORT ══ -->
+      <div class="tvl-panel on" data-panel="passport">
 
-        <!-- Passport Panel -->
-        <div class="tvl-panel on" data-panel="passport">
-          <div class="tv-grid">
-            <div class="tv-form-group"><label class="tv-label">First Name *</label><input type="text" id="tvl-firstname" class="tv-input" required/></div>
-            <div class="tv-form-group"><label class="tv-label">Last Name *</label><input type="text" id="tvl-lastname" class="tv-input" required/></div>
-          </div>
-          <div class="tv-grid">
-            <div class="tv-form-group"><label class="tv-label">IC / Passport Number *</label><input type="text" id="tvl-ic" class="tv-input" required placeholder="e.g., 900101-10-1234"/></div>
-            <div class="tv-form-group"><label class="tv-label">Full Name</label><input type="text" id="tvl-name" class="tv-input"/></div>
-          </div>
-          <div class="tv-grid">
-            <div class="tv-form-group"><label class="tv-label">Date of Birth</label><input type="date" id="tvl-dob" class="tv-input"/></div>
-            <div class="tv-form-group"><label class="tv-label">Gender</label><select id="tvl-gender" class="tv-input tv-select"><option value="">Select...</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
-          </div>
-          <div class="tv-grid">
-            <div class="tv-form-group"><label class="tv-label">Nationality</label><select id="tvl-nat" class="tv-input tv-select"><option value="">Select nationality</option></select></div>
-            <div class="tv-form-group"><label class="tv-label">Passport Number</label><input type="text" id="tvl-pp" class="tv-input"/></div>
-          </div>
-          <div class="tv-form-group"><label class="tv-label">Passport Expiry</label><input type="date" id="tvl-ppexp" class="tv-input"/></div>
+        <!-- Card 1: Passport Copy — upload + auto-scan (AI/OCR) -->
+        <div class="tv-card" style="border-top-left-radius:0;border-top-right-radius:0;">
 
-          <!-- Passport validity badge -->
-          <div id="pp-validity-badge" style="display:none;font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;margin-bottom:8px;"></div>
-          <div id="pp-validity-note" style="display:none;font-size:12px;margin-bottom:8px;"></div>
-          <div id="pp-validity-info" style="display:none;font-size:12px;padding:10px;background:var(--bg-secondary);border-radius:6px;margin-bottom:12px;"><span id="pp-validity-info-text"></span></div>
-          <div id="tvl-pp-reset-notice" class="tv-msg tv-msg--warning" style="display:none;font-size:12px;margin-bottom:12px;">Passport number reset — please re-enter and upload a new copy.</div>
+          <!-- ── Passport Document Upload — DI ATAS SEKALI ──
+               Digabung dari Step 1 wizard (dimansuhkan): upload → auto-scan
+               (AI/OCR) → medan borang dikemas kini secara automatik. -->
+          <div style="margin-bottom:16px;">
+            <label class="tv-label">Passport Document</label>
 
-          <!-- Passport Image Section -->
-          <div style="margin-top:16px;">
-            <label class="tv-label">Passport Image</label>
+            <!-- Photo Tips (collapsible) — diwarisi dari wizard Step 1 -->
+            <details style="margin-bottom:12px;background:var(--bg-secondary);border-radius:8px;border:1px solid var(--border-light);">
+              <summary style="padding:10px 14px;font-size:12px;font-weight:600;color:var(--c-gold-dark);cursor:pointer;display:flex;align-items:center;gap:6px;">
+                💡 Tips for best scan results
+                <span style="margin-left:auto;font-size:10px;background:var(--c-gold-light);padding:2px 8px;border-radius:10px;">Click to expand</span>
+              </summary>
+              <div style="padding:0 14px 12px;font-size:11px;color:var(--text-secondary);line-height:1.6;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                  <div>
+                    <strong style="color:var(--c-success);">✓ Do:</strong><br>
+                    • Lay flat on dark surface<br>
+                    • Include MRZ zone (bottom)<br>
+                    • Use even lighting (no flash)<br>
+                    • Ensure text is sharp & clear<br>
+                    • Photo at least 1200px wide
+                  </div>
+                  <div>
+                    <strong style="color:var(--c-danger);">✗ Avoid:</strong><br>
+                    • Glare from flash/lamination<br>
+                    • Blurry or out-of-focus shots<br>
+                    • Cropped MRZ zone<br>
+                    • Dark or underexposed photos<br>
+                    • Angled/rotated images
+                  </div>
+                </div>
+              </div>
+            </details>
 
             <!-- State A: Passport already uploaded — show preview + replace option -->
             <div id="passport-uploaded" style="display:none;">
@@ -244,37 +137,131 @@
               </div>
             </div>
 
-            <!-- State B: No passport yet — show upload area -->
-            <div id="passport-upload-area"
-                 onclick="triggerPassportUpload()"
-                 style="border:2px dashed var(--border-default);border-radius:10px;padding:32px 20px;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--bg-secondary);">
-              <div style="font-size:36px;margin-bottom:8px;">📷</div>
-              <div id="passport-upload-txt" style="font-size:14px;font-weight:500;color:var(--text-secondary);">Upload passport copy</div>
-              <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">JPG or PNG, max 5MB • We'll extract details automatically</div>
+            <!-- State B: No passport yet — contoh passport (kiri) + upload
+                 area (kanan). JS toggle #passport-upload-grid (bukan kotak
+                 dashed terus) supaya contoh ikut keadaan upload. -->
+            <div id="passport-upload-grid" class="pp-upload-grid">
+              <div style="text-align:center;">
+                <img src="/assets/travel_booking/img/example_passport.jpg" id="passport-example"
+                     alt="Example of a valid passport photo page"
+                     style="max-width:100%;border-radius:10px;border:1px solid var(--border-light);"/>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Photo page · All corners visible</div>
+              </div>
+              <div id="passport-upload-area"
+                   onclick="triggerPassportUpload()"
+                   style="border:2px dashed var(--border-default);border-radius:10px;padding:32px 20px;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--bg-secondary);align-self:stretch;display:flex;flex-direction:column;justify-content:center;gap:8px;">
+                {# Kamera terus (peranti sentuh sahaja) — capture=environment.
+                   stopPropagation dalam JS supaya klik butang tak pencetus
+                   onclick kawasan dashed sekali. #}
+                <div style="display:flex;flex-direction:row;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;">
+                  <button type="button" id="passport-cam-btn" class="tv-btn"
+                          onclick="triggerPassportUpload(true, event)">
+                    📷 Take Photo
+                  </button>
+                </div>
+                <div style="font-size:36px;margin-bottom:8px;">📷</div>
+                <div id="passport-upload-txt" style="font-size:14px;font-weight:500;color:var(--text-secondary);">Upload passport copy</div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">JPG or PNG, max 5MB • Scan starts automatically after upload</div>
+                {# Badge enjin scan — AI atau OCR (dipaparkan oleh JS ikut konfigurasi). #}
+                <div id="passport-engine-badge" style="display:none;margin-top:6px;font-size:11px;font-weight:600;letter-spacing:.02em;"></div>
+              </div>
             </div>
+            <style>
+              /* Butang kamera hanya relevan di peranti sentuh — keadaan
+                 lalai dikawal DI SINI sahaja (bukan inline style — inline
+                 mengatasi media query). */
+              #passport-cam-btn { display: none; }
+              @media (hover: none) and (pointer: coarse) {
+                #passport-cam-btn { display: inline-flex; }
+              }
+            </style>
             <div id="passport-upload-err" class="f-err" style="display:none;margin-top:4px;"></div>
             {# Hasil imbasan AI/OCR — auto-scan setiap kali gambar diupload/diganti. #}
             <div id="passport-scan-result" style="display:none;margin-top:10px;padding:10px 14px;border-radius:10px;font-size:12.5px;line-height:1.6;"></div>
+          </div><!-- /blok upload passport -->
+        </div><!-- /card passport copy -->
+
+        <!-- Card 2: Identity & Passport -->
+        <div class="tv-card" style="margin-top:14px;">
+          <!-- ── Personal Information — layout ikut doctype Traveller ── -->
+          <div class="tv-grid">
+            <div class="tv-form-group"><label class="tv-label">First Name *</label><input type="text" id="tvl-firstname" class="tv-input" required/></div>
+            <div class="tv-form-group"><label class="tv-label">Last Name *</label><input type="text" id="tvl-lastname" class="tv-input" required/></div>
+          </div>
+          <!-- Full Name read-only + Full Name Format — susunan & kelakian
+               sama seperti doctype Traveller (full_name read_only dikira
+               dari first/last; fullname_format tentukan susunan). -->
+          <div class="tv-grid">
+            <div class="tv-form-group"><label class="tv-label">Full Name</label><input type="text" id="tvl-name" class="tv-input" readonly tabindex="-1" style="background:var(--bg-secondary);"/></div>
+            <div class="tv-form-group">
+              <label class="tv-label">Full Name Format</label>
+              <select id="tvl-fullname-format" class="tv-input tv-select">
+                <option value="First Name + Last Name">First Name + Last Name</option>
+                <option value="Last Name + First Name">Last Name + First Name</option>
+              </select>
+            </div>
+          </div>
+          <div class="tv-grid">
+            <div class="tv-form-group"><label class="tv-label">IC / Passport Number *</label><input type="text" id="tvl-ic" class="tv-input" required placeholder="e.g., 900101-10-1234"/></div>
+            <div class="tv-form-group"><label class="tv-label">Date of Birth</label><input type="date" id="tvl-dob" class="tv-input"/></div>
+          </div>
+          <div class="tv-grid">
+            <div class="tv-form-group"><label class="tv-label">Gender</label><select id="tvl-gender" class="tv-input tv-select"><option value="">Select...</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
+            <div class="tv-form-group"><label class="tv-label">Nationality</label><select id="tvl-nat" class="tv-input tv-select"><option value="">Select nationality</option></select></div>
+          </div>
+          <div class="tv-grid">
+            <div class="tv-form-group"><label class="tv-label">Passport Number</label><input type="text" id="tvl-pp" class="tv-input"/></div>
+            <div class="tv-form-group"><label class="tv-label">Passport Expiry</label><input type="date" id="tvl-ppexp" class="tv-input"/></div>
           </div>
 
-          <div style="margin-top:20px;"><button type="button" class="tv-btn tv-btn--primary tv-btn--sm" onclick="saveTraveller('passport', this)">Save Passport</button></div>
-        </div>
+          <!-- Passport validity badge -->
+          <div id="pp-validity-badge" style="display:none;font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;margin-bottom:8px;"></div>
+          <div id="pp-validity-note" style="display:none;font-size:12px;margin-bottom:8px;"></div>
+          <div id="pp-validity-info" style="display:none;font-size:12px;padding:10px;background:var(--bg-secondary);border-radius:6px;margin-bottom:12px;"><span id="pp-validity-info-text"></span></div>
+          <div id="tvl-pp-reset-notice" class="tv-msg tv-msg--warning" style="display:none;font-size:12px;margin-bottom:12px;">Passport number reset — please re-enter and upload a new copy.</div>
+        </div><!-- /card identity -->
 
-        <!-- Contact Panel -->
-        <div class="tvl-panel" data-panel="contact">
+        {# PDPA consent — satu checkbox per panel; tick satu, semua panel
+           disegerakkan oleh tvlConsentToggled() (corak guest_passport). #}
+        <label class="tvl-consent-row" style="display:flex;gap:10px;align-items:flex-start;margin:16px 0 0;cursor:pointer;">
+          <input type="checkbox" class="tvl-pdpa-consent" onchange="tvlConsentToggled(this);" style="margin-top:3px;flex-shrink:0;"/>
+          <span style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+            I confirm that the information provided is accurate and consent to Rarecation collecting and storing these details (including passport information) for the purposes of trip arrangements. <span style="color:#C0392B;">*</span>
+          </span>
+        </label>
+
+        <!-- Bar navigasi bawah Panel 1: ← Back | Save Passport | Next → -->
+        <div class="tvl-panel-nav" style="display:flex;gap:10px;margin-top:16px;text-align: center;">
+          <button type="button" class="tv-btn tv-btn--ghost" onclick="tvlBackToList()">← Back</button>
+          <button type="button" id="tvl-save-btn-passport" class="tv-btn tv-btn--primary" style="flex:1;" onclick="saveTraveller('passport', this)">Save Passport</button>
+          <button type="button" class="tv-btn tv-btn--ghost" onclick="tvlNext('passport')">Next →</button>
+        </div>
+      </div><!-- /panel 1 passport -->
+
+      <!-- ══ PANEL 2: CONTACT INFO ══ -->
+      <div class="tvl-panel" data-panel="contact">
+
+        <!-- Card 1: Contact Info -->
+        <div class="tv-card">
           <div class="tv-grid">
             <div class="tv-form-group"><label class="tv-label">Email *</label><input type="email" id="tvl-email" class="tv-input" required placeholder="co-traveller@email.com"/></div>
-            <div class="tv-form-group"><label class="tv-label">Phone *</label><input type="tel" id="tvl-phone-num" class="tv-input" required placeholder="+60-xx-xxxx xxxx"/></div>
+            <div class="tv-form-group"><label class="tv-label">Phone *</label><input type="tel" id="tvl-phone-num" class="tv-input" required/></div>
           </div>
-          <h4 style="font-size:13px;font-weight:600;margin:20px 0 12px;color:var(--c-gold-dark);">Emergency Contact</h4>
+        </div>
+
+        <!-- Card 2: Emergency Contact -->
+        <div class="tv-card" style="margin-top:14px;">
+          <h4 style="font-size:13px;font-weight:600;margin:0 0 12px;color:var(--c-gold-dark);">Emergency Contact</h4>
           <div class="tv-grid">
             <div class="tv-form-group"><label class="tv-label">Contact Name</label><input type="text" id="tvl-ec-name" class="tv-input"/></div>
             <div class="tv-form-group"><label class="tv-label">Relationship</label><input type="text" id="tvl-ec-relationship" class="tv-input" placeholder="Spouse, Parent, etc."/></div>
           </div>
           <div class="tv-form-group"><label class="tv-label">Emergency Phone</label><input type="tel" id="tvl-ec-phone" class="tv-input"/></div>
+        </div>
 
-          <!-- Visa photo (optional) -->
-          <details style="margin-top:20px;">
+        <!-- Card 3: Visa Photo (optional — collapsible) -->
+        <div class="tv-card" style="margin-top:14px;">
+          <details>
             <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--text-primary);padding:8px 0;display:flex;align-items:center;gap:8px;">
               <span id="visa-photo-chevron" style="transition:transform .2s;">▶</span> Visa Photo (if applicable)
               <span id="visa-photo-badge" style="display:none;font-size:10px;background:var(--c-gold);color:#fff;padding:2px 8px;border-radius:10px;margin-left:auto;">Uploaded</span>
@@ -291,32 +278,60 @@
               <div id="visa-upload-err" class="f-err" style="display:none;margin-top:4px;"></div>
             </div>
           </details>
+        </div><!-- /card visa -->
 
-          <div style="margin-top:20px;"><button type="button" class="tv-btn tv-btn--primary tv-btn--sm" onclick="saveTraveller('contact', this)">Save Contact</button></div>
+        {# PDPA consent panel 2 — disegerakkan dengan panel lain (tvlConsentToggled). #}
+        <label class="tvl-consent-row" style="display:flex;gap:10px;align-items:flex-start;margin:16px 0 0;cursor:pointer;margin:0 auto;">
+          <input type="checkbox" class="tvl-pdpa-consent" onchange="tvlConsentToggled(this);" style="margin-top:3px;flex-shrink:0;"/>
+          <span style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+            I confirm that the information provided is accurate and consent to Rarecation collecting and storing these details for the purposes of trip arrangements. <span style="color:#C0392B;">*</span>
+          </span>
+        </label>
+
+        <!-- Bar navigasi bawah Panel 2: ← Back | Save Contact | Next → -->
+        <div class="tvl-panel-nav" style="display:flex;gap:10px;margin-top:16px;text-align: center;">
+          <button type="button" class="tv-btn tv-btn--ghost" onclick="tvlBack('contact')">← Back</button>
+          <button type="button" id="tvl-save-btn-contact" class="tv-btn tv-btn--primary" style="flex:1;" onclick="saveTraveller('contact', this)">Save Contact</button>
+          <button type="button" class="tv-btn tv-btn--ghost" onclick="tvlNext('contact')">Next →</button>
         </div>
+      </div><!-- /panel 2 contact -->
 
-        <!-- Health Panel -->
-        <div class="tvl-panel" data-panel="health">
+      <!-- ══ PANEL 3: HEALTH ══ -->
+      <div class="tvl-panel" data-panel="health">
+
+        <!-- Card: Health Declaration -->
+        <div class="tv-card">
           <div class="tv-form-group"><label class="tv-label">Dietary Requirements</label><input type="text" id="tvl-dietary" class="tv-input" placeholder="Halal, Vegetarian, Allergies..."/></div>
           <div class="tv-form-group"><label class="tv-label">Medical Conditions</label><textarea id="tvl-medical" class="tv-input" rows="2" placeholder="Any medical conditions staff should know about..."></textarea></div>
           <div class="tv-form-group"><label class="tv-label">Medicine / Treatment</label><input type="text" id="tvl-medicine" class="tv-input" placeholder="Current medication or treatment..."/></div>
           <div class="tv-form-group"><label class="tv-label">Special Needs</label><textarea id="tvl-special-needs" class="tv-input" rows="2" placeholder="Wheelchair access, etc."></textarea></div>
-          <div class="tv-form-group"><label class="tv-label">Wheelchair Assistant Required</label><select id="tvl-wheelchair" class="tv-input tv-select"><option value="">No</option><option value="Yes">Yes</option></select></div>
-          <div style="margin-top:20px;"><button type="button" class="tv-btn tv-btn--primary tv-btn--sm" onclick="saveTraveller('health', this)">Save Health Info</button></div>
+          {# Pilihan = options doctype Traveller (wheelchair_assistant) —
+             selari dengan guest_passport. #}
+          <div class="tv-form-group"><label class="tv-label">Wheelchair Assistance</label><select id="tvl-wheelchair" class="tv-input tv-select"><option value="">Select if required</option><option value="Not Required">Not Required</option><option value="Long Walk Only">Long Walk Only</option><option value="All Time">All Time</option></select></div>
         </div>
 
-      </div><!-- /card -->
-
-      <!-- PDPA Consent + Confirm -->
-      <div class="tv-card" style="margin-top:16px;padding:16px;background:var(--c-gold-light);">
-        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;color:var(--text-secondary);">
-          <input type="checkbox" id="tvl-pdpa-consent" required style="margin-top:2px;"/>
-          <span>I confirm that the information provided is accurate and consent to Rarecation processing this data for travel arrangements.</span>
+        {# PDPA consent panel 3 — disegerakkan dengan panel lain (tvlConsentToggled). #}
+        <label class="tvl-consent-row" style="display:flex;gap:10px;align-items:flex-start;margin:16px 0 0;cursor:pointer;">
+          <input type="checkbox" class="tvl-pdpa-consent" onchange="tvlConsentToggled(this);" style="margin-top:3px;flex-shrink:0;"/>
+          <span style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+            I confirm that the information provided is accurate and consent to Rarecation collecting and storing these details for the purposes of trip arrangements. <span style="color:#C0392B;">*</span>
+          </span>
         </label>
-      </div>
 
-      <div style="margin-top:16px;text-align:center;">
-        <button id="tvl-confirm-btn" type="button" class="tv-btn tv-btn--primary" style="padding:12px 32px;font-size:15px;" onclick="confirmTravellerDocs()">✓ I confirm all information is complete</button>
+        <!-- Bar navigasi bawah Panel 3: ← Back | Save Health -->
+        <div class="tvl-panel-nav" style="display:flex;gap:10px;margin-top:16px;text-align: center;">
+          <button type="button" class="tv-btn tv-btn--ghost" onclick="tvlBack('health')">← Back</button>
+          <button type="button" id="tvl-save-btn-health" class="tv-btn tv-btn--primary" style="flex:1;" onclick="saveTraveller('health', this)">Save Health</button>
+        </div>
+      </div><!-- /panel 3 health -->
+
+      <!-- ══ BAR PENGESAHAN AKHIR (di luar panel — corak guest_passport) ══
+           Butang confirm DISABLED sehingga ketiga-tiga section disimpan —
+           status dikawal oleh _updateConfirmState() (traveller_travellers.js). -->
+      <div class="tv-cardxxx " style="margin-top:20px; text-align: center;">
+        <button id="tvl-confirm-btn" type="button" class="tv-btn tv-btn--primary" style="padding:12px 32px;font-size:15px;" onclick="confirmTravellerDocs()" disabled >✓ I confirm all information is complete</button>
+        <div id="tvl-confirm-hint" style="font-size:12px;margin-top:8px;color:var(--text-muted);text-align:center;"></div>
+        <div id="tvl-form-error" class="tv-msg tv-msg--error" style="display:none;margin-top:12px;" role="alert"></div>
       </div>
     </div><!-- /V-form -->
 
@@ -344,6 +359,7 @@
 
 <script id="rcCurrencyData" type="application/json">{"company_currency": "{{ get_company_currency() }}", "company_symbol": "{{ get_company_symbol() }}"}</script>
 <script type="application/json" id="pageData">{{ page_data | tojson | safe }}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/js/intlTelInputWithUtils.min.js"></script>
 <script src="/assets/travel_booking/js/traveller_common.js?v={{ asset_v('js/traveller_common.js') }}"></script>
 <script src="/assets/travel_booking/js/traveller_travellers.js?v={{ asset_v('js/traveller_travellers.js') }}"></script>
 </body>

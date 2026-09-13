@@ -407,7 +407,7 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 16px 0 12px;
-  border-top: 1px solid var(--border-light);
+  /* border-top: 1px solid var(--border-light); */
   margin-top: 16px;
 }
 
@@ -444,6 +444,15 @@
   align-items: flex-start;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+/* Right column of the hero — REF chip + countdown */
+.tv-bk-card__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .tv-bk-card__name {
@@ -526,6 +535,125 @@
   margin: 0 2px;
 }
 
+/* Trip-category chip (Cruise / Fly Package / Tour) — atas nama trip */
+.tv-bk-card__hero-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tv-bk-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-gold-text);
+  background: var(--c-gold-light);
+  border: 1px solid var(--c-gold-mid);
+  border-radius: var(--radius-full);
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+/* Subtitle di bawah nama trip — Sub 1 = Trip Group Date, Sub 2 = Package */
+.tv-bk-card__sub {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  margin-top: 3px;
+  word-break: break-word;
+}
+
+.tv-bk-card__sub--group {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.tv-bk-card__sub--pkg {
+  font-weight: 400;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+/* Facts strip — Departure · Return · Duration */
+.tv-bk-facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.tv-bk-fact__label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 2px;
+}
+
+.tv-bk-fact__value {
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+/* Flight / Cruise info block — aksen kiri ikut jenis */
+.tv-bk-sec {
+  border-left: 3px solid var(--c-gold);
+  background: var(--bg-secondary);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.tv-bk-sec--cruise {
+  border-left-color: var(--c-info);
+}
+
+.tv-bk-sec__head {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.tv-bk-sec__line {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-top: 2px;
+}
+
+/* PNR — mono chip kecil dalam header flight */
+.tv-bk-pnr {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-gold-dark);
+  background: var(--c-gold-light);
+  border: 1px solid var(--c-gold-mid);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
 .tv-bk-card__badges {
   display: flex;
   align-items: center;
@@ -606,7 +734,7 @@
   text-align: left;
   white-space: nowrap;
   padding: 12px 10px;
-  background: var(--bg-tertiary);
+  background: var(--bg-card);
   border-bottom: 1px solid var(--border-default);
 }
 
@@ -638,7 +766,7 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--c-gold-dark);
-  background: var(--bg-tertiary);
+  background: var(--bg-card);
   border-bottom: 1px solid var(--border-default);
 }
 
@@ -1871,6 +1999,46 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  /* Collapsible — header cabin ialah <button> untuk buka/tutup senarai
+     slot (default: semua collapsed). Butang "Add Traveller" berada dalam
+     content panel (bukan header) supaya tiada elemen interaktif bersarang.
+     Reset gaya button asli. */
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  gap: 8px;
+  border-bottom:1px solid var(--border-light);
+}
+
+button.tv-cabin__header:focus-visible {
+  outline: 2px solid var(--c-gold);
+  outline-offset: -2px;
+}
+
+.tv-cabin__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tv-cabin__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.tv-cabin__chev {
+  display: inline-block;
+  transition: transform .2s ease;
+}
+
+.tv-cabin--open .tv-cabin__chev {
+  transform: rotate(180deg);
 }
 
 .tv-cabin__body {
@@ -1890,10 +2058,11 @@
 }
 
 .tv-slot-status {
-  width: 8px;
-  height: 8px;
-  border-radius: var(--radius-full);
-  flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+    margin-right: 12px;
 }
 
 .tv-slot-status--verified  { background: var(--c-success); }
@@ -1988,6 +2157,12 @@
     flex-direction: column;
   }
 
+  .tv-bk-card__side {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
   .tv-bk-card__ref {
     align-self: flex-start;
   }
@@ -2005,6 +2180,16 @@
 @media (max-width: 500px) {
   .tv-bk-card__fin-row {
     grid-template-columns: 1fr 1fr;
+  }
+
+  /* Tarikh panjang ("03 Sep 2026") — kecilkan sikit supaya 3 lajur muat */
+  .tv-bk-fact__value {
+    font-size: 12px;
+  }
+
+  .tv-bk-facts {
+    gap: 8px;
+    padding: 8px 10px;
   }
 
   .tv-stats {
@@ -2101,6 +2286,7 @@
   border-radius: var(--radius-md);
   overflow: hidden;
   margin-bottom: 4px;
+  border: 0.5px solid #eaeaea;
 }
 
 /* Besarkan status badge dalam hero */
@@ -2113,7 +2299,7 @@
 
 .tv-hero-cell {
   background: var(--bg-secondary);
-  padding: 14px 16px;
+  padding: 10px;
   min-width: 0;
 }
 
@@ -2161,7 +2347,7 @@
 .selectable-slot {
   transition: background .15s ease;
   border-radius: var(--radius-sm);
-  padding: 8px !important;
+  /* padding: 8px !important; */
   margin: -8px -12px;
 }
 
@@ -2175,7 +2361,7 @@
 
 /* Arrow indicator for clickable slots */
 .tv-slot-item[data-url] .tv-slot-name::after {
-  content: '›';
+  /* content: '›'; */
   font-size: 16px;
   color: var(--text-muted);
   margin-left: auto;
@@ -2188,15 +2374,20 @@
   transform: translateX(3px);
 }
 
-/* ── Traveller Form Tabs (Detail Mode) ── */
+/* ── Traveller Form Tabs (Detail Mode) ──
+   Halaman travellers load portal.css SEBELUM traveller.css — portal.css
+   ada .tvl-tab gaya pil (radius 20px). Property yang bertindih diulang
+   DI SINI supaya gaya deterministik (bug 2026-09-13: pil + underline
+   bercampur → tab nampak tidak kemas). */
 .tvl-tabs {
   display: flex;
   gap: 0;
-  border-bottom: 2px solid var(--border-default);
+  padding-bottom: 0;
   margin-bottom: 0;
+  overflow: hidden;
+  border-bottom: 2px solid var(--border-default);
   background: var(--bg-card);
   border-radius: var(--radius-md) var(--radius-md) 0 0;
-  overflow: hidden;
 }
 
 .tvl-tab {
@@ -2206,12 +2397,15 @@
   color: var(--text-muted);
   background: transparent;
   border: none;
-  padding: 12px 20px;
+  border-radius: 0;
+  padding: 13px 20px;
   cursor: pointer;
   position: relative;
-  transition: all .2s ease;
+  transition: color .2s ease, background .2s ease;
   flex: 1;
+  min-width: 0;
   text-align: center;
+  white-space: nowrap;
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
 }
@@ -2225,7 +2419,16 @@
   color: var(--c-gold-dark);
   font-weight: 600;
   border-bottom-color: var(--c-gold);
-  background: var(--bg-card);
+  background: var(--c-gold-light);
+}
+
+/* ── Upload grid: contoh passport (kiri) + kawasan muat naik (kanan) ──
+   Dipakai wizard Step 1 dan borang Passport (State B). */
+.pp-upload-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 16px;
+  align-items: center;
 }
 
 /* Tab Panels */
@@ -2236,6 +2439,7 @@
 
 .tvl-panel.on {
   display: block;
+  padding-top:0px;
 }
 
 /* Inline field error (replaces alert chain) */
@@ -2315,18 +2519,20 @@
     grid-template-columns: 1fr !important;
   }
 
-  /* Tabs: scrollable horizontal on small screens */
-  .tvl-tabs {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+  /* Tabs: sama lebar, teks kecil — tanpa scroll mendatar */
+  .tvl-tab {
+    font-size: 12px;
+    padding: 10px 8px;
   }
 
-  .tvl-tab {
-    font-size: 11px;
-    padding: 10px 14px;
-    white-space: nowrap;
-    flex: 0 0 auto;
-    min-width: 80px;
+  /* Contoh passport (kiri) + upload area (kanan) → stack menegak */
+  .pp-upload-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pp-upload-grid > div:first-child {
+    max-width: 320px;
+    margin: 0 auto;
   }
 
   /* Wizard upload area: less padding on mobile */
@@ -2365,4 +2571,156 @@
   .tv-card[style*="c-gold-light"] {
     padding: 12px !important;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Dashboard grid — booking detail (/traveller/booking)
+   Row 1: Payment Summary (50%) · Traveller Summary (50%)
+   Row 2: Add-ons & Extras (50%) · notis cabin sharing (50%)
+   ═══════════════════════════════════════════════════════════ */
+.tv-dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+  align-items: stretch;
+}
+
+/* .tv-card bawa margin-bottom sendiri — dalam grid, jarak diurus grid */
+.tv-dash-grid .tv-card {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .tv-dash-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Numeric stat tiles (kad Payment / Traveller) ── */
+.tv-num-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.tv-num-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 14px 10px;
+  text-align: center;
+  min-width: 0;
+}
+
+.tv-num-card__label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.tv-num-card__value {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.tv-num-card--success .tv-num-card__value { color: var(--c-success-text); }
+.tv-num-card--warning .tv-num-card__value { color: var(--c-warning-text); }
+
+/* ── Modal (pemilihan bill/SO) ── */
+.tv-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(30, 28, 24, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.tv-modal-overlay[hidden] { display: none; }
+
+.tv-modal {
+  background: var(--bg-card);
+  border-radius: 14px;
+  max-width: 540px;
+  width: 100%;
+  max-height: 85vh;
+  overflow: auto;
+  padding: 22px;
+  box-shadow: 0 18px 48px rgba(30, 28, 24, 0.3);
+}
+
+.tv-modal__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.tv-modal__title {
+  font-family: var(--font-heading);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.tv-modal__close {
+  border: none;
+  background: none;
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+
+.tv-modal__close:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.tv-modal__sub {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin: 4px 0 14px;
+  line-height: 1.5;
+}
+
+.tv-modal__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.tv-modal__row:last-child { border-bottom: none; }
+
+.tv-modal__so {
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tv-modal__meta {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
 }

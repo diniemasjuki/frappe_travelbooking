@@ -15,12 +15,11 @@
   "is_a_cruise_trip",
   "column_break_ezze",
   "status",
-  "trip_organizer",
   "section_break_xajv",
   "column_break_fkpo",
   "trip_image",
   "column_break_jyau",
-  "image_llpz",
+  "trip_organizer",
   "naming_series",
   "tab_break_tegv",
   "section_break_hibe",
@@ -30,8 +29,13 @@
   "column_break_dsrv",
   "published",
   "featured_trip",
+  "seo_section",
+  "meta_title",
+  "column_break_seo",
+  "meta_description",
+  "meta_image",
+  "meta_noindex",
   "content_section",
-  "destination_list",
   "description",
   "section_break_xmds",
   "column_break_hapi",
@@ -43,6 +47,8 @@
   "faqs",
   "facilities",
   "itinerary_section",
+  "itinerary_title",
+  "itinerary_caption",
   "itinerary",
   "connection_tab"
  ],
@@ -87,12 +93,6 @@
    "label": "Trip Description"
   },
   {
-   "fieldname": "destination_list",
-   "fieldtype": "Table MultiSelect",
-   "label": "Destination List",
-   "options": "Trip Destination Point Select"
-  },
-  {
    "allow_in_quick_entry": 1,
    "default": "0",
    "description": "Define if this is a Tour Package with Cruise.",
@@ -125,12 +125,6 @@
    "fieldname": "trip_image",
    "fieldtype": "Attach Image",
    "label": "Cover Photo"
-  },
-  {
-   "fieldname": "image_llpz",
-   "fieldtype": "Image",
-   "label": "Main Photo",
-   "options": "trip_image"
   },
   {
    "collapsible": 1,
@@ -264,6 +258,53 @@
    "fieldname": "featured_trip",
    "fieldtype": "Check",
    "label": "featured trip"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "seo_section",
+   "fieldtype": "Section Break",
+   "label": "SEO"
+  },
+  {
+   "description": "Tajuk meta untuk Google & preview sosial (disyorkan ≤ 60 aksara). Kosong = guna Trip Name.",
+   "fieldname": "meta_title",
+   "fieldtype": "Data",
+   "label": "Meta Title",
+   "length": 140
+  },
+  {
+   "fieldname": "column_break_seo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Penerangan ringkas untuk hasil carian Google (disyorkan 120–160 aksara). Kosong = dijana automatik dari Trip Description.",
+   "fieldname": "meta_description",
+   "fieldtype": "Small Text",
+   "label": "Meta Description"
+  },
+  {
+   "description": "Gambar untuk preview kongsi sosial (WhatsApp/Facebook, 1200×630px disyorkan). Kosong = guna Cover Photo.",
+   "fieldname": "meta_image",
+   "fieldtype": "Attach Image",
+   "label": "Meta Image (OG Image)"
+  },
+  {
+   "default": "0",
+   "description": "Larang enjin carian mengindeks page ini (noindex, follow).",
+   "fieldname": "meta_noindex",
+   "fieldtype": "Check",
+   "label": "Hide from Search Engines (noindex)"
+  },
+  {
+   "default": "Itinerary",
+   "fieldname": "itinerary_title",
+   "fieldtype": "Data",
+   "label": "Itinerary Title"
+  },
+  {
+   "fieldname": "itinerary_caption",
+   "fieldtype": "Small Text",
+   "label": "Itinerary Caption"
   }
  ],
  "grid_page_length": 50,
@@ -294,7 +335,7 @@
   }
  ],
  "make_attachments_public": 1,
- "modified": "2026-09-09 19:01:32.623701",
+ "modified": "2026-09-12 08:21:39.571521",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip",

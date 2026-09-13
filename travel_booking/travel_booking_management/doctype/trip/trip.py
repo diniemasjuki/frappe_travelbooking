@@ -15,7 +15,6 @@ class Trip(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
-		from travel_booking.travel_booking_management.doctype.trip_destination_point_select.trip_destination_point_select import TripDestinationPointSelect
 		from travel_booking.travel_booking_management.doctype.trip_facility.trip_facility import TripFacility
 		from travel_booking.travel_booking_management.doctype.trip_faq.trip_faq import TripFAQ
 		from travel_booking.travel_booking_management.doctype.trip_feature.trip_feature import TripFeature
@@ -23,7 +22,6 @@ class Trip(Document):
 		from travel_booking.travel_booking_management.doctype.trip_itinerary.trip_itinerary import TripItinerary
 
 		description: DF.TextEditor | None
-		destination_list: DF.TableMultiSelect[TripDestinationPointSelect]
 		facilities: DF.Table[TripFacility]
 		faqs: DF.Table[TripFAQ]
 		featured_trip: DF.Check
@@ -31,6 +29,12 @@ class Trip(Document):
 		highlights: DF.Table[TripHighlight]
 		is_a_cruise_trip: DF.Check
 		itinerary: DF.Table[TripItinerary]
+		itinerary_caption: DF.SmallText | None
+		itinerary_title: DF.Data | None
+		meta_description: DF.SmallText | None
+		meta_image: DF.AttachImage | None
+		meta_noindex: DF.Check
+		meta_title: DF.Data | None
 		naming_series: DF.Literal["TRIP.YY.##"]
 		published: DF.Check
 		route: DF.Data | None
@@ -216,6 +220,48 @@ class Trip(Document):
 		# Related tours — sama trip_categories, isi dgn trip lain jika kurang.
 		context.related = self._related_tours(limit=3)
 
+		# ── SEO (meta description, canonical, Open Graph, JSON-LD) ──
+		# Meta description: keutamaan meta_description > description
+		# (dibersihkan HTML oleh helper). OG image: meta_image > cover.
+		# JSON-LD: Product+Offer (harga dari mulai), FAQPage bila ada FAQ,
+		# BreadcrumbList Home > Cruises/Tours > trip ini.
+		from travel_booking.utils.seo import apply_seo, build_trip_json_ld
+		dest_names = [
+			d.get("destination_name")
+			for d in (context.destinations or [])
+			if (d.get("destination_name") or "").strip()
+		]
+		apply_seo(
+			context,
+			title=self.meta_title or (self.trip_name or self.name),
+			description=self.meta_description or self.description or "",
+			image=context.trip_image,
+			page_type="product",
+			noindex=bool(self.meta_noindex),
+			json_ld=build_trip_json_ld(
+				trip_name=self.trip_name or self.name,
+				description=self.meta_description or self.description or "",
+				image=context.trip_image,
+				page_url_path=(
+					frappe.local.request.path
+					if getattr(frappe.local, "request", None)
+					else f"/{self.route or self.name.lower()}"
+				),
+				is_cruise=bool(self.is_a_cruise_trip),
+				price=context.starting_from_price,
+				currency=context.currency
+				or frappe.db.get_single_value("Global Defaults", "default_currency"),
+				organizer=context.organizer_name or "",
+				faqs=context.faqs,
+				destinations=dest_names,
+				breadcrumb=[
+					{"label": "Home", "url": "/"},
+					context.trips_crumb,
+					{"label": self.trip_name or self.name},
+				],
+			),
+		)
+
 		context.no_cache = 1
 		context.active_nav = "trips"
 
@@ -263,16 +309,21 @@ class Trip(Document):
 			)
 			rows += more
 
-		# 3. Fetch destinations for each trip (child table: Trip Destination Point Select)
-		for r in rows:
-			r["destinations"] = frappe.db.sql(
-				"""SELECT dp.destination_name
-				   FROM `tabTrip Destination Point Select` ds
-				   LEFT JOIN `tabTrip Destination Point` dp ON ds.select_destination_point = dp.name
-				   WHERE ds.parent=%s
-				   ORDER BY ds.idx LIMIT 5""",
-				(r.name,), as_dict=True
-			) or []
+			# 3. Fetch destinations for each trip — ambil terus dari destination
+			# yang tersenarai dalam itinerary (Trip Itinerary.destination_point),
+			# dedup ikut kemunculan hari terawal (sumber sama dengan section
+			# Destination pada page detail).
+			for r in rows:
+				r["destinations"] = frappe.db.sql(
+					"""SELECT dp.destination_name
+					   FROM `tabTrip Itinerary` it
+					   JOIN `tabTrip Destination Point` dp ON dp.name = it.destination_point
+					   WHERE it.parent=%s AND it.parenttype='Trip'
+					     AND it.destination_point IS NOT NULL AND it.destination_point != ''
+					   GROUP BY dp.name, dp.destination_name
+					   ORDER BY MIN(it.day) LIMIT 5""",
+					(r.name,), as_dict=True
+				) or []
 
 			# 4. Price + Group Date data
 			if rows:
@@ -299,11 +350,12 @@ class Trip(Document):
 					gd_rows = frappe.db.sql(
 						f"""
 						SELECT trip, total_days, total_nights, departure_date,
-						       sailing_start, max_participants
+						       sailing_start, max_participants, is_cruise_only
 						FROM `tabTrip Group Date`
 						WHERE trip IN ({in_clause})
 						  AND status='Active'
-						ORDER BY trip, departure_date ASC
+						ORDER BY trip, COALESCE(sailing_start, departure_date) ASC,
+						         is_cruise_only DESC, departure_date ASC
 						""",
 						trips_tuple,
 						as_dict=True
@@ -414,7 +466,7 @@ class Trip(Document):
 				try:
 					# Generate package_type code (same logic as Trip Package validate())
 					pt = pkg.package_type or ""
-					if pt == "Fly Cruise":
+					if pt == "Cruise+Flight":
 						pt_code = "FC"
 					elif pt == "Cruise Only":
 						pt_code = "CO"

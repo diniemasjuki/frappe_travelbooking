@@ -323,7 +323,7 @@ let selectedPackage = null;
 let currentSailings  = [];    // senarai sailing trip semasa (deep-link/restore: td → sailing.key)
 
 function renderPackages(sailing) {
-  // Gabung pakej dari SEMUA td dalam sailing (cruise: Fly Cruise + Cruise
+  // Gabung pakej dari SEMUA td dalam sailing (cruise: Cruise+Flight + Cruise
   // Only digabung jadi satu senarai pilih), dedup ikut nama pakej. Setiap
   // pakej bawa trip_group_date (td) masing-masing supaya booking boleh
   // selesaikan td betul dari pakej yang dipilih (rujak step0Next).
@@ -365,7 +365,7 @@ function renderPackages(sailing) {
 }
 
 // Bina senarai "sailing" untuk trip. Cruise → kumpul td yang berkongsi
-// cruise_schedule (pelayaran sama: Fly Cruise + Cruise Only) jadi SATU
+// cruise_schedule (pelayaran sama: Cruise+Flight + Cruise Only) jadi SATU
 // butang sailing; bukan-cruise → setiap td jadi sailing sendiri (tak merge,
 // paparan + seats kekal sedia ada).
 function buildSailings(trip, tds) {
@@ -393,21 +393,21 @@ function buildSailings(trip, tds) {
   return order.map(function(k) {
     var tdsIn = buckets[k];
     var ref = tdsIn[0];
-    // Label komposisi pakej dalam sailing: kumpul jenis cruise (Fly Cruise /
+    // Label komposisi pakej dalam sailing: kumpul jenis cruise (Cruise+Flight /
     // Cruise Only) dari segmen ke-3 trip_group_name setiap td. Kedua-dua ada →
-    // "Fly Cruise & Cruise Only"; satu sahaja → jenis itu. Sumber: sama ada
-    // td Fly Cruise difilter (tarikh penerbangan dah lepas) tinggal Cruise
+    // "Cruise+Flight & Cruise Only"; satu sahaja → jenis itu. Sumber: sama ada
+    // td Cruise+Flight difilter (tarikh penerbangan dah lepas) tinggal Cruise
     // Only, atau sailing memang satu jenis sahaja.
     var _types = {};
     tdsIn.forEach(function(g) {
       var _seg = (g.trip_group_name || "").split(" : ");
       var _t = _seg.length === 3 ? _seg[2] : "";
-      if (_t === "Fly Cruise" || _t === "Cruise Only") _types[_t] = true;
+      if (_t === "Cruise+Flight" || _t === "Cruise Only") _types[_t] = true;
     });
     var compositionLabel = "";
-    if (_types["Fly Cruise"] && _types["Cruise Only"]) compositionLabel = "Fly Cruise & Cruise Only";
+    if (_types["Cruise+Flight"] && _types["Cruise Only"]) compositionLabel = "Cruise+Flight & Cruise Only";
     else if (_types["Cruise Only"]) compositionLabel = "Cruise Only";
-    else if (_types["Fly Cruise"]) compositionLabel = "Fly Cruise";
+    else if (_types["Cruise+Flight"]) compositionLabel = "Cruise+Flight";
     return {
       key: k,
       isCruise: true,
@@ -468,14 +468,14 @@ tripSelect.addEventListener("change", function() {
     btn.dataset.name = sailing.key;
 
     if (sailing.isCruise) {
-      // ---- Sailing cruise (gabungan Fly Cruise + Cruise Only) ----
+      // ---- Sailing cruise (gabungan Cruise+Flight + Cruise Only) ----
       // Durasi pelayaran sebenar dari td cruise-only (departure == sailing_start,
       // tak termasuk hari penerbangan); fallback td pertama dalam sailing.
       var durTd = sailing.tds.find(function(g) {
         return g.sailing_start && g.departure_date === g.sailing_start;
       }) || sailing.tds[0];
       var durTxt = (durTd.total_days ? (durTd.total_days + " Day ") : "") + (durTd.total_nights ? (" " + durTd.total_nights + " Night") : "");
-      // Label komposisi (Fly Cruise & Cruise Only / Cruise Only / Fly Cruise)
+      // Label komposisi (Cruise+Flight & Cruise Only / Cruise Only / Cruise+Flight)
       // dipaparkan bersama durasi pelayaran di baris atas butang sailing.
       var _comp = sailing.compositionLabel || "";
       var _topLine = _comp ? (_comp + (durTxt ? (" \u00b7 " + durTxt) : "")) : durTxt;
@@ -490,7 +490,7 @@ tripSelect.addEventListener("change", function() {
       var a = g.trip_group_name.split(" : ");
       if(a.length == 3){
         var cruise = a[2] ;
-        if(cruise == "Cruise Only" || cruise == "Fly Cruise") { cruise = cruise + " for ";  }
+        if(cruise == "Cruise Only" || cruise == "Cruise+Flight") { cruise = cruise + " for ";  }
         else{ cruise = ""; }
       } else { var cruise = ""; }
       if (cruise==""){
@@ -543,7 +543,7 @@ step0Next.addEventListener("click", async function() {
   if (!tripSelect.value || !selectedGroup || !selectedPackage) return;
   state.trip_master  = tripSelect.value;
   // td (Trip Group Date) sebenar di TERBITKAN dari pakej yang dipilih. Untuk
-  // sailing cruise gabungan (Fly Cruise + Cruise Only), pakej fly → td fly-
+  // sailing cruise gabungan (Cruise+Flight + Cruise Only), pakej fly → td fly-
   // cruise, pakej cruise-only → td cruise-only. Backend confirm_booking guna
   // trip_group_date terus (tak terbit dari pakej), jadi kena hantar td betul,
   // bukan key sailing. Fallback td pertama kalau pakej tak bawa td (lama).
@@ -2096,12 +2096,12 @@ function buildOrderSummary() {
   // terus — dua-dua field admin-authored tu (Trip Group Date.trip_group_name,
   // Trip Package.package_title) masing-masing DAH mengandungi nama trip +
   // tarikh + jenis package bertindih sendiri (cth "2026-09-30 : TRIP12 :
-  // Fly Cruise" dan "3N Yanbu Cruise / Fly Cruise / KUL") — gabung
+  // Cruise+Flight" dan "3N Yanbu Cruise / Cruise+Flight / KUL") — gabung
   // ketiga-tiga terus jadi keliru/berulang untuk customer (nama trip &
-  // "Fly Cruise" muncul 2-3 kali, kod dalaman "TRIP12" tak bermakna untuk
+  // "Cruise+Flight" muncul 2-3 kali, kod dalaman "TRIP12" tak bermakna untuk
   // customer). Sebaliknya bina terus dari field ATOMIC yang bersih:
   // trip_name (dropdown), departure_date (Trip Group Date), package_type
-  // (Trip Package — enum bersih: "Fly Cruise"/"Cruise Only"/dsb).
+  // (Trip Package — enum bersih: "Cruise+Flight"/"Cruise Only"/dsb).
   var tripEl = document.getElementById("orderSummaryTrip");
   if (tripEl) {
     var grpForSummary = (trip_group_dateS[state.trip_master] || []).find(function(g) {

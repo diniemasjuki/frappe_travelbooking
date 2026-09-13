@@ -133,7 +133,7 @@
 }
 .rc-btn-primary:hover { background: #B8983F; }
 .rc-btn-ghost {
-  padding: 10px 14px;
+  padding: 8px 14px;
   border-radius: 9px;
   background: transparent;
   border: 1px solid #E8E5DF;
