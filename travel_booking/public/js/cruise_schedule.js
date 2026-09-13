@@ -1,7 +1,7 @@
 // travel_booking/public/js/cruise_schedule.js
 // Modal pemilihan pakej untuk page /cruise-schedule — butang "Book Now"
 // kad TIDAK terus ke /booknow. Modal papar variant sailing (Cruise Only /
-// Cruise+Flight) + pakej Active setiap variant; guest pilih SATU pakej, barulah
+// Cruise + Flight) + pakej Active setiap variant; guest pilih SATU pakej, barulah
 // proceed ke /booknow?trip_master=..&trip_group_date=..
 //
 // Data pilihan di-PRELOAD server-side dalam cruise_schedule.py — setiap kad
@@ -159,7 +159,7 @@
 		var first = null; // {tgd, pkg} pertama — untuk pra-pilih satu pilihan
 
 		// Senarai pakej FLAT — tiada subgroup variant (rc-pkg-vlabel
-		// dibuang); jenis pakej ("Cruise Only"/"Cruise+Flight") kekal dipapar
+		// dibuang); jenis pakej ("Cruise Only"/"Cruise + Flight") kekal dipapar
 		// pada setiap baris. Variant penuh / tanpa pakej dilangkau.
 		(data.variants || []).forEach(function (v) {
 			var pkgs = v.packages || [];

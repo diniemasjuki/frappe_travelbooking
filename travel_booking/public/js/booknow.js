@@ -891,7 +891,7 @@ function renderStripeReturnConfirmation(bookingNumber, result, isSettled) {
     var bannerName4El = document.getElementById("bnwBannerTripName4");
     if (bannerName4El) bannerName4El.textContent = result.trip_name || "";
 
-    // Group Summary line: "Group: 2026-09-13 : TRIP2613 : Cruise+Flight"
+    // Group Summary line: "Group: 2026-09-13 : TRIP2613 : Cruise + Flight"
     var bannerSum4El = document.getElementById("bnwBannerSummary4");
     if (bannerSum4El) {
       var groupText = "Group: " + (result.group_name || "");
@@ -1295,6 +1295,16 @@ async function loadCabins() {
     var bannerNameEl = document.getElementById("bnwBannerTripName");
     if (bannerNameEl && data.trip) bannerNameEl.textContent = data.trip.trip_name;
 
+    // ── Hero cover — gambar cover trip sebagai background banner.
+    // Trip tak berubah sepanjang wizard → apply sekali ke SEMUA banner
+    // (Step 1-4) melalui CSS var --bnw-hero-img; gradient gelap di CSS
+    // kekal melindungi kebolehbacaan teks di atas gambar.
+    var _heroImg = (data.trip && data.trip.trip_image) || "/assets/travel_booking/img/defaultaroya.jpg";
+    ["", "2", "3", "4"].forEach(function(_sfx) {
+      var _bEl = document.getElementById("bnwTripBanner" + _sfx);
+      if (_bEl) _bEl.style.setProperty("--bnw-hero-img", 'url("' + _heroImg + '")');
+    });
+
     // ── Papar maklumat dari SELECTED TRIP GROUP DATE (②) ──
     // Gunakan state.trip_group_date (dari cart) untuk lookup Trip Group Date info.
     // Ini adalah group date yang USER PILIH dari dropdown di trip.html.
@@ -1322,7 +1332,7 @@ async function loadCabins() {
     var _pkgType = (selectedPackage && selectedPackage.package_type) || "";
     var _isCruiseOnly = _pkgType === "Cruise Only";
     var _isGroundOnly = _pkgType === "Ground Only";
-    var _hasFlightComponent = !_isCruiseOnly && !_isGroundOnly;  // Cruise+Flight, etc.
+    var _hasFlightComponent = !_isCruiseOnly && !_isGroundOnly;  // Cruise + Flight, etc.
 
     var _flightCode = (typeof selectedPackage !== "undefined" && selectedPackage && selectedPackage.flight) || "";
     var _flightLabel = (typeof selectedPackage !== "undefined" && selectedPackage && selectedPackage.flight_label) || "";
@@ -1355,7 +1365,7 @@ async function loadCabins() {
     var _depText = "", _sailText = "", _departFromText = "", _embarkText = "";
 
     // Departure/Return dates — papar kecuali Cruise Only (cruise only ada Sailing sahaja)
-    // ✈️ emoji HANYA kalau ada flight component (Cruise+Flight, Fly Package, dsb)
+    // ✈️ emoji HANYA kalau ada flight component (Cruise + Flight, Fly Package, dsb)
     // Ground Only papar tarikh, tapi tanpa emoji
     if (_selectedTgd && !_isCruiseOnly) {
       if (_selectedTgd.departure_date) {
@@ -1455,7 +1465,7 @@ async function loadCabins() {
   } catch(e) {
     // Hanya alert untuk API/network error, bukan DOM error
     if (e.message && !e.message.includes("null")) {
-      alert("Failed to load cabin data. Please try again.\n" + e.message);
+      alert("Failed to load room data. Please try again.\n" + e.message);
     }
   }
   hideLoading();
@@ -1484,12 +1494,17 @@ function parseYouTubeId(url) {
 }
 
 // Badge package type: cuma 2 perkataan pertama, UPPERCASE.
-// cth "Cruise+Flight" → "CRUISE+FLIGHT", "Cruise Only" → "CRUISE ONLY".
-// Jika package_type masa depan lebih panjang (cth "Cruise+Flight Premium"),
+// cth "Cruise + Flight" → "CRUISE + FLIGHT", "Cruise Only" → "CRUISE ONLY".
+// "+" dikira sebagai penyambung, bukan perkataan — kalau tidak,
+// "Cruise + Flight" terpotong kepada "CRUISE +" (Flight hilang).
+// Jika package_type masa depan lebih panjang (cth "Cruise + Flight Premium"),
 // masih potong ke 2 perkataan pertama sahaja.
 function badgeShort(label) {
   if (!label) return "";
-  return String(label).trim().split(/\s+/).slice(0, 2).join(" ").toUpperCase();
+  var s = String(label).trim();
+  var hasPlus = /\s\+\s/.test(s);
+  var words = s.split(/\s+/).filter(function (w) { return w !== "+"; });
+  return words.slice(0, 2).join(hasPlus ? " + " : " ").toUpperCase();
 }
 
 // Gabungkan embarkation & disembarkation port: kalau sama, papar satu sahaja
@@ -1559,7 +1574,7 @@ function addRoom() {
   var avail = availableCabins();
   if (!avail.length) return;
   if (state.rooms.length >= MAX_CABINS_PER_BOOKING) {
-    alert("Maximum " + MAX_CABINS_PER_BOOKING + " cabins allowed per booking. Please contact us directly for larger reservations.");
+    alert("Maximum " + MAX_CABINS_PER_BOOKING + " rooms allowed per booking. Please contact us directly for larger reservations.");
     return;
   }
   // Collapse cabin sedia ada supaya customer fokus isi cabin baharu.
@@ -1616,7 +1631,7 @@ function renderRooms() {
 
     var title = document.createElement("span");
     title.className = "bnw-cabin-type";
-    title.textContent = (state.is_cruise_trip ? "Cabin " : "Room ") + (idx + 1);
+    title.textContent = "Room " + (idx + 1);
     headLeft.appendChild(title);
 
     var c = cabinByCategory(room.room_category);
@@ -1625,8 +1640,8 @@ function renderRooms() {
       var subtotal = c ? priceRoomSelection(c.pricing, room.main_guests, room.extra_beds, room.infants) : 0;
       var summary  = document.createElement("span");
       summary.className = "bnw-cabin-summary";
-      // summary.textContent = "\u00b7 " + (room.room_category || "No cabin selected") + " \u00b7 " + pax + " pax \u00b7 " + fmt(subtotal);
-      summary.textContent = "\u00b7 " + (room.room_category || "No cabin selected") + " \u00b7 " + pax + " pax";
+      // summary.textContent = "\u00b7 " + (room.room_category || "No room selected") + " \u00b7 " + pax + " pax \u00b7 " + fmt(subtotal);
+      summary.textContent = "\u00b7 " + (room.room_category || "No room selected") + " \u00b7 " + pax + " pax";
       headLeft.appendChild(summary);
     }
     head.appendChild(headLeft);
@@ -1653,7 +1668,7 @@ function renderRooms() {
 
       var typeLbl = document.createElement("label");
       typeLbl.className = "bnw-label";
-      typeLbl.textContent = state.is_cruise_trip ? "Select Cabin Type" : "Select Rooming Type";
+      typeLbl.textContent = "Select Rooming Type";
       typeField.appendChild(typeLbl);
 
       var trigger = document.createElement("button");
@@ -1671,7 +1686,7 @@ function renderRooms() {
           var tThumb = document.createElement("img");
           tThumb.className = "bnw-cabin-trigger-thumb";
           tThumb.src = c.room_image;
-          tThumb.alt = c.room_name || c.room_category || "Cabin";
+          tThumb.alt = c.room_name || c.room_category || "Room";
           tThumb.loading = "lazy";
           trigger.appendChild(tThumb);
         }
@@ -1693,7 +1708,7 @@ function renderRooms() {
       } else {
         var tPh = document.createElement("span");
         tPh.className = "bnw-cabin-trigger-placeholder";
-        tPh.textContent = state.is_cruise_trip ? " Select cabin type " : " Select rooming type ";
+        tPh.textContent = " Select rooming type ";
         trigger.appendChild(tPh);
         var tChev = document.createElement("i");
         tChev.className = "ti ti-chevron-down bnw-cabin-trigger-chev";
@@ -1713,68 +1728,76 @@ function renderRooms() {
       var capacity = c ? (c.capacity || 0) : 0;
       var pricing  = c ? c.pricing : {};
 
-      var counters = document.createElement("div");
-      counters.className = "bnw-steppers";
+      // Steppers harga (Main Guest / Extra Bed / Infant) HANYA dibina &
+      // dipapar bila cabin type DAH dipilih — selagi placeholder
+      // "Select rooming type" dipapar, tiada harga untuk dipilih. Bila bilik
+      // dipilih, selectCabinFromPicker() panggil renderRooms() semula jadi
+      // steppers muncul serta-merta.
+      var counters = null;
+      if (c) {
+        counters = document.createElement("div");
+        counters.className = "bnw-steppers";
 
-      // Extra Bed & Infant berkongsi kapasiti (capFor() masing-masing
-      // bergantung pada nilai counter SATU LAGI — rujuk capFor() dalam
-      // mkStepper()) — array ni kumpul refreshButtons() SETIAP stepper
-      // untuk room ni, supaya bila SALAH SATU counter berubah, kita boleh
-      // refresh SEMUA stepper (bukan cuma yang diklik). Sebelum ni, setiap
-      // stepper cuma refresh dirinya sendiri — punca bug: butang "+" Extra
-      // Bed kekal disabled selepas Infant dikurangkan (walhal kapasiti dah
-      // terbuka semula), sebab tiada apa trigger refresh Extra Bed punya
-      // capFor() semula bila Infant yang berubah.
-      var stepperRefreshers = allStepperRefreshers;  // kongsi array global (semua room)
+        // Extra Bed & Infant berkongsi kapasiti (capFor() masing-masing
+        // bergantung pada nilai counter SATU LAGI — rujuk capFor() dalam
+        // mkStepper()) — array ni kumpul refreshButtons() SETIAP stepper
+        // untuk room ni, supaya bila SALAH SATU counter berubah, kita boleh
+        // refresh SEMUA stepper (bukan cuma yang diklik). Sebelum ni, setiap
+        // stepper cuma refresh dirinya sendiri — punca bug: butang "+" Extra
+        // Bed kekal disabled selepas Infant dikurangkan (walhal kapasiti dah
+        // terbuka semula), sebab tiada apa trigger refresh Extra Bed punya
+        // capFor() semula bila Infant yang berubah.
+        var stepperRefreshers = allStepperRefreshers;  // kongsi array global (semua room)
 
 
-      if (state.is_cruise_trip) {
-        counters.appendChild(mkStepper(room, "main_guests", getPriceLabel("price_adult"), capacity, function() {
-          if(!pricing.price_adult ){ pricing.price_adult = 0; }
-          return room.main_guests === 1
-            ? fmt(pricing.price_adult_single) + " /pax"
-            : fmt(pricing.price_adult) + " /pax";
-        }, stepperRefreshers, getPriceNote("price_adult")));
+        if (state.is_cruise_trip) {
+          counters.appendChild(mkStepper(room, "main_guests", getPriceLabel("price_adult"), capacity, function() {
+            if(!pricing.price_adult ){ pricing.price_adult = 0; }
+            return room.main_guests === 1
+              ? fmt(pricing.price_adult_single) + "/pax"
+              : fmt(pricing.price_adult) + "/pax";
+          }, stepperRefreshers, getPriceNote("price_adult")));
 
-        // Extra Bed (price_upperberth) — HANYA bila cabin ada slot katil
-        // tambah, iaitu max_capacity > capacity. Bila capacity ===
-        // max_capacity (cth Interior 2/2), tiada upper berth fizikal —
-        // capFor() extra bed memang pulangkan 0 sentiasa, jadi stepper
-        // lama cuma butang mati; sembunyikan sahaja. max_capacity === 0
-        // (eksplisit) → UNLIMITED/overbooking dibenarkan → kekal papar.
-        var _unlimitedMax = !!(c && c.max_capacity === 0);
-        var _hasUpperBerth = !c || _unlimitedMax ||
-          ((c.max_capacity || 0) > (c.capacity || 0));
-        if (_hasUpperBerth) {
-          counters.appendChild(mkStepper(room, "extra_beds", getPriceLabel("price_upperberth"), 0, function() {
-            if(!pricing.price_upperberth ){ pricing.price_upperberth = 0; }
-            return fmt(pricing.price_upperberth) + " /pax";
-          }, stepperRefreshers, getPriceNote("price_upperberth")));
-        } else if (room.extra_beds) {
-          // Cabin ditukar ke jenis tanpa upper berth — buang nilai lama
-          // supaya harga & payload tak bawa extra bed fantom.
-          room.extra_beds = 0;
+          // Extra Bed (price_upperberth) — HANYA bila cabin ada slot katil
+          // tambah, iaitu max_capacity > capacity. Bila capacity ===
+          // max_capacity (cth Interior 2/2), tiada upper berth fizikal —
+          // capFor() extra bed memang pulangkan 0 sentiasa, jadi stepper
+          // lama cuma butang mati; sembunyikan sahaja. max_capacity === 0
+          // (eksplisit) → UNLIMITED/overbooking dibenarkan → kekal papar.
+          var _unlimitedMax = !!(c && c.max_capacity === 0);
+          var _hasUpperBerth = !c || _unlimitedMax ||
+            ((c.max_capacity || 0) > (c.capacity || 0));
+          if (_hasUpperBerth) {
+            counters.appendChild(mkStepper(room, "extra_beds", getPriceLabel("price_upperberth"), 0, function() {
+              if(!pricing.price_upperberth ){ pricing.price_upperberth = 0; }
+              return fmt(pricing.price_upperberth) + "/pax";
+            }, stepperRefreshers, getPriceNote("price_upperberth")));
+          } else if (room.extra_beds) {
+            // Cabin ditukar ke jenis tanpa upper berth — buang nilai lama
+            // supaya harga & payload tak bawa extra bed fantom.
+            room.extra_beds = 0;
+          }
+        } else {
+          // Non-cruise (model UMUR): Adult (price_adult) + Children (price_children).
+          counters.appendChild(mkStepper(room, "main_guests", getPriceLabel("price_adult"), capacity, function() {
+            if(!pricing.price_adult ){ pricing.price_adult = 0; }
+            return fmt(pricing.price_adult) + "/pax";
+          }, stepperRefreshers, getPriceNote("price_adult")));
+
+          counters.appendChild(mkStepper(room, "extra_beds", getPriceLabel("price_children"), 0, function() {
+            if(!pricing.price_children ){ pricing.price_children = 0; }
+            return fmt(pricing.price_children) + "/pax";
+          }, stepperRefreshers, getPriceNote("price_children")));
         }
-      } else {
-        // Non-cruise (model UMUR): Adult (price_adult) + Children (price_children).
-        counters.appendChild(mkStepper(room, "main_guests", getPriceLabel("price_adult"), capacity, function() {
-          if(!pricing.price_adult ){ pricing.price_adult = 0; }
-          return fmt(pricing.price_adult) + " /pax";
-        }, stepperRefreshers, getPriceNote("price_adult")));
 
-        counters.appendChild(mkStepper(room, "extra_beds", getPriceLabel("price_children"), 0, function() {
-          if(!pricing.price_children ){ pricing.price_children = 0; }
-          return fmt(pricing.price_children) + " /pax";
-        }, stepperRefreshers, getPriceNote("price_children")));
+        counters.appendChild(mkStepper(room, "infants", getPriceLabel("price_infant"), 0, function() {
+          if(!pricing.price_infant ){ pricing.price_infant = 0; }
+          return fmt(pricing.price_infant) + "/pax";
+        }, stepperRefreshers, getPriceNote("price_infant")));
       }
 
-      counters.appendChild(mkStepper(room, "infants", getPriceLabel("price_infant"), 0, function() {
-        if(!pricing.price_infant ){ pricing.price_infant = 0; }
-        return fmt(pricing.price_infant) + " /pax";
-      }, stepperRefreshers, getPriceNote("price_infant")));
-
       card.appendChild(typeField);
-      card.appendChild(counters);
+      if (counters) card.appendChild(counters);
       // Room privacy — cabin cruise betul-betul SOLO sahaja (total penghuni
       // main_guests + extra_beds + infants = 1). Diletakkan di BAWAH kad
       // selepas counters: flow pilih kabin → set tetamu → baru soalan
@@ -1822,7 +1845,7 @@ function renderRooms() {
     var atMax = state.rooms.length >= MAX_CABINS_PER_BOOKING;
     addRoomBtnEl.disabled = atMax;
     addRoomBtnEl.title    = atMax
-      ? "Maximum " + MAX_CABINS_PER_BOOKING + " cabins per booking"
+      ? "Maximum " + MAX_CABINS_PER_BOOKING + " rooms per booking"
       : "";
   }
 
@@ -1864,18 +1887,19 @@ function buildPrivacyBlock(room) {
   // lebihan jadi kredit (tambah traveller dari portal kemudian).
   var hint = document.createElement("small");
   hint.className = "bnw-privacy-hint";
-  hint.textContent = "We'll try to match a same-gender roommate with you — " +
-    "if a match is found, the single-occupancy difference is refunded.";
+  hint.textContent = "We may try to match a same-gender roommate with you — " +
+    "if a match is found, the single-occupancy difference will be refunded.";
   wrap.appendChild(hint);
 
   return wrap;
 }
 
 // ═════════════════════════════════════════════════════════
-// CABIN PICKER MODAL — pengganti dropdown "Select Cabin Type".
+// ROOM PICKER MODAL — pengganti dropdown "Select Rooming Type".
 // Modal popup yang senaraikan semua kabin available dengan INFO RINGKAS
-// (nama, room type, kapasiti, harga asas, deskripsi ringkas) + MEDIA
-// dalam bentuk SLIDE (gambar room_profile + video YouTube). Butang
+// (nama, deskripsi, kapasiti, harga asas) + MEDIA dalam bentuk SLIDE
+// (video YouTube sebagai thumbnail utama + gambar gallery kategori).
+// Butang
 // FILTER ikut room_type dipaparkan di bahagian AWAL modal (bila > 1
 // jenis). Lepas kabin dipilih: modal tertutup & renderRooms() papar
 // kabin terpilih + kapasiti sahaja (keputusan produk 2026-09-13).
@@ -1917,11 +1941,11 @@ function openCabinPickerModal(room) {
   heading.className = "bnw-cpick-heading";
   var h3 = document.createElement("h3");
   h3.className = "bnw-cpick-title";
-  h3.textContent = state.is_cruise_trip ? "Choose Your Cabin" : "Choose Your Room";
+  h3.textContent = "Choose Your Room";
   var sub = document.createElement("p");
   sub.className = "bnw-cpick-sub";
   sub.textContent = state.is_cruise_trip
-    ? "Browse photos & videos, then select a cabin"
+    ? "Browse photos & videos, then select a room"
     : "Browse options, then select a room type";
   heading.appendChild(h3);
   heading.appendChild(sub);
@@ -2008,7 +2032,7 @@ function renderCabinPickerList() {
   if (!avail.length) {
     var empty = document.createElement("div");
     empty.className = "bnw-cpick-empty";
-    empty.textContent = "No cabin matches this filter.";
+    empty.textContent = "No room matches this filter.";
     list.appendChild(empty);
     return;
   }
@@ -2032,45 +2056,69 @@ function renderCabinPickerList() {
     name.className = "bnw-cpick-name";
     name.textContent = cab.room_name || cab.room_category;
     titleRow.appendChild(name);
-    if ((cab.room_type || "").trim()) {
-      var badge = document.createElement("span");
-      badge.className = "bnw-cpick-badge";
-      badge.textContent = cab.room_type;
-      titleRow.appendChild(badge);
-    }
     body.appendChild(titleRow);
 
-    // Baris meta: kapasiti + harga asas per pax
+    // Deskripsi kategori — terus selepas tajuk. Had 2 peringkat: JS potong
+    // pada 120 aksara (limit PASTI, tak bergantung sokongan CSS), CSS clamp
+    // 2 baris sebagai sandaran visual. Teks penuh kekal di title (hover) &
+    // link More.
+    if (cab.description) {
+      var MAX_DESC_LEN = 120;
+      var descText = String(cab.description).trim();
+      if (descText.length > MAX_DESC_LEN) {
+        descText = descText.slice(0, MAX_DESC_LEN).replace(/\s+\S*$/, "") + "…";
+      }
+      var desc = document.createElement("p");
+      desc.className = "bnw-cpick-desc";
+      desc.textContent = descText;
+      if (String(cab.description).trim().length > descText.length) {
+        desc.title = cab.description;
+      }
+      body.appendChild(desc);
+    }
+
+    // ── Blok bawah kad — DUA KOLUMN (selepas description): ──
+    //   KIRI : badge room_type (Cabin/Suite) + link More
+    //   KANAN: kapasiti pax, harga From, butang Select This Room
     var p = cab.pricing || {};
     var basePrices = state.is_cruise_trip
       ? [Number(p.price_adult_single) || 0, Number(p.price_adult) || 0].filter(function(v) { return v > 0; })
       : [Number(p.price_adult) || 0];
     var base = basePrices.length ? Math.min.apply(null, basePrices) : 0;
 
-    var meta = document.createElement("div");
-    meta.className = "bnw-cpick-meta";
-    var metaHtml = '<span><i class="ti ti-users-group"></i> ' + capacityLabel(cab) + "</span>";
-    if (base > 0) {
-      metaHtml += '<span class="bnw-cpick-meta-price">From ' + fmt(base) + " /pax</span>";
+    var bottom = document.createElement("div");
+    bottom.className = "bnw-cpick-bottom";
+
+    var bottomLeft = document.createElement("div");
+    bottomLeft.className = "bnw-cpick-bottom-left";
+    if ((cab.room_type || "").trim()) {
+      var badge = document.createElement("span");
+      badge.className = "bnw-cpick-badge";
+      badge.textContent = cab.room_type;
+      bottomLeft.appendChild(badge);
     }
-    meta.innerHTML = metaHtml;
-    body.appendChild(meta);
-
-    // (Deskripsi dibuang — keputusan produk 2026-09-13: kad kekal ringkas,
-    // maklumat penuh kekal didapat melalui link More Info.)
-
-    // ── Foot: More Info + butang Select (kecil) di hujung kanan ──
-    var foot = document.createElement("div");
-    foot.className = "bnw-cpick-foot";
-
     if (cab.read_more_url) {
       var more = document.createElement("a");
       more.className = "bnw-cpick-more";
       more.href = cab.read_more_url;
       more.target = "_blank";
       more.rel = "noopener noreferrer";
-      more.innerHTML = '<i class="ti ti-external-link"></i> More Info';
-      foot.appendChild(more);
+      more.innerHTML = '<i class="ti ti-external-link"></i> More';
+      bottomLeft.appendChild(more);
+    }
+    bottom.appendChild(bottomLeft);
+
+    var bottomRight = document.createElement("div");
+    bottomRight.className = "bnw-cpick-bottom-right";
+    var capSpan = document.createElement("span");
+    capSpan.className = "bnw-cpick-capacity";
+    capSpan.innerHTML = '<i class="ti ti-users-group"></i> ' + capacityLabel(cab);
+    bottomRight.appendChild(capSpan);
+    if (base > 0) {
+      var priceSpan = document.createElement("span");
+      priceSpan.className = "bnw-cpick-meta-price";
+      priceSpan.textContent = "From " + fmt(base) + " /pax";
+      bottomRight.appendChild(priceSpan);
     }
 
     var selBtn = document.createElement("button");
@@ -2078,13 +2126,14 @@ function renderCabinPickerList() {
     selBtn.className = "bnw-cpick-select";
     selBtn.innerHTML = isSelected
       ? '<i class="ti ti-circle-check"></i> Selected'
-      : "Select This Cabin";
+      : "Select This Room";
     selBtn.addEventListener("click", function() {
       selectCabinFromPicker(cab);
     });
-    foot.appendChild(selBtn);
+    bottomRight.appendChild(selBtn);
+    bottom.appendChild(bottomRight);
 
-    body.appendChild(foot);
+    body.appendChild(bottom);
 
     card.appendChild(body);
     list.appendChild(card);
@@ -2108,15 +2157,20 @@ function selectCabinFromPicker(cab) {
 }
 
 // ── Carousel media untuk kad kabin dalam modal ──
-// Slide = gambar room_profile + video YouTube (kalau ada). Video dipapar
-// sebagai POSTER (thumbnail YouTube) + butang play — iframe hanya dibuat
-// bila KLIK, supaya modal tak memuat berpuluh embed YouTube serentak.
-// Dots + panah dipapar hanya bila > 1 slide.
+// Slide = video YouTube (jadi THUMBNAIL UTAMA bila link wujud — poster +
+// butang play, iframe hanya dibina bila diklik) + gambar dari gallery
+// kategori (fallback: room_profile). Dots + panah dipapar hanya bila
+// > 1 slide.
 function buildCabinCarousel(cab) {
   var slides = [];
-  if (cab.room_image) slides.push({ type: "image", src: cab.room_image });
   var ytId = cab.room_video_url ? parseYouTubeId(cab.room_video_url) : null;
   if (ytId) slides.push({ type: "video", ytId: ytId });
+  var gallery = (cab.room_gallery && cab.room_gallery.length)
+    ? cab.room_gallery
+    : (cab.room_image ? [cab.room_image] : []);
+  gallery.forEach(function(src) {
+    slides.push({ type: "image", src: src });
+  });
 
   var wrap = document.createElement("div");
   wrap.className = "bnw-cpick-carousel";
@@ -2154,20 +2208,20 @@ function buildCabinCarousel(cab) {
     if (s.type === "image") {
       var img = document.createElement("img");
       img.src = s.src;
-      img.alt = cab.room_name || "Cabin";
+      img.alt = cab.room_name || "Room";
       img.loading = "lazy";
       slide.appendChild(img);
     } else {
       slide.classList.add("bnw-cpick-slide--video");
       var poster = document.createElement("img");
       poster.src = "https://img.youtube.com/vi/" + s.ytId + "/hqdefault.jpg";
-      poster.alt = (cab.room_name || "Cabin") + " video";
+      poster.alt = (cab.room_name || "Room") + " video";
       poster.loading = "lazy";
       slide.appendChild(poster);
       var play = document.createElement("button");
       play.type = "button";
       play.className = "bnw-cpick-play";
-      play.setAttribute("aria-label", "Play cabin video");
+      play.setAttribute("aria-label", "Play room video");
       play.innerHTML = '<i class="ti ti-player-play"></i>';
       slide.appendChild(play);
       slide.addEventListener("click", function() {
@@ -2175,7 +2229,7 @@ function buildCabinCarousel(cab) {
         slide.classList.remove("bnw-cpick-slide--video");
         var iframe = document.createElement("iframe");
         iframe.src = "https://www.youtube.com/embed/" + s.ytId + "?autoplay=1&rel=0&modestbranding=1";
-        iframe.title = cab.room_name || "Cabin video";
+        iframe.title = cab.room_name || "Room video";
         iframe.setAttribute("frameborder", "0");
         iframe.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share");
         iframe.setAttribute("allowfullscreen", "");
@@ -2573,7 +2627,7 @@ function getCabinSummaryData() {
 
     grand += cabinFare;
     cabins.push({
-      title: (c.room_name || c.room_category || "Cabin") + " (" + (idx + 1) + ")",
+      title: (c.room_name || c.room_category || "Room") + " (" + (idx + 1) + ")",
       guestLines: guestLines,
       // Room Privacy — hanya wujud untuk cabin cruise SOLO (total penghuni 1)
       privacy: (state.is_cruise_trip && (r.main_guests + r.extra_beds + r.infants) === 1) ? (r.room_privacy || "Private") : "",

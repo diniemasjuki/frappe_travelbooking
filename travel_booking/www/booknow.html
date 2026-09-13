@@ -37,6 +37,31 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 
+{# ── HERO BANNER — SATU template element untuk semua step.
+   suffix: "" (Step 1), "2", "3", "4". second_id: id baris kedua banner —
+   bnwBannerGroupName (Step 1) atau bnwBannerSummary{N} (Step 2-4);
+   booknow.js isi kandungan ikut id ni. Banner render full-width
+   (direct child section, LUAR .bnw-container); container dalaman
+   .bnw-hero-inner yang align kandungan. #}
+{% macro bnw_hero_banner(suffix='', second_id='bnwBannerGroupName') %}
+  <div class="bnw-trip-banner bnw-trip-banner--hero" id="bnwTripBanner{{ suffix }}">
+    <div class="bnw-container bnw-hero-inner">
+      <div class="bnw-banner-info">
+        <h2 id="bnwBannerTripName{{ suffix }}"></h2>
+        <p id="{{ second_id }}"></p>
+        <p id="bnwBannerDeparture{{ suffix }}" class="bnw-banner-date-row"></p>
+        <p id="bnwBannerDepartFrom{{ suffix }}" class="bnw-banner-date-row"></p>
+        <p id="bnwBannerSailing{{ suffix }}" class="bnw-banner-date-row"></p>
+        <p id="bnwBannerEmbarkation{{ suffix }}" class="bnw-banner-date-row"></p>
+      </div>
+      <div class="bnw-badge-wrap">
+        <span class="bnw-badge" id="bnwBannerTripType{{ suffix }}"></span>
+        <span class="bnw-fly-from" id="bnwBannerFlyFrom{{ suffix }}"></span>
+      </div>
+    </div>
+  </div>
+{% endmacro %}
+
 <main class="bnw-main">
 
   {# ── STEP INDICATOR (4 steps for booknow — no trip selection) ── #}
@@ -77,23 +102,10 @@ if ('serviceWorker' in navigator) {
   {# STEP 1: ROOMS & PASSENGERS (first visible step)            #}
   {# ════════════════════════════════════════════════════════ #}
   <section class="bnw-section bnw-section--active" id="bnwStep1">
+
+    {{ bnw_hero_banner('', 'bnwBannerGroupName') }}
+
     <div class="bnw-container">
-
-      <div class="bnw-trip-banner" id="bnwTripBanner">
-        <div class="bnw-banner-info">
-          <h2 id="bnwBannerTripName"></h2>
-          <p id="bnwBannerGroupName"></p>
-          <p id="bnwBannerDeparture" class="bnw-banner-date-row"></p>
-          <p id="bnwBannerDepartFrom" class="bnw-banner-date-row"></p>
-          <p id="bnwBannerSailing" class="bnw-banner-date-row"></p>
-        <p id="bnwBannerEmbarkation" class="bnw-banner-date-row"></p>
-        </div>
-        <div class="bnw-badge-wrap">
-          <span class="bnw-badge" id="bnwBannerTripType"></span>
-          <span class="bnw-fly-from" id="bnwBannerFlyFrom"></span>
-        </div>
-      </div>
-
       <div class="bnw-grid-two-col">
 
         {# LEFT: Room Cards #}
@@ -115,7 +127,7 @@ if ('serviceWorker' in navigator) {
         <div class="bnw-summary-col">
           <div class="bnw-summary-card">
             <h4 class="bnw-summary-title">Payment Summary</h4>
-            <p class="bnw-order-trip" id="bnwStep1TripLine"></p>
+            <!-- <p class="bnw-order-trip" id="bnwStep1TripLine"></p> -->
             <div class="bnw-order-line">
               <span>Total Guests</span>
               <span id="bnwStep1TotalGuests">0</span>
@@ -152,26 +164,14 @@ if ('serviceWorker' in navigator) {
   {# STEP 2: BILLING DETAILS + OTP                          #}
   {# ════════════════════════════════════════════════════════ #}
   <section class="bnw-section" id="bnwStep2">
+
+    {{ bnw_hero_banner('2', 'bnwBannerSummary2') }}
+
     <div class="bnw-container">
 
       <div class="bnw-page-header">
         <h1>Billing Details</h1>
         <p>Contact details for the lead booking person</p>
-      </div>
-
-      <div class="bnw-trip-banner bnw-trip-banner--compact" id="bnwTripBanner2">
-        <div class="bnw-banner-info">
-          <h2 id="bnwBannerTripName2"></h2>
-          <p id="bnwBannerSummary2"></p>
-          <p id="bnwBannerDeparture2" class="bnw-banner-date-row"></p>
-          <p id="bnwBannerDepartFrom2" class="bnw-banner-date-row"></p>
-          <p id="bnwBannerSailing2" class="bnw-banner-date-row"></p>
-        <p id="bnwBannerEmbarkation2" class="bnw-banner-date-row"></p>
-        </div>
-        <div class="bnw-badge-wrap">
-          <span class="bnw-badge" id="bnwBannerTripType2"></span>
-          <span class="bnw-fly-from" id="bnwBannerFlyFrom2"></span>
-        </div>
       </div>
 
       <div class="bnw-grid-two-col">
@@ -312,26 +312,14 @@ if ('serviceWorker' in navigator) {
   {# STEP 3: PAYMENT                                       #}
   {# ════════════════════════════════════════════════════════ #}
   <section class="bnw-section" id="bnwStep3">
+
+    {{ bnw_hero_banner('3', 'bnwBannerSummary3') }}
+
     <div class="bnw-container">
 
       <div class="bnw-page-header">
         <h1>Payment</h1>
         <p>Review your order and complete payment</p>
-      </div>
-
-      <div class="bnw-trip-banner bnw-trip-banner--compact" id="bnwTripBanner3">
-        <div class="bnw-banner-info">
-          <h2 id="bnwBannerTripName3"></h2>
-          <p id="bnwBannerSummary3"></p>
-          <p id="bnwBannerDeparture3" class="bnw-banner-date-row"></p>
-          <p id="bnwBannerDepartFrom3" class="bnw-banner-date-row"></p>
-          <p id="bnwBannerSailing3" class="bnw-banner-date-row"></p>
-        <p id="bnwBannerEmbarkation3" class="bnw-banner-date-row"></p>
-        </div>
-        <div class="bnw-badge-wrap">
-          <span class="bnw-badge" id="bnwBannerTripType3"></span>
-          <span class="bnw-fly-from" id="bnwBannerFlyFrom3"></span>
-        </div>
       </div>
 
       <div class="bnw-grid-two-col">
@@ -469,7 +457,6 @@ if ('serviceWorker' in navigator) {
         <div class="bnw-summary-col">
           <div class="bnw-summary-card">
             <h4 class="bnw-summary-title">Payment Summary</h4>
-            <p class="bnw-order-trip" id="bnwOrderSummaryTrip"></p>
 
             <div class="bnw-order-line">
               <span>Total Guests</span>
@@ -572,22 +559,10 @@ if ('serviceWorker' in navigator) {
   {# STEP 4: CONFIRMATION                                  #}
   {# ════════════════════════════════════════════════════════ #}
   <section class="bnw-section" id="bnwStep4">
-    <div class="bnw-container">
 
-      <div class="bnw-trip-banner bnw-trip-banner--compact" id="bnwTripBanner4">
-        <div class="bnw-banner-info">
-          <h2 id="bnwBannerTripName4"></h2>
-          <p id="bnwBannerSummary4"></p>
-          <p id="bnwBannerDeparture4" class="bnw-banner-date-row"></p>
-          <p id="bnwBannerDepartFrom4" class="bnw-banner-date-row"></p>
-          <p id="bnwBannerSailing4" class="bnw-banner-date-row"></p>
-        <p id="bnwBannerEmbarkation4" class="bnw-banner-date-row"></p>
-        </div>
-        <div class="bnw-badge-wrap">
-          <span class="bnw-badge" id="bnwBannerTripType4"></span>
-          <span class="bnw-fly-from" id="bnwBannerFlyFrom4"></span>
-        </div>
-      </div>
+    {{ bnw_hero_banner('4', 'bnwBannerSummary4') }}
+
+    <div class="bnw-container">
 
       <div class="bnw-confirm-card">
         <div class="bnw-confirm-icon">

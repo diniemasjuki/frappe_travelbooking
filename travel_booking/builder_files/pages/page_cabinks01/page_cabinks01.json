@@ -1,0 +1,2114 @@
+{
+ "app": "travel_booking",
+ "authenticated_access": 0,
+ "blocks": [
+  {
+   "baseStyles": {
+    "alignItems": "center",
+    "backgroundColor": "var(--rarecation-ivory)",
+    "display": "flex",
+    "flexDirection": "column",
+    "fontFamily": "var(--rarecation-body)",
+    "position": "static",
+    "width": "100%"
+   },
+   "blockId": "root",
+   "blockName": "body",
+   "children": [
+    {
+     "baseStyles": {
+      "alignItems": "center",
+      "backgroundColor": "#FFFFFF",
+      "boxShadow": "0 4px 20px rgba(44,26,0,0.07)",
+      "boxSizing": "border-box",
+      "display": "flex",
+      "justifyContent": "space-between",
+      "padding": "18px 60px",
+      "position": "sticky",
+      "top": "0px",
+      "width": "100%",
+      "zIndex": "100"
+     },
+     "blockId": "339fa5a0a",
+     "blockName": "navbar",
+     "children": [
+      {
+       "attributes": {
+        "aria-label": "Rarecation home",
+        "href": "/"
+       },
+       "baseStyles": {
+        "alignItems": "center",
+        "display": "flex",
+        "textDecoration": "none"
+       },
+       "blockId": "7a53ffd11",
+       "children": [
+        {
+         "attributes": {
+          "alt": "Rarecation",
+          "src": "/assets/travel_booking/builder_assets/RARECATION.png"
+         },
+         "baseStyles": {
+          "display": "block",
+          "height": "auto",
+          "width": "156px"
+         },
+         "blockId": "43e98ac2c",
+         "element": "img",
+         "mobileStyles": {
+          "width": "126px"
+         }
+        }
+       ],
+       "element": "a"
+      },
+      {
+       "attributes": {
+        "href": "/traveller"
+       },
+       "baseStyles": {
+        "border": "1px solid var(--rarecation-gold)",
+        "borderRadius": "50px",
+        "color": "var(--rarecation-gold-deep)",
+        "fontSize": "14px",
+        "fontWeight": "700",
+        "hover:backgroundColor": "var(--rarecation-gold)",
+        "hover:color": "#FFFFFF",
+        "padding": "11px 22px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap"
+       },
+       "blockId": "4fedee202",
+       "element": "a",
+       "innerHTML": "My Bookings",
+       "mobileStyles": {
+        "fontSize": "13px",
+        "padding": "10px 16px"
+       }
+      }
+     ],
+     "element": "section",
+     "mobileStyles": {
+      "padding": "14px 20px"
+     }
+    },
+    {
+     "blockId": "3dfe66ad5",
+     "element": "section",
+     "blockName": "cabin subnav",
+     "baseStyles": {
+      "backgroundColor": "#FFFFFF",
+      "borderBottom": "1px solid rgba(44,26,0,0.08)",
+      "boxSizing": "border-box",
+      "display": "flex",
+      "gap": "10px",
+      "justifyContent": "center",
+      "padding": "14px 24px",
+      "width": "100%"
+     },
+     "mobileStyles": {
+      "gap": "8px",
+      "padding": "12px 16px"
+     },
+     "children": [
+      {
+       "blockId": "adab083cc",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_types"
+       },
+       "innerHTML": "Cabin Types"
+      },
+      {
+       "blockId": "3d10a4cd3",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_interior"
+       },
+       "innerHTML": "Interior"
+      },
+      {
+       "blockId": "85f7178b8",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_seaview"
+       },
+       "innerHTML": "Seaview"
+      },
+      {
+       "blockId": "f11da120d",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_balcony"
+       },
+       "innerHTML": "Balcony"
+      },
+      {
+       "blockId": "1695680f2",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "var(--rarecation-gold)",
+        "border": "1px solid var(--rarecation-gold)",
+        "borderRadius": "50px",
+        "color": "#FFFFFF",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap"
+       },
+       "attributes": {
+        "href": "/cabin_khuzama_suites"
+       },
+       "innerHTML": "Khuzama Suites"
+      },
+      {
+       "blockId": "d9050820d",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_khuzama_villas"
+       },
+       "innerHTML": "Khuzama Villas"
+      },
+      {
+       "blockId": "f3092ec13",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/deck_plans"
+       },
+       "innerHTML": "Deck Plans"
+      }
+     ]
+    },
+    {
+     "blockId": "2ba146911",
+     "element": "section",
+     "blockName": "hero",
+     "baseStyles": {
+      "alignItems": "center",
+      "backgroundImage": "linear-gradient(135deg, #FFF8EC, #FFF3D6, #FDECC8)",
+      "boxSizing": "border-box",
+      "display": "flex",
+      "justifyContent": "center",
+      "overflow": "hidden",
+      "padding": "72px 24px 66px",
+      "position": "relative",
+      "width": "100%"
+     },
+     "mobileStyles": {
+      "padding": "56px 20px 52px"
+     },
+     "children": [
+      {
+       "blockId": "fe050e43b",
+       "element": "div",
+       "blockName": "gold glow one",
+       "baseStyles": {
+        "backgroundImage": "radial-gradient(circle, rgba(200,151,58,0.22), rgba(200,151,58,0) 68%)",
+        "borderRadius": "50%",
+        "height": "440px",
+        "pointerEvents": "none",
+        "position": "absolute",
+        "right": "6%",
+        "top": "-215px",
+        "width": "440px"
+       }
+      },
+      {
+       "blockId": "91651c09b",
+       "element": "div",
+       "blockName": "gold glow two",
+       "baseStyles": {
+        "backgroundImage": "radial-gradient(circle, rgba(200,151,58,0.16), rgba(200,151,58,0) 70%)",
+        "borderRadius": "50%",
+        "bottom": "-190px",
+        "height": "320px",
+        "left": "6%",
+        "pointerEvents": "none",
+        "position": "absolute",
+        "width": "320px"
+       }
+      },
+      {
+       "blockId": "19445677e",
+       "element": "div",
+       "baseStyles": {
+        "alignItems": "center",
+        "display": "flex",
+        "flexDirection": "column",
+        "maxWidth": "860px",
+        "position": "relative",
+        "textAlign": "center",
+        "zIndex": "2"
+       },
+       "children": [
+        {
+         "blockId": "7fe985102",
+         "element": "p",
+         "baseStyles": {
+          "color": "var(--rarecation-gold-deep)",
+          "fontSize": "11px",
+          "fontWeight": "700",
+          "letterSpacing": "2.5px",
+          "margin": "0 0 16px",
+          "textTransform": "uppercase"
+         },
+         "innerHTML": "AROYA Cruises \u00b7 Khuzama"
+        },
+        {
+         "blockId": "6f985b542",
+         "element": "h1",
+         "baseStyles": {
+          "color": "var(--rarecation-espresso)",
+          "fontFamily": "var(--rarecation-display)",
+          "fontSize": "54px",
+          "fontWeight": "800",
+          "letterSpacing": "-0.03em",
+          "lineHeight": "1.06",
+          "margin": "0"
+         },
+         "mobileStyles": {
+          "fontSize": "36px"
+         },
+         "innerHTML": "Khuzama Suites"
+        },
+        {
+         "blockId": "f710491a4",
+         "element": "p",
+         "baseStyles": {
+          "color": "rgba(44,26,0,0.68)",
+          "fontSize": "17px",
+          "lineHeight": "1.7",
+          "margin": "20px 0 0",
+          "maxWidth": "640px"
+         },
+         "mobileStyles": {
+          "fontSize": "15px"
+         },
+         "innerHTML": "The premium class of AROYA \u2014 refined suites with thoughtful details, dedicated amenities and privileged deck locations."
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "blockId": "e9e5506fd",
+     "element": "section",
+     "blockName": "facilities",
+     "baseStyles": {
+      "backgroundColor": "#FFFFFF",
+      "boxSizing": "border-box",
+      "padding": "76px 24px",
+      "width": "100%"
+     },
+     "mobileStyles": {
+      "padding": "56px 20px"
+     },
+     "children": [
+      {
+       "blockId": "8af3aa78a",
+       "element": "div",
+       "baseStyles": {
+        "display": "flex",
+        "gap": "56px",
+        "margin": "0 auto",
+        "maxWidth": "980px",
+        "width": "100%"
+       },
+       "mobileStyles": {
+        "flexDirection": "column",
+        "gap": "28px"
+       },
+       "children": [
+        {
+         "blockId": "3547ba817",
+         "element": "div",
+         "baseStyles": {
+          "flexBasis": "230px",
+          "flexShrink": "0"
+         },
+         "mobileStyles": {
+          "flexBasis": "auto"
+         },
+         "children": [
+          {
+           "blockId": "682569702",
+           "element": "p",
+           "baseStyles": {
+            "color": "var(--rarecation-gold-deep)",
+            "fontSize": "11px",
+            "fontWeight": "700",
+            "letterSpacing": "2.5px",
+            "margin": "0 0 10px",
+            "textTransform": "uppercase"
+           },
+           "innerHTML": "On every cabin"
+          },
+          {
+           "blockId": "7a7a5ada9",
+           "element": "h2",
+           "baseStyles": {
+            "color": "var(--rarecation-espresso)",
+            "fontFamily": "var(--rarecation-display)",
+            "fontSize": "38px",
+            "fontWeight": "800",
+            "letterSpacing": "-0.02em",
+            "margin": "0"
+           },
+           "innerHTML": "Facilities"
+          }
+         ]
+        },
+        {
+         "blockId": "4c0722181",
+         "element": "div",
+         "baseStyles": {
+          "backgroundColor": "#FFFDF8",
+          "border": "1px solid rgba(200,151,58,0.25)",
+          "borderRadius": "20px",
+          "boxSizing": "border-box",
+          "display": "flex",
+          "flexDirection": "column",
+          "gap": "16px",
+          "flexGrow": "1",
+          "padding": "34px 36px"
+         },
+         "mobileStyles": {
+          "padding": "26px 22px"
+         },
+         "children": [
+          {
+           "blockId": "06aff4a22",
+           "element": "div",
+           "baseStyles": {
+            "alignItems": "flex-start",
+            "display": "flex",
+            "gap": "12px"
+           },
+           "children": [
+            {
+             "blockId": "74cbc4a56",
+             "element": "span",
+             "baseStyles": {
+              "color": "var(--rarecation-gold)",
+              "fontSize": "16px",
+              "fontWeight": "800",
+              "lineHeight": "1.6"
+             },
+             "innerHTML": "\u2713"
+            },
+            {
+             "blockId": "5bb0dc94e",
+             "element": "p",
+             "baseStyles": {
+              "color": "rgba(44,26,0,0.78)",
+              "fontSize": "16px",
+              "lineHeight": "1.65",
+              "margin": "0"
+             },
+             "innerHTML": "Double bed (upon request)"
+            }
+           ]
+          },
+          {
+           "blockId": "f1443b03f",
+           "element": "div",
+           "baseStyles": {
+            "alignItems": "flex-start",
+            "display": "flex",
+            "gap": "12px"
+           },
+           "children": [
+            {
+             "blockId": "a9a3e42db",
+             "element": "span",
+             "baseStyles": {
+              "color": "var(--rarecation-gold)",
+              "fontSize": "16px",
+              "fontWeight": "800",
+              "lineHeight": "1.6"
+             },
+             "innerHTML": "\u2713"
+            },
+            {
+             "blockId": "eda8e482b",
+             "element": "p",
+             "baseStyles": {
+              "color": "rgba(44,26,0,0.78)",
+              "fontSize": "16px",
+              "lineHeight": "1.65",
+              "margin": "0"
+             },
+             "innerHTML": "Private bathroom with shower &amp; hair dryer"
+            }
+           ]
+          },
+          {
+           "blockId": "e04fecec2",
+           "element": "div",
+           "baseStyles": {
+            "alignItems": "flex-start",
+            "display": "flex",
+            "gap": "12px"
+           },
+           "children": [
+            {
+             "blockId": "124d6fe18",
+             "element": "span",
+             "baseStyles": {
+              "color": "var(--rarecation-gold)",
+              "fontSize": "16px",
+              "fontWeight": "800",
+              "lineHeight": "1.6"
+             },
+             "innerHTML": "\u2713"
+            },
+            {
+             "blockId": "1ca66aff5",
+             "element": "p",
+             "baseStyles": {
+              "color": "rgba(44,26,0,0.78)",
+              "fontSize": "16px",
+              "lineHeight": "1.65",
+              "margin": "0"
+             },
+             "innerHTML": "Smart TV, safe box, telephone, mini fridge, adjustable air-conditioner and furnished balcony"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "blockId": "eb2a06bf4",
+     "element": "section",
+     "blockName": "cards section",
+     "baseStyles": {
+      "backgroundColor": "var(--rarecation-ivory)",
+      "boxSizing": "border-box",
+      "padding": "80px 24px 88px",
+      "width": "100%"
+     },
+     "mobileStyles": {
+      "padding": "60px 20px 66px"
+     },
+     "children": [
+      {
+       "blockId": "4e3d13eaf",
+       "element": "div",
+       "baseStyles": {
+        "margin": "0 auto",
+        "maxWidth": "1180px",
+        "width": "100%"
+       },
+       "children": [
+        {
+         "blockId": "2615d07e3",
+         "element": "div",
+         "blockName": "section header",
+         "baseStyles": {
+          "alignItems": "center",
+          "display": "flex",
+          "flexDirection": "column",
+          "margin": "0 auto 46px",
+          "textAlign": "center"
+         },
+         "children": [
+          {
+           "blockId": "4f1fbd0dd",
+           "element": "p",
+           "baseStyles": {
+            "color": "var(--rarecation-gold-deep)",
+            "fontSize": "11px",
+            "fontWeight": "700",
+            "letterSpacing": "2.5px",
+            "margin": "0 0 14px",
+            "textTransform": "uppercase"
+           },
+           "innerHTML": "Khuzama"
+          },
+          {
+           "blockId": "3ff9e292e",
+           "element": "h2",
+           "baseStyles": {
+            "color": "var(--rarecation-espresso)",
+            "fontFamily": "var(--rarecation-display)",
+            "fontSize": "40px",
+            "fontWeight": "800",
+            "letterSpacing": "-0.02em",
+            "lineHeight": "1.12",
+            "margin": "0"
+           },
+           "mobileStyles": {
+            "fontSize": "30px"
+           },
+           "innerHTML": "Choose Your Suite"
+          }
+         ]
+        },
+        {
+         "blockId": "44e94ab64",
+         "element": "div",
+         "baseStyles": {
+          "display": "flex",
+          "flexWrap": "wrap",
+          "gap": "28px",
+          "justifyContent": "center"
+         },
+         "children": [
+          {
+           "blockId": "73fe8781b",
+           "element": "div",
+           "blockName": "card Junior Suite",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(50% - 14px)",
+            "overflow": "hidden",
+            "width": "calc(50% - 14px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "100%",
+            "width": "100%"
+           },
+           "children": [
+            {
+             "blockId": "9c61b2ecd",
+             "element": "img",
+             "baseStyles": {
+              "display": "block",
+              "height": "240px",
+              "objectFit": "cover",
+              "width": "100%"
+             },
+             "mobileStyles": {
+              "height": "190px"
+             },
+             "attributes": {
+              "src": "/assets/travel_booking/builder_assets/aroya_cabins/junior_suite.jpg",
+              "alt": "Junior Suite",
+              "loading": "lazy"
+             }
+            },
+            {
+             "blockId": "49c6e1ecb",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "24px 26px 28px"
+             },
+             "children": [
+              {
+               "blockId": "447833496",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "24px",
+                "fontWeight": "800",
+                "letterSpacing": "-0.01em",
+                "margin": "0 0 14px"
+               },
+               "innerHTML": "Junior Suite"
+              },
+              {
+               "blockId": "995222fe5",
+               "element": "div",
+               "baseStyles": {
+                "alignItems": "center",
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px"
+               },
+               "children": [
+                {
+                 "blockId": "3e38c98e8",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "4 guests"
+                },
+                {
+                 "blockId": "16523743c",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "25 m\u00b2"
+                },
+                {
+                 "blockId": "ccc885e98",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Balcony 5\u201310 m\u00b2"
+                },
+                {
+                 "blockId": "4b1cbc15d",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Deck 15"
+                }
+               ]
+              },
+              {
+               "blockId": "9cf32ed23",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.68)",
+                "fontSize": "14.5px",
+                "lineHeight": "1.7",
+                "margin": "14px 0 0"
+               },
+               "innerHTML": "Furnished balcony, vanity table, daily cleaning service and turndown service."
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "efde91f79",
+           "element": "div",
+           "blockName": "card Superior Suite",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(50% - 14px)",
+            "overflow": "hidden",
+            "width": "calc(50% - 14px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "100%",
+            "width": "100%"
+           },
+           "children": [
+            {
+             "blockId": "1c8defcb4",
+             "element": "img",
+             "baseStyles": {
+              "display": "block",
+              "height": "240px",
+              "objectFit": "cover",
+              "width": "100%"
+             },
+             "mobileStyles": {
+              "height": "190px"
+             },
+             "attributes": {
+              "src": "/assets/travel_booking/builder_assets/aroya_cabins/superior_suite.jpg",
+              "alt": "Superior Suite",
+              "loading": "lazy"
+             }
+            },
+            {
+             "blockId": "376602caf",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "24px 26px 28px"
+             },
+             "children": [
+              {
+               "blockId": "2281981e1",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "24px",
+                "fontWeight": "800",
+                "letterSpacing": "-0.01em",
+                "margin": "0 0 14px"
+               },
+               "innerHTML": "Superior Suite"
+              },
+              {
+               "blockId": "64bd212b3",
+               "element": "div",
+               "baseStyles": {
+                "alignItems": "center",
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px"
+               },
+               "children": [
+                {
+                 "blockId": "48174e217",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "4 guests"
+                },
+                {
+                 "blockId": "47d6bfea0",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "32 m\u00b2"
+                },
+                {
+                 "blockId": "6ab70a03e",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Balcony 6\u201316 m\u00b2"
+                },
+                {
+                 "blockId": "99223a69c",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Decks 13, 15, 17"
+                }
+               ]
+              },
+              {
+               "blockId": "a4d3af25f",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.68)",
+                "fontSize": "14.5px",
+                "lineHeight": "1.7",
+                "margin": "14px 0 0"
+               },
+               "innerHTML": "Walk-in closet, furnished balcony, vanity table, bathtub, daily cleaning and turndown service."
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "4bdfd8b02",
+           "element": "div",
+           "blockName": "card Superior Suite (Accessible)",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(50% - 14px)",
+            "overflow": "hidden",
+            "width": "calc(50% - 14px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "100%",
+            "width": "100%"
+           },
+           "children": [
+            {
+             "blockId": "a71c37bcc",
+             "element": "img",
+             "baseStyles": {
+              "display": "block",
+              "height": "240px",
+              "objectFit": "cover",
+              "width": "100%"
+             },
+             "mobileStyles": {
+              "height": "190px"
+             },
+             "attributes": {
+              "src": "/assets/travel_booking/builder_assets/aroya_cabins/superior_suite_accessible.jpg",
+              "alt": "Superior Suite (Accessible)",
+              "loading": "lazy"
+             }
+            },
+            {
+             "blockId": "cc2a35807",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "24px 26px 28px"
+             },
+             "children": [
+              {
+               "blockId": "cab989335",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "24px",
+                "fontWeight": "800",
+                "letterSpacing": "-0.01em",
+                "margin": "0 0 14px"
+               },
+               "innerHTML": "Superior Suite (Accessible)"
+              },
+              {
+               "blockId": "d946c6930",
+               "element": "div",
+               "baseStyles": {
+                "alignItems": "center",
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px"
+               },
+               "children": [
+                {
+                 "blockId": "1e71eebba",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "4 guests"
+                },
+                {
+                 "blockId": "4eea58df0",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "34 m\u00b2"
+                },
+                {
+                 "blockId": "594f019eb",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Balcony 6\u201316 m\u00b2"
+                },
+                {
+                 "blockId": "fcb953fba",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Deck 15"
+                },
+                {
+                 "blockId": "b2143badd",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "\u267f Accessible"
+                }
+               ]
+              },
+              {
+               "blockId": "09ac7a811",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.68)",
+                "fontSize": "14.5px",
+                "lineHeight": "1.7",
+                "margin": "14px 0 0"
+               },
+               "innerHTML": "Furnished balcony, vanity table, daily cleaning service, turndown service, pantry \u2014 special needs equipment upon request."
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "1e3146dbb",
+           "element": "div",
+           "blockName": "card Seaview Suite",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(50% - 14px)",
+            "overflow": "hidden",
+            "width": "calc(50% - 14px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "100%",
+            "width": "100%"
+           },
+           "children": [
+            {
+             "blockId": "2a6e19be4",
+             "element": "img",
+             "baseStyles": {
+              "display": "block",
+              "height": "240px",
+              "objectFit": "cover",
+              "width": "100%"
+             },
+             "mobileStyles": {
+              "height": "190px"
+             },
+             "attributes": {
+              "src": "/assets/travel_booking/builder_assets/aroya_cabins/seaview_suite.jpg",
+              "alt": "Seaview Suite",
+              "loading": "lazy"
+             }
+            },
+            {
+             "blockId": "b7918eb0f",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "24px 26px 28px"
+             },
+             "children": [
+              {
+               "blockId": "e512422cd",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "24px",
+                "fontWeight": "800",
+                "letterSpacing": "-0.01em",
+                "margin": "0 0 14px"
+               },
+               "innerHTML": "Seaview Suite"
+              },
+              {
+               "blockId": "896789ae0",
+               "element": "div",
+               "baseStyles": {
+                "alignItems": "center",
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px"
+               },
+               "children": [
+                {
+                 "blockId": "ffe8d0dfa",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "4 guests"
+                },
+                {
+                 "blockId": "539b72ec6",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "35 m\u00b2"
+                },
+                {
+                 "blockId": "f77fd0d91",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Deck 13"
+                }
+               ]
+              },
+              {
+               "blockId": "b3635c564",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.68)",
+                "fontSize": "14.5px",
+                "lineHeight": "1.7",
+                "margin": "14px 0 0"
+               },
+               "innerHTML": "Walk-in closet, vanity table, bathtub, daily cleaning, turndown service and pantry."
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "cb4cae267",
+           "element": "div",
+           "blockName": "card Grand Suite",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(50% - 14px)",
+            "overflow": "hidden",
+            "width": "calc(50% - 14px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "100%",
+            "width": "100%"
+           },
+           "children": [
+            {
+             "blockId": "f8e0b4378",
+             "element": "img",
+             "baseStyles": {
+              "display": "block",
+              "height": "240px",
+              "objectFit": "cover",
+              "width": "100%"
+             },
+             "mobileStyles": {
+              "height": "190px"
+             },
+             "attributes": {
+              "src": "/assets/travel_booking/builder_assets/aroya_cabins/grand_suite.jpg",
+              "alt": "Grand Suite",
+              "loading": "lazy"
+             }
+            },
+            {
+             "blockId": "ef7707f7e",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "24px 26px 28px"
+             },
+             "children": [
+              {
+               "blockId": "3acb127a4",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "24px",
+                "fontWeight": "800",
+                "letterSpacing": "-0.01em",
+                "margin": "0 0 14px"
+               },
+               "innerHTML": "Grand Suite"
+              },
+              {
+               "blockId": "ea8c1eab2",
+               "element": "div",
+               "baseStyles": {
+                "alignItems": "center",
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px"
+               },
+               "children": [
+                {
+                 "blockId": "cfb7d1b95",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "4 guests"
+                },
+                {
+                 "blockId": "bb4b68072",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "38 m\u00b2"
+                },
+                {
+                 "blockId": "9353968ea",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Balcony 22\u201335 m\u00b2"
+                },
+                {
+                 "blockId": "9d6941166",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Decks 9\u201313, 15"
+                }
+               ]
+              },
+              {
+               "blockId": "e38adcfde",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.68)",
+                "fontSize": "14.5px",
+                "lineHeight": "1.7",
+                "margin": "14px 0 0"
+               },
+               "innerHTML": "Walk-in closet, dining room, furnished balcony, vanity table, daily cleaning and turndown service."
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "9545b0f8f",
+           "element": "div",
+           "blockName": "card Premier Suite",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(50% - 14px)",
+            "overflow": "hidden",
+            "width": "calc(50% - 14px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "100%",
+            "width": "100%"
+           },
+           "children": [
+            {
+             "blockId": "3ab4e7d84",
+             "element": "img",
+             "baseStyles": {
+              "display": "block",
+              "height": "240px",
+              "objectFit": "cover",
+              "width": "100%"
+             },
+             "mobileStyles": {
+              "height": "190px"
+             },
+             "attributes": {
+              "src": "/assets/travel_booking/builder_assets/aroya_cabins/premier_suite.jpg",
+              "alt": "Premier Suite",
+              "loading": "lazy"
+             }
+            },
+            {
+             "blockId": "2fa52df57",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "24px 26px 28px"
+             },
+             "children": [
+              {
+               "blockId": "5947c1c73",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "24px",
+                "fontWeight": "800",
+                "letterSpacing": "-0.01em",
+                "margin": "0 0 14px"
+               },
+               "innerHTML": "Premier Suite"
+              },
+              {
+               "blockId": "9b450c0a5",
+               "element": "div",
+               "baseStyles": {
+                "alignItems": "center",
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px"
+               },
+               "children": [
+                {
+                 "blockId": "61b4758f9",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "4 guests"
+                },
+                {
+                 "blockId": "49800689a",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "39 m\u00b2"
+                },
+                {
+                 "blockId": "7ddfe78bf",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Balcony 4 m\u00b2"
+                },
+                {
+                 "blockId": "d50c162cb",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Decks 9\u201312"
+                }
+               ]
+              },
+              {
+               "blockId": "75f687099",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.68)",
+                "fontSize": "14.5px",
+                "lineHeight": "1.7",
+                "margin": "14px 0 0"
+               },
+               "innerHTML": "Dining area, furnished balcony, vanity table, bathtub, daily cleaning, turndown service and pantry."
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "5f2c5cb55",
+           "element": "div",
+           "blockName": "card Deluxe Suite",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(50% - 14px)",
+            "overflow": "hidden",
+            "width": "calc(50% - 14px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "100%",
+            "width": "100%"
+           },
+           "children": [
+            {
+             "blockId": "9233d3440",
+             "element": "img",
+             "baseStyles": {
+              "display": "block",
+              "height": "240px",
+              "objectFit": "cover",
+              "width": "100%"
+             },
+             "mobileStyles": {
+              "height": "190px"
+             },
+             "attributes": {
+              "src": "/assets/travel_booking/builder_assets/aroya_cabins/deluxe_suite.jpg",
+              "alt": "Deluxe Suite",
+              "loading": "lazy"
+             }
+            },
+            {
+             "blockId": "2999624de",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "24px 26px 28px"
+             },
+             "children": [
+              {
+               "blockId": "3534b30bc",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "24px",
+                "fontWeight": "800",
+                "letterSpacing": "-0.01em",
+                "margin": "0 0 14px"
+               },
+               "innerHTML": "Deluxe Suite"
+              },
+              {
+               "blockId": "75b3c0675",
+               "element": "div",
+               "baseStyles": {
+                "alignItems": "center",
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px"
+               },
+               "children": [
+                {
+                 "blockId": "71a63eed7",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "4 guests"
+                },
+                {
+                 "blockId": "0bf4f8918",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "39 m\u00b2"
+                },
+                {
+                 "blockId": "b3cef180a",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Balcony 6 m\u00b2"
+                },
+                {
+                 "blockId": "491d4e027",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Deck 15"
+                }
+               ]
+              },
+              {
+               "blockId": "b69c415b0",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.68)",
+                "fontSize": "14.5px",
+                "lineHeight": "1.7",
+                "margin": "14px 0 0"
+               },
+               "innerHTML": "Walk-in closet, furnished balcony, vanity table, bathtub, daily cleaning, turndown service and pantry."
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "81e0cd8f2",
+           "element": "div",
+           "blockName": "card Premier Family Suite",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(50% - 14px)",
+            "overflow": "hidden",
+            "width": "calc(50% - 14px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "100%",
+            "width": "100%"
+           },
+           "children": [
+            {
+             "blockId": "d6d2a2f56",
+             "element": "img",
+             "baseStyles": {
+              "display": "block",
+              "height": "240px",
+              "objectFit": "cover",
+              "width": "100%"
+             },
+             "mobileStyles": {
+              "height": "190px"
+             },
+             "attributes": {
+              "src": "/assets/travel_booking/builder_assets/aroya_cabins/premier_family_suite.jpg",
+              "alt": "Premier Family Suite",
+              "loading": "lazy"
+             }
+            },
+            {
+             "blockId": "73052ad57",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "24px 26px 28px"
+             },
+             "children": [
+              {
+               "blockId": "895ae405e",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "24px",
+                "fontWeight": "800",
+                "letterSpacing": "-0.01em",
+                "margin": "0 0 14px"
+               },
+               "innerHTML": "Premier Family Suite"
+              },
+              {
+               "blockId": "483fcf986",
+               "element": "div",
+               "baseStyles": {
+                "alignItems": "center",
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px"
+               },
+               "children": [
+                {
+                 "blockId": "d5182fab3",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "4 guests"
+                },
+                {
+                 "blockId": "2929bef61",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "58 m\u00b2"
+                },
+                {
+                 "blockId": "084706035",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Balcony 3 m\u00b2"
+                },
+                {
+                 "blockId": "c9e86c597",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Deck 13"
+                }
+               ]
+              },
+              {
+               "blockId": "15978ca1d",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.68)",
+                "fontSize": "14.5px",
+                "lineHeight": "1.7",
+                "margin": "14px 0 0"
+               },
+               "innerHTML": "Dining room, furnished balcony, vanity table, bathtub, daily cleaning, turndown service and coffee maker."
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "baseStyles": {
+      "backgroundColor": "#FDECC8",
+      "boxSizing": "border-box",
+      "padding": "62px 24px",
+      "width": "100%"
+     },
+     "blockId": "6f9d3eb7a",
+     "blockName": "booking assistance",
+     "children": [
+      {
+       "baseStyles": {
+        "alignItems": "center",
+        "display": "flex",
+        "gap": "32px",
+        "justifyContent": "space-between",
+        "margin": "0 auto",
+        "maxWidth": "900px"
+       },
+       "blockId": "19d7ae59b",
+       "children": [
+        {
+         "blockId": "a646121bf",
+         "children": [
+          {
+           "baseStyles": {
+            "color": "var(--rarecation-espresso)",
+            "fontFamily": "var(--rarecation-display)",
+            "fontSize": "32px",
+            "fontWeight": "800",
+            "letterSpacing": "-0.02em",
+            "lineHeight": "1.12",
+            "margin": "0 0 10px"
+           },
+           "blockId": "fcb670482",
+           "element": "h2",
+           "innerHTML": "Ready to sail with AROYA?",
+           "mobileStyles": {
+            "fontSize": "28px"
+           }
+          },
+          {
+           "baseStyles": {
+            "color": "rgba(44,26,0,0.65)",
+            "fontSize": "16px",
+            "lineHeight": "1.7",
+            "margin": "0",
+            "maxWidth": "560px"
+           },
+           "blockId": "7f86ee5e7",
+           "element": "p",
+           "innerHTML": "Explore our upcoming AROYA cruises and secure the cabin that suits you best."
+          }
+         ],
+         "element": "div"
+        },
+        {
+         "attributes": {
+          "href": "/cruises"
+         },
+         "baseStyles": {
+          "alignItems": "center",
+          "backgroundColor": "var(--rarecation-gold)",
+          "borderRadius": "50px",
+          "color": "#FFFFFF",
+          "display": "inline-flex",
+          "fontSize": "14px",
+          "fontWeight": "700",
+          "hover:backgroundColor": "var(--rarecation-gold-deep)",
+          "justifyContent": "center",
+          "padding": "14px 27px",
+          "textDecoration": "none",
+          "transition": "all 0.2s ease",
+          "whiteSpace": "nowrap"
+         },
+         "blockId": "6df80b02b",
+         "element": "a",
+         "innerHTML": "View Cruises"
+        }
+       ],
+       "element": "div",
+       "mobileStyles": {
+        "alignItems": "flex-start",
+        "flexDirection": "column",
+        "gap": "24px"
+       }
+      }
+     ],
+     "element": "section",
+     "mobileStyles": {
+      "padding": "52px 24px"
+     }
+    },
+    {
+     "baseStyles": {
+      "backgroundColor": "var(--rarecation-espresso)",
+      "boxSizing": "border-box",
+      "padding": "52px 60px 28px",
+      "width": "100%"
+     },
+     "blockId": "c57b9a539",
+     "blockName": "footer",
+     "children": [
+      {
+       "baseStyles": {
+        "alignItems": "center",
+        "borderBottom": "1px solid rgba(255,255,255,0.16)",
+        "display": "flex",
+        "flexWrap": "wrap",
+        "gap": "32px",
+        "justifyContent": "space-between",
+        "margin": "0 auto",
+        "maxWidth": "1100px",
+        "paddingBottom": "34px"
+       },
+       "blockId": "42a4be15f",
+       "children": [
+        {
+         "baseStyles": {
+          "alignItems": "flex-start",
+          "display": "flex",
+          "flexDirection": "column",
+          "gap": "14px"
+         },
+         "blockId": "a9f0fc703",
+         "children": [
+          {
+           "attributes": {
+            "aria-label": "Rarecation home",
+            "href": "/"
+           },
+           "baseStyles": {
+            "display": "flex",
+            "textDecoration": "none"
+           },
+           "blockId": "313a19e02",
+           "children": [
+            {
+             "attributes": {
+              "alt": "Rarecation",
+              "src": "/assets/travel_booking/builder_assets/RARECATION.png"
+             },
+             "baseStyles": {
+              "display": "block",
+              "filter": "brightness(0) invert(1)",
+              "height": "auto",
+              "width": "150px"
+             },
+             "blockId": "92201440b",
+             "element": "img"
+            }
+           ],
+           "element": "a"
+          },
+          {
+           "baseStyles": {
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "lineHeight": "1.5",
+            "margin": "0"
+           },
+           "blockId": "f0a5b9c4f",
+           "element": "p",
+           "innerHTML": "Luxury Travel, Crafted for You."
+          }
+         ],
+         "element": "div"
+        },
+        {
+         "baseStyles": {
+          "alignItems": "center",
+          "display": "flex",
+          "flexWrap": "wrap",
+          "gap": "18px 24px",
+          "justifyContent": "flex-end"
+         },
+         "blockId": "f97401c01",
+         "children": [
+          {
+           "attributes": {
+            "href": "/"
+           },
+           "baseStyles": {
+            "backgroundImage": "linear-gradient(currentColor, currentColor)",
+            "backgroundPosition": "left bottom",
+            "backgroundRepeat": "no-repeat",
+            "backgroundSize": "0% 1px",
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "hover:backgroundSize": "100% 1px",
+            "textDecoration": "none",
+            "transition": "all 0.2s ease"
+           },
+           "blockId": "de849f926",
+           "element": "a",
+           "innerHTML": "New Booking"
+          },
+          {
+           "attributes": {
+            "href": "/traveller"
+           },
+           "baseStyles": {
+            "backgroundImage": "linear-gradient(currentColor, currentColor)",
+            "backgroundPosition": "left bottom",
+            "backgroundRepeat": "no-repeat",
+            "backgroundSize": "0% 1px",
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "hover:backgroundSize": "100% 1px",
+            "textDecoration": "none",
+            "transition": "all 0.2s ease"
+           },
+           "blockId": "aea856001",
+           "element": "a",
+           "innerHTML": "My Trips"
+          },
+          {
+           "attributes": {
+            "href": "/affiliate"
+           },
+           "baseStyles": {
+            "backgroundImage": "linear-gradient(currentColor, currentColor)",
+            "backgroundPosition": "left bottom",
+            "backgroundRepeat": "no-repeat",
+            "backgroundSize": "0% 1px",
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "hover:backgroundSize": "100% 1px",
+            "textDecoration": "none",
+            "transition": "all 0.2s ease"
+           },
+           "blockId": "bb88dd49d",
+           "element": "a",
+           "innerHTML": "Become our Affiliates"
+          }
+         ],
+         "element": "div",
+         "mobileStyles": {
+          "justifyContent": "flex-start"
+         }
+        }
+       ],
+       "element": "div",
+       "mobileStyles": {
+        "alignItems": "flex-start",
+        "flexDirection": "column",
+        "gap": "28px"
+       }
+      },
+      {
+       "baseStyles": {
+        "color": "rgba(255,255,255,0.42)",
+        "fontSize": "12px",
+        "lineHeight": "1.5",
+        "margin": "22px auto 0",
+        "maxWidth": "1100px"
+       },
+       "blockId": "bf9e79379",
+       "element": "p",
+       "innerHTML": "\u00a9 2025 Rarecation Team. All rights reserved."
+      }
+     ],
+     "element": "footer",
+     "mobileStyles": {
+      "padding": "44px 24px 24px"
+     }
+    }
+   ],
+   "draggable": false,
+   "element": "section",
+   "originalElement": "root"
+  }
+ ],
+ "body_html": "",
+ "canonical_url": "",
+ "client_scripts": [],
+ "creation": "2026-09-13 19:00:00.000000",
+ "disable_indexing": 0,
+ "docstatus": 0,
+ "doctype": "Builder Page",
+ "draft_blocks": null,
+ "dynamic_route": 0,
+ "head_html": "",
+ "idx": 0,
+ "is_standard": 1,
+ "is_template": 0,
+ "language": "en",
+ "meta_description": "Khuzama suites on board AROYA \u2014 junior to premier family suites from 25 to 58 m\u00b2 with walk-in closets, bathtubs, dining areas, daily cleaning and turndown service.",
+ "meta_image": "",
+ "modified": "2026-09-13 19:00:00.000000",
+ "modified_by": "Administrator",
+ "name": "page-cabinks01",
+ "owner": "Administrator",
+ "page_data_script": "",
+ "page_name": "page-cabinks01",
+ "page_title": "Khuzama Suites | AROYA Cruise Cabins | Rarecation",
+ "project_folder": "travel_booking",
+ "published": 1,
+ "published_at": "2026-09-13 19:00:00.000000",
+ "route": "cabin_khuzama_suites"
+}

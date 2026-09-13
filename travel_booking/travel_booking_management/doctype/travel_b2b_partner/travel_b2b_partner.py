@@ -14,6 +14,8 @@ class TravelB2BPartner(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
+		from travel_booking.travel_booking_management.doctype.travel_b2b_package_discount.travel_b2b_package_discount import TravelB2BPackageDiscount
+		from travel_booking.travel_booking_management.doctype.travel_b2b_partner_user.travel_b2b_partner_user import TravelB2BPartnerUser
 
 		contact_email: DF.Data | None
 		customer: DF.Link

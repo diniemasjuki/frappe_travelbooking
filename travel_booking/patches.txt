@@ -27,3 +27,4 @@ travel_booking.patches.v11_reservation_so_to_so_flag
 travel_booking.patches.v12_rename_fly_cruise_to_cruise_flight
 travel_booking.patches.v13_room_id_backfill
 travel_booking.patches.v15_share_flag_to_reservation_link
+travel_booking.patches.v16_rename_cruise_flight_spacing

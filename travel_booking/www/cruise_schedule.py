@@ -11,9 +11,9 @@
 # Pengumpulan timeline: event dikumpul ikut SAILING DATE (sailing_start,
 # fallback departure_date). Dalam sailing date yang sama:
 #   - trip dengan NAMA BERBEZA kekal kad berasingan (TIDAK digabung);
-#   - variant TGD trip yang SAMA (cth Cruise Only + Cruise+Flight yang sama
+#   - variant TGD trip yang SAMA (cth Cruise Only + Cruise + Flight yang sama
 #     sailing) digabung jadi SATU kad — perwakilan = TGD cruise_only
-#     (durasi sailing sebenar; Cruise+Flight membawa hari penerbangan),
+#     (durasi sailing sebenar; Cruise + Flight membawa hari penerbangan),
 #     SEPADAN konvensyen trip_card.
 #
 # Query string: q (carian), destination (Trip Destination Point), month
@@ -71,10 +71,10 @@ def _package_min_prices(package_names) -> dict:
 
 
 def _variant_label(group: dict) -> str:
-    """Label kemas variant sailing — "Cruise Only" / "Cruise+Flight" (corak
+    """Label kemas variant sailing — "Cruise Only" / "Cruise + Flight" (corak
     sama dengan wizard booking; trip_group_name terlalu teknikal — mengandungi
     tarikh + kod trip)."""
-    return "Cruise Only" if group.get("is_cruise_only") else "Cruise+Flight"
+    return "Cruise Only" if group.get("is_cruise_only") else "Cruise + Flight"
 
 
 def _sailing_full_label(e: dict) -> str:
@@ -123,7 +123,7 @@ def _attach_booking_options(dates: list, trip_packages: dict) -> None:
     for e, pairs in wanted:
         # Badge "With Flight" (rc-sched-side): kad ni ada pakej penerbangan
         # — pakej dgn airport_form dalam group bukan cruise-only. SEMUA
-        # variant TGD kad disemak (kad gabungan Cruise Only + Cruise+Flight
+        # variant TGD kad disemak (kad gabungan Cruise Only + Cruise + Flight
         # tetap papar badge).
         e["has_flight"] = any(
             p.get("flight") and not p.get("is_cruise_only")

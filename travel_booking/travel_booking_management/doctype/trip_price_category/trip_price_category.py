@@ -17,7 +17,7 @@ class TripPriceCategory(Document):
 		capacity: DF.Int
 		category_code: DF.Data | None
 		category_name: DF.Data
-		description: DF.TextEditor | None
+		description: DF.SmallText | None
 		gred: DF.Rating
 		is_a_cruise: DF.Check
 		max_capacity: DF.Int

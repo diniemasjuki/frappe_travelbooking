@@ -1,0 +1,1903 @@
+{
+ "app": "travel_booking",
+ "authenticated_access": 0,
+ "blocks": [
+  {
+   "baseStyles": {
+    "alignItems": "center",
+    "backgroundColor": "var(--rarecation-ivory)",
+    "display": "flex",
+    "flexDirection": "column",
+    "fontFamily": "var(--rarecation-body)",
+    "position": "static",
+    "width": "100%"
+   },
+   "blockId": "root",
+   "blockName": "body",
+   "children": [
+    {
+     "baseStyles": {
+      "alignItems": "center",
+      "backgroundColor": "#FFFFFF",
+      "boxShadow": "0 4px 20px rgba(44,26,0,0.07)",
+      "boxSizing": "border-box",
+      "display": "flex",
+      "justifyContent": "space-between",
+      "padding": "18px 60px",
+      "position": "sticky",
+      "top": "0px",
+      "width": "100%",
+      "zIndex": "100"
+     },
+     "blockId": "339fa5a0a",
+     "blockName": "navbar",
+     "children": [
+      {
+       "attributes": {
+        "aria-label": "Rarecation home",
+        "href": "/"
+       },
+       "baseStyles": {
+        "alignItems": "center",
+        "display": "flex",
+        "textDecoration": "none"
+       },
+       "blockId": "7a53ffd11",
+       "children": [
+        {
+         "attributes": {
+          "alt": "Rarecation",
+          "src": "/assets/travel_booking/builder_assets/RARECATION.png"
+         },
+         "baseStyles": {
+          "display": "block",
+          "height": "auto",
+          "width": "156px"
+         },
+         "blockId": "43e98ac2c",
+         "element": "img",
+         "mobileStyles": {
+          "width": "126px"
+         }
+        }
+       ],
+       "element": "a"
+      },
+      {
+       "attributes": {
+        "href": "/traveller"
+       },
+       "baseStyles": {
+        "border": "1px solid var(--rarecation-gold)",
+        "borderRadius": "50px",
+        "color": "var(--rarecation-gold-deep)",
+        "fontSize": "14px",
+        "fontWeight": "700",
+        "hover:backgroundColor": "var(--rarecation-gold)",
+        "hover:color": "#FFFFFF",
+        "padding": "11px 22px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap"
+       },
+       "blockId": "4fedee202",
+       "element": "a",
+       "innerHTML": "My Bookings",
+       "mobileStyles": {
+        "fontSize": "13px",
+        "padding": "10px 16px"
+       }
+      }
+     ],
+     "element": "section",
+     "mobileStyles": {
+      "padding": "14px 20px"
+     }
+    },
+    {
+     "blockId": "21550af51",
+     "element": "section",
+     "blockName": "cabin subnav",
+     "baseStyles": {
+      "backgroundColor": "#FFFFFF",
+      "borderBottom": "1px solid rgba(44,26,0,0.08)",
+      "boxSizing": "border-box",
+      "display": "flex",
+      "gap": "10px",
+      "justifyContent": "center",
+      "padding": "14px 24px",
+      "width": "100%"
+     },
+     "mobileStyles": {
+      "gap": "8px",
+      "padding": "12px 16px"
+     },
+     "children": [
+      {
+       "blockId": "ae0cc7ad2",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_types"
+       },
+       "innerHTML": "Cabin Types"
+      },
+      {
+       "blockId": "5272556f8",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_interior"
+       },
+       "innerHTML": "Interior"
+      },
+      {
+       "blockId": "11662f138",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_seaview"
+       },
+       "innerHTML": "Seaview"
+      },
+      {
+       "blockId": "3574cf008",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_balcony"
+       },
+       "innerHTML": "Balcony"
+      },
+      {
+       "blockId": "253be39d6",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_khuzama_suites"
+       },
+       "innerHTML": "Khuzama Suites"
+      },
+      {
+       "blockId": "59afc3e2b",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_khuzama_villas"
+       },
+       "innerHTML": "Khuzama Villas"
+      },
+      {
+       "blockId": "df25a20fd",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "var(--rarecation-gold)",
+        "border": "1px solid var(--rarecation-gold)",
+        "borderRadius": "50px",
+        "color": "#FFFFFF",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap"
+       },
+       "attributes": {
+        "href": "/deck_plans"
+       },
+       "innerHTML": "Deck Plans"
+      }
+     ]
+    },
+    {
+     "blockId": "a959f49bc",
+     "element": "section",
+     "blockName": "hero",
+     "baseStyles": {
+      "alignItems": "center",
+      "backgroundImage": "linear-gradient(135deg, #FFF8EC, #FFF3D6, #FDECC8)",
+      "boxSizing": "border-box",
+      "display": "flex",
+      "justifyContent": "center",
+      "overflow": "hidden",
+      "padding": "72px 24px 66px",
+      "position": "relative",
+      "width": "100%"
+     },
+     "mobileStyles": {
+      "padding": "56px 20px 52px"
+     },
+     "children": [
+      {
+       "blockId": "0bd71402d",
+       "element": "div",
+       "blockName": "gold glow one",
+       "baseStyles": {
+        "backgroundImage": "radial-gradient(circle, rgba(200,151,58,0.22), rgba(200,151,58,0) 68%)",
+        "borderRadius": "50%",
+        "height": "440px",
+        "pointerEvents": "none",
+        "position": "absolute",
+        "right": "6%",
+        "top": "-215px",
+        "width": "440px"
+       }
+      },
+      {
+       "blockId": "fa9663b6e",
+       "element": "div",
+       "blockName": "gold glow two",
+       "baseStyles": {
+        "backgroundImage": "radial-gradient(circle, rgba(200,151,58,0.16), rgba(200,151,58,0) 70%)",
+        "borderRadius": "50%",
+        "bottom": "-190px",
+        "height": "320px",
+        "left": "6%",
+        "pointerEvents": "none",
+        "position": "absolute",
+        "width": "320px"
+       }
+      },
+      {
+       "blockId": "bf6e910cf",
+       "element": "div",
+       "baseStyles": {
+        "alignItems": "center",
+        "display": "flex",
+        "flexDirection": "column",
+        "maxWidth": "860px",
+        "position": "relative",
+        "textAlign": "center",
+        "zIndex": "2"
+       },
+       "children": [
+        {
+         "blockId": "e809789ce",
+         "element": "p",
+         "baseStyles": {
+          "color": "var(--rarecation-gold-deep)",
+          "fontSize": "11px",
+          "fontWeight": "700",
+          "letterSpacing": "2.5px",
+          "margin": "0 0 16px",
+          "textTransform": "uppercase"
+         },
+         "innerHTML": "AROYA Cruises \u00b7 Cabin Catalogue"
+        },
+        {
+         "blockId": "4017f5b86",
+         "element": "h1",
+         "baseStyles": {
+          "color": "var(--rarecation-espresso)",
+          "fontFamily": "var(--rarecation-display)",
+          "fontSize": "54px",
+          "fontWeight": "800",
+          "letterSpacing": "-0.03em",
+          "lineHeight": "1.06",
+          "margin": "0"
+         },
+         "mobileStyles": {
+          "fontSize": "36px"
+         },
+         "innerHTML": "Deck Plans"
+        },
+        {
+         "blockId": "83ed45d6b",
+         "element": "p",
+         "baseStyles": {
+          "color": "rgba(44,26,0,0.68)",
+          "fontSize": "17px",
+          "lineHeight": "1.7",
+          "margin": "20px 0 0",
+          "maxWidth": "640px"
+         },
+         "mobileStyles": {
+          "fontSize": "15px"
+         },
+         "innerHTML": "From the kids' club on deck 5 to the Al Matal sun deck on deck 19 \u2014 find your way around every corner of the ship."
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "blockId": "7dc6e036f",
+     "element": "section",
+     "blockName": "decks section",
+     "baseStyles": {
+      "backgroundColor": "var(--rarecation-ivory)",
+      "boxSizing": "border-box",
+      "padding": "80px 24px 88px",
+      "width": "100%"
+     },
+     "mobileStyles": {
+      "padding": "60px 20px 66px"
+     },
+     "children": [
+      {
+       "blockId": "04767b21d",
+       "element": "div",
+       "baseStyles": {
+        "margin": "0 auto",
+        "maxWidth": "1280px",
+        "width": "100%"
+       },
+       "children": [
+        {
+         "blockId": "eae8984e8",
+         "element": "div",
+         "blockName": "section header",
+         "baseStyles": {
+          "alignItems": "center",
+          "display": "flex",
+          "flexDirection": "column",
+          "margin": "0 auto 46px",
+          "textAlign": "center"
+         },
+         "children": [
+          {
+           "blockId": "7019e40d5",
+           "element": "p",
+           "baseStyles": {
+            "color": "var(--rarecation-gold-deep)",
+            "fontSize": "11px",
+            "fontWeight": "700",
+            "letterSpacing": "2.5px",
+            "margin": "0 0 14px",
+            "textTransform": "uppercase"
+           },
+           "innerHTML": "On board"
+          },
+          {
+           "blockId": "99b83c4a7",
+           "element": "h2",
+           "baseStyles": {
+            "color": "var(--rarecation-espresso)",
+            "fontFamily": "var(--rarecation-display)",
+            "fontSize": "40px",
+            "fontWeight": "800",
+            "letterSpacing": "-0.02em",
+            "lineHeight": "1.12",
+            "margin": "0"
+           },
+           "mobileStyles": {
+            "fontSize": "30px"
+           },
+           "innerHTML": "Deck by Deck"
+          },
+          {
+           "blockId": "cea72c050",
+           "element": "p",
+           "baseStyles": {
+            "color": "rgba(44,26,0,0.62)",
+            "fontSize": "16px",
+            "lineHeight": "1.7",
+            "margin": "14px auto 0",
+            "maxWidth": "620px"
+           },
+           "innerHTML": "Cabin decks are 5 and 8 to 15, with dining, entertainment and wellness venues spread across the ship."
+          }
+         ]
+        },
+        {
+         "blockId": "3e95b5901",
+         "element": "div",
+         "baseStyles": {
+          "display": "flex",
+          "flexWrap": "wrap",
+          "gap": "28px",
+          "justifyContent": "center"
+         },
+         "children": [
+          {
+           "blockId": "39c70e9a1",
+           "element": "div",
+           "blockName": "deck 05 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "cd7a2e917",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "513b8c5e6",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_05.jpg",
+                "alt": "Deck 5 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "79d1aca0c",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "fc6f91ebe",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 5"
+              },
+              {
+               "blockId": "9bb62cf89",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "Interior cabins \u00b7 Kids &amp; Teens Area \u00b7 Medical Center"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "0c355e649",
+           "element": "div",
+           "blockName": "deck 06 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "e41e62482",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "97974ed84",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_06.jpg",
+                "alt": "Deck 6 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "88dd80ef7",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "b35dca6e0",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 6"
+              },
+              {
+               "blockId": "9333483a2",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "AROYA Theatre \u00b7 Layalina Restaurant \u00b7 The Mall \u00b7 AROYA Souq \u00b7 Cabana Cafe"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "e09aa27fb",
+           "element": "div",
+           "blockName": "deck 07 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "5200e07d4",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "40eace9c5",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_07.jpg",
+                "alt": "Deck 7 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "5357fff22",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "dafc21401",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 7"
+              },
+              {
+               "blockId": "77f3b3f5f",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "AROYA Theatre \u00b7 Sphinx Lounge \u00b7 Khuzama Guest Services \u00b7 Al Waha"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "ff820b83b",
+           "element": "div",
+           "blockName": "deck 08 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "a4a40c33c",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "8f8a2422d",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_08.jpg",
+                "alt": "Deck 8 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "30c80ee85",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "8e0ac037f",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 8"
+              },
+              {
+               "blockId": "492e5b0ee",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "Pool deck \u00b7 Al Forn Restaurant \u00b7 Sea &amp; You Restaurant \u00b7 Window Cafe"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "580ba04fa",
+           "element": "div",
+           "blockName": "deck 09 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "967f43259",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "89973dacb",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_09.jpg",
+                "alt": "Deck 9 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "81e0a0e6e",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "18dff49b3",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 9"
+              },
+              {
+               "blockId": "3c27926a0",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "Passenger cabins"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "64ee918c8",
+           "element": "div",
+           "blockName": "deck 10 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "200ff8aeb",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "1691c449c",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_10.jpg",
+                "alt": "Deck 10 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "4725954f0",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "fc8b511c6",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 10"
+              },
+              {
+               "blockId": "ae26f43ef",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "Passenger cabins"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "92622c0b0",
+           "element": "div",
+           "blockName": "deck 11 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "73e6ee4e4",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "f9028e8f1",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_11.jpg",
+                "alt": "Deck 11 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "66d4dc223",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "bc1fa09ec",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 11"
+              },
+              {
+               "blockId": "dd7defcee",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "Passenger cabins"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "0fa3ed856",
+           "element": "div",
+           "blockName": "deck 12 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "4c26f48d1",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "902c91698",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_12.jpg",
+                "alt": "Deck 12 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "3be293fa7",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "30cea034c",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 12"
+              },
+              {
+               "blockId": "5dfe19309",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "Passenger cabins"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "179fadf15",
+           "element": "div",
+           "blockName": "deck 13 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "c2b97633b",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "e0276fead",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_13.jpg",
+                "alt": "Deck 13 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "f5e1ae550",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "72fc78cf5",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 13"
+              },
+              {
+               "blockId": "c643d689a",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "Passenger cabins \u00b7 Spa Treatment Rooms"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "b28b10566",
+           "element": "div",
+           "blockName": "deck 15 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "dadb06507",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "bee3695df",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_15.jpg",
+                "alt": "Deck 15 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "dcdfc1971",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "cdb8ec01b",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 15"
+              },
+              {
+               "blockId": "d507f62d2",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "Blooming Spa &amp; Salon \u00b7 Gym \u00b7 Passenger cabins"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "5745dae17",
+           "element": "div",
+           "blockName": "deck 16 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "b702016de",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "1048e220f",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_16.jpg",
+                "alt": "Deck 16 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "569e79791",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "3557efcb1",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 16"
+              },
+              {
+               "blockId": "1de04330d",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "Khuzama Concierge Lounge \u00b7 Main Pool \u00b7 Kids Pool \u00b7 Wave Pool \u00b7 AROYA Buffet &amp; Terrace"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "db7b62859",
+           "element": "div",
+           "blockName": "deck 17 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "8c42257da",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "61f8d4503",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_17.jpg",
+                "alt": "Deck 17 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "b0482b3c1",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "e7857f601",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 17"
+              },
+              {
+               "blockId": "b6df85505",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "Khuzama Restaurant \u00b7 Jogging Track \u00b7 Beach Club \u00b7 Aqua Club"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "fc268082c",
+           "element": "div",
+           "blockName": "deck 18 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "bbd47a7b1",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "5505b6ade",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_18.jpg",
+                "alt": "Deck 18 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "0b9d01281",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "64f74b228",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 18"
+              },
+              {
+               "blockId": "129f2aacb",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "Sky Lounge \u00b7 Sky Pool \u00b7 Adventure Hub \u00b7 Beach"
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "c6d267edc",
+           "element": "div",
+           "blockName": "deck 19 card",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(25% - 21px)",
+            "overflow": "hidden",
+            "width": "calc(25% - 21px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "calc(50% - 14px)",
+            "width": "calc(50% - 14px)"
+           },
+           "children": [
+            {
+             "blockId": "aefc0dbb7",
+             "element": "div",
+             "baseStyles": {
+              "alignItems": "center",
+              "backgroundColor": "#FFFFFF",
+              "display": "flex",
+              "justifyContent": "center",
+              "padding": "12px"
+             },
+             "children": [
+              {
+               "blockId": "6ea1bfe3f",
+               "element": "img",
+               "baseStyles": {
+                "display": "block",
+                "height": "auto",
+                "width": "100%"
+               },
+               "attributes": {
+                "src": "/assets/travel_booking/builder_assets/aroya_cabins/deck_19.jpg",
+                "alt": "Deck 19 plan",
+                "loading": "lazy"
+               }
+              }
+             ]
+            },
+            {
+             "blockId": "f3382d64f",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "18px 20px 24px"
+             },
+             "children": [
+              {
+               "blockId": "1d2ffd756",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "21px",
+                "fontWeight": "800",
+                "margin": "0 0 10px"
+               },
+               "innerHTML": "Deck 19"
+              },
+              {
+               "blockId": "b709975b0",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.66)",
+                "fontSize": "13px",
+                "lineHeight": "1.65",
+                "margin": "0"
+               },
+               "innerHTML": "Al Matal Sun Deck \u00b7 Sports Court \u00b7 Water Slides"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "baseStyles": {
+      "backgroundColor": "#FDECC8",
+      "boxSizing": "border-box",
+      "padding": "62px 24px",
+      "width": "100%"
+     },
+     "blockId": "38a1f0b6b",
+     "blockName": "booking assistance",
+     "children": [
+      {
+       "baseStyles": {
+        "alignItems": "center",
+        "display": "flex",
+        "gap": "32px",
+        "justifyContent": "space-between",
+        "margin": "0 auto",
+        "maxWidth": "900px"
+       },
+       "blockId": "e6bd8b8bb",
+       "children": [
+        {
+         "blockId": "60487762f",
+         "children": [
+          {
+           "baseStyles": {
+            "color": "var(--rarecation-espresso)",
+            "fontFamily": "var(--rarecation-display)",
+            "fontSize": "32px",
+            "fontWeight": "800",
+            "letterSpacing": "-0.02em",
+            "lineHeight": "1.12",
+            "margin": "0 0 10px"
+           },
+           "blockId": "3cf516926",
+           "element": "h2",
+           "innerHTML": "Ready to sail with AROYA?",
+           "mobileStyles": {
+            "fontSize": "28px"
+           }
+          },
+          {
+           "baseStyles": {
+            "color": "rgba(44,26,0,0.65)",
+            "fontSize": "16px",
+            "lineHeight": "1.7",
+            "margin": "0",
+            "maxWidth": "560px"
+           },
+           "blockId": "9edb0be75",
+           "element": "p",
+           "innerHTML": "Explore our upcoming AROYA cruises and secure the cabin that suits you best."
+          }
+         ],
+         "element": "div"
+        },
+        {
+         "attributes": {
+          "href": "/cruises"
+         },
+         "baseStyles": {
+          "alignItems": "center",
+          "backgroundColor": "var(--rarecation-gold)",
+          "borderRadius": "50px",
+          "color": "#FFFFFF",
+          "display": "inline-flex",
+          "fontSize": "14px",
+          "fontWeight": "700",
+          "hover:backgroundColor": "var(--rarecation-gold-deep)",
+          "justifyContent": "center",
+          "padding": "14px 27px",
+          "textDecoration": "none",
+          "transition": "all 0.2s ease",
+          "whiteSpace": "nowrap"
+         },
+         "blockId": "06eec3a6c",
+         "element": "a",
+         "innerHTML": "View Cruises"
+        }
+       ],
+       "element": "div",
+       "mobileStyles": {
+        "alignItems": "flex-start",
+        "flexDirection": "column",
+        "gap": "24px"
+       }
+      }
+     ],
+     "element": "section",
+     "mobileStyles": {
+      "padding": "52px 24px"
+     }
+    },
+    {
+     "baseStyles": {
+      "backgroundColor": "var(--rarecation-espresso)",
+      "boxSizing": "border-box",
+      "padding": "52px 60px 28px",
+      "width": "100%"
+     },
+     "blockId": "c57b9a539",
+     "blockName": "footer",
+     "children": [
+      {
+       "baseStyles": {
+        "alignItems": "center",
+        "borderBottom": "1px solid rgba(255,255,255,0.16)",
+        "display": "flex",
+        "flexWrap": "wrap",
+        "gap": "32px",
+        "justifyContent": "space-between",
+        "margin": "0 auto",
+        "maxWidth": "1100px",
+        "paddingBottom": "34px"
+       },
+       "blockId": "42a4be15f",
+       "children": [
+        {
+         "baseStyles": {
+          "alignItems": "flex-start",
+          "display": "flex",
+          "flexDirection": "column",
+          "gap": "14px"
+         },
+         "blockId": "a9f0fc703",
+         "children": [
+          {
+           "attributes": {
+            "aria-label": "Rarecation home",
+            "href": "/"
+           },
+           "baseStyles": {
+            "display": "flex",
+            "textDecoration": "none"
+           },
+           "blockId": "313a19e02",
+           "children": [
+            {
+             "attributes": {
+              "alt": "Rarecation",
+              "src": "/assets/travel_booking/builder_assets/RARECATION.png"
+             },
+             "baseStyles": {
+              "display": "block",
+              "filter": "brightness(0) invert(1)",
+              "height": "auto",
+              "width": "150px"
+             },
+             "blockId": "92201440b",
+             "element": "img"
+            }
+           ],
+           "element": "a"
+          },
+          {
+           "baseStyles": {
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "lineHeight": "1.5",
+            "margin": "0"
+           },
+           "blockId": "f0a5b9c4f",
+           "element": "p",
+           "innerHTML": "Luxury Travel, Crafted for You."
+          }
+         ],
+         "element": "div"
+        },
+        {
+         "baseStyles": {
+          "alignItems": "center",
+          "display": "flex",
+          "flexWrap": "wrap",
+          "gap": "18px 24px",
+          "justifyContent": "flex-end"
+         },
+         "blockId": "f97401c01",
+         "children": [
+          {
+           "attributes": {
+            "href": "/"
+           },
+           "baseStyles": {
+            "backgroundImage": "linear-gradient(currentColor, currentColor)",
+            "backgroundPosition": "left bottom",
+            "backgroundRepeat": "no-repeat",
+            "backgroundSize": "0% 1px",
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "hover:backgroundSize": "100% 1px",
+            "textDecoration": "none",
+            "transition": "all 0.2s ease"
+           },
+           "blockId": "de849f926",
+           "element": "a",
+           "innerHTML": "New Booking"
+          },
+          {
+           "attributes": {
+            "href": "/traveller"
+           },
+           "baseStyles": {
+            "backgroundImage": "linear-gradient(currentColor, currentColor)",
+            "backgroundPosition": "left bottom",
+            "backgroundRepeat": "no-repeat",
+            "backgroundSize": "0% 1px",
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "hover:backgroundSize": "100% 1px",
+            "textDecoration": "none",
+            "transition": "all 0.2s ease"
+           },
+           "blockId": "aea856001",
+           "element": "a",
+           "innerHTML": "My Trips"
+          },
+          {
+           "attributes": {
+            "href": "/affiliate"
+           },
+           "baseStyles": {
+            "backgroundImage": "linear-gradient(currentColor, currentColor)",
+            "backgroundPosition": "left bottom",
+            "backgroundRepeat": "no-repeat",
+            "backgroundSize": "0% 1px",
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "hover:backgroundSize": "100% 1px",
+            "textDecoration": "none",
+            "transition": "all 0.2s ease"
+           },
+           "blockId": "bb88dd49d",
+           "element": "a",
+           "innerHTML": "Become our Affiliates"
+          }
+         ],
+         "element": "div",
+         "mobileStyles": {
+          "justifyContent": "flex-start"
+         }
+        }
+       ],
+       "element": "div",
+       "mobileStyles": {
+        "alignItems": "flex-start",
+        "flexDirection": "column",
+        "gap": "28px"
+       }
+      },
+      {
+       "baseStyles": {
+        "color": "rgba(255,255,255,0.42)",
+        "fontSize": "12px",
+        "lineHeight": "1.5",
+        "margin": "22px auto 0",
+        "maxWidth": "1100px"
+       },
+       "blockId": "bf9e79379",
+       "element": "p",
+       "innerHTML": "\u00a9 2025 Rarecation Team. All rights reserved."
+      }
+     ],
+     "element": "footer",
+     "mobileStyles": {
+      "padding": "44px 24px 24px"
+     }
+    }
+   ],
+   "draggable": false,
+   "element": "section",
+   "originalElement": "root"
+  }
+ ],
+ "body_html": "",
+ "canonical_url": "",
+ "client_scripts": [],
+ "creation": "2026-09-13 19:00:00.000000",
+ "disable_indexing": 0,
+ "docstatus": 0,
+ "doctype": "Builder Page",
+ "draft_blocks": null,
+ "dynamic_route": 0,
+ "head_html": "",
+ "idx": 0,
+ "is_standard": 1,
+ "is_template": 0,
+ "language": "en",
+ "meta_description": "AROYA deck plans from deck 5 to 19 \u2014 cabins, restaurants, theatre, pools, spa, Khuzama lounge, sky lounge, jogging track and adventure hub.",
+ "meta_image": "",
+ "modified": "2026-09-13 19:00:00.000000",
+ "modified_by": "Administrator",
+ "name": "page-deckplans01",
+ "owner": "Administrator",
+ "page_data_script": "",
+ "page_name": "page-deckplans01",
+ "page_title": "Deck Plans | AROYA Cruise | Rarecation",
+ "project_folder": "travel_booking",
+ "published": 1,
+ "published_at": "2026-09-13 19:00:00.000000",
+ "route": "deck_plans"
+}

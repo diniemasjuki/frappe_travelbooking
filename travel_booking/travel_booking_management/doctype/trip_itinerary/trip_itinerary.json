@@ -8,6 +8,7 @@
  "engine": "InnoDB",
  "field_order": [
   "day",
+  "segment",
   "day_title",
   "destination_point",
   "column_break_itin",
@@ -23,6 +24,15 @@
    "label": "Day",
    "reqd": 1,
    "sticky": 1
+  },
+  {
+   "default": "Cruise",
+   "description": "Untuk cruise trip: Pre-Cruise (hari penerbangan awal), Cruise (di atas kapal), Post-Cruise (hari pulang). Baris kosong dianggap Cruise.",
+   "fieldname": "segment",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Segment",
+   "options": "Pre-Cruise\nCruise\nPost-Cruise"
   },
   {
    "fieldname": "day_title",

@@ -546,8 +546,8 @@ def get_booking_data(booking_number: str):
     if is_cruise:
         if cruise_only:
             trip_category = "Cruise Only"
-        elif pkg_type == "Cruise+Flight":
-            trip_category = "Cruise+Flight"
+        elif pkg_type == "Cruise + Flight":
+            trip_category = "Cruise + Flight"
         elif pkg_type == "Customed":
             trip_category = "Cruise (Custom)"
         else:
@@ -868,7 +868,7 @@ def get_bookings_list():
         price_hidden = _price_hidden_for(bk, customer_name)
 
         # Klasifikasi trip — logik sama dengan get_booking_data() supaya
-        # label kad konsisten dengan page detail (Cruise / Cruise+Flight /
+        # label kad konsisten dengan page detail (Cruise / Cruise + Flight /
         # Fly Package / Tour ...).
         is_cruise    = bool(bk.is_a_cruise_trip)
         cruise_only  = bool(bk.pkg_cruise_only or bk.tgd_cruise_only)
@@ -876,8 +876,8 @@ def get_bookings_list():
         if is_cruise:
             if cruise_only:
                 trip_category = "Cruise Only"
-            elif pkg_type == "Cruise+Flight":
-                trip_category = "Cruise+Flight"
+            elif pkg_type == "Cruise + Flight":
+                trip_category = "Cruise + Flight"
             elif pkg_type == "Customed":
                 trip_category = "Cruise (Custom)"
             else:

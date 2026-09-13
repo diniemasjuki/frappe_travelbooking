@@ -144,9 +144,11 @@ body:has(.bnw-main) .rc-public-main {
 /* ══════════════════════════════════════════
    SECTIONS
    ══════════════════════════════════════════ */
+/* Semua section mula dengan hero banner full-width — padding-top
+   dibuang supaya hero rapat dengan step nav. */
 .bnw-section {
   display: none;
-  padding: 48px 0 60px;
+  padding: 0 0 60px;
   animation: bnwFadeIn .35s ease;
 }
 .bnw-section--active { display: block; }
@@ -219,6 +221,39 @@ body:has(.bnw-main) .rc-public-main {
   color: #fff;
 }
 .bnw-trip-banner--compact { padding: 16px 22px; margin-bottom: 30px; }
+
+/* Hero banner (semua step) — full width edge-to-edge dengan gambar
+   cover trip sebagai background. Gambar disuntik JS melalui CSS var
+   --bnw-hero-img (sumber: trip_image, fallback defaultaroya.jpg);
+   gradient gelap di atasnya menjaga kebolehbacaan teks putih.
+   Flex layout berpindah ke .bnw-hero-inner (container dalaman)
+   supaya teks kekal align dgn kandungan lain di bawahnya. */
+.bnw-trip-banner--hero {
+  display: block;
+  border-radius: 0;
+  padding: 48px 0;
+  margin-bottom: 36px;
+  min-height:30vh;
+  background-image:
+    linear-gradient(90deg, rgba(30,28,24,.94) 0%, rgba(30,28,24,.82) 45%, rgba(30,28,24,.55) 100%),
+    var(--bnw-hero-img, none);
+  background-size: auto, cover;
+  background-position: center;
+  background-repeat: no-repeat;
+      align-content: flex-end;
+}
+.bnw-trip-banner--hero .bnw-hero-inner {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+.bnw-trip-banner--hero .bnw-banner-info h2 {
+  font-size: 30px;
+  margin-bottom: 6px;
+}
+.bnw-trip-banner--hero .bnw-banner-info p { font-size: 15px; }
+.bnw-trip-banner--hero .bnw-banner-date-row { font-size: 14px; }
 .bnw-banner-info h2 {
   font-family: var(--font-heading);
   font-size: 22px;
@@ -503,7 +538,7 @@ body:has(.bnw-main) .rc-public-main {
    full width block supaya sasaran sentuh jelas. */
 #bnwAddRoomBtn {
   display: flex;
-  width: 100%;
+  /* width: 100%; */
 }
 
 /* Form Actions (Back/Next row) */
@@ -721,7 +756,7 @@ body:has(.bnw-main) .rc-public-main {
   white-space: nowrap;
 }
 .bnw-cabin-remove {
-  background: none;
+  background: var(--bnw-gold);
   border: 1px solid var(--bnw-gold-hover);
   color: var(--bnw-dark-soft);
   cursor: pointer;
@@ -880,6 +915,7 @@ body:has(.bnw-main) .rc-public-main {
   gap: 0;
   padding: 0 20px;
   width: 100%;
+  padding-bottom:20px; 
 }
 .bnw-stepper {
   display: flex;
@@ -888,6 +924,7 @@ body:has(.bnw-main) .rc-public-main {
   width: 100%;
   border-bottom: 1px solid var(--bnw-border);
   padding: 16px 0;
+  padding-bottom:0;
 }
 .bnw-stepper:last-child {
   border-bottom: none;
@@ -898,7 +935,7 @@ body:has(.bnw-main) .rc-public-main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 5px;
   width: 100%;
 }
 
@@ -908,48 +945,49 @@ body:has(.bnw-main) .rc-public-main {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
+  line-height: 1.1;
 }
 .bnw-stepper-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--bnw-dark);
-  text-transform: uppercase;
-  letter-spacing: .03em;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+    display: inline-block;
+    width: fit-content;
+    font-size: 15px;
+    color: #c9a84c;
+    font-weight: 600;
+    margin-right: 5px;
+    text-transform: uppercase;
 }
 .bnw-stepper-label-text {
   line-height: 1.3;
 }
 .bnw-stepper-rate {
-  font-family: var(--font-heading);
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--bnw-gold);
+    display: inline-block;
+    width: fit-content;
+    font-size: 20px;
+    font-weight: 500;
+    color: #1E1C18;
+    letter-spacing: -0.5px;
 }
 
 /* Col 2: Stepper controls (fixed 120px) */
 .bnw-stepper-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  width: 120px;
-  flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: fit-content;
+    flex-shrink: 0;
 }
 
 /* Col 3: Note/Tooltip text (full width below) */
 .bnw-stepper-note {
-  font-size: 12px;
-  color: var(--bnw-text-muted);
-  line-height: 1.2;
-  margin-top: 8px;
-  padding: 6px 10px;
-  background: #fbfbfb;
-  border-radius: 6px;
-  width: 100%;
+    font-size: 12px;
+    color: var(--bnw-text-muted);
+    margin-top: 10px;
+    padding: 0px 0px 15px 0px;
+    background: #ffffff;
+    border-radius: 0px;
+    width: 100%;
 }
 .bnw-stepper-note p {
   margin: 0;
@@ -984,6 +1022,7 @@ body:has(.bnw-main) .rc-public-main {
   font-weight: 700;
   color: var(--bnw-dark);
   min-width: 28px;
+  text-align:center;
 }
 
 /* ── Tooltip (info circle + bubble) ── */
@@ -1067,11 +1106,11 @@ body:has(.bnw-main) .rc-public-main {
    SUMMARY PANEL (Step 1 + Step 3)
    ══════════════════════════════════════════ */
 .bnw-summary-card {
-  background: var(--bnw-white);
+  /* background: var(--bnw-white);
   border: 1px solid var(--bnw-border);
   border-radius: var(--bnw-radius);
+  box-shadow: var(--bnw-shadow); */
   padding: 24px;
-  box-shadow: var(--bnw-shadow);
 }
 
 .bnw-summary-title {
@@ -1325,10 +1364,10 @@ body:has(.bnw-main) .rc-public-main {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin: 0 20px 4px;
+  margin: 0 20px 20px;
   padding: 14px 16px;
   border-radius: var(--bnw-radius-sm);
-  background: var(--bnw-cream);
+  background: var(--c-accent-mid);
 }
 .bnw-privacy-check {
   display: flex;
@@ -1340,7 +1379,7 @@ body:has(.bnw-main) .rc-public-main {
   appearance: none;
   -webkit-appearance: none;
   width: 18px;
-  height: 18px;
+  height: 30px;
   margin: 0;
   border: 2px solid var(--bnw-border);
   border-radius: 4px;
@@ -1362,7 +1401,7 @@ body:has(.bnw-main) .rc-public-main {
 }
 .bnw-privacy-text {
   font-family: var(--font-heading);
-  font-size: 13.5px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--bnw-dark);
   line-height: 1.3;
@@ -1371,7 +1410,7 @@ body:has(.bnw-main) .rc-public-main {
   font-size: 12px;
   color: var(--bnw-text-muted);
   line-height: 1.45;
-  padding-left: 28px; /* sejajar dgn teks (18px checkbox + 10px gap) */
+  padding-left: 41px; /* sejajar dgn teks (18px checkbox + 10px gap) */
 }
 
 /* Bank Details */
@@ -1639,7 +1678,7 @@ body:has(.bnw-main) .rc-public-main {
    ══════════════════════════════════════════ */
 @media (max-width: 768px) {
   .bnw-container { padding: 0 16px; }
-  .bnw-section { padding: 32px 0 40px; }
+  .bnw-section { padding: 0 0 40px; }
   /* Disable sticky step nav on mobile — biar scroll naturally dgn content */
   .bnw-steps-nav { position: static; }
   .bnw-page-header h1 { font-size: 26px; }
@@ -1648,6 +1687,16 @@ body:has(.bnw-main) .rc-public-main {
   .bnw-card { padding: 20px 16px; }
   .bnw-trip-banner { flex-direction: column; align-items: flex-start; gap: 12px; }
   .bnw-badge { align-self: flex-start; }
+  .bnw-trip-banner--hero { padding: 32px 0; margin-bottom: 28px; }
+  /* Mobile: teks meliputi sepenuh lebar gambar — overlay menegak seragam
+     supaya semua baris kekal boleh dibaca. */
+  .bnw-trip-banner--hero {
+    background-image:
+      linear-gradient(180deg, rgba(30,28,24,.88), rgba(30,28,24,.88)),
+      var(--bnw-hero-img, none);
+  }
+  .bnw-trip-banner--hero .bnw-hero-inner { flex-direction: column; align-items: flex-end; gap: 12px; }
+  .bnw-trip-banner--hero .bnw-banner-info h2 { font-size: 24px; }
 
   .bnw-form-actions { flex-direction: column-reverse; }
   .bnw-form-actions .bnw-btn { width: 100%; }
@@ -1663,7 +1712,6 @@ body:has(.bnw-main) .rc-public-main {
   .bnw-stepper-row {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
   }
   .bnw-stepper-info {
     width: 100%;
@@ -1994,44 +2042,65 @@ body:has(.bnw-main) .rc-public-main {
   color: var(--bnw-gold-hover);
   white-space: nowrap;
 }
-.bnw-cpick-meta {
+/* Blok bawah kad — DUA KOLUMN selepas description:
+   KIRI  : badge room_type (Cabin/Suite) + link More
+   KANAN : kapasiti pax, harga From, butang Select */
+.bnw-cpick-bottom {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-  /* Kluster detail (kapasiti + harga) TOLAK ke bawah kad — nama kabin
-     bersendirian di atas; harga duduk terus di atas butang Select. */
+  align-items: flex-end;
+  gap: 12px;
+  /* Tolak ke bawah kad supaya kedua-dua blok sejajar di dasar */
   margin-top: auto;
   padding-top: 12px;
+}
+.bnw-cpick-bottom-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.bnw-cpick-bottom-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  flex-shrink: 0;
+  text-align: right;
+}
+.bnw-cpick-capacity {
   font-size: 13px;
   color: var(--bnw-text-muted);
 }
-.bnw-cpick-meta .ti {
+.bnw-cpick-capacity .ti {
   font-size: 14px;
   vertical-align: -2px;
   margin-right: 3px;
   color: var(--bnw-gold);
 }
 .bnw-cpick-meta-price {
+  font-size: 13px;
   font-weight: 600;
   color: var(--bnw-dark);
 }
-/* (.bnw-cpick-desc dibuang — deskripsi kad tidak lagi dipaparkan) */
-.bnw-cpick-foot {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end; /* More Info + butang Select di hujung kanan */
-  gap: 14px;
-  /* Rapat dengan meta supaya HARGA duduk terus di atas butang */
-  margin-top: 0;
-  padding-top: 8px;
+/* Deskripsi kategori — selepas tajuk, dipotong 2 baris supaya kad
+   kekal sekata tingginya (teks penuh melalui link More). */
+.bnw-cpick-desc {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--bnw-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .bnw-cpick-select {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  /* Butang KECIL — diletak selepas More Info di hujung kanan kad */
+  /* Butang KECIL — hujung kanan blok kanan kad */
   padding: 7px 16px;
   border: none;
   border-radius: 8px;
@@ -2223,7 +2292,7 @@ body:has(.bnw-main) .rc-public-main {
   }
   .bnw-cpick-body { padding: 12px 14px 14px; }
   .bnw-cpick-name { font-size: 15.5px; }
-  .bnw-cpick-meta { font-size: 12.5px; }
+  .bnw-cpick-capacity, .bnw-cpick-meta-price { font-size: 12.5px; }
 
   /* Butang Select sentuh: sikit lebih besar utk keselesaan tap */
   .bnw-cpick-select {

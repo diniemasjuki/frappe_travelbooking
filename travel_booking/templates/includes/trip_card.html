@@ -78,7 +78,7 @@
     <div class="rc-card-meta">
       {% if gds and gds[0] %}
         {# Cruise: meta (duration/kapasiti) dari TGD cruise_only — TGD
-           Cruise+Flight bawa hari perebangan, durationnya lebih panjang dari
+           Cruise + Flight bawa hari perebangan, durationnya lebih panjang dari
            sailing sebenar. Fallback ke gds[0] bila tiada TGD cruise_only. #}
         {% set _co_gds = gds | selectattr("is_cruise_only") | list %}
         {% set g = _co_gds[0] if (t.is_a_cruise_trip and _co_gds) else gds[0] %}

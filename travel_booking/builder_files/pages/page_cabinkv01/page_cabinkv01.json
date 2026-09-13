@@ -1,0 +1,1394 @@
+{
+ "app": "travel_booking",
+ "authenticated_access": 0,
+ "blocks": [
+  {
+   "baseStyles": {
+    "alignItems": "center",
+    "backgroundColor": "var(--rarecation-ivory)",
+    "display": "flex",
+    "flexDirection": "column",
+    "fontFamily": "var(--rarecation-body)",
+    "position": "static",
+    "width": "100%"
+   },
+   "blockId": "root",
+   "blockName": "body",
+   "children": [
+    {
+     "baseStyles": {
+      "alignItems": "center",
+      "backgroundColor": "#FFFFFF",
+      "boxShadow": "0 4px 20px rgba(44,26,0,0.07)",
+      "boxSizing": "border-box",
+      "display": "flex",
+      "justifyContent": "space-between",
+      "padding": "18px 60px",
+      "position": "sticky",
+      "top": "0px",
+      "width": "100%",
+      "zIndex": "100"
+     },
+     "blockId": "339fa5a0a",
+     "blockName": "navbar",
+     "children": [
+      {
+       "attributes": {
+        "aria-label": "Rarecation home",
+        "href": "/"
+       },
+       "baseStyles": {
+        "alignItems": "center",
+        "display": "flex",
+        "textDecoration": "none"
+       },
+       "blockId": "7a53ffd11",
+       "children": [
+        {
+         "attributes": {
+          "alt": "Rarecation",
+          "src": "/assets/travel_booking/builder_assets/RARECATION.png"
+         },
+         "baseStyles": {
+          "display": "block",
+          "height": "auto",
+          "width": "156px"
+         },
+         "blockId": "43e98ac2c",
+         "element": "img",
+         "mobileStyles": {
+          "width": "126px"
+         }
+        }
+       ],
+       "element": "a"
+      },
+      {
+       "attributes": {
+        "href": "/traveller"
+       },
+       "baseStyles": {
+        "border": "1px solid var(--rarecation-gold)",
+        "borderRadius": "50px",
+        "color": "var(--rarecation-gold-deep)",
+        "fontSize": "14px",
+        "fontWeight": "700",
+        "hover:backgroundColor": "var(--rarecation-gold)",
+        "hover:color": "#FFFFFF",
+        "padding": "11px 22px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap"
+       },
+       "blockId": "4fedee202",
+       "element": "a",
+       "innerHTML": "My Bookings",
+       "mobileStyles": {
+        "fontSize": "13px",
+        "padding": "10px 16px"
+       }
+      }
+     ],
+     "element": "section",
+     "mobileStyles": {
+      "padding": "14px 20px"
+     }
+    },
+    {
+     "blockId": "b39a1993e",
+     "element": "section",
+     "blockName": "cabin subnav",
+     "baseStyles": {
+      "backgroundColor": "#FFFFFF",
+      "borderBottom": "1px solid rgba(44,26,0,0.08)",
+      "boxSizing": "border-box",
+      "display": "flex",
+      "gap": "10px",
+      "justifyContent": "center",
+      "padding": "14px 24px",
+      "width": "100%"
+     },
+     "mobileStyles": {
+      "gap": "8px",
+      "padding": "12px 16px"
+     },
+     "children": [
+      {
+       "blockId": "2f6665dee",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_types"
+       },
+       "innerHTML": "Cabin Types"
+      },
+      {
+       "blockId": "43953cc41",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_interior"
+       },
+       "innerHTML": "Interior"
+      },
+      {
+       "blockId": "64ca6a230",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_seaview"
+       },
+       "innerHTML": "Seaview"
+      },
+      {
+       "blockId": "c069350fb",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_balcony"
+       },
+       "innerHTML": "Balcony"
+      },
+      {
+       "blockId": "bb9b88ad5",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/cabin_khuzama_suites"
+       },
+       "innerHTML": "Khuzama Suites"
+      },
+      {
+       "blockId": "cc7cce0b9",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "var(--rarecation-gold)",
+        "border": "1px solid var(--rarecation-gold)",
+        "borderRadius": "50px",
+        "color": "#FFFFFF",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap"
+       },
+       "attributes": {
+        "href": "/cabin_khuzama_villas"
+       },
+       "innerHTML": "Khuzama Villas"
+      },
+      {
+       "blockId": "540432ae1",
+       "element": "a",
+       "baseStyles": {
+        "backgroundColor": "transparent",
+        "border": "1px solid rgba(44,26,0,0.16)",
+        "borderRadius": "50px",
+        "color": "rgba(44,26,0,0.66)",
+        "fontSize": "13px",
+        "fontWeight": "600",
+        "letterSpacing": "0.3px",
+        "padding": "9px 18px",
+        "textDecoration": "none",
+        "transition": "all 0.2s ease",
+        "whiteSpace": "nowrap",
+        "hover:borderColor": "var(--rarecation-gold)",
+        "hover:color": "var(--rarecation-gold-deep)"
+       },
+       "attributes": {
+        "href": "/deck_plans"
+       },
+       "innerHTML": "Deck Plans"
+      }
+     ]
+    },
+    {
+     "blockId": "1b49c69e4",
+     "element": "section",
+     "blockName": "hero",
+     "baseStyles": {
+      "alignItems": "center",
+      "backgroundImage": "linear-gradient(135deg, #FFF8EC, #FFF3D6, #FDECC8)",
+      "boxSizing": "border-box",
+      "display": "flex",
+      "justifyContent": "center",
+      "overflow": "hidden",
+      "padding": "72px 24px 66px",
+      "position": "relative",
+      "width": "100%"
+     },
+     "mobileStyles": {
+      "padding": "56px 20px 52px"
+     },
+     "children": [
+      {
+       "blockId": "b20bde276",
+       "element": "div",
+       "blockName": "gold glow one",
+       "baseStyles": {
+        "backgroundImage": "radial-gradient(circle, rgba(200,151,58,0.22), rgba(200,151,58,0) 68%)",
+        "borderRadius": "50%",
+        "height": "440px",
+        "pointerEvents": "none",
+        "position": "absolute",
+        "right": "6%",
+        "top": "-215px",
+        "width": "440px"
+       }
+      },
+      {
+       "blockId": "c4993137c",
+       "element": "div",
+       "blockName": "gold glow two",
+       "baseStyles": {
+        "backgroundImage": "radial-gradient(circle, rgba(200,151,58,0.16), rgba(200,151,58,0) 70%)",
+        "borderRadius": "50%",
+        "bottom": "-190px",
+        "height": "320px",
+        "left": "6%",
+        "pointerEvents": "none",
+        "position": "absolute",
+        "width": "320px"
+       }
+      },
+      {
+       "blockId": "8416be2ef",
+       "element": "div",
+       "baseStyles": {
+        "alignItems": "center",
+        "display": "flex",
+        "flexDirection": "column",
+        "maxWidth": "860px",
+        "position": "relative",
+        "textAlign": "center",
+        "zIndex": "2"
+       },
+       "children": [
+        {
+         "blockId": "7d39e485b",
+         "element": "p",
+         "baseStyles": {
+          "color": "var(--rarecation-gold-deep)",
+          "fontSize": "11px",
+          "fontWeight": "700",
+          "letterSpacing": "2.5px",
+          "margin": "0 0 16px",
+          "textTransform": "uppercase"
+         },
+         "innerHTML": "AROYA Cruises \u00b7 Khuzama"
+        },
+        {
+         "blockId": "c2f92ed16",
+         "element": "h1",
+         "baseStyles": {
+          "color": "var(--rarecation-espresso)",
+          "fontFamily": "var(--rarecation-display)",
+          "fontSize": "54px",
+          "fontWeight": "800",
+          "letterSpacing": "-0.03em",
+          "lineHeight": "1.06",
+          "margin": "0"
+         },
+         "mobileStyles": {
+          "fontSize": "36px"
+         },
+         "innerHTML": "Khuzama Villas"
+        },
+        {
+         "blockId": "e8dd6a71d",
+         "element": "p",
+         "baseStyles": {
+          "color": "rgba(44,26,0,0.68)",
+          "fontSize": "17px",
+          "lineHeight": "1.7",
+          "margin": "20px 0 0",
+          "maxWidth": "640px"
+         },
+         "mobileStyles": {
+          "fontSize": "15px"
+         },
+         "innerHTML": "The pinnacle of life on board \u2014 grand villas with jacuzzis, private dining and, in the Royal Villa, your own spa treatment room."
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "blockId": "c0e1a92d2",
+     "element": "section",
+     "blockName": "facilities",
+     "baseStyles": {
+      "backgroundColor": "#FFFFFF",
+      "boxSizing": "border-box",
+      "padding": "76px 24px",
+      "width": "100%"
+     },
+     "mobileStyles": {
+      "padding": "56px 20px"
+     },
+     "children": [
+      {
+       "blockId": "3c5fcf3c2",
+       "element": "div",
+       "baseStyles": {
+        "display": "flex",
+        "gap": "56px",
+        "margin": "0 auto",
+        "maxWidth": "980px",
+        "width": "100%"
+       },
+       "mobileStyles": {
+        "flexDirection": "column",
+        "gap": "28px"
+       },
+       "children": [
+        {
+         "blockId": "ce5f14772",
+         "element": "div",
+         "baseStyles": {
+          "flexBasis": "230px",
+          "flexShrink": "0"
+         },
+         "mobileStyles": {
+          "flexBasis": "auto"
+         },
+         "children": [
+          {
+           "blockId": "b011cdc2b",
+           "element": "p",
+           "baseStyles": {
+            "color": "var(--rarecation-gold-deep)",
+            "fontSize": "11px",
+            "fontWeight": "700",
+            "letterSpacing": "2.5px",
+            "margin": "0 0 10px",
+            "textTransform": "uppercase"
+           },
+           "innerHTML": "On every cabin"
+          },
+          {
+           "blockId": "6134c240d",
+           "element": "h2",
+           "baseStyles": {
+            "color": "var(--rarecation-espresso)",
+            "fontFamily": "var(--rarecation-display)",
+            "fontSize": "38px",
+            "fontWeight": "800",
+            "letterSpacing": "-0.02em",
+            "margin": "0"
+           },
+           "innerHTML": "Facilities"
+          }
+         ]
+        },
+        {
+         "blockId": "e70f4bedd",
+         "element": "div",
+         "baseStyles": {
+          "backgroundColor": "#FFFDF8",
+          "border": "1px solid rgba(200,151,58,0.25)",
+          "borderRadius": "20px",
+          "boxSizing": "border-box",
+          "display": "flex",
+          "flexDirection": "column",
+          "gap": "16px",
+          "flexGrow": "1",
+          "padding": "34px 36px"
+         },
+         "mobileStyles": {
+          "padding": "26px 22px"
+         },
+         "children": [
+          {
+           "blockId": "f4de79eaf",
+           "element": "div",
+           "baseStyles": {
+            "alignItems": "flex-start",
+            "display": "flex",
+            "gap": "12px"
+           },
+           "children": [
+            {
+             "blockId": "c874a5729",
+             "element": "span",
+             "baseStyles": {
+              "color": "var(--rarecation-gold)",
+              "fontSize": "16px",
+              "fontWeight": "800",
+              "lineHeight": "1.6"
+             },
+             "innerHTML": "\u2713"
+            },
+            {
+             "blockId": "ce2a7a538",
+             "element": "p",
+             "baseStyles": {
+              "color": "rgba(44,26,0,0.78)",
+              "fontSize": "16px",
+              "lineHeight": "1.65",
+              "margin": "0"
+             },
+             "innerHTML": "King bed &amp; double bed (upon request)"
+            }
+           ]
+          },
+          {
+           "blockId": "e177833e4",
+           "element": "div",
+           "baseStyles": {
+            "alignItems": "flex-start",
+            "display": "flex",
+            "gap": "12px"
+           },
+           "children": [
+            {
+             "blockId": "40dd0a526",
+             "element": "span",
+             "baseStyles": {
+              "color": "var(--rarecation-gold)",
+              "fontSize": "16px",
+              "fontWeight": "800",
+              "lineHeight": "1.6"
+             },
+             "innerHTML": "\u2713"
+            },
+            {
+             "blockId": "a6f9d4cd6",
+             "element": "p",
+             "baseStyles": {
+              "color": "rgba(44,26,0,0.78)",
+              "fontSize": "16px",
+              "lineHeight": "1.65",
+              "margin": "0"
+             },
+             "innerHTML": "Private bathroom with shower &amp; hair dryer"
+            }
+           ]
+          },
+          {
+           "blockId": "f2d8fe68e",
+           "element": "div",
+           "baseStyles": {
+            "alignItems": "flex-start",
+            "display": "flex",
+            "gap": "12px"
+           },
+           "children": [
+            {
+             "blockId": "6ab89fcc2",
+             "element": "span",
+             "baseStyles": {
+              "color": "var(--rarecation-gold)",
+              "fontSize": "16px",
+              "fontWeight": "800",
+              "lineHeight": "1.6"
+             },
+             "innerHTML": "\u2713"
+            },
+            {
+             "blockId": "619fdb8c9",
+             "element": "p",
+             "baseStyles": {
+              "color": "rgba(44,26,0,0.78)",
+              "fontSize": "16px",
+              "lineHeight": "1.65",
+              "margin": "0"
+             },
+             "innerHTML": "Smart TV, safe box, telephone, mini fridge, coffee machine, adjustable air-conditioner and furnished balcony"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "blockId": "8bb0e32fc",
+     "element": "section",
+     "blockName": "cards section",
+     "baseStyles": {
+      "backgroundColor": "var(--rarecation-ivory)",
+      "boxSizing": "border-box",
+      "padding": "80px 24px 88px",
+      "width": "100%"
+     },
+     "mobileStyles": {
+      "padding": "60px 20px 66px"
+     },
+     "children": [
+      {
+       "blockId": "c21a2063b",
+       "element": "div",
+       "baseStyles": {
+        "margin": "0 auto",
+        "maxWidth": "1180px",
+        "width": "100%"
+       },
+       "children": [
+        {
+         "blockId": "fc7df184a",
+         "element": "div",
+         "blockName": "section header",
+         "baseStyles": {
+          "alignItems": "center",
+          "display": "flex",
+          "flexDirection": "column",
+          "margin": "0 auto 46px",
+          "textAlign": "center"
+         },
+         "children": [
+          {
+           "blockId": "89e5a070b",
+           "element": "p",
+           "baseStyles": {
+            "color": "var(--rarecation-gold-deep)",
+            "fontSize": "11px",
+            "fontWeight": "700",
+            "letterSpacing": "2.5px",
+            "margin": "0 0 14px",
+            "textTransform": "uppercase"
+           },
+           "innerHTML": "Khuzama"
+          },
+          {
+           "blockId": "763a5c9c0",
+           "element": "h2",
+           "baseStyles": {
+            "color": "var(--rarecation-espresso)",
+            "fontFamily": "var(--rarecation-display)",
+            "fontSize": "40px",
+            "fontWeight": "800",
+            "letterSpacing": "-0.02em",
+            "lineHeight": "1.12",
+            "margin": "0"
+           },
+           "mobileStyles": {
+            "fontSize": "30px"
+           },
+           "innerHTML": "Choose Your Villa"
+          }
+         ]
+        },
+        {
+         "blockId": "5bb33658f",
+         "element": "div",
+         "baseStyles": {
+          "display": "flex",
+          "flexWrap": "wrap",
+          "gap": "28px",
+          "justifyContent": "center"
+         },
+         "children": [
+          {
+           "blockId": "182d7acea",
+           "element": "div",
+           "blockName": "card Signature Suite",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(50% - 14px)",
+            "overflow": "hidden",
+            "width": "calc(50% - 14px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "100%",
+            "width": "100%"
+           },
+           "children": [
+            {
+             "blockId": "956e087eb",
+             "element": "img",
+             "baseStyles": {
+              "display": "block",
+              "height": "240px",
+              "objectFit": "cover",
+              "width": "100%"
+             },
+             "mobileStyles": {
+              "height": "190px"
+             },
+             "attributes": {
+              "src": "/assets/travel_booking/builder_assets/aroya_cabins/signature_suite.jpg",
+              "alt": "Signature Suite",
+              "loading": "lazy"
+             }
+            },
+            {
+             "blockId": "504076b5b",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "24px 26px 28px"
+             },
+             "children": [
+              {
+               "blockId": "2a04eb116",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "24px",
+                "fontWeight": "800",
+                "letterSpacing": "-0.01em",
+                "margin": "0 0 14px"
+               },
+               "innerHTML": "Signature Suite"
+              },
+              {
+               "blockId": "d21367286",
+               "element": "div",
+               "baseStyles": {
+                "alignItems": "center",
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px"
+               },
+               "children": [
+                {
+                 "blockId": "59c81362c",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "6 guests"
+                },
+                {
+                 "blockId": "445b6eccc",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "96 m\u00b2"
+                },
+                {
+                 "blockId": "de17a262b",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Balcony 21 m\u00b2"
+                },
+                {
+                 "blockId": "2d14cea79",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Deck 16"
+                }
+               ]
+              },
+              {
+               "blockId": "1d227e32b",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.68)",
+                "fontSize": "14.5px",
+                "lineHeight": "1.7",
+                "margin": "14px 0 0"
+               },
+               "innerHTML": "Walk-in closet, dining room, furnished balcony, vanity table, bathtub and turndown cleaning service."
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "bda86a3e7",
+           "element": "div",
+           "blockName": "card Presidential Villa",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(50% - 14px)",
+            "overflow": "hidden",
+            "width": "calc(50% - 14px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "100%",
+            "width": "100%"
+           },
+           "children": [
+            {
+             "blockId": "6185481e6",
+             "element": "img",
+             "baseStyles": {
+              "display": "block",
+              "height": "240px",
+              "objectFit": "cover",
+              "width": "100%"
+             },
+             "mobileStyles": {
+              "height": "190px"
+             },
+             "attributes": {
+              "src": "/assets/travel_booking/builder_assets/aroya_cabins/presidential_villa.jpg",
+              "alt": "Presidential Villa",
+              "loading": "lazy"
+             }
+            },
+            {
+             "blockId": "0567c82f0",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "24px 26px 28px"
+             },
+             "children": [
+              {
+               "blockId": "2ec4b9386",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "24px",
+                "fontWeight": "800",
+                "letterSpacing": "-0.01em",
+                "margin": "0 0 14px"
+               },
+               "innerHTML": "Presidential Villa"
+              },
+              {
+               "blockId": "05e5cf5ed",
+               "element": "div",
+               "baseStyles": {
+                "alignItems": "center",
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px"
+               },
+               "children": [
+                {
+                 "blockId": "d8c07689d",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "6 guests"
+                },
+                {
+                 "blockId": "36874c386",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "163 m\u00b2"
+                },
+                {
+                 "blockId": "d9dadfa27",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Balcony 82 m\u00b2"
+                },
+                {
+                 "blockId": "acc7b2391",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Deck 17"
+                }
+               ]
+              },
+              {
+               "blockId": "0c5eae87f",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.68)",
+                "fontSize": "14.5px",
+                "lineHeight": "1.7",
+                "margin": "14px 0 0"
+               },
+               "innerHTML": "Jacuzzi, walk-in closet, dining room and a vast furnished balcony."
+              }
+             ]
+            }
+           ]
+          },
+          {
+           "blockId": "b636c6ed6",
+           "element": "div",
+           "blockName": "card Royal Villa",
+           "baseStyles": {
+            "backgroundColor": "#FFFFFF",
+            "borderRadius": "20px",
+            "boxShadow": "0 16px 50px rgba(122,92,46,0.12)",
+            "boxSizing": "border-box",
+            "flexBasis": "calc(50% - 14px)",
+            "overflow": "hidden",
+            "width": "calc(50% - 14px)"
+           },
+           "mobileStyles": {
+            "flexBasis": "100%",
+            "width": "100%"
+           },
+           "children": [
+            {
+             "blockId": "a57224a4d",
+             "element": "img",
+             "baseStyles": {
+              "display": "block",
+              "height": "240px",
+              "objectFit": "cover",
+              "width": "100%"
+             },
+             "mobileStyles": {
+              "height": "190px"
+             },
+             "attributes": {
+              "src": "/assets/travel_booking/builder_assets/aroya_cabins/royal_villa.jpg",
+              "alt": "Royal Villa",
+              "loading": "lazy"
+             }
+            },
+            {
+             "blockId": "f66f894b3",
+             "element": "div",
+             "baseStyles": {
+              "boxSizing": "border-box",
+              "padding": "24px 26px 28px"
+             },
+             "children": [
+              {
+               "blockId": "c7826a098",
+               "element": "h3",
+               "baseStyles": {
+                "color": "var(--rarecation-espresso)",
+                "fontFamily": "var(--rarecation-display)",
+                "fontSize": "24px",
+                "fontWeight": "800",
+                "letterSpacing": "-0.01em",
+                "margin": "0 0 14px"
+               },
+               "innerHTML": "Royal Villa"
+              },
+              {
+               "blockId": "26fa34449",
+               "element": "div",
+               "baseStyles": {
+                "alignItems": "center",
+                "display": "flex",
+                "flexWrap": "wrap",
+                "gap": "8px"
+               },
+               "children": [
+                {
+                 "blockId": "0878e0cc3",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "12 guests"
+                },
+                {
+                 "blockId": "d9f66478e",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "395 m\u00b2"
+                },
+                {
+                 "blockId": "66f9bb7a0",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Balcony 6 m\u00b2"
+                },
+                {
+                 "blockId": "d21fb1f74",
+                 "element": "span",
+                 "baseStyles": {
+                  "backgroundColor": "#FFF6E4",
+                  "borderRadius": "50px",
+                  "color": "var(--rarecation-gold-deep)",
+                  "fontSize": "12.5px",
+                  "fontWeight": "700",
+                  "letterSpacing": "0.2px",
+                  "padding": "7px 14px",
+                  "whiteSpace": "nowrap"
+                 },
+                 "innerHTML": "Deck 16"
+                }
+               ]
+              },
+              {
+               "blockId": "a8db7abb3",
+               "element": "p",
+               "baseStyles": {
+                "color": "rgba(44,26,0,0.68)",
+                "fontSize": "14.5px",
+                "lineHeight": "1.7",
+                "margin": "14px 0 0"
+               },
+               "innerHTML": "Jacuzzi, walk-in closet, dining room, furnished balcony, baby crib (upon request), private spa treatment room, kids' playroom and pantry."
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "baseStyles": {
+      "backgroundColor": "#FDECC8",
+      "boxSizing": "border-box",
+      "padding": "62px 24px",
+      "width": "100%"
+     },
+     "blockId": "baf5aa427",
+     "blockName": "booking assistance",
+     "children": [
+      {
+       "baseStyles": {
+        "alignItems": "center",
+        "display": "flex",
+        "gap": "32px",
+        "justifyContent": "space-between",
+        "margin": "0 auto",
+        "maxWidth": "900px"
+       },
+       "blockId": "0f14a4de6",
+       "children": [
+        {
+         "blockId": "6d97db3f7",
+         "children": [
+          {
+           "baseStyles": {
+            "color": "var(--rarecation-espresso)",
+            "fontFamily": "var(--rarecation-display)",
+            "fontSize": "32px",
+            "fontWeight": "800",
+            "letterSpacing": "-0.02em",
+            "lineHeight": "1.12",
+            "margin": "0 0 10px"
+           },
+           "blockId": "9cf52a0e5",
+           "element": "h2",
+           "innerHTML": "Ready to sail with AROYA?",
+           "mobileStyles": {
+            "fontSize": "28px"
+           }
+          },
+          {
+           "baseStyles": {
+            "color": "rgba(44,26,0,0.65)",
+            "fontSize": "16px",
+            "lineHeight": "1.7",
+            "margin": "0",
+            "maxWidth": "560px"
+           },
+           "blockId": "2b971155c",
+           "element": "p",
+           "innerHTML": "Explore our upcoming AROYA cruises and secure the cabin that suits you best."
+          }
+         ],
+         "element": "div"
+        },
+        {
+         "attributes": {
+          "href": "/cruises"
+         },
+         "baseStyles": {
+          "alignItems": "center",
+          "backgroundColor": "var(--rarecation-gold)",
+          "borderRadius": "50px",
+          "color": "#FFFFFF",
+          "display": "inline-flex",
+          "fontSize": "14px",
+          "fontWeight": "700",
+          "hover:backgroundColor": "var(--rarecation-gold-deep)",
+          "justifyContent": "center",
+          "padding": "14px 27px",
+          "textDecoration": "none",
+          "transition": "all 0.2s ease",
+          "whiteSpace": "nowrap"
+         },
+         "blockId": "fe1ab0a0d",
+         "element": "a",
+         "innerHTML": "View Cruises"
+        }
+       ],
+       "element": "div",
+       "mobileStyles": {
+        "alignItems": "flex-start",
+        "flexDirection": "column",
+        "gap": "24px"
+       }
+      }
+     ],
+     "element": "section",
+     "mobileStyles": {
+      "padding": "52px 24px"
+     }
+    },
+    {
+     "baseStyles": {
+      "backgroundColor": "var(--rarecation-espresso)",
+      "boxSizing": "border-box",
+      "padding": "52px 60px 28px",
+      "width": "100%"
+     },
+     "blockId": "c57b9a539",
+     "blockName": "footer",
+     "children": [
+      {
+       "baseStyles": {
+        "alignItems": "center",
+        "borderBottom": "1px solid rgba(255,255,255,0.16)",
+        "display": "flex",
+        "flexWrap": "wrap",
+        "gap": "32px",
+        "justifyContent": "space-between",
+        "margin": "0 auto",
+        "maxWidth": "1100px",
+        "paddingBottom": "34px"
+       },
+       "blockId": "42a4be15f",
+       "children": [
+        {
+         "baseStyles": {
+          "alignItems": "flex-start",
+          "display": "flex",
+          "flexDirection": "column",
+          "gap": "14px"
+         },
+         "blockId": "a9f0fc703",
+         "children": [
+          {
+           "attributes": {
+            "aria-label": "Rarecation home",
+            "href": "/"
+           },
+           "baseStyles": {
+            "display": "flex",
+            "textDecoration": "none"
+           },
+           "blockId": "313a19e02",
+           "children": [
+            {
+             "attributes": {
+              "alt": "Rarecation",
+              "src": "/assets/travel_booking/builder_assets/RARECATION.png"
+             },
+             "baseStyles": {
+              "display": "block",
+              "filter": "brightness(0) invert(1)",
+              "height": "auto",
+              "width": "150px"
+             },
+             "blockId": "92201440b",
+             "element": "img"
+            }
+           ],
+           "element": "a"
+          },
+          {
+           "baseStyles": {
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "lineHeight": "1.5",
+            "margin": "0"
+           },
+           "blockId": "f0a5b9c4f",
+           "element": "p",
+           "innerHTML": "Luxury Travel, Crafted for You."
+          }
+         ],
+         "element": "div"
+        },
+        {
+         "baseStyles": {
+          "alignItems": "center",
+          "display": "flex",
+          "flexWrap": "wrap",
+          "gap": "18px 24px",
+          "justifyContent": "flex-end"
+         },
+         "blockId": "f97401c01",
+         "children": [
+          {
+           "attributes": {
+            "href": "/"
+           },
+           "baseStyles": {
+            "backgroundImage": "linear-gradient(currentColor, currentColor)",
+            "backgroundPosition": "left bottom",
+            "backgroundRepeat": "no-repeat",
+            "backgroundSize": "0% 1px",
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "hover:backgroundSize": "100% 1px",
+            "textDecoration": "none",
+            "transition": "all 0.2s ease"
+           },
+           "blockId": "de849f926",
+           "element": "a",
+           "innerHTML": "New Booking"
+          },
+          {
+           "attributes": {
+            "href": "/traveller"
+           },
+           "baseStyles": {
+            "backgroundImage": "linear-gradient(currentColor, currentColor)",
+            "backgroundPosition": "left bottom",
+            "backgroundRepeat": "no-repeat",
+            "backgroundSize": "0% 1px",
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "hover:backgroundSize": "100% 1px",
+            "textDecoration": "none",
+            "transition": "all 0.2s ease"
+           },
+           "blockId": "aea856001",
+           "element": "a",
+           "innerHTML": "My Trips"
+          },
+          {
+           "attributes": {
+            "href": "/affiliate"
+           },
+           "baseStyles": {
+            "backgroundImage": "linear-gradient(currentColor, currentColor)",
+            "backgroundPosition": "left bottom",
+            "backgroundRepeat": "no-repeat",
+            "backgroundSize": "0% 1px",
+            "color": "rgba(255,255,255,0.65)",
+            "fontSize": "14px",
+            "hover:backgroundSize": "100% 1px",
+            "textDecoration": "none",
+            "transition": "all 0.2s ease"
+           },
+           "blockId": "bb88dd49d",
+           "element": "a",
+           "innerHTML": "Become our Affiliates"
+          }
+         ],
+         "element": "div",
+         "mobileStyles": {
+          "justifyContent": "flex-start"
+         }
+        }
+       ],
+       "element": "div",
+       "mobileStyles": {
+        "alignItems": "flex-start",
+        "flexDirection": "column",
+        "gap": "28px"
+       }
+      },
+      {
+       "baseStyles": {
+        "color": "rgba(255,255,255,0.42)",
+        "fontSize": "12px",
+        "lineHeight": "1.5",
+        "margin": "22px auto 0",
+        "maxWidth": "1100px"
+       },
+       "blockId": "bf9e79379",
+       "element": "p",
+       "innerHTML": "\u00a9 2025 Rarecation Team. All rights reserved."
+      }
+     ],
+     "element": "footer",
+     "mobileStyles": {
+      "padding": "44px 24px 24px"
+     }
+    }
+   ],
+   "draggable": false,
+   "element": "section",
+   "originalElement": "root"
+  }
+ ],
+ "body_html": "",
+ "canonical_url": "",
+ "client_scripts": [],
+ "creation": "2026-09-13 19:00:00.000000",
+ "disable_indexing": 0,
+ "docstatus": 0,
+ "doctype": "Builder Page",
+ "draft_blocks": null,
+ "dynamic_route": 0,
+ "head_html": "",
+ "idx": 0,
+ "is_standard": 1,
+ "is_template": 0,
+ "language": "en",
+ "meta_description": "Khuzama villas on board AROYA \u2014 Signature Suite, Presidential Villa and the 395 m\u00b2 Royal Villa with jacuzzi, dining room, walk-in closet and private spa treatment room.",
+ "meta_image": "",
+ "modified": "2026-09-13 19:00:00.000000",
+ "modified_by": "Administrator",
+ "name": "page-cabinkv01",
+ "owner": "Administrator",
+ "page_data_script": "",
+ "page_name": "page-cabinkv01",
+ "page_title": "Khuzama Villas | AROYA Cruise Cabins | Rarecation",
+ "project_folder": "travel_booking",
+ "published": 1,
+ "published_at": "2026-09-13 19:00:00.000000",
+ "route": "cabin_khuzama_villas"
+}

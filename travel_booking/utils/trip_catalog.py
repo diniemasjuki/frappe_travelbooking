@@ -139,7 +139,7 @@ def get_ready_bundle() -> tuple[list, dict, dict, dict]:
 	# Susun semula per-trip: cruise ikut SAILING date (sailing_start),
 	# lain-lain ikut departure_date. Cruise cuma papar sailing terawal —
 	# dan dalam sailing yang sama, TGD cruise_only didahulukan supaya
-	# kad katalog ambil duration sailing sebenar (Cruise+Flight TGD membawa
+	# kad katalog ambil duration sailing sebenar (Cruise + Flight TGD membawa
 	# hari penerbangan, durationnya lebih panjang).
 	for _trip_name, _groups in trip_group_dates.items():
 		if trip_is_cruise.get(_trip_name):
@@ -721,7 +721,7 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 		group_dates.sort(key=lambda g: g["sailing_start"] or g["departure_date"])
 
 		# ── Cruise dedup: papar SATU option tarikh sahaja per sailing_start ──
-		# (Cruise+Flight + Cruise Only yang sama sailing jadi satu radio.) Pakej
+		# (Cruise + Flight + Cruise Only yang sama sailing jadi satu radio.) Pakej
 		# TIDAK dimerge lagi — trip_packages kekal dikey ikut TGD sebenar dan
 		# sailing_tgds bawah memberi peta lengkap sailing → TGD untuk frontend.
 		_seen_sail: set = set()

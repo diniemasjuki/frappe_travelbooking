@@ -26,7 +26,7 @@ class TripPackage(Document):
 		package_description: DF.TextEditor | None
 		package_pricing: DF.Table[TripPackagePrice]
 		package_title: DF.SmallText | None
-		package_type: DF.Literal["", "Fly Package", "Ground Only", "Cruise+Flight", "Cruise Only", "Customed"]
+		package_type: DF.Literal["", "Fly Package", "Ground Only", "Cruise + Flight", "Cruise Only", "Customed"]
 		price_review_required: DF.Check
 		select_group_by_date: DF.TableMultiSelect[TripPackageGroupDateSelect]
 		status: DF.Literal["Pending Review", "Active", "Inactive"]
@@ -40,7 +40,7 @@ class TripPackage(Document):
 
 	def validate(self):
 
-		if self.package_type == "Cruise+Flight":
+		if self.package_type == "Cruise + Flight":
 			package_type = "FC"
 		elif self.package_type == "Cruise Only":
 			package_type = "CO"

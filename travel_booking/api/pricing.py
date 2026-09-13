@@ -245,7 +245,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
 
     trip = frappe.db.get_value(
         "Trip", td.trip,
-        ["name", "trip_name", "description", "is_a_cruise_trip"],
+        ["name", "trip_name", "description", "is_a_cruise_trip", "trip_image"],
         as_dict=True
     )
     if not trip:
@@ -273,7 +273,32 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
         JOIN `tabTrip Price Category` tpc ON tpc.name = tpp.pricing_for_class
         WHERE tpp.parent = %s AND tpp.parenttype = 'Trip Package'
         ORDER BY tpp.idx ASC
-    """, trip_package, as_dict=True)
+	    """, trip_package, as_dict=True)
+
+    # Gallery kabin — slide gambar diambil dari Attachment Gallery kategori
+    # (rekod File yang dilampir pada Trip Price Category, sama sumber dengan
+    # field attachment_gallery_ktzn di Desk). Satu query untuk semua kategori
+    # supaya tiada N+1; hanya fail imej PUBLIC — fail private tak akan
+    # dapat dihubungi guest portal (URL /files/ perlu auth).
+    gallery_map = {}
+    cat_names = [r.room_category for r in pricing_rows]
+    if cat_names:
+        for f in frappe.get_all(
+            "File",
+            filters={
+                "attached_to_doctype": "Trip Price Category",
+                "attached_to_name": ["in", cat_names],
+                "is_folder": 0,
+                "is_private": 0,
+            },
+            fields=["attached_to_name", "file_url"],
+            order_by="creation asc",
+            limit_page_length=0,
+        ):
+            if f.file_url and f.file_url.lower().endswith(
+                (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif")
+            ):
+                gallery_map.setdefault(f.attached_to_name, []).append(f.file_url)
 
     cabins = []
     for row in pricing_rows:
@@ -291,6 +316,10 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             "max_capacity":  row.max_capacity if row.max_capacity is not None else (row.capacity or 2),
             "description":   row.description or "",
             "room_image":    row.room_profile or "",
+            # Senarai URL gambar dari Attachment Gallery kategori — sumber
+            # utama slide carousel kad kabin (booknow.js). room_image di atas
+            # kekal sebagai fallback bila kategori tiada gallery.
+            "room_gallery":  gallery_map.get(row.room_category, []),
             "read_more_url": row.read_more_url or "",
             # Link video bilik (YouTube). Di-booknow.js, gambar room_profile
             # jadi POSTER/placeholder — klik untuk embed iframe YouTube.
@@ -313,6 +342,9 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             "trip_name":        trip.trip_name,
             "description":      trip.description or "",
             "is_a_cruise_trip": bool(trip.is_a_cruise_trip),
+            # Cover image untuk background hero banner wizard — fallback
+            # default SAMA dengan katalog (_enrich_trips di trip_catalog.py).
+            "trip_image":       trip.trip_image or "/assets/travel_booking/img/defaultaroya.jpg",
         },
         "trip_group_date": {
             "name":             td.name,

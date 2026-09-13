@@ -1,16 +1,16 @@
 {
  "actions": [],
  "autoname": "naming_series:B2BP.YY.###",
- "creation": "2026-09-12 00:00:00.000000",
+ "creation": "2026-09-12 00:00:00",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "naming_series",
-  "partner_name",
+  "customer",
   "status",
   "column_break_main",
-  "customer",
+  "partner_name",
   "contact_email",
   "section_net_rate",
   "default_discount_percent",
@@ -27,6 +27,8 @@
    "set_only_once": 1
   },
   {
+   "fetch_from": "customer.customer_name",
+   "fetch_if_empty": 1,
    "fieldname": "partner_name",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -52,13 +54,15 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Billing Customer",
+   "link_filters": "[[\"Customer\",\"customer_group\",\"=\",\"B2B\"]]",
    "options": "Customer",
    "reqd": 1,
-   "search_index": 1,
    "unique": 1
   },
   {
-   "description": "Email billing utama partner — penerima emel status/resait/invois. Kosong = email Contact primary Customer di atas.",
+   "description": "Email billing utama partner \u2014 penerima emel status/resait/invois. Kosong = email Contact primary Customer di atas.",
+   "fetch_from": "customer.first_name",
+   "fetch_if_empty": 1,
    "fieldname": "contact_email",
    "fieldtype": "Data",
    "label": "Contact Email",
@@ -70,7 +74,7 @@
    "label": "Net Rate (Deducted Price)"
   },
   {
-   "description": "Diskaun % lalai atas harga pakej (Trip Package Price) untuk SEMUA tempahan partner ini — harga dibilkan adalah harga net, BUKAN komisen. Diatasi oleh override khusus pakej di bawah.",
+   "description": "Diskaun % lalai atas harga pakej (Trip Package Price) untuk SEMUA tempahan partner ini \u2014 harga dibilkan adalah harga net, BUKAN komisen. Diatasi oleh override khusus pakej di bawah.",
    "fieldname": "default_discount_percent",
    "fieldtype": "Percent",
    "label": "Default Discount Percent",
@@ -98,7 +102,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-12 00:00:00.000000",
+ "modified": "2026-09-14 04:53:17.178174",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Travel B2B Partner",
@@ -129,6 +133,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []

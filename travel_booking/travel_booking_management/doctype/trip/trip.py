@@ -136,7 +136,7 @@ class Trip(Document):
 				as_dict=True,
 			):
 				dp_map[dp.name] = dp
-		context.itinerary = [
+		itin_rows = [
 			{
 				"day": r.day,
 				"day_title": r.day_title or "",
@@ -146,9 +146,40 @@ class Trip(Document):
 				"meals": r.meals or "",
 				"day_image": r.day_image or "",
 				"description": r.description or "",
+				# Segment kosong (trip lama) / nilai asing dianggap Cruise.
+				"segment": (r.get("segment") or "").strip() or "Cruise",
 			}
 			for r in sorted(self.itinerary or [], key=lambda x: x.day or 0)
 		]
+		context.itinerary = itin_rows
+
+		# Segmented itinerary (cruise sahaja): hari penerbangan awal/lewat
+		# dipaparkan sebagai fasa Pre-Cruise → Cruise → Post-Cruise. Bukan
+		# cruise, atau semua hari dalam satu segment → template render flat
+		# seperti biasa (tiada header segment).
+		context.itinerary_segments = []
+		if self.is_a_cruise_trip:
+			segment_meta = {
+				"Pre-Cruise": {"label": "Pre-Cruise + Flight (Departure)", "icon": "ti-plane-departure"},
+				"Cruise": {"label": "Cruise · Onboard", "icon": "ti-ship"},
+				"Post-Cruise": {"label": "Post-Cruise + Flight (Return)", "icon": "ti-plane-arrival"},
+			}
+			grouped: dict = {}
+			for row in itin_rows:
+				seg = row["segment"] if row["segment"] in segment_meta else "Cruise"
+				grouped.setdefault(seg, []).append(row)
+			context.itinerary_segments = [
+				{
+					"key": seg,
+					"label": segment_meta[seg]["label"],
+					"icon": segment_meta[seg]["icon"],
+					"rows": grouped[seg],
+					"day_from": grouped[seg][0]["day"],
+					"day_to": grouped[seg][-1]["day"],
+				}
+				for seg in ("Pre-Cruise", "Cruise", "Post-Cruise")
+				if seg in grouped
+			]
 
 		# Gallery: cover (trip_image) + attachment gallery (tabFile, awam
 		# sahaja — is_private=0). Jadi slider hero di template; kalau kosong
@@ -466,7 +497,7 @@ class Trip(Document):
 				try:
 					# Generate package_type code (same logic as Trip Package validate())
 					pt = pkg.package_type or ""
-					if pt == "Cruise+Flight":
+					if pt == "Cruise + Flight":
 						pt_code = "FC"
 					elif pt == "Cruise Only":
 						pt_code = "CO"

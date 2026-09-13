@@ -115,9 +115,9 @@ class TripGroupDate(Document):
 		if self.sailing_start and self.sailing_end:
 			date_format_sailing = sailing_start.strftime("%d %b %Y") + " - " + sailing_end.strftime("%d %b %Y")
 
-		# this is for CRUISE+FLIGHT trip = group title use sailing date
+		# this is for CRUISE + FLIGHT trip = group title use sailing date
 		if (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (not self.is_cruise_only or self.is_cruise_only == 0):
-			self.trip_group_name = date_format_departure + (" : " + self.trip or "") + " : Cruise+Flight"
+			self.trip_group_name = date_format_departure + (" : " + self.trip or "") + " : Cruise + Flight"
 			self.trip_group_code = (str(self.departure_date) + "-" + str(self.return_date) + ":" + self.trip + ":" + "FC").replace("-", "")
 
 		# this is for CRUISE ONLY trip

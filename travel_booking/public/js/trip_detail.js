@@ -119,7 +119,7 @@
     return preloaded[gdData.name] || [];
   }
   // Tarikh ada pilihan "cruise/flight" bila SESUATU pakej dalam tarikh itu
-  // membawa flight (airport_form) — cth pakej Cruise+Flight / Fly Package.
+  // membawa flight (airport_form) — cth pakej Cruise + Flight / Fly Package.
   function dateHasFlight(gdData) {
     return pkgsForDate(gdData).some(function (p) { return !!p.flight; });
   }
@@ -470,7 +470,7 @@
   // di-union dari SEMUA TGD yang berkongsi sailing itu (peta DATA.sailing_tgds),
   // dan setiap pakej kekal bawa trip_group_date SEBENAR pautannya. Ini
   // memastikan pakej Cruise Only dibawa bersama TGD Cruise Only (bukan TGD
-  // Cruise+Flight yang disimpan semasa dedupe).
+  // Cruise + Flight yang disimpan semasa dedupe).
   // Non-cruise: pakej diambil terus dari TGD radio (tiada dedupe).
   function populatePackages() {
     pkgSel.innerHTML = '<p class="rc-muted">Loading packages…</p>';
@@ -543,19 +543,19 @@
       btn.className = "rc-pkg-btn";
       btn.setAttribute("data-value", p.name);
       btn.setAttribute("data-gd-id", p.trip_group_date);
-      var pt = (p.package_type || "").toLowerCase();
-      var flight = p.flight || "";
-      var labelHtml = "";
-      if (pt === "cruise only") {
-        labelHtml = "Cruise Only";
-      } else if (pt === "ground only") {
-        labelHtml = "Ground Only";
-      } else if ((pt === "cruise+flight" || pt === "fly cruise" || pt.indexOf("fly") >= 0) && flight) {
-        labelHtml = "Cruise+Flight from <b>" + esc(flight) + "</b>";
-      } else if ((pt === "fly package" || pt.indexOf("fly") >= 0) && flight) {
-        labelHtml = "Fly Package from <b>" + esc(flight) + "</b>";
+      // Tajuk butang = JENIS pakej sahaja ("Cruise + Flight" / "Cruise Only" /
+      // "Ground Only" / "Fly Package" / "Customed") — BUKAN nama pakej penuh
+      // (package_title/trip_group_name dah mengandungi nama trip + tarikh +
+      // jenis yang bertindih). KECUALI: trip cruise yang BUKAN cruise-only —
+      // jenis + " from " + kod lapangan terbang (p.flight = link airport_form,
+      // namanya sendiri kod IATA cth "KUL"). Fallback nama pakej bila jenis
+      // kosong.
+      var type = (p.package_type || "").trim() || p.package_name || p.name;
+      var labelHtml;
+      if (is_cruise && !p.is_cruise_only && p.flight) {
+        labelHtml = esc(type) + " from <b>" + esc(p.flight) + "</b>";
       } else {
-        labelHtml = esc(p.package_name || p.name);
+        labelHtml = esc(type);
       }
       // Badge currency native pakej (paksi multi-company) — dipapar bila
       // currency pakej BERBEZA dari currency listing aktif (cth fallback
@@ -640,7 +640,7 @@
   function pkgMetaHtml(p) {
     var cruiseOnly = !!p.is_cruise_only;
     // Cruise Only: guna "Sailing Start" / "Sailing End" (padan reka bentuk rujukan).
-    // Pakej lain (Cruise+Flight dll): tarikh penerbangan sebenar TGD.
+    // Pakej lain (Cruise + Flight dll): tarikh penerbangan sebenar TGD.
     // Fallback ke pasangan tarikh bertentangan bila satu medan kosong.
     var dep = cruiseOnly ? (p.sailing_start || p.departure_date) : (p.departure_date || p.sailing_start);
     var ret = cruiseOnly ? (p.sailing_end || p.return_date) : (p.return_date || p.sailing_end);
@@ -992,28 +992,53 @@
   });
 })();
 
-// ── Itinerary collapsible — teks more/hide kecil di bucu kanan bawah kad.
-// Lalai: semua hari collapsed. ──
+// ── Itinerary collapsible — teks more/hide kecil di bucu kanan bawah kad
+// + butang global Collapse all / Expand all di header seksyen.
+// querySelectorAll (bukan querySelector) supaya itinerary bersegmen cruise —
+// beberapa <ol class="rc-itinerary"> — semuanya dapat handler.
+// Lalai: semua hari open (terbuka). ──
 (function () {
   "use strict";
-  var list = document.querySelector(".rc-itinerary");
-  if (!list) return;
-  var days = list.querySelectorAll(".rc-itin-day");
+  var days = document.querySelectorAll(".rc-itin-day");
+  if (!days.length) return;
+  var allBtn = document.getElementById("rcItinToggleAll");
+
+  function daySet(li, open) {
+    var btn = li.querySelector(".rc-itin-toggle");
+    var head = li.querySelector(".rc-itin-head");
+    li.classList.toggle("rc-itin-open", open);
+    li.classList.toggle("rc-itin-collapsed", !open);
+    if (btn) btn.textContent = open ? "hide" : "more";
+    if (head) head.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  function syncAllBtn() {
+    if (!allBtn) return;
+    var allOpen = true;
+    Array.prototype.forEach.call(days, function (li) {
+      if (!li.classList.contains("rc-itin-open")) allOpen = false;
+    });
+    allBtn.setAttribute("aria-expanded", allOpen ? "true" : "false");
+    var label = allBtn.querySelector("span");
+    var icon = allBtn.querySelector(".ti");
+    if (label) label.textContent = allOpen ? "Collapse all" : "Expand all";
+    if (icon) icon.className = "ti " + (allOpen ? "ti-chevrons-up" : "ti-chevrons-down");
+  }
+
   Array.prototype.forEach.call(days, function (li) {
     var head = li.querySelector(".rc-itin-head");
     var btn = li.querySelector(".rc-itin-toggle");
     if (!head && !btn) return;
-    li.classList.add("rc-itin-collapsed");
+    li.classList.add("rc-itin-open");
+    if (btn) btn.textContent = "hide";
     if (head) {
       head.setAttribute("role", "button");
       head.setAttribute("tabindex", "0");
-      head.setAttribute("aria-expanded", "false");
+      head.setAttribute("aria-expanded", "true");
     }
     function toggle() {
-      var open = li.classList.toggle("rc-itin-open");
-      li.classList.toggle("rc-itin-collapsed", !open);
-      if (btn) btn.textContent = open ? "hide" : "more";
-      if (head) head.setAttribute("aria-expanded", open ? "true" : "false");
+      daySet(li, !li.classList.contains("rc-itin-open"));
+      syncAllBtn();
     }
     if (head) {
       head.addEventListener("click", toggle);
@@ -1025,5 +1050,137 @@
       });
     }
     if (btn) btn.addEventListener("click", toggle);
+  });
+
+  if (allBtn) {
+    allBtn.addEventListener("click", function () {
+      var expand = allBtn.getAttribute("aria-expanded") !== "true";
+      Array.prototype.forEach.call(days, function (li) {
+        daySet(li, expand);
+      });
+      syncAllBtn();
+    });
+  }
+})();
+
+// ── Sticky booking panel (position:sticky bottom — trip_detail.css) ──
+// Card menunggang bawah viewport semasa scroll dan labuh di hujung sidebar.
+// Sentinel di hujung sidebar menanda kedudukan labuh: bila sentinel tiada
+// dalam viewport, card masih terlekat di bawah skrin → .rc-stuck (bayang
+// lebih dalam; lihat .rc-booking-card.rc-stuck). Tinggi nav sticky diukur ke
+// --rc-nav-h supaya max-height card tak luncur di bawah header, dan animasi
+// kemasukan (.rc-entrance) dicetus pada kemunculan pertama card, bukan semasa
+// page load (card masih di bawah fold).
+(function () {
+  "use strict";
+  var card = document.querySelector(".rc-booking-card");
+  var sentinel = document.querySelector(".rc-sticky-sentinel");
+  if (!card) return;
+
+  var nav = document.querySelector(".rc-public-nav");
+  function syncNavH() {
+    if (nav) {
+      document.documentElement.style.setProperty("--rc-nav-h", nav.offsetHeight + "px");
+    }
+  }
+  syncNavH();
+  window.addEventListener("resize", syncNavH);
+
+  if (typeof IntersectionObserver === "undefined") return;
+  if (sentinel) {
+    var io = new IntersectionObserver(function (entries) {
+      card.classList.toggle("rc-stuck", !entries[0].isIntersecting);
+    }, { threshold: 0 });
+    io.observe(sentinel);
+  }
+  var entered = false;
+  var ioEnter = new IntersectionObserver(function (entries) {
+    if (entered || !entries[0].isIntersecting) return;
+    entered = true;
+    card.classList.add("rc-entrance");
+    ioEnter.disconnect();
+  }, { threshold: 0 });
+  ioEnter.observe(card);
+})();
+
+// ── Mobile booking drawer (≤640px — trip_detail.css) ──
+// Bar sticky "harga + Book Now" di bawah skrin membuka card sebagai bottom
+// drawer (slide-up). Tutup: tap backdrop, butang X, Escape, atau leret card
+// ke bawah. Melepasi breakpoint (rotate/resize) auto-tutup. Di desktop bar
+// dan backdrop disembunyi CSS, jadi listener ini no-op.
+(function () {
+  "use strict";
+  var card = document.querySelector(".rc-booking-card");
+  var bar = document.getElementById("rcBookingBar");
+  var backdrop = document.querySelector(".rc-drawer-backdrop");
+  var closeBtn = document.querySelector(".rc-drawer-close");
+  if (!card || !bar || !backdrop || !closeBtn) return;
+
+  function isOpen() { return card.classList.contains("rc-drawer-open"); }
+
+  function openDrawer() {
+    card.classList.add("rc-drawer-open");
+    backdrop.classList.add("rc-show");
+    bar.classList.add("rc-hide");
+    bar.setAttribute("aria-expanded", "true");
+    document.documentElement.classList.add("rc-drawer-lock");
+    if (typeof closeBtn.focus === "function") {
+      try { closeBtn.focus({ preventScroll: true }); } catch (_e) {}
+    }
+  }
+
+  function closeDrawer() {
+    card.classList.remove("rc-drawer-open");
+    card.classList.remove("rc-dragging");
+    card.style.transform = "";
+    backdrop.classList.remove("rc-show");
+    bar.classList.remove("rc-hide");
+    bar.setAttribute("aria-expanded", "false");
+    document.documentElement.classList.remove("rc-drawer-lock");
+  }
+
+  bar.addEventListener("click", function () {
+    if (isOpen()) closeDrawer(); else openDrawer();
+  });
+  closeBtn.addEventListener("click", closeDrawer);
+  backdrop.addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && isOpen()) closeDrawer();
+  });
+
+  // Rotate / resize melangkau breakpoint → reset supaya card tak kekal
+  // fixed + body terkunci di desktop.
+  var mq = window.matchMedia("(max-width: 640px)");
+  function onMq(e) { if (!e.matches) closeDrawer(); }
+  if (mq.addEventListener) mq.addEventListener("change", onMq);
+  else if (mq.addListener) mq.addListener(onMq);
+
+  // Leret ke bawah utk tutup — hanya bila card dah terbuka dan kandungan
+  // berada di atas (scrollTop 0); tap biasa tak terganggu (tiada
+  // preventDefault sebelum drag aktif).
+  var startY = 0, dy = 0, dragging = false;
+  card.addEventListener("touchstart", function (e) {
+    if (!isOpen() || card.scrollTop > 0 || e.touches.length !== 1) {
+      dragging = false;
+      return;
+    }
+    dragging = true;
+    startY = e.touches[0].clientY;
+    dy = 0;
+  }, { passive: true });
+  card.addEventListener("touchmove", function (e) {
+    if (!dragging) return;
+    dy = e.touches[0].clientY - startY;
+    if (dy <= 0) { card.style.transform = ""; return; }
+    if (!card.classList.contains("rc-dragging")) card.classList.add("rc-dragging");
+    card.style.transform = "translateY(" + dy + "px)";
+  }, { passive: true });
+  card.addEventListener("touchend", function () {
+    if (!dragging) return;
+    dragging = false;
+    var shouldClose = dy > 90;
+    card.classList.remove("rc-dragging");
+    card.style.transform = "";
+    if (shouldClose) closeDrawer();
   });
 })();

@@ -118,14 +118,6 @@
       </section>
       {% endif %}
 
-      {# ── Description (tanpa "Overview" heading, hanya text) ── #}
-      {% if description %}
-      <section class="rc-trip-section rc-description-only" style="margin-top:35px; ">
-        <!-- <h2 class="rc-section-h">Overview</h2> -->
-        <div class="rc-trip-description">{{ description }}</div>
-      </section>
-      {% endif %}
-
       {# ── Video YouTube (antara gallery + content, ikut reference cruise.rarecation.com) ── #}
       {% if video_id %}
       <section class="rc-trip-section">
@@ -147,6 +139,14 @@
           </a>
           {% endif %}
         </div>
+      </section>
+      {% endif %}
+
+      {# ── Description (tanpa "Overview" heading, hanya text) ── #}
+      {% if description %}
+      <section class="rc-trip-section rc-description-only" style="margin-top:35px; ">
+        <!-- <h2 class="rc-section-h">Overview</h2> -->
+        <div class="rc-trip-description">{{ description }}</div>
       </section>
       {% endif %}
 
@@ -205,10 +205,22 @@
       {# ── Itinerary timeline (day-by-day) ── #}
       {% if itinerary %}
       <section class="rc-trip-section">
-        <h2 class="rc-section-h">{{ itinerary_title or 'Itinerary' }}</h2>
-        <p class="rc-section-sub">{{ itinerary_caption or 'Day-by-day planning' }}</p>
+        <div class="rc-itin-top">
+          <div>
+            <h2 class="rc-section-h">{{ itinerary_title or 'Itinerary' }}</h2>
+            <p class="rc-section-sub">{{ itinerary_caption or 'Day-by-day planning' }}</p>
+          </div>
+          {# Butang global minimize/expand semua hari — label & ikon disegerak
+             dengan state kad oleh trip_detail.js #}
+          <button type="button" class="rc-itin-all" id="rcItinToggleAll" aria-expanded="true">
+            <i class="ti ti-chevrons-up"></i><span>Collapse all</span>
+          </button>
+        </div>
+        {# Timeline hari — macro supaya sama digunakan untuk render flat
+           dan render segmented (Pre-Cruise / Cruise / Post-Cruise). #}
+        {% macro itin_timeline(rows) %}
         <ol class="rc-itinerary">
-          {% for row in itinerary %}
+          {% for row in rows %}
           <li class="rc-itin-day" data-day="{{ row.day }}">
             <div class="rc-itin-marker"><span>Day {{ row.day }}</span></div>
             <div class="rc-itin-card">
@@ -221,11 +233,27 @@
               {% endif %}
               {% if row.description %}<div class="rc-itin-desc">{{ row.description }}</div>{% endif %}
               {% if row.meals %}<p class="rc-itin-meals"><i class="ti ti-tools-kitchen2"></i> {{ row.meals }}</p>{% endif %}
-              <button type="button" class="rc-itin-toggle">more</button>
+              <button type="button" class="rc-itin-toggle">hide</button>
             </div>
           </li>
           {% endfor %}
         </ol>
+        {% endmacro %}
+        {% if itinerary_segments and itinerary_segments|length > 1 %}
+          {# Cruise trip dengan hari Pre/Post — fasa berlabel, nombor hari kekal berterusan. #}
+          {% for seg in itinerary_segments %}
+          <div class="rc-itin-segment">
+            <div class="rc-itin-seg-head">
+              <i class="ti {{ seg.icon }}"></i>
+              <h3 class="rc-itin-seg-label">{{ seg.label }}</h3>
+              <span class="rc-itin-seg-days">Day {{ seg.day_from }}{% if seg.day_to != seg.day_from %}&ndash;{{ seg.day_to }}{% endif %}</span>
+            </div>
+            {{ itin_timeline(seg.rows) }}
+          </div>
+          {% endfor %}
+        {% else %}
+          {{ itin_timeline(itinerary) }}
+        {% endif %}
       </section>
       {% endif %}
 
@@ -250,7 +278,8 @@
 
     {# ════ SIDEBAR (booking widget) ════ #}
     <aside class="rc-trip-sidebar">
-      <div class="rc-booking-card">
+      <div class="rc-booking-card" id="rcBookingCard">
+        <button type="button" class="rc-drawer-close" aria-label="Hide booking panel"><i class="ti ti-x"></i></button>
         <h3 class="rc-booking-title">Reserve Your Activity</h3>
         <p class="rc-booking-sub">Price is varies base on current flight price</p>
 
@@ -289,12 +318,13 @@
              mempropagasi :hover/:active label ke labeled control tersebut
              (hover butang lain turut "menyalakan" butang pertama). #}
           <div class="rc-field">
-            <span class="rc-field-label">Select Package</span>
+            <span class="rc-field-label">Choose Package</span>
             <div id="rcDetailPackage" class="rc-pkg-buttons">
               <p class="rc-muted">Pick a date to see available packages.</p>
             </div>
           </div>
 
+          <span class="rc-field-label">Price Info</span>
           <div id="rcDetailCabins" class="rc-cabins-empty">
             <p class="rc-muted">Pick a package to see room options and prices.</p>
           </div>
@@ -310,6 +340,27 @@
         <p class="rc-empty-inline">No upcoming departures. <a href="/trips">Browse other trips →</a></p>
         {% endif %}
       </div>
+
+      {# ── Mobile drawer (≤640px): backdrop + bar sticky "harga + Book Now"
+         yang membuka card sebagai bottom drawer. Dikawal trip_detail.js;
+         disembunyi di desktop (trip_detail.css). ── #}
+      <div class="rc-drawer-backdrop" aria-hidden="true"></div>
+      <button type="button" class="rc-booking-bar" id="rcBookingBar" aria-expanded="false" aria-controls="rcBookingCard">
+        <span class="rc-bar-info">
+          {% if starting_from_price %}
+          <span class="rc-bar-price">{{ currency_symbol or get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }}</span>
+          <span class="rc-bar-label">start from / person</span>
+          {% else %}
+          <span class="rc-bar-price">Reserve your activity</span>
+          {% endif %}
+        </span>
+        <span class="rc-bar-cta">Book Now <i class="ti ti-chevron-up"></i></span>
+      </button>
+
+      {# Sentinel sticky booking card — penanda hujung sidebar. Bila sentinel
+         keluar viewport, card masih "menunggang" di bawah skrin; trip_detail.js
+         baca sentinel ini untuk toggle .rc-stuck (bayang lebih dalam). #}
+      <div class="rc-sticky-sentinel" aria-hidden="true"></div>
     </aside>
 
   </div>{# /rc-trip-layout #}
