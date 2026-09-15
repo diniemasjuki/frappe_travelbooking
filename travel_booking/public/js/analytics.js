@@ -253,9 +253,16 @@
       if (dd && dd.trip_master) {
         var priceEl = document.getElementById("rcItemPriceData");
         var fromPrice = null;
-        if (priceEl) fromPrice = (JSON.parse(priceEl.textContent) || {}).price || null;
+        var fromCurrency = null;
+        if (priceEl) {
+          var pd = JSON.parse(priceEl.textContent) || {};
+          fromPrice = pd.price || null;
+          // Currency SEBENAR harga "from" (listing / native pakej) —
+          // fallback currency() (company) bila page tak sediakan.
+          fromCurrency = pd.currency || null;
+        }
         event("view_item", {
-          currency: currency(),
+          currency: fromCurrency || currency(),
           items: [item(dd.is_cruise ? "cruise" : "tour", dd.trip_master, dd.trip_name, fromPrice)],
         });
       }

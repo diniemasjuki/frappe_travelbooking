@@ -838,18 +838,30 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 	# --- starting_from_price: MIN price_adult dalam currency terpilih
 	# (fallback: merentasi SEMUA pakej native bila currency_native_only).
 	# MESTI di peringkat function — bukan dalam `if is_cruise:` (bug
-	# UnboundLocalError untuk trip bukan-cruise). ---
+	# UnboundLocalError untuk trip bukan-cruise). GROUP BY currency +
+	# ORDER BY mn supaya nilai MIN + CURRENCY sebenar harga itu kembali
+	# bersama (native_only: MIN merentasi currency bercampur tidak boleh
+	# dipaparkan dengan satu simbol). ---
 	sp_cond = "" if currency_native_only else "AND tp.currency = %(cur)s"
 	sp = frappe.db.sql(
 		"""
-		SELECT MIN(pr.price_adult) AS mn
+		SELECT tp.currency AS cur, MIN(pr.price_adult) AS mn
 		FROM `tabTrip Package` tp
 		JOIN `tabTrip Package Price` pr ON pr.parent = tp.name
 		WHERE tp.trip_link = %(t)s AND tp.status = 'Active' {sp_cond}
+		GROUP BY tp.currency
+		ORDER BY mn
+		LIMIT 1
 		""".format(sp_cond=sp_cond),
 		{"t": trip_name, "cur": currency},
+		as_dict=True,
 	)
-	starting_from_price = float(sp[0][0]) if sp and sp[0][0] else None
+	starting_from_price = float(sp[0].mn) if sp and sp[0].mn else None
+	starting_from_currency = (sp[0].cur if sp else None) or currency
+	starting_from_symbol = (
+		frappe.db.get_value("Currency", starting_from_currency, "symbol")
+		or starting_from_currency
+	)
 
     # --- destinasi: ambil terus dari destination yang tersenarai dalam
     # itinerary (Trip Itinerary.destination_point -> master Trip
@@ -890,4 +902,13 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 		"is_cruise": is_cruise,
 		"currency": currency,
 		"currency_native_only": currency_native_only,
+		# Simbol currency LISTING aktif (pilihan customer) — page detail
+		# suntik ke context untuk trip_card dsb. (pola sama get_catalog_trips).
+		"currency_symbol": (
+			frappe.db.get_value("Currency", currency, "symbol") or currency
+		),
+		# Currency + simbol SEBENAR harga "from" (sama dengan currency listing
+		# secara normal; currency native pakej termurah bila native_only).
+		"starting_from_currency": starting_from_currency,
+		"starting_from_symbol": starting_from_symbol,
 	}

@@ -284,10 +284,11 @@
         <p class="rc-booking-sub">Price is varies base on current flight price</p>
 
         {% if starting_from_price %}
-        {# Harga "from" dalam currency listing aktif (paksi multi-company).
-           currency_symbol disuntik oleh get_context (fallback symbol company
-           bila page include dari konteks lain). #}
-        <p class="rc-trip-fromprice"><small>Start from</small> {{ currency_symbol or get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }} <span class="rc-muted">/ person{% if currency_native_only %} · package currency{% endif %}</span></p>
+        {# Harga "from" + simbol currency SEBENAR harga itu (currency listing
+           aktif secara normal; currency native pakej termurah bila
+           currency_native_only — disuntik oleh get_context). Fallback
+           symbol company bila page include dari konteks lain. #}
+        <p class="rc-trip-fromprice"><small>Start from</small> {{ starting_from_symbol or currency_symbol or get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }} <span class="rc-muted">/ person{% if currency_native_only %} · package currency{% endif %}</span></p>
         {% endif %}
 
         {# ── meta bar (duration, max pax, type) ── #}
@@ -348,7 +349,7 @@
       <button type="button" class="rc-booking-bar" id="rcBookingBar" aria-expanded="false" aria-controls="rcBookingCard">
         <span class="rc-bar-info">
           {% if starting_from_price %}
-          <span class="rc-bar-price">{{ currency_symbol or get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }}</span>
+          <span class="rc-bar-price">{{ starting_from_symbol or currency_symbol or get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }}</span>
           <span class="rc-bar-label">start from / person</span>
           {% else %}
           <span class="rc-bar-price">Reserve your activity</span>
@@ -396,14 +397,15 @@
   "sailing_tgds": {{ sailing_tgds_json }},
   "company_symbol": {{ get_company_symbol()|tojson }},
   "currency": {{ (currency or get_company_currency())|tojson }},
+  "currency_symbol": {{ (currency_symbol or get_company_symbol())|tojson }},
   "currency_native_only": {{ "true" if currency_native_only else "false" }},
   "gallery_count": {{ gallery|length }}
 }</script>
 
-{# Harga "from" (MIN price_adult semua package Active) untuk event GA4
-   view_item — dibaca oleh public/js/analytics.js. Null → item tanpa
-   price (GA terima). #}
-<script id="rcItemPriceData" type="application/json">{"price": {{ starting_from_price|tojson }}}</script>
+{# Harga "from" (MIN price_adult package Active currency listing) + currency
+   SEBENAR harga itu untuk event GA4 view_item — dibaca oleh public/js/analytics.js.
+   Null → item tanpa price (GA terima). #}
+<script id="rcItemPriceData" type="application/json">{"price": {{ starting_from_price|tojson }}, "currency": {{ starting_from_currency|tojson }}}</script>
 
 {# Widget logic hidup dalam /assets/travel_booking/js/trip_detail.js (single source of truth).
    JANGAN inline salinan script di sini — duplicate IIFE berlawan atas DOM sama

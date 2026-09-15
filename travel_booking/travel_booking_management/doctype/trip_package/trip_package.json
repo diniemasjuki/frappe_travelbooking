@@ -182,8 +182,7 @@
    "fieldtype": "Small Text",
    "label": "Package Titlle",
    "no_copy": 1,
-   "options": "Name",
-   "read_only": 1
+   "options": "Name"
   },
   {
    "default": "MYR",
@@ -240,7 +239,7 @@
  "grid_page_length": 50,
  "image_field": "trip_image",
  "links": [],
- "modified": "2026-09-11 07:00:54.811750",
+ "modified": "2026-09-14 15:28:07.771038",
  "modified_by": "Administrator",
  "module": "Travel Booking Management",
  "name": "Trip Package",

@@ -33,7 +33,7 @@
     sessionStorage.removeItem("bnw_booking_wizard");
   } catch (_e) {}
 
-  var SYM = DATA.company_symbol || "RM";
+  var SYM = DATA.currency_symbol || DATA.company_symbol || "RM";
   // Currency listing aktif (paksi multi-company) — harga "from"/nota
   // default guna ni; SYM bertukar kepada currency NATIVE pakej yang
   // dipilih (1 pakej = 1 currency — itulah currency yang dicaj).

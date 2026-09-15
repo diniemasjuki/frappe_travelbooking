@@ -82,7 +82,8 @@ class TripPackage(Document):
 		if not self.package_code:
 			self.package_code = (self.trip_link + " : " + package_type + " : " + airport ).upper().replace(" ","").strip()
 
-		self.package_title = (self.trip_name or "") + " : " + (self.package_type or "") + " : " + airport
+		if not self.package_title or self.package_title == "" :
+			self.package_title = (self.trip_name or "") + " : " + (self.package_type or "") + " : " + airport
 
 	
 		domain = frappe.utils.get_url()

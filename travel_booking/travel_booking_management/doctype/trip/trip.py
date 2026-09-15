@@ -96,9 +96,14 @@ class Trip(Document):
 		context.destinations = d["destinations"]
 		context.is_cruise = d["is_cruise"]
 		# Meta currency page detail — currency aktif + fallback flag +
-		# pilihan selector (axis).
+		# pilihan selector (axis). currency_symbol = simbol currency LISTING
+		# aktif (trip_card dsb.); starting_from_* = currency/simbol SEBENAR
+		# harga "from" (native pakej termurah bila currency_native_only).
 		context.currency = d.get("currency")
+		context.currency_symbol = d.get("currency_symbol")
 		context.currency_native_only = d.get("currency_native_only")
+		context.starting_from_currency = d.get("starting_from_currency")
+		context.starting_from_symbol = d.get("starting_from_symbol")
 		from travel_booking.api.currency_axis import get_currency_options
 		context.currency_options = get_currency_options()
 		# Breadcrumb "Trips" dinamik mengikut jenis produk ini: cruise →
@@ -249,7 +254,9 @@ class Trip(Document):
 		context.travel_styles = styles
 
 		# Related tours — sama trip_categories, isi dgn trip lain jika kurang.
-		context.related = self._related_tours(limit=3)
+		# Harga kad ditapis ikut currency listing aktif (pola sama catalog);
+		# trip tanpa pakej dalam currency itu → "On Request".
+		context.related = self._related_tours(limit=3, currency=currency)
 
 		# ── SEO (meta description, canonical, Open Graph, JSON-LD) ──
 		# Meta description: keutamaan meta_description > description
@@ -280,8 +287,13 @@ class Trip(Document):
 				),
 				is_cruise=bool(self.is_a_cruise_trip),
 				price=context.starting_from_price,
-				currency=context.currency
-				or frappe.db.get_single_value("Global Defaults", "default_currency"),
+				# Currency SEBENAR harga "from" (currency listing secara
+				# normal; currency native pakej bila currency_native_only).
+				currency=(
+					context.starting_from_currency
+					or context.currency
+					or frappe.db.get_single_value("Global Defaults", "default_currency")
+				),
 				organizer=context.organizer_name or "",
 				faqs=context.faqs,
 				destinations=dest_names,
@@ -296,7 +308,7 @@ class Trip(Document):
 		context.no_cache = 1
 		context.active_nav = "trips"
 
-	def _related_tours(self, limit=3):
+	def _related_tours(self, limit=3, currency=None):
 		"""Return list of related trip dicts with complete card data."""
 		# FIXED: guna getattr — field trip_categories mungkin tiada dalam schema lama
 		cat = getattr(self, 'trip_categories', None)
@@ -356,8 +368,13 @@ class Trip(Document):
 					(r.name,), as_dict=True
 				) or []
 
-			# 4. Price + Group Date data
+			# 4. Price + Group Date data. Harga "from" ditapis ikut currency
+			# listing aktif (pola sama _add_starting_price di trip_catalog —
+			# tanpa tapisan ini MIN bercampur-campur currency). Trip tanpa
+			# pakej dalam currency itu → starting_from_price None → kad
+			# papar "On Request".
 			if rows:
+				price_cond = "AND tp.currency = %(cur)s" if currency else ""
 				price_map = {
 					r["trip"]: r["mn"]
 					for r in frappe.db.sql(
@@ -365,10 +382,10 @@ class Trip(Document):
 						SELECT tp.trip_link AS trip, MIN(pr.price_adult) AS mn
 						FROM `tabTrip Package` tp
 						JOIN `tabTrip Package Price` pr ON pr.parent = tp.name
-						WHERE tp.trip_link IN %(names)s AND tp.status='Active'
+						WHERE tp.trip_link IN %(names)s AND tp.status='Active' {price_cond}
 						GROUP BY tp.trip_link
-						""",
-						{"names": [r.name for r in rows]},
+						""".format(price_cond=price_cond),
+						{"names": [r.name for r in rows], "cur": currency},
 						as_dict=True,
 					)
 				}
