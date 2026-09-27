@@ -59,4 +59,4 @@ jspm_packages/
 .aider*
 
 # dev agent
-.zcode
+.zcode/
