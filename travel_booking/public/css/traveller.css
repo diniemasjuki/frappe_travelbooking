@@ -1000,6 +1000,36 @@
   border-color: var(--c-gold);
 }
 
+/* ── Pagination generik (bar tvRenderPager — bookings & on-behalf) ── */
+.tv-pg-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.tv-pg-num {
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tv-pg-num:hover:not(.tv-btn--primary) {
+  background: var(--c-gold-light);
+  color: var(--c-gold-dark);
+  border-color: var(--c-gold);
+}
+
+@media (max-width: 640px) {
+  .tv-pager {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+}
+
 @media (max-width: 640px) {
   .tv-tx-card {
     padding: 16px;

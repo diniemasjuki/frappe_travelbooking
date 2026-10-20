@@ -1,6 +1,9 @@
 /* ============================================================
    travel_booking/public/js/portal_traveller_page.js
-   Page: /traveller/booking-traveller?ref=...
+   Page: /guest_passport?token=... (borang SATU PAGE — Passport,
+   Contact Info & Health dalam borang yang sama; user isi semuanya
+   sehingga lengkap, tick consent PDPA dan tekan butang Submit —
+   submitTraveller() simpan ketiga-tiga section berturutan & confirm).
 
    Gabungan logic portal_wizard.js + portal_traveller.js (SPA lama),
    diadaptasikan untuk page berasingan + PENAMBAHAN:
@@ -292,10 +295,13 @@ function renderEngineBadge() {
   badge.style.borderRadius = '12px';
 }
 
-/* Label enjin ikut respons server ("ai" / "ai+ocr" / "ocr"). */
+/* Label enjin ikut respons server ("ai" / "ai+ocr" / "ocr" / "pdf-text"
+   / "ai+pdf-text"). */
 function _engineLabel(engine) {
   if (engine === 'ai') return '🤖 Scanned with AI';
   if (engine === 'ai+ocr') return '🤖 Scanned with AI + OCR (Image + MRZ)';
+  if (engine === 'pdf-text') return 'Read from embedded PDF text';
+  if (engine === 'ai+pdf-text') return '🤖 Scanned with AI + embedded PDF text';
   return 'Scanned with OCR (Image + MRZ)';
 }
 
@@ -575,10 +581,50 @@ function _canonicalNationality(value) {
    FORM LOAD + PASSPORT VALIDITY (port)
    ══════════════════════════════════════════════ */
 
+/* ── Checkbox "Copy from billing address" (kad Address, panel Contact)
+   — TICK: isi medan alamat dengan alamat billing customer yang terkini
+   (Booking.cust_* — disegerak dengan Address customer oleh hooks).
+   EDIT MANUAL mana-mana medan → tick terlepas (bukan lagi salinan
+   billing). Checkbox sentiasa dipaparkan; disabled + tooltip bila
+   booking tiada alamat billing (rekod lama). ── */
+function _wireCopyBilling(slot) {
+  const wrap = document.getElementById('tvl-copy-billing-wrap');
+  const cb   = document.getElementById('tvl-copy-billing');
+  if (!wrap || !cb) return;
+  const b = (slot && slot.billing_address) || {};
+  const hasAny = ['address_line1', 'city', 'postcode', 'state', 'country']
+    .some(k => (b[k] || '').trim());
+
+  wrap.style.display = 'inline-flex';
+  cb.disabled = !hasAny;
+  if (!hasAny) {
+    wrap.title = 'No billing address on file for this booking.';
+    return;
+  }
+  wrap.title = 'Copy the customer billing address into these fields.';
+  cb.checked = false;
+  cb.onchange = () => {
+    if (!cb.checked) return;
+    document.getElementById('tvl-addr1').value    = b.address_line1 || '';
+    document.getElementById('tvl-city').value     = b.city          || '';
+    document.getElementById('tvl-postcode').value = b.postcode      || '';
+    document.getElementById('tvl-state').value    = b.state         || '';
+    document.getElementById('tvl-country').value  = b.country       || '';
+  };
+  // Manual edit → uncheck (sekali sahaja per hook listener per medan)
+  ['tvl-addr1', 'tvl-city', 'tvl-postcode', 'tvl-state', 'tvl-country']
+    .forEach(id => {
+      const el = document.getElementById(id);
+      if (el && !el.dataset.billingHooked) {
+        el.dataset.billingHooked = '1';
+        el.addEventListener('input', () => { cb.checked = false; });
+      }
+    });
+}
+
 async function _loadTravellerForm(slot, passportReset = false) {
   await loadCountries();
   _initPhoneWidgets();
-  _sectionsSaved = { passport: false, contact: false, health: false };
 
   const isVerified      = slot && (slot.is_verified || slot.document_status === 'Verified');
   const isOpenForUpdate = slot && slot.document_status === 'Open for Update';
@@ -605,6 +651,14 @@ async function _loadTravellerForm(slot, passportReset = false) {
   document.getElementById('tvl-ppexp').value = passportReset ? '' : (slot?.passport_expiry || '');
   document.getElementById('tvl-ec-name').value         = slot?.emergency_contact_name || '';
   document.getElementById('tvl-ec-relationship').value = slot?.emergency_contact_relationship || '';
+  // Alamat (optional) — payload dari server sudah bawa fallback: alamat
+  // traveller tersimpan → alamat slot (salinan alamat billing booking).
+  document.getElementById('tvl-addr1').value    = slot?.address_line1 || '';
+  document.getElementById('tvl-city').value     = slot?.city          || '';
+  document.getElementById('tvl-postcode').value = slot?.postcode      || '';
+  document.getElementById('tvl-state').value    = slot?.state         || '';
+  document.getElementById('tvl-country').value  = slot?.country       || '';
+  _wireCopyBilling(slot);
   document.getElementById('tvl-dietary').value       = slot?.dietary_requirements || '';
   document.getElementById('tvl-medical').value       = slot?.medical_conditions  || '';
   document.getElementById('tvl-medicine').value      = slot?.medicine_treatment  || '';
@@ -646,21 +700,18 @@ async function _loadTravellerForm(slot, passportReset = false) {
   if (visaBadge) visaBadge.style.display = slot?.has_visa_photo ? 'inline-block' : 'none';
 
   const editableInputs = document.querySelectorAll('#V-form input:not([readonly]), #V-form select, #V-form textarea');
-  const confirmBtn = document.getElementById('tvl-confirm-btn');
   editableInputs.forEach(i => i.disabled = !canEdit);
   document.getElementById('passport-upload-area').disabled = !canEdit;
   document.getElementById('visa-photo-upload-area').disabled = !canEdit;
-  if (confirmBtn) confirmBtn.style.display = canEdit ? '' : 'none';
-  const sectionSaveBtns = document.querySelectorAll('.tvl-panel button');
-  sectionSaveBtns.forEach(b => { if (/Save .* section/.test(b.textContent)) b.disabled = !canEdit; });
+  // Bar hantar (consent PDPA + butang Submit) disembunyikan untuk slot
+  // Verified (baca sahaja).
+  const submitBar = document.getElementById('tvl-submit-bar');
+  if (submitBar) submitBar.style.display = canEdit ? '' : 'none';
 
   if (!passportReset && slot?.passport_expiry) checkPassportValidity();
 
-  tvlResetTabs();
   _showDocsForm();
   renderEngineBadge();
-  // State butang confirm ikut kelengkapan semasa (slot terisi → enabled).
-  _updateConfirmState();
   // A4 — muat gambar passport sebenar (async, tak halang paparan form).
   _loadPassportPreview(slot);
 }
@@ -745,6 +796,15 @@ function _showLocalPassportPreview(file) {
   const preview = document.getElementById('passport-preview');
   const example = document.getElementById('passport-example');
   if (!preview || !example || !file) return;
+  // PDF tak boleh dipapar oleh <img> — kekalkan contoh, tunjuk nama fail
+  // pada caption (halaman 1 dirender & diimbas oleh server).
+  if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+    _revokePassportPreviewUrl();
+    preview.style.display = 'none';
+    example.style.display = '';
+    _passportCaption('✓ ' + file.name + ' — PDF · page 1 will be scanned');
+    return;
+  }
   _revokePassportPreviewUrl();
   _passportPreviewUrl = URL.createObjectURL(file);
   preview.src = _passportPreviewUrl;
@@ -756,13 +816,23 @@ function _showLocalPassportPreview(file) {
 function _pickImage(onPicked, errBoxId, opts) {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = 'image/jpeg,image/png,.jpg,.jpeg,.png';
-  // capture=environment (peranti sentuh) — buka kamera belakang terus
+  // JPG/PNG (imej) + PDF (dokumen — halaman 1 dirender & diimbas server).
+  input.accept = 'image/jpeg,image/png,.jpg,.jpeg,.png,.pdf,application/pdf';
+  // capture=environment (peranti sentuh sahaja) — buka kamera belakang terus
   // untuk snap dokumen; di desktop atribut ini diabaikan browser.
   if (opts && opts.capture) input.setAttribute('capture', 'environment');
   input.onchange = e => {
     const file = e.target.files[0];
     if (!file) return;
+    // Jenis fail — JPG/PNG/PDF sahaja (semakan client; server sahkan
+    // semula via magic bytes). Fallback extension untuk browser mudah
+    // alih yang lapangkan file.type.
+    const isAllowed = ['image/jpeg', 'image/png', 'application/pdf'].includes(file.type)
+      || /\.(jpe?g|png|pdf)$/i.test(file.name);
+    if (!isAllowed) {
+      showInlineError(errBoxId, 'Please upload a JPG, PNG, or PDF file — "' + file.name + '" is not supported.');
+      return;
+    }
     if (file.size > 5 * 1024 * 1024) {
       showInlineError(errBoxId, 'File must be under 5MB — "' + file.name + '" is ' + (file.size / 1024 / 1024).toFixed(1) + 'MB.');
       return;
@@ -806,12 +876,13 @@ function toggleVisaCard() {
 }
 
 /* ══════════════════════════════════════════════
-   SAVE — inline validation (ganti alert chain) + PDPA consent
+   SUBMIT — satu page form: sahkan SEMUA medan (Passport + Contact Info +
+   Health), kemudian simpan ketiga-tiga section berturutan (passport →
+   contact → health — server wajib passport dahulu untuk cipta Traveller
+   + link ke slot) dan terus confirm (status Pending untuk semakan admin).
    ══════════════════════════════════════════════ */
 
-/* Simpan IKUT SECTION — hanya medan section berkenanan dihantar;
-   server hanya sentuh medan section itu (tidak menimpa section lain). */
-async function saveTraveller(section, btnEl) {
+async function submitTraveller(btnEl) {
   const get = id => document.getElementById(id);
 
   const firstName = get('tvl-firstname').value.trim();
@@ -826,75 +897,94 @@ async function saveTraveller(section, btnEl) {
   const gender    = get('tvl-gender').value;
   const pp        = get('tvl-pp').value.trim();
   const ppexp     = get('tvl-ppexp').value;
-  // Consent dipaparkan di SETIAP panel (class sama, disegerakkan) — cukup
-  // baca satu saja.
+  const addr1     = get('tvl-addr1').value.trim();
+  const city      = get('tvl-city').value.trim();
+  const postcode  = get('tvl-postcode').value.trim();
+  const state     = get('tvl-state').value.trim();
+  const country   = get('tvl-country').value.trim();
+  const wheelchair = get('tvl-wheelchair').value;
+  // Consent — SATU checkbox di bar hantar.
   const consent   = !!document.querySelector('.tvl-pdpa-consent:checked');
 
   // Bersihkan error lama dulu.
   document.querySelectorAll('#V-form input, #V-form select').forEach(clearFieldError);
   get('tvl-form-error').style.display = 'none';
 
-  const fail = (el, msg, tab) => {
+  const fail = (el, msg) => {
     fieldError(el, msg);
-    tvlGoToTab(tab);
     el.focus({ preventScroll: false });
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     return true;
   };
 
-  // Validasi inline — hanya medan section berkenanan.
-  if (section === 'passport') {
-    // SEMUA maklumat Identity & Passport WAJIB (server enforce sama).
-    if (!firstName) return fail(get('tvl-firstname'), 'First name is required.', 'passport');
-    if (!lastName)  return fail(get('tvl-lastname'), 'Last name is required.', 'passport');
-    if (!ic)        return fail(get('tvl-ic'), 'IC Number is required.', 'passport');
-    if (!nat)       return fail(get('tvl-nat'), 'Nationality is required.', 'passport');
-    if (!dob)       return fail(get('tvl-dob'), 'Date of birth is required.', 'passport');
-    if (!gender)    return fail(get('tvl-gender'), 'Gender is required.', 'passport');
-    if (!pp)        return fail(get('tvl-pp'), 'Passport number is required.', 'passport');
-    if (!ppexp)     return fail(get('tvl-ppexp'), 'Passport expiry is required.', 'passport');
-    // Nationality autocomplete: normalisasi input ke nama Country sebenar
-    // (padanan tak kisah huruf besar/kecil) supaya nilai sah masuk Link
-    // field Country. Langkau bila senarai negara gagal dimuatkan — server
-    // tetap validate. Kosong dibenarkan (medan opsyenal).
-    if (nat && _countries.length) {
-      const canonical = _canonicalNationality(nat);
-      if (canonical === null)
-        return fail(get('tvl-nat'), 'Please pick a nationality from the suggestion list.', 'passport');
-      nat = canonical;
-    }
+  // ── Validasi SEMUA section (satu page — semua medan kelihatan). ──
+  // Passport: salinan dokumen wajib ada (baru dipilih atau sudah on file).
+  if (!_passportFile && !(ACTIVE_SLOT && ACTIVE_SLOT.has_passport))
+    return fail(get('passport-upload-area'), 'Please upload your passport copy.');
+  // SEMUA maklumat Identity & Passport WAJIB (server enforce sama).
+  if (!firstName) return fail(get('tvl-firstname'), 'First name is required.');
+  if (!lastName)  return fail(get('tvl-lastname'), 'Last name is required.');
+  if (!ic)        return fail(get('tvl-ic'), 'IC Number is required.');
+  if (!nat)       return fail(get('tvl-nat'), 'Nationality is required.');
+  // Nationality autocomplete: normalisasi input ke nama Country sebenar
+  // (padanan tak kisah huruf besar/kecil) supaya nilai sah masuk Link
+  // field Country. Langkau bila senarai negara gagal dimuatkan — server
+  // tetap validate.
+  if (nat && _countries.length) {
+    const canonical = _canonicalNationality(nat);
+    if (canonical === null)
+      return fail(get('tvl-nat'), 'Please pick a nationality from the suggestion list.');
+    nat = canonical;
   }
-  if (section === 'contact') {
-    const emailVal = get('tvl-email').value.trim();
-    // Phone & email wajib (bukan optional) — diperlukan untuk hubungi
-    // traveller sepanjang trip & pengesahan tempahan.
-    if (!phoneNum)
-      return fail(get('tvl-phone-num'), 'Phone number is required.', 'contact');
-    if (!_isPhoneValid(_itiPhone, phoneNum))
-      return fail(get('tvl-phone-num'), 'This does not look like a valid phone number. Please check the country code.', 'contact');
-    if (!emailVal)
-      return fail(get('tvl-email'), 'Email is required.', 'contact');
-    // Emergency contact: kalau satu diisi, pasangannya mesti lengkap
-    // (cermin check server-side).
-    if ((ecName || ecPhone || ecRel) && (!ecName || !ecPhone || !ecRel)) {
-      if (!ecName) return fail(get('tvl-ec-name'), 'Please complete the emergency contact (name, phone & relationship).', 'contact');
-      if (!ecPhone) return fail(get('tvl-ec-phone'), 'Please complete the emergency contact (name, phone & relationship).', 'contact');
-      return fail(get('tvl-ec-relationship'), 'Please complete the emergency contact (name, phone & relationship).', 'contact');
-    }
-    if (ecPhone && !_isPhoneValid(_itiEcPhone, ecPhone))
-      return fail(get('tvl-ec-phone'), 'This does not look like a valid phone number. Please check the country code.', 'contact');
+  if (!dob)       return fail(get('tvl-dob'), 'Date of birth is required.');
+  if (!gender)    return fail(get('tvl-gender'), 'Gender is required.');
+  if (!pp)        return fail(get('tvl-pp'), 'Passport number is required.');
+  if (!ppexp)     return fail(get('tvl-ppexp'), 'Passport expiry is required.');
+  // Contact: phone & email wajib — diperlukan untuk hubungi traveller
+  // sepanjang trip & pengesahan tempahan.
+  if (!phoneNum)
+    return fail(get('tvl-phone-num'), 'Phone number is required.');
+  if (!_isPhoneValid(_itiPhone, phoneNum))
+    return fail(get('tvl-phone-num'), 'This does not look like a valid phone number. Please check the country code.');
+  if (!get('tvl-email').value.trim())
+    return fail(get('tvl-email'), 'Email is required.');
+  // Address WAJIB lengkap (server enforce sama) — perlu untuk pengurusan
+  // trip (visa, dokumen, kecemasan).
+  const addrFields = [
+    [get('tvl-addr1'), addr1, 'Street address'],
+    [get('tvl-city'), city, 'City'],
+    [get('tvl-postcode'), postcode, 'Postcode'],
+    [get('tvl-state'), state, 'State'],
+    [get('tvl-country'), country, 'Country'],
+  ];
+  for (const [el, val, label] of addrFields) {
+    if (!val) return fail(el, label + ' is required.');
   }
+  // Emergency contact: kalau satu diisi, pasangannya mesti lengkap
+  // (cermin check server-side). Mandatory penuh hanya di /traveller
+  // (traveller_travellers.js) — halaman guest kekal optional.
+  if ((ecName || ecPhone || ecRel) && (!ecName || !ecPhone || !ecRel)) {
+    if (!ecName) return fail(get('tvl-ec-name'), 'Please complete the emergency contact (name, phone & relationship).');
+    if (!ecPhone) return fail(get('tvl-ec-phone'), 'Please complete the emergency contact (name, phone & relationship).');
+    return fail(get('tvl-ec-relationship'), 'Please complete the emergency contact (name, phone & relationship).');
+  }
+  if (ecPhone && !_isPhoneValid(_itiEcPhone, ecPhone))
+    return fail(get('tvl-ec-phone'), 'This does not look like a valid phone number. Please check the country code.');
+  // Health: Wheelchair Assistance WAJIB dipilih — persiapan bantuan oleh
+  // kru trip.
+  if (!wheelchair)
+    return fail(get('tvl-wheelchair'), 'Wheelchair Assistance is required — please select an option.');
 
-  // PDPA consent wajib untuk setiap simpanan — tiada tick → MODAL POPUP
-  // (bukan inline error). "Accept & Continue" tick semua checkbox.
+  // PDPA consent wajib — tiada tick → MODAL POPUP (bukan inline error).
+  // "Accept & Continue" tick checkbox consent.
   if (!consent) {
     _showConsentModal();
     return;
   }
 
-  const btn = btnEl || get('tvl-confirm-btn');
+  const btn = btnEl || get('tvl-submit-btn');
   const btnLabel = btn ? btn.textContent : '';
-  if (btn) { btn.textContent = 'Saving...'; btn.disabled = true; }
+  if (btn) { btn.textContent = 'Submitting...'; btn.disabled = true; }
 
   try {
     const readFile = f => new Promise(res => {
@@ -903,60 +993,56 @@ async function saveTraveller(section, btnEl) {
       r.readAsDataURL(f);
     });
 
-    let payload = {
+    const base = {
       booking_number: BOOKING,
       slot_name: ACTIVE_SLOT.slot_name,
-      section: section,
       pdpa_consent: true,
     };
-    if (_GUEST_MODE) payload.guest_token = _GUEST_TOKEN;
+    if (_GUEST_MODE) base.guest_token = _GUEST_TOKEN;
 
-    if (section === 'passport') {
-      let filedata = '', filename = '';
-      if (_passportFile) { filedata = await readFile(_passportFile); filename = _passportFile.name; }
-      Object.assign(payload, {
-        first_name: firstName, last_name: lastName,
-        full_name: get('tvl-name').value.trim(),
-        fullname_format: get('tvl-fullname-format').value,
-        gender, ic_number: ic,
-        date_of_birth: dob, nationality: nat,
-        passport_no: pp, passport_expiry: ppexp,
-        filedata, filename,
-      });
-    } else if (section === 'contact') {
-      let visaFiledata = '', visaFilename = '';
-      if (_visaPhotoFile) { visaFiledata = await readFile(_visaPhotoFile); visaFilename = _visaPhotoFile.name; }
-      Object.assign(payload, {
-        email: get('tvl-email').value || '',
-        phone: phoneNum,
-        emergency_contact_name: ecName,
-        emergency_contact_phone: ecPhone,
-        emergency_contact_relationship: ecRel,
-        visa_filedata: visaFiledata, visa_filename: visaFilename,
-      });
-    } else {
-      Object.assign(payload, {
-        dietary_requirements: get('tvl-dietary').value.trim(),
-        medical_conditions: get('tvl-medical').value.trim(),
-        special_needs: get('tvl-special-needs').value.trim(),
-        wheelchair_assistant: get('tvl-wheelchair').value,
-        medicine_treatment: get('tvl-medicine').value.trim(),
-      });
-    }
+    // 1) PASSPORT — cipta/link Traveller + upload passport copy.
+    let filedata = '', filename = '';
+    if (_passportFile) { filedata = await readFile(_passportFile); filename = _passportFile.name; }
+    await API_TV('save_booking_traveller', Object.assign({}, base, {
+      section: 'passport',
+      first_name: firstName, last_name: lastName,
+      full_name: get('tvl-name').value.trim(),
+      fullname_format: get('tvl-fullname-format').value,
+      gender, ic_number: ic,
+      date_of_birth: dob, nationality: nat,
+      passport_no: pp, passport_expiry: ppexp,
+      filedata, filename,
+    }));
 
-    await API_TV('save_booking_traveller', payload);
-    _sectionsSaved[section] = true;
-    _updateConfirmState();
+    // 2) CONTACT — email/phone/emergency/address + visa photo.
+    let visaFiledata = '', visaFilename = '';
+    if (_visaPhotoFile) { visaFiledata = await readFile(_visaPhotoFile); visaFilename = _visaPhotoFile.name; }
+    await API_TV('save_booking_traveller', Object.assign({}, base, {
+      section: 'contact',
+      email: get('tvl-email').value || '',
+      phone: phoneNum,
+      emergency_contact_name: ecName,
+      emergency_contact_phone: ecPhone,
+      emergency_contact_relationship: ecRel,
+      address_line1: addr1,
+      city: city, postcode: postcode, state: state, country: country,
+      visa_filedata: visaFiledata, visa_filename: visaFilename,
+    }));
 
-    // Simpanan bertahap: kekal di page + tunjuk notis. Data disegar semula
-    // supaya flag (has_passport dll.) dikemaskini — user boleh terus isi
-    // bahagian lain atau tekan "← Back" bila dah selesai.
-    // Segar semula data supaya flag (has_passport dll.) dikemaskini. Mod
-    // guest guna verify_guest_token (tiada session); customer guna
-    // get_booking_data seperti biasa.
+    // 3) HEALTH — deklarasi kesihatan + wheelchair.
+    await API_TV('save_booking_traveller', Object.assign({}, base, {
+      section: 'health',
+      dietary_requirements: get('tvl-dietary').value.trim(),
+      medical_conditions: get('tvl-medical').value.trim(),
+      special_needs: get('tvl-special-needs').value.trim(),
+      wheelchair_assistant: wheelchair,
+      medicine_treatment: get('tvl-medicine').value.trim(),
+    }));
+
+    // Segar semula slot (flag has_passport dll.). Mod guest guna
+    // verify_guest_token (tiada session); customer guna get_booking_data.
     if (_GUEST_MODE) {
-      const fresh = await API_TV('verify_guest_token', { token: _GUEST_TOKEN });
-      ACTIVE_SLOT = fresh;
+      ACTIVE_SLOT = await API_TV('verify_guest_token', { token: _GUEST_TOKEN });
     } else {
       const fresh = await API_BK('get_booking_data', { booking_number: BOOKING });
       PORTAL_DATA = fresh;
@@ -965,26 +1051,30 @@ async function saveTraveller(section, btnEl) {
         if (s) ACTIVE_SLOT = s;
       }
     }
-    if (section === 'passport') {
-      _passportFile = null;
-      document.getElementById('passport-upload-txt').textContent = 'Upload passport copy';
-      const pe = document.getElementById('passport-existing');
-      if (pe) pe.style.display = (ACTIVE_SLOT && ACTIVE_SLOT.has_passport) ? '' : 'none';
-      // Preview bertukar daripada blob lokal ke salinan sebenar on-file
-      // (berfungsi untuk guest DAN customer — ACTIVE_SLOT sudah segar).
-      _loadPassportPreview(ACTIVE_SLOT);
-    }
-    if (section === 'contact') {
-      _visaPhotoFile = null;
-      document.getElementById('visa-photo-upload-txt').textContent = 'Upload photo';
-      const ve = document.getElementById('visa-photo-existing');
-      if (ve) ve.style.display = (ACTIVE_SLOT && ACTIVE_SLOT.has_visa_photo) ? '' : 'none';
-    }
-    const note = document.getElementById('tvl-saved-note');
-    if (note) {
-      note.style.display = 'block';
-      note.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setTimeout(() => { note.style.display = 'none'; }, 4000);
+
+    // 4) CONFIRM — sahkan kelengkapan & set status Pending untuk semakan.
+    const confirmPayload = {
+      booking_number: BOOKING,
+      slot_name: ACTIVE_SLOT.slot_name,
+    };
+    if (_GUEST_MODE) confirmPayload.guest_token = _GUEST_TOKEN;
+    await API_TV('confirm_traveller_documents', confirmPayload);
+
+    if (_GUEST_MODE) {
+      // Guest tiada senarai untuk kembali — tunjuk pengesahan berjaya &
+      // sembunyi borang (slot kini Pending — admin akan semak).
+      const form = get('V-form');
+      if (form) {
+        const msg = document.createElement('div');
+        msg.className = 'card';
+        msg.style.cssText = 'text-align:center;padding:32px 20px;background:#F0FDF4;border:1px solid #BBF7D0;';
+        msg.innerHTML = '<div style="font-size:15px;font-weight:600;color:#166534;margin-bottom:6px;">\u2713 Thank you! Your details have been submitted.</div>' +
+          '<div style="font-size:12px;color:#7D7A70;">Our team will review your information. You may close this page now.</div>';
+        form.parentNode.insertBefore(msg, form);
+        form.style.display = 'none';
+      }
+    } else {
+      tvlBackToList();
     }
   } catch (e) {
     showInlineError('tvl-form-error', e.message || 'An error occurred. Please try again.');
@@ -994,17 +1084,11 @@ async function saveTraveller(section, btnEl) {
 }
 
 /* ══════════════════════════════════════════════
-   PDPA CONSENT — sync antara panel + modal popup
+   PDPA CONSENT — modal popup
    ══════════════════════════════════════════════ */
 
-/* Checkbox consent wujud di setiap panel — tick satu, tick semua. */
-function tvlConsentToggled(el) {
-  document.querySelectorAll('.tvl-pdpa-consent').forEach(cb => { cb.checked = el.checked; });
-  clearFieldError(el);
-}
-
-/* Modal popup: Save ditekan tanpa consent. "Accept & Continue" tick semua
-   checkbox consent & tutup modal — user terus boleh tekan Save lagi. */
+/* Modal popup: Submit ditekan tanpa consent. "Accept & Continue" tick
+   checkbox consent & tutup modal — user terus boleh tekan Submit lagi. */
 function _showConsentModal() {
   _hideConsentModal();
   const overlay = document.createElement('div');
@@ -1034,130 +1118,13 @@ function _acceptConsentFromModal() {
 }
 
 /* ══════════════════════════════════════════════
-   BAR BAWAH — pengesahan akhir (maklumat lengkap)
-   ══════════════════════════════════════════════ */
-
-let _sectionsSaved = { passport: false, contact: false, health: false };
-
-const _SECTION_LABELS = { passport: 'Passport', contact: 'Contact Info', health: 'Health' };
-
-/* Butang confirm DISABLED sehingga ketiga-tiga section disimpan lengkap
-   (atau slot sudah terisi dari sesi sebelumnya). Hint di bawah butang
-   nyatakan section yang belum siap. */
-function _updateConfirmState() {
-  const btn = document.getElementById('tvl-confirm-btn');
-  if (!btn) return;
-  const allSaved = _sectionsSaved.passport && _sectionsSaved.contact && _sectionsSaved.health;
-  const canConfirm = allSaved || !!(ACTIVE_SLOT && ACTIVE_SLOT.filled);
-  btn.disabled = !canConfirm;
-  const hint = document.getElementById('tvl-confirm-hint');
-  if (hint) {
-    if (canConfirm) {
-      hint.textContent = '\u2713 All sections complete — press confirm to submit for review.';
-      hint.style.color = '#0F6E56';
-    } else {
-      const pending = ['passport', 'contact', 'health']
-        .filter(s => !_sectionsSaved[s])
-        .map(s => _SECTION_LABELS[s]);
-      hint.textContent = 'Please complete and save: ' + pending.join(', ') + '.';
-      hint.style.color = '#92400E';
-    }
-  }
-}
-
-async function confirmTravellerDocs() {
-  const get = id => document.getElementById(id);
-  get('tvl-form-error').style.display = 'none';
-
-  if (!ACTIVE_SLOT) return;
-
-  // Pastikan ketiga-tiga section pernah disimpan sekurang-kurangnya sekali
-  // dalam sesi ni (atau slot sudah terisi dari sesi sebelumnya).
-  const notSaved = ['passport', 'contact', 'health'].filter(s => !_sectionsSaved[s]);
-  if (notSaved.length && !ACTIVE_SLOT.filled) {
-    showInlineError('tvl-form-error',
-      'Please save every section (Passport, Contact Info, Health) before confirming.');
-    return;
-  }
-
-  const btn = get('tvl-confirm-btn');
-  btn.textContent = 'Confirming...';
-  btn.disabled = true;
-  try {
-    const payload = {
-      booking_number: BOOKING,
-      slot_name: ACTIVE_SLOT.slot_name,
-    };
-    if (_GUEST_MODE) payload.guest_token = _GUEST_TOKEN;
-    await API_TV('confirm_traveller_documents', payload);
-    if (_GUEST_MODE) {
-      // Guest tiada senarai untuk kembali — tunjuk pengesahan berjaya &
-      // sembunyi borang (slot kini Pending — admin akan semak).
-      const form = document.getElementById('V-form');
-      if (form) {
-        const msg = document.createElement('div');
-        msg.className = 'card';
-        msg.style.cssText = 'text-align:center;padding:32px 20px;background:#F0FDF4;border:1px solid #BBF7D0;';
-        msg.innerHTML = '<div style="font-size:15px;font-weight:600;color:#166534;margin-bottom:6px;">\u2713 Thank you! Your details have been submitted.</div>' +
-          '<div style="font-size:12px;color:#7D7A70;">Our team will review your information. You may close this page now.</div>';
-        form.parentNode.insertBefore(msg, form);
-        form.style.display = 'none';
-      }
-    } else {
-      tvlBackToList();
-    }
-  } catch (e) {
-    showInlineError('tvl-form-error', e.message || 'An error occurred. Please try again.');
-    _updateConfirmState();
-  }
-}
-
-/* ══════════════════════════════════════════════
-   TABS (port dari portal_traveller.js)
-   ══════════════════════════════════════════════ */
-
-const TVL_TAB_ORDER = ['passport', 'contact', 'health'];
-
-function tvlShowTab(tabId) {
-  if (!TVL_TAB_ORDER.includes(tabId)) return;
-  // PANEL: visibility dikawal oleh CSS class (portal.css:
-  // .tvl-panel{display:none} / .tvl-panel.on{display:block}) — BUKAN
-  // inline style. Toggle class 'on' + clear inline style supaya edit
-  // manual display:block/none dalam HTML tak menghalang CSS.
-  document.querySelectorAll('.tvl-panel').forEach(p => {
-    p.classList.toggle('on', p.getAttribute('data-panel') === tabId);
-    p.style.display = '';
-  });
-  document.querySelectorAll('.tvl-tab').forEach(t => {
-    const on = t.getAttribute('data-tab') === tabId;
-    t.classList.toggle('on', on);
-    t.setAttribute('aria-selected', on ? 'true' : 'false');
-  });
-  window.scrollTo(0, 0);
-}
-
-function tvlGoToTab(tabId) { tvlShowTab(tabId); }
-
-function tvlNext(currentTabId) {
-  const idx = TVL_TAB_ORDER.indexOf(currentTabId);
-  if (idx === -1 || idx >= TVL_TAB_ORDER.length - 1) return;
-  tvlShowTab(TVL_TAB_ORDER[idx + 1]);
-}
-
-function tvlBack(currentTabId) {
-  const idx = TVL_TAB_ORDER.indexOf(currentTabId);
-  if (idx <= 0) return;
-  tvlShowTab(TVL_TAB_ORDER[idx - 1]);
-}
-
-function tvlResetTabs() { tvlShowTab('passport'); }
-
-/* ══════════════════════════════════════════════
    GUEST MODE — co-traveller via token link (no session)
    ══════════════════════════════════════════════ */
 
 /* Header guest: trip info dalam kotak maklumat tersusun (label–nilai:
    Dates / Package / Traveller) + trip title + nota "signed in as guest".
+   Diikuti panel Room Info (slot label / kategori / jenis penumpang /
+   room id / privasi) + panel Cruise Cabin bila booking bercruise.
    Dipanggil selepas verify_guest_token pulangkan konteks slot. */
 function renderGuestHeader(ctx) {
   const hdr = document.getElementById('guest-header');
@@ -1177,29 +1144,66 @@ function renderGuestHeader(ctx) {
   // Baris label–nilai: icon | label | HTML nilai (dah di-escape oleh
   // pemanggil). Baris terakhir tiada garisan pemisah. Grid kekal kemas
   // pada mobile (value wrap, word-break).
-  const rows = [];
-  if (dateVal) rows.push(['\uD83D\uDCC5', 'Dates', _esc(dateVal)]);
-  // Nama pakej sahaja (package_code tidak dipaparkan). Format package_title
-  // ialah "Trip : Jenis : Variasi" — parse " : " sebagai baris baru supaya
-  // tersusun dan mudah dibaca.
-  if (pkgVal) rows.push(['\uD83C\uDFAB', 'Package',
-    pkgVal.split(' : ').map(s => _esc(s.trim())).filter(Boolean).join('<br>')]);
-  rows.push(['\uD83D\uDC64', 'Traveller', _esc(ctx.slot_label || 'Traveller')]);
-
   const rowHtml = (r, last) =>
-    '<div style="display:grid;grid-template-columns:18px 78px 1fr;gap:8px;align-items:baseline;padding:8px 0;' +
+    '<div style="display:grid;grid-template-columns:18px 110px 1fr;gap:8px;align-items:baseline;padding:8px 0;' +
     (last ? '' : 'border-bottom:1px dashed #EAE7E0;') + '">' +
       '<span aria-hidden="true" style="font-size:12px;">' + r[0] + '</span>' +
       '<span style="font-size:10px;font-weight:700;color:#B0AC9F;letter-spacing:.06em;text-transform:uppercase;">' + r[1] + '</span>' +
       '<span style="font-size:12.5px;font-weight:500;color:#1E1C18;word-break:break-word;">' + r[2] + '</span>' +
     '</div>';
+  const boxHtml = rows =>
+    '<div style="background:#FAFAF7;border:1px solid #EAE7E0;border-radius:10px;padding:2px 14px;">' +
+      rows.map((r, i) => rowHtml(r, i === rows.length - 1)).join('') +
+    '</div>';
+  // Sub-tajuk seksyen (Room Info / Cruise Cabin) — gaya sama dgn tajuk
+  // panel "Guest Passport Submission" tetapi lebih kecil.
+  const secHtml = label =>
+    '<div style="font-size:10px;font-weight:700;color:#B0AC9F;letter-spacing:.07em;text-transform:uppercase;margin:14px 0 6px;">' + label + '</div>';
+
+  const tripRows = [];
+  if (dateVal) tripRows.push(['\uD83D\uDCC5', 'Dates', _esc(dateVal)]);
+  // Nama pakej sahaja (package_code tidak dipaparkan). Format package_title
+  // ialah "Trip : Jenis : Variasi" — parse " : " sebagai baris baru supaya
+  // tersusun dan mudah dibaca.
+  if (pkgVal) tripRows.push(['\uD83C\uDFAB', 'Package',
+    pkgVal.split(' : ').map(s => _esc(s.trim())).filter(Boolean).join('<br>')]);
+  tripRows.push(['\uD83D\uDC64', 'Traveller', _esc(ctx.slot_label || 'Traveller')]);
+
+  // ── Room Info — hanya baris berdata dipaparkan (rekod lama mungkin
+  // kosong); seksyen dibuang terus bila tiada apa-apa untuk ditunjuk.
+  const roomRows = [];
+  if (ctx.guest_label) roomRows.push(['\uD83C\uDFF7', 'Slot Label', _esc(ctx.guest_label)]);
+  const rcVal = ctx.room_category_label || ctx.room_category || '';
+  if (rcVal) roomRows.push(['\uD83D\uDECF\uFE0F', 'Room Category', _esc(rcVal)]);
+  if (ctx.pax_type) roomRows.push(['\uD83D\uDC65', 'Passenger Type', _esc(ctx.pax_type)]);
+  if (ctx.room_id) roomRows.push(['\uD83D\uDD11', 'Room ID', _esc(ctx.room_id)]);
+  if (ctx.room_privacy) roomRows.push(['\uD83D\uDD12', 'Room Privacy', _esc(ctx.room_privacy)]);
+
+  // ── Cruise Cabin — HANYA bila trip/pakej bercruise (is_a_cruise dari
+  // server, flag is_a_cruise_trip). Nilai kabin semata-mata tak mencukupi;
+  // baris tanpa nilai ditinggalkan, dan bila bercruise tapi penempatan
+  // belum dibuat, papar nota "to be assigned".
+  const cruiseRows = [];
+  if (ctx.stateroom_no) cruiseRows.push(['\uD83D\uDEA2', 'Stateroom No', _esc(ctx.stateroom_no)]);
+  if (ctx.delegate_no) cruiseRows.push(['\uD83D\uDCCB', 'Delegate No', _esc(ctx.delegate_no)]);
+  if (ctx.aroya_guest_no) cruiseRows.push(['\uD83D\uDEF3', 'Aroya Guest No', _esc(ctx.aroya_guest_no)]);
+  const showCruise = !!ctx.is_a_cruise;
+  if (showCruise && !cruiseRows.length) {
+    cruiseRows.push(['\uD83D\uDEF3', 'Stateroom', '<span style="color:#7D7A70;">To be assigned by our team</span>']);
+  }
 
   hdr.innerHTML =
     '<div style="font-size:11px;font-weight:700;color:#B0AC9F;letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px;">Guest Passport Submission</div>' +
     '<div style="font-size:16px;font-weight:600;color:#1E1C18;line-height:1.3;">' + _esc(ctx.trip_title || ctx.trip_name || 'Trip') + '</div>' +
     '<div style="margin-top:10px;background:#FAFAF7;border:1px solid #EAE7E0;border-radius:10px;padding:2px 14px;">' +
-      rows.map((r, i) => rowHtml(r, i === rows.length - 1)).join('') +
+      tripRows.map((r, i) => rowHtml(r, i === tripRows.length - 1)).join('') +
     '</div>' +
+    (roomRows.length
+      ? secHtml('Room Info') + boxHtml(roomRows)
+      : '') +
+    (showCruise
+      ? secHtml('Cruise Cabin') + boxHtml(cruiseRows)
+      : '') +
     '<div style="font-size:11px;color:#92400E;margin-top:10px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;padding:6px 10px;display:inline-block;">You are filling in details via a secure email link — no login required.</div>';
   hdr.style.display = 'block';
 }
@@ -1341,9 +1345,6 @@ async function initGuestMode() {
   const dobEl = document.getElementById('tvl-dob');
   if (dobEl) dobEl.max = new Date().toISOString().split('T')[0];
 
-  const confirmBtn = document.getElementById('tvl-confirm-btn');
-  if (confirmBtn) confirmBtn.addEventListener('click', confirmTravellerDocs);
-
   try {
     const ctx = await API_TV('verify_guest_token', { token: token });
     _GUEST_MODE = true;
@@ -1389,10 +1390,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // DOB tak boleh masa depan.
   const dobEl = document.getElementById('tvl-dob');
   if (dobEl) dobEl.max = new Date().toISOString().split('T')[0];
-
-  // Butang pengesahan akhir (bar bawah).
-  const confirmBtn = document.getElementById('tvl-confirm-btn');
-  if (confirmBtn) confirmBtn.addEventListener('click', confirmTravellerDocs);
 
   try {
     const data = await API_BK('get_booking_data', { booking_number: BOOKING });

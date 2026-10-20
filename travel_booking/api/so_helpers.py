@@ -9,9 +9,11 @@
 
 import frappe
 from frappe import _
+from frappe.utils import getdate
 
 from travel_booking.api._helpers import get_company_currency
 from travel_booking.api.constants import TRAVEL_ITEM_CODE
+from travel_booking.utils.upload_normalize import _decode_and_normalize_upload
 
 
 # ══════════════════════════════════════════════
@@ -188,10 +190,109 @@ def _ensure_contact_customer_link(contact_name, customer_name):
         # tapi kalau berlaku, customer akan hilang dari portal. Log utk
         # admin nampak & boleh patch manual (bukan senyap).
         frappe.log_error(
-            "Failed to link Contact {0} -> Customer {1}".format(
+            title="Contact-Customer Link FAILED",
+            message="Failed to link Contact {0} -> Customer {1}".format(
                 contact_name, customer_name),
-            "Contact-Customer Link FAILED"
         )
+
+
+def _upsert_customer_billing_address(customer_name, billing):
+    """Cipta/KEMASKINI Address 'Billing' (primary) Customer daripada data
+    billing wizard /booknow — tujuan bil (Sales Order/invois mempunyai
+    alamat lengkap di Desk).
+
+    - Alamat 'Billing' sedia ada yang di-link ke Customer ini DIKEMASKINI,
+      bukan didupkan — customer yang tempah semula dengan alamat baharu
+      mengemas kini rekod billing mereka (satu Address 'Billing' aktif
+      per Customer).
+    - is_primary_address=1 → validate_preferred_address() Frappe
+      menyah-aktifkan tanda primary pada alamat lain yang di-link ke
+      Customer yang sama secara automatik.
+    - Country MESTI nama canonical dokumen Country (Link field) —
+      frontend hantar nilai dari dropdown Country, tapi resolusi
+      case-insensitive di sini melindungi panggilan terus ke API. Negara
+      yang tidak dikenali menggagalkan booking (throw) berbanding
+      menyimpan alamat rosak; medan lain di-trim sebelum disimpan.
+
+    Pulangkan docname Address. Bukan endpoint — helper dalaman
+    confirm_booking().
+    """
+    country_input = (billing.get("country") or "").strip()
+    country = frappe.db.get_value("Country", country_input, "name")
+    if not country and country_input:
+        row = frappe.db.sql(
+            "SELECT name FROM `tabCountry` "
+            "WHERE lower(name) = %s OR lower(country_name) = %s LIMIT 1",
+            (country_input.lower(), country_input.lower()),
+        )
+        country = row[0][0] if row else None
+    if not country:
+        if not country_input:
+            frappe.throw(
+                "Country is required for the billing address. "
+                "Please select a valid country."
+            )
+        frappe.throw(
+            'Country "{0}" is not recognised. Please select a valid '
+            "billing address country.".format(country_input)
+        )
+
+    values = {
+        "address_line1":      (billing.get("address_line1") or "").strip(),
+        "city":               (billing.get("city") or "").strip(),
+        "state":              (billing.get("state") or "").strip(),
+        "pincode":            (billing.get("postcode") or "").strip(),
+        "country":            country,
+        "is_primary_address": 1,
+    }
+
+    existing = frappe.db.sql("""
+        SELECT a.name
+        FROM `tabAddress` a
+        JOIN `tabDynamic Link` dl
+          ON dl.parent = a.name AND dl.parenttype = 'Address'
+        WHERE dl.link_doctype = 'Customer' AND dl.link_name = %s
+          AND a.address_type = 'Billing' AND a.disabled = 0
+        ORDER BY a.is_primary_address DESC, a.creation ASC
+        LIMIT 1
+    """, (customer_name,))
+
+    if existing:
+        addr = frappe.get_doc("Address", existing[0][0])
+        addr.update(values)
+        addr.flags.ignore_permissions = True
+        addr.save()
+    else:
+        customer_full = (
+            frappe.db.get_value("Customer", customer_name, "customer_name")
+            or customer_name
+        )
+        addr = frappe.get_doc({
+            "doctype":       "Address",
+            # autoname Address menghasilkan "<title>-<address_type>" —
+            # title customer SAHAJA (tanpa akhiran " - Billing") supaya
+            # nama akhirnya jadi "NAMA-Billing", bukan berulang.
+            "address_title": customer_full,
+            "address_type":  "Billing",
+            **values,
+            "links": [{"link_doctype": "Customer", "link_name": customer_name}],
+        })
+        addr.flags.ignore_permissions = True
+        addr.insert()
+
+    # Pointer 'primary address' Customer — supaya dokumen bil & paparan
+    # Desk terus guna alamat ni. Address.on_update ERPNext sync medan
+    # display primary_address hanya bila pointer dah menunjuk ke Address
+    # ini, jadi keduanya ditulis di sini.
+    frappe.db.set_value(
+        "Customer", customer_name, "customer_primary_address", addr.name
+    )
+    from frappe.contacts.doctype.address.address import get_address_display
+    frappe.db.set_value(
+        "Customer", customer_name, "primary_address",
+        get_address_display(addr.as_dict()), update_modified=False,
+    )
+    return addr.name
 
 
 # ══════════════════════════════════════════════
@@ -386,7 +487,7 @@ def _cabin_layout_from_so(so_name):
     return [layout[n] for n in sorted(layout.keys())]
 
 
-def _activate_booking(booking_name):
+def _activate_booking(booking_name, force=False):
     """Cipta Booking Reservation (status Confirmed) bila booking Confirmed.
     Idempotent. Reservation dicipta dengan room_category + cabin_no +
     pax_type terisi (bukan cuma room_category macam sebelum ni) — setiap
@@ -395,6 +496,12 @@ def _activate_booking(booking_name):
     check baharu (rujuk booking_reservation.py) yang bergantung pada
     field-field ni. flight & stateroom_no tetap admin assign kemudian.
     Cabin layout diambil dari SO UTAMA (cabin booking asal), bukan addon SO.
+
+    'force' (hanya dari Resync & Regenerate selepas admin sahkan overwrite
+    pada alert booking.js): pasang flags.skip_cabin_capacity_validation pada
+    setiap slot sebelum insert — reservation diterima walaupun melepasi had
+    kapasiti/mismatch cabin, atas tanggungjawab admin. Caller lain (hook
+    Payment Entry, booking_engine) kekal laluan selamat tanpa force.
     """
     if frappe.db.count("Booking Reservation", {"booking": booking_name}):
         return 0
@@ -405,6 +512,24 @@ def _activate_booking(booking_name):
     # trip_date.is_a_cruise_trip) supaya validate_cabin_capacity tahu model
     # mana (slot vs umur) yang perlu dipakai pada rekod Booking Reservation ni.
     is_cruise = bool(frappe.db.get_value("Booking", booking_name, "is_a_cruise_trip"))
+    # Alamat billing Booking → default alamat SETIAP slot reservation
+    # (address_source "From Booking"). Copy SEKALI masa slot diaktifkan —
+    # selepas itu admin boleh edit bebas / isi berasingan di Desk; tiada
+    # sync automatik ke reservation (berbeza dari pasangan Booking ↔
+    # Address customer yang sync dua-hala).
+    _addr_fields = ("cust_address_line1", "cust_city", "cust_postcode",
+                    "cust_state", "cust_country")
+    booking_addr = frappe.db.get_value("Booking", booking_name, list(_addr_fields),
+                                       as_dict=True) or {}
+    has_booking_addr = any((booking_addr.get(f) or "").strip() for f in _addr_fields)
+    reservation_addr = {
+        "address_source":      "From Booking" if has_booking_addr else "",
+        "guest_address_line1": booking_addr.get("cust_address_line1") or "",
+        "guest_city":          booking_addr.get("cust_city") or "",
+        "guest_postcode":      booking_addr.get("cust_postcode") or "",
+        "guest_state":         booking_addr.get("cust_state") or "",
+        "guest_country":       booking_addr.get("cust_country") or "",
+    }
     count = 0
     for cabin in _cabin_layout_from_so(so_name):
         # room_category datang dari TEKS description SO Item (rujuk
@@ -423,18 +548,18 @@ def _activate_booking(booking_name):
         rc = cabin.get("room_category")
         if rc and not frappe.db.exists("Trip Price Category", rc):
             frappe.log_error(
-                "Booking " + str(booking_name) + " (SO " + str(so_name) +
+                title="Booking Reservation - Stale Room Category",
+                message="Booking " + str(booking_name) + " (SO " + str(so_name) +
                 ", Cabin " + str(cabin.get("cabin_no")) + "): room_category '" +
                 str(rc) + "' dari SO Item description tidak wujud dalam Trip "
                 "Price Category (kemungkinan telah direname terus di DB). "
                 "Reservation untuk cabin ini di-skip supaya bayaran tetap "
                 "direkodkan. Betulkan data dan cipta reservation manual.",
-                "Booking Reservation - Stale Room Category"
             )
             continue
         for pax_type, qty in cabin.get("pax_breakdown", {}).items():
             for _ in range(int(qty)):
-                frappe.get_doc({
+                res = frappe.get_doc({
                     "doctype":         "Booking Reservation",
                     "booking":         booking_name,
                     "room_category":   cabin.get("room_category"),
@@ -446,8 +571,16 @@ def _activate_booking(booking_name):
                     "room_privacy":    cabin.get("room_privacy") or "",
                     "is_a_cruise":     is_cruise,
                     "status":          "Confirmed",
-                    "document_status": "Pending",
-                }).insert(ignore_permissions=True)
+                    # 'Incomplete' (bukan 'Pending' — dihapus dari options
+                    # bersama patch v30_traveller_status_incomplete; nilai
+                    # lama menyebabkan ValidationError Select semasa insert,
+                    # gagalkan penjanaan slot traveller).
+                    "document_status": "Incomplete",
+                    **reservation_addr,
+                })
+                if force:
+                    res.flags.skip_cabin_capacity_validation = True
+                res.insert(ignore_permissions=True)
                 count += 1
     return count
 
@@ -516,14 +649,14 @@ def _resolve_cashback_deduction(company, currency, so_name, cashback_percent, ca
     account = _resolve_cashback_discount_account(company, currency)
     if not account:
         frappe.log_error(
-            "Cashback deduction SKIPPED for manual Payment Entry against SO " +
+            title="Manual Transfer Cashback - Account Missing",
+            message="Cashback deduction SKIPPED for manual Payment Entry against SO " +
             str(so_name) + " (company " + str(company) + ", currency " +
             str(currency) + "): no Cashback Discount Account configured for "
             "this company in Travel Settings (Multi Currency Account row or "
             "global fallback). Payment Entry will allocate the transferred "
             "amount without cashback — configure the account and adjust the "
             "draft PE before submitting.",
-            "Manual Transfer Cashback - Account Missing"
         )
         return None
 
@@ -659,13 +792,13 @@ def _build_discount_deduction_rows(company, currency, so_name, components):
     account = _resolve_cashback_discount_account(company, currency)
     if not account:
         frappe.log_error(
-            "Order discount deduction SKIPPED for Payment Entry against SO " +
+            title="Order Discount Deduction - Account Missing",
+            message="Order discount deduction SKIPPED for Payment Entry against SO " +
             str(so_name) + " (company " + str(company) + ", currency " +
             str(currency) + "): no Cashback Discount Account configured for "
             "this company in Travel Settings (Multi Currency Account row or "
             "global fallback). The discount is NOT absorbed by this Payment "
             "Entry — it will be retried on the next payment.",
-            "Order Discount Deduction - Account Missing"
         )
         return None, 0.0
 
@@ -747,9 +880,9 @@ def _settle_order_discount_residue(so_name):
         return pe.name
     except Exception as e:
         frappe.log_error(
-            "Order discount settlement PE failed for SO " + str(so_name) +
-            ": " + str(e),
-            "Order Discount Settlement Error")
+            title="Order Discount Settlement Error",
+            message="Order discount settlement PE failed for SO " + str(so_name) +
+            ": " + str(e))
         return None
     finally:
         frappe.local.session.user = original_user
@@ -759,10 +892,32 @@ def _settle_order_discount_residue(so_name):
 # PAYMENT ENTRY (Manual Transfer)
 # ══════════════════════════════════════════════
 
+def _safe_date(raw) -> str:
+    """Koerk tarikh dari client kepada YYYY-MM-DD (format internal sistem).
+
+    Pulangkan '' bila kosong/tak sah — caller fallback (cth today()).
+    Nilai dari <input type="date"> sudah ISO, tapi panggilan terus API
+    boleh hantar apa-apa, jadi sentiasa disahkan.
+    """
+    s = str(raw or "").strip()
+    if not s:
+        return ""
+    try:
+        return str(getdate(s))
+    except Exception:
+        return ""
+
+
 def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data="", label="receipt", bank_transfer_ref="",
-                                 cashback_percent=0, allocated_amount=None, discount_components=None):
+                                 cashback_percent=0, allocated_amount=None, discount_components=None,
+                                 payment_date="", note=""):
     """Manual transfer — cipta Payment Entry DRAFT + attach resit.
     Draft (docstatus 0) = menunggu admin verify & submit. Corak sama dgn portal.
+
+    payment_date: tarikh transaksi bank customer (YYYY-MM-DD — format
+    internal sistem; dipapar ikut format Travel Website di portal).
+    Kosong → hari ini. note: nota/memo customer tentang transaksi (pilihan)
+    — ditulis ke awal PE.remarks supaya admin nampak dahulu.
 
     CASHBACK (jika cashback_percent > 0): SO kekal GROSS dan PE membawa
     deduction ke akaun Marketing Expenses company tersebut (rujuk
@@ -779,7 +934,6 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
     allocated_amount terkurang dari cash + komponen → diangkat supaya PE
     sentiasa seimbang (received + deductions = allocated).
     """
-    import base64
     from erpnext.accounts.party import get_party_account
 
     so = frappe.db.get_value("Sales Order", so_name, ["company", "currency"], as_dict=True)
@@ -801,11 +955,11 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
 
         if not paid_to:
             frappe.log_error(
-                "Manual Transfer paid_to account not configured for currency '" +
+                title="Manual Transfer - Currency Account Missing",
+                message="Manual Transfer paid_to account not configured for currency '" +
                 str(so.currency) + "' (SO " + so_name + "). Using fallback to the " +
                 "first Bank-type Account for the company — please configure it in " +
                 "Travel Settings > Multi Currency Account.",
-                "Manual Transfer - Currency Account Missing"
             )
             # FIXED: fallback dulu ditulis SEMULA di luar blok if, menimpa
             # nilai paid_to dari Travel Settings walaupun ianya dijumpai —
@@ -839,7 +993,10 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
         pe = frappe.new_doc("Payment Entry")
         pe.payment_type    = "Receive"
         pe.company         = company
-        pe.posting_date    = frappe.utils.today()
+        # Tarikh transaksi bank customer (dari resit) — sama kelakuan
+        # submit_manual_payment() portal: posting_date = reference_date =
+        # tarikh transaksi, fallback hari ini bila kosong/tak sah.
+        pe.posting_date    = _safe_date(payment_date) or frappe.utils.today()
         pe.party_type      = "Customer"
         pe.party           = customer_name
         pe.party_account   = party_account
@@ -848,7 +1005,7 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
         pe.paid_amount     = cash
         pe.received_amount = cash
         pe.reference_no    = bank_transfer_ref or so_name
-        pe.reference_date  = frappe.utils.today()
+        pe.reference_date  = _safe_date(payment_date) or frappe.utils.today()
         pe.append("references", {
             "reference_doctype": "Sales Order",
             "reference_name":    so_name,
@@ -865,6 +1022,8 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
             pe.append("deductions", cashback_row)
         pe.remarks = "Manual transfer (booking) for " + so_name + \
         (". Ref: " + bank_transfer_ref if bank_transfer_ref else "")
+        if note:
+            pe.remarks += ". Note: " + note
         if disc_rows:
             pe.remarks += (". Order discount " + str(disc_total) + " " +
                            str(so.currency) + " deducted to Marketing Expenses (" +
@@ -878,6 +1037,10 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
         pe.insert(ignore_permissions=True)
 
         if receipt_data:
+            # STANDARDISASI UPLOAD (sama seperti passport/visa traveller &
+            # resit portal): magic bytes + PDF → PNG halaman 1. Extension
+            # data-URL hanya jadi petunjuk nama; jenis sebenar ditentukan
+            # _decode_and_normalize_upload.
             ext = ".png"
             if receipt_data.startswith("data:"):
                 head = receipt_data.split(",")[0]
@@ -887,9 +1050,8 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
                     ext = ".jpg"
                 elif "png" in head:
                     ext = ".png"
-                receipt_data = receipt_data.split(",")[1]
-            file_content = base64.b64decode(receipt_data)
-            frappe.get_doc({ "doctype": "File", "file_name": label + ext, "attached_to_doctype": "Payment Entry", "attached_to_name":    pe.name, "is_private": 1, "content": file_content }).insert(ignore_permissions=True)
+            file_content, file_name = _decode_and_normalize_upload(receipt_data, label + ext, label="receipt")
+            frappe.get_doc({ "doctype": "File", "file_name": file_name, "attached_to_doctype": "Payment Entry", "attached_to_name": pe.name, "is_private": 1, "content": file_content }).insert(ignore_permissions=True)
 
         # FIXED: return nama PE di luar blok receipt — sebelum ni `return
         # pe.name` hanya dalam `if receipt_data:`, jadi caller tanpa resit
@@ -900,7 +1062,12 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
     except Exception as e:
         # FIXED: Propagate error — resit pembayaran manual pelanggan HILANG jika di-silent
         # Caller (confirm_booking) patut throw supaya customer tahu perlu retry
-        frappe.log_error("Manual payment entry (booking) failed: " + str(e), "Manual PE Error")
+        # Title mesti pendek (<140 aksara) — Error Log.method akan truncate/fail
+        # jika message panjang dihantar sebagai positional pertama.
+        frappe.log_error(
+            title="Manual PE Error",
+            message="Manual payment entry (booking) failed: " + str(e),
+        )
         frappe.throw(
             _("Failed to save your payment receipt. Please try again or contact support. ({0})").format(str(e)),
             title="Payment Recording Failed"
@@ -930,10 +1097,10 @@ def _create_payment_url(customer_name, so_name, amount, booking_number):
         )
         return result.get("checkout_url", ""), None
     except frappe.ValidationError as e:
-        frappe.log_error("Payment checkout creation failed: " + str(e), "Payment URL Error")
+        frappe.log_error(title="Payment URL Error", message="Payment checkout creation failed: " + str(e))
         return "", str(e)
     except Exception as e:
-        frappe.log_error("Payment checkout creation failed: " + str(e), "Payment URL Error")
+        frappe.log_error(title="Payment URL Error", message="Payment checkout creation failed: " + str(e))
         return "", "Payment setup failed. Please complete your payment from the portal or contact support."
 
 
@@ -979,6 +1146,7 @@ def _maybe_auto_invoice_so(so_name):
 
     try:
         from erpnext.selling.doctype.sales_order.mapper import make_sales_invoice
+        from erpnext.accounts.services.payment_schedule import PaymentScheduleService
 
         _original_user = frappe.local.session.user
         frappe.local.session.user = "Administrator"
@@ -1013,6 +1181,34 @@ def _maybe_auto_invoice_so(so_name):
             si.set_posting_time = 1
             si.posting_date = frappe.utils.today()
 
+            # Jadual bayaran dibawa mapper dari SO dengan due_date = tarikh
+            # SO sendiri (SO booking tiada Payment Terms Template — terma
+            # serta-merta). Posting date dimajak ke hari ni (bayaran akhir
+            # selalunya hari/minggu selepas SO dicipta), jadi BINA SEMULA
+            # jadual dari posting_date baharu — kalau tak, validate_due_date
+            # ERPNext menolak invois dengan "Due Date cannot be before
+            # Posting Date" dan auto-invoice gagal senyap untuk SEMUA
+            # booking yang dibayar penuh lewat dari tarikh SO. due_date
+            # juga direset dulu sebab set_payment_schedule guna
+            # doc.due_date (bukan posting_date) untuk baris lalai.
+            si.due_date = si.posting_date
+            si.payment_schedule = []
+            PaymentScheduleService(si).set_payment_schedule()
+            PaymentScheduleService(si).set_due_date()
+
+            # Accounts Settings "automatically_fetch_payment_terms" aktif di
+            # site ini — set_payment_schedule tarik balik jadual dari SO
+            # (due_date = tarikh SO, bukan posting_date). Apit mana-mana
+            # tarikh lapuk ke posting_date supaya validate_due_date ERPNext
+            # lulus; struktur/portion jadual kekal. getdate() wajib —
+            # sched.due_date ialah datetime.date, posting_date string.
+            posting = getdate(si.posting_date)
+            for sched in (si.payment_schedule or []):
+                if sched.due_date and getdate(sched.due_date) < posting:
+                    sched.due_date = si.posting_date
+            if getdate(si.due_date) < posting:
+                si.due_date = si.posting_date
+
             si.set_advances()
 
             # SO sentiasa company currency (conversion_rate=1) sekarang, jadi
@@ -1024,13 +1220,13 @@ def _maybe_auto_invoice_so(so_name):
 
             if abs(allocated_total - expected_total) > 0.01:
                 frappe.log_error(
-                    "Auto-invoice: set_advances() failed to allocate ALL payments "
+                    title="Auto Sales Invoice - Advance Mismatch",
+                    message="Auto-invoice: set_advances() failed to allocate ALL payments "
                     "for SO " + so_name + " — expected " + str(expected_total) +
                     ", but only allocated " + str(allocated_total) +
                     "). SI NOT submitted (left as draft/not created) — requires manual "
                     "investigation (check Payment Entry party/currency for this SO) before "
                     "generating the invoice manually.",
-                    "Auto Sales Invoice - Advance Mismatch"
                 )
                 return
 
@@ -1041,6 +1237,6 @@ def _maybe_auto_invoice_so(so_name):
 
     except Exception as e:
         frappe.log_error(
-            "Auto-invoice failed for SO " + so_name + ": " + str(e),
-            "Auto Sales Invoice Error"
+            title="Auto Sales Invoice Error",
+            message="Auto-invoice failed for SO " + so_name + ": " + str(e),
         )

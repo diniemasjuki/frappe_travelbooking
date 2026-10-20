@@ -1,0 +1,384 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "creation": "2026-07-14 09:00:06.512280",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "tab_config",
+  "bank_accounts_section",
+  "bank_name",
+  "account_name",
+  "account_number",
+  "column_break_acfc",
+  "manual_transfer_paid_to_account",
+  "multi_currency_account_section",
+  "currency_accounts",
+  "deposit_and_payment_section",
+  "payment_gateway",
+  "default_deposit_percent",
+  "online_payment_min_amount",
+  "column_break_zykz",
+  "manual_transfer_cashback_enabled",
+  "cashback_discount_account",
+  "manual_transfer_cashback_percent",
+  "otp_and_security_section",
+  "otp_expiry_minutes",
+  "email_verified_session_minutes",
+  "on_behalf_roles",
+  "booking_automation_section",
+  "pending_abandoned_days",
+  "referral_and_voucher_section",
+  "default_referral_discount_percent",
+  "price_category_section",
+  "price_category_labels",
+  "ai_receipt_ocr_section",
+  "enable_ai_receipt_ocr",
+  "column_break_aiocr",
+  "ai_ocr_base_url",
+  "ai_ocr_model",
+  "ai_ocr_api_key",
+  "tab_email",
+  "email_notification_section",
+  "email_notifications",
+  "email_templates_section",
+  "email_templates_html",
+  "tab_information",
+  "data_flow_information_section",
+  "column_break_hpzn",
+  "selling_operation_data_table",
+  "section_break_whxn",
+  "html_apxx",
+  "section_break_kdna",
+  "trip_package"
+ ],
+ "fields": [
+  {
+   "fieldname": "bank_accounts_section",
+   "fieldtype": "Section Break",
+   "hidden": 1,
+   "label": "Bank Accounts (legacy)"
+  },
+  {
+   "fieldname": "bank_name",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Bank Name",
+   "options": "Bank Account"
+  },
+  {
+   "fetch_from": "bank_name.account_name",
+   "fieldname": "account_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Account Name"
+  },
+  {
+   "fetch_from": "bank_name.bank_account_no",
+   "fieldname": "account_number",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Account Number"
+  },
+  {
+   "description": "For Accounting Purpose : Account to manage manual transfer record in payment entry",
+   "fieldname": "manual_transfer_paid_to_account",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Manual Transfer - Paid To Account (legacy)",
+   "link_filters": "[[\"Account\",\"is_group\",\"=\",0],[\"Account\",\"account_type\",\"=\",\"Bank\"]]",
+   "options": "Account"
+  },
+  {
+   "fieldname": "deposit_and_payment_section",
+   "fieldtype": "Section Break",
+   "label": "Deposit and Payment"
+  },
+  {
+   "default": "20",
+   "fieldname": "default_deposit_percent",
+   "fieldtype": "Percent",
+   "label": "Default Deposit Percent"
+  },
+  {
+   "default": "0",
+   "description": "Minimum chargeable amount (company currency) for Online Payment. If the payable amount is below this, Online Payment is hidden and the customer must use Manual Transfer or Held Booking. Leave 0 to disable.",
+   "fieldname": "online_payment_min_amount",
+   "fieldtype": "Float",
+   "label": "Online Payment Minimum Amount",
+   "non_negative": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "column_break_zykz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "manual_transfer_cashback_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Manual Transfer Cashback"
+  },
+  {
+   "default": "5",
+   "depends_on": "eval:doc.manual_transfer_cashback_enabled==1",
+   "fieldname": "manual_transfer_cashback_percent",
+   "fieldtype": "Percent",
+   "label": "Cashback Percent",
+   "mandatory_depends_on": "eval:doc.manual_transfer_cashback_enabled",
+   "precision": "0"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.manual_transfer_cashback_enabled==1",
+   "description": "Fallback akaun deduction cashback (Marketing Expenses) pada Payment Entry Manual Transfer \u2014 digunakan HANYA jika baris Travel Settings > Multi Currency Account untuk currency SO tiada 'Cashback Discount Account' sendiri, DAN akaun ni milik company yang sama dengan SO. Amaun cashback dicatat sebagai deduction (debit) pada akaun ni dalam Payment Entry.",
+   "fieldname": "cashback_discount_account",
+   "fieldtype": "Link",
+   "label": "Cashback Discount Account (Fallback)",
+   "link_filters": "[[\"Account\",\"is_group\",\"=\",0],[\"Account\",\"account_category\",\"=\",\"Operating Expenses\"]]",
+   "options": "Account"
+  },
+  {
+   "fieldname": "otp_and_security_section",
+   "fieldtype": "Section Break",
+   "label": "OTP and Security"
+  },
+  {
+   "default": "60",
+   "fieldname": "otp_expiry_minutes",
+   "fieldtype": "Int",
+   "label": "OTP Expiry (minutes)"
+  },
+  {
+   "default": "120",
+   "fieldname": "email_verified_session_minutes",
+   "fieldtype": "Int",
+   "label": "Email Verified Session (minutes)"
+  },
+  {
+   "description": "Senarai role yang dibenarkan buat tempahan BAGI PIHAK customer (booking on-behalf): user dengan role di sini boleh langkau OTP email customer dalam wizard /booknow, dan mengurus booking tersebut dalam portal traveller (menu \"Bookings on Behalf\"). Channel menentukan nilai Booking.booking_channel yang direkodkan. SENARAI KOSONG = ciri on-behalf dimatikan sepenuhnya.",
+   "fieldname": "on_behalf_roles",
+   "fieldtype": "Table",
+   "label": "On-Behalf Booking Roles",
+   "options": "Travel On Behalf Role"
+  },
+  {
+   "fieldname": "booking_automation_section",
+   "fieldtype": "Section Break",
+   "label": "Booking Automation"
+  },
+  {
+   "default": "0",
+   "description": "Booking yang masih 'Pending' (tiada bayaran) melebihi bilangan hari ini dari tarikh ciptaan akan ditukar automatik ke 'Abandoned' oleh scheduler harian. Isi 0 untuk matikan ciri ini.",
+   "fieldname": "pending_abandoned_days",
+   "fieldtype": "Int",
+   "label": "Auto-Abandon Pending Bookings After (Days)",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "referral_and_voucher_section",
+   "fieldtype": "Section Break",
+   "label": "Referral and Voucher"
+  },
+  {
+   "fieldname": "default_referral_discount_percent",
+   "fieldtype": "Percent",
+   "label": "Default Referral Discount Percent"
+  },
+  {
+   "fieldname": "price_category_section",
+   "fieldtype": "Section Break",
+   "label": "Price Category Labels"
+  },
+  {
+   "description": "Configure price labels and notes for Cruise vs Non-Cruise trips. These labels appear on the trip detail page when a package is selected.",
+   "fieldname": "price_category_labels",
+   "fieldtype": "Table",
+   "label": "Price Category Labels",
+   "options": "Price Category Label"
+  },
+  {
+   "fieldname": "ai_receipt_ocr_section",
+   "fieldtype": "Section Break",
+   "label": "AI OCR (Receipt & Passport)"
+  },
+  {
+   "default": "0",
+   "description": "Gunakan AI (OpenAI-compatible vision API) untuk: (1) baca resit pindahan manual di wizard booking \u2014 auto-isi Reference No + semak jumlah (alert sahaja); (2) ekstrak maklumat passport di wizard traveller \u2014 pre-fill borang. Jika gagal, sistem fallback ke OCR tempatan (Tesseract).",
+   "fieldname": "enable_ai_receipt_ocr",
+   "fieldtype": "Check",
+   "label": "Enable AI OCR"
+  },
+  {
+   "fieldname": "column_break_aiocr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "https://api.openai.com/v1",
+   "description": "Base URL sahaja, cth https://api.openai.com/v1 \u2014 JANGAN masukkan kaedah HTTP (POST) atau path /chat/completions (sistem tambah sendiri). Servis serasi lain (Groq, OpenRouter) juga diterima.",
+   "fieldname": "ai_ocr_base_url",
+   "fieldtype": "Data",
+   "label": "API Base URL",
+   "length": 200
+  },
+  {
+   "default": "gpt-4o-mini",
+   "description": "Nama model yang sah di perkhidmatan anda, cth gpt-4o-mini, gpt-4.1-mini.",
+   "fieldname": "ai_ocr_model",
+   "fieldtype": "Data",
+   "label": "Model",
+   "length": 80
+  },
+  {
+   "description": "API key disimpan server-side \u2014 tidak pernah dihantar ke browser customer.",
+   "fieldname": "ai_ocr_api_key",
+   "fieldtype": "Data",
+   "label": "API Key"
+  },
+  {
+   "fieldname": "column_break_acfc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "payment_gateway",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Payment Gateway (legacy)",
+   "options": "Payment Gateway Account"
+  },
+  {
+   "fieldname": "html_apxx",
+   "fieldtype": "HTML",
+   "label": "Booking Operation Data Table",
+   "options": "<h3 style=\"text-align:center; margin:25px auto\" >Operation Data</h3>\n\n<img style=\"width:100%\" src=\"/../assets/travel_booking/img/BookingSystemOperation.png\"/>"
+  },
+  {
+   "fieldname": "data_flow_information_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_hpzn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "selling_operation_data_table",
+   "fieldtype": "HTML",
+   "label": "Selling Operation Data Table",
+   "options": "<h3 style=\"text-align:center; margin:25px auto\" >Preparing & Selling Data</h3>\n\n<img style=\"width:100%\" src=\"/../assets/travel_booking/img/BookingSystemSelling.png\"/>"
+  },
+  {
+   "fieldname": "tab_information",
+   "fieldtype": "Tab Break",
+   "label": "Information"
+  },
+  {
+   "fieldname": "tab_email",
+   "fieldtype": "Tab Break",
+   "label": "Email Notifications"
+  },
+  {
+   "description": "Kawal email operasi app: aktif/matikan setiap notifikasi dan pilih Email Template pengganti. Baris yang dinyahaktif TIDAK dihantar lagi. OTP & magic-link portal dikecualikan \u2014 sentiasa aktif untuk keselamatan login. Senarai template di bawah boleh diedit terus di Desk.",
+   "fieldname": "email_notification_section",
+   "fieldtype": "Section Break",
+   "label": "Notifications"
+  },
+  {
+   "fieldname": "email_notifications",
+   "fieldtype": "Table",
+   "label": "Email Notifications",
+   "options": "Travel Email Notification"
+  },
+  {
+   "fieldname": "email_templates_section",
+   "fieldtype": "Section Break",
+   "label": "Templates"
+  },
+  {
+   "fieldname": "email_templates_html",
+   "fieldtype": "HTML",
+   "label": "Email Templates"
+  },
+  {
+   "fieldname": "tab_config",
+   "fieldtype": "Tab Break",
+   "label": "App Configurations"
+  },
+  {
+   "fieldname": "multi_currency_account_section",
+   "fieldtype": "Section Break",
+   "label": "Multi Currency Account"
+  },
+  {
+   "fieldname": "default_currency",
+   "fieldtype": "Link",
+   "label": "Default Display Currency",
+   "options": "Currency",
+   "insert_after": "multi_currency_account_section",
+   "description": "Currency paparan utama untuk jumlah gabungan (Total Revenue dsb.) di page admin. Kosong = currency company default. Currency lain dipaparkan native + nilai semasa (kadar tukaran dari Currency Exchange)."
+  },
+  {
+   "fieldname": "currency_accounts",
+   "fieldtype": "Table",
+   "label": "Currency Accounts",
+   "options": "Travel Currency Account"
+  },
+  {
+   "fieldname": "trip_package",
+   "fieldtype": "HTML",
+   "label": "Package Structure",
+   "options": "<h3 style=\"text-align:center; margin:25px auto\" >Operation Data</h3>\n\n<img style=\"width:100%\" src=\"/../assets/travel_booking/img/BookingSystemTripPackage.png\"/>"
+  },
+  {
+   "fieldname": "section_break_kdna",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "section_break_whxn",
+   "fieldtype": "Section Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-10-16 18:40:00.000000",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Travel Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Tour Manager",
+   "share": 1
+  },
+  {
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Tour Operator",
+   "share": 1
+  }
+ ],
+ "protect_attached_files": 1,
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

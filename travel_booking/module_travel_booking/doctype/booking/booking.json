@@ -1,0 +1,732 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:naming_series",
+ "creation": "2026-04-08 18:55:47.144024",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "sec_booking",
+  "booking_number",
+  "naming_series",
+  "column_break_nrfb",
+  "status",
+  "payment_section",
+  "column_break_mbgv",
+  "payment_status",
+  "prog_payment",
+  "currency",
+  "column_break_klzg",
+  "pre_discount_total",
+  "total_amount",
+  "column_break_nebz",
+  "balance_amount",
+  "paid_amount",
+  "billing_address_section",
+  "column_break_hwbu",
+  "customer",
+  "get_cust_booking_phone",
+  "cust_email",
+  "column_break_nzrb",
+  "cust_address_line1",
+  "cust_city",
+  "cust_postcode",
+  "cust_state",
+  "cust_country",
+  "section_break_eyrl",
+  "order_summary",
+  "sales_channel_section",
+  "column_break_jnes",
+  "affiliate",
+  "referral_code_used",
+  "referral_discount",
+  "column_break_qemr",
+  "voucher",
+  "voucher_discount",
+  "price_rule_discount",
+  "applied_price_rules",
+  "column_break_betz",
+  "company",
+  "terms_message_section",
+  "terms_accepted",
+  "terms_reference",
+  "column_break_terms",
+  "terms_accepted_at",
+  "customer_message",
+  "checkout_method",
+  "section_break_wqvr",
+  "column_break_luhk",
+  "booking_channel",
+  "booked_by",
+  "column_break_isdd",
+  "b2b_partner",
+  "end_customer",
+  "details_information_section",
+  "booked_pax",
+  "column_break_whlk",
+  "total_pax",
+  "verified_pax",
+  "pending_pax",
+  "trip_info_tab",
+  "section_break_mhpl",
+  "column_break_lfil",
+  "trip_name",
+  "trip_title",
+  "trip_date",
+  "trip_package",
+  "column_break_tgtv",
+  "is_a_cruise_trip",
+  "is_cruise_only",
+  "trip_status",
+  "trip_package_status",
+  "trip_date_group_status",
+  "section_break_lewo",
+  "column_break_ruru",
+  "departure_date",
+  "return_date",
+  "total_days",
+  "total_night",
+  "column_break_wyaj",
+  "cruise_start",
+  "cruise_end",
+  "column_break_jvfy",
+  "package_type",
+  "ground_arrangement"
+ ],
+ "fields": [
+  {
+   "fieldname": "sec_booking",
+   "fieldtype": "Section Break",
+   "label": "Booking Info"
+  },
+  {
+   "fieldname": "booking_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Booking Number",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "description": "Pending = Pending Payment (auto)<br>\nAccepted = Payment Started (auto)<br>\nProcessing = Admin Attending  (Manual) <br>\nConfirmed = Preparation Completed (Manual) <br>\nCompleted = Journey has completed (Auto)<br>\nAbandoned = Pending Payment Too Long <br>\nCancelled = Canceled by any reason (Manual)",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Booking Status",
+   "options": "Pending\nAccepted\nProcessing\nConfirmed\nCompleted\nAbandoned\nCancelled"
+  },
+  {
+   "fieldname": "payment_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Payment Status",
+   "options": "Pending\nPartially Paid\nPaid\nRequest Refund\nPending Refund\nRefunded"
+  },
+  {
+   "fieldname": "column_break_lfil",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip_package.trip_link",
+   "fieldname": "trip_name",
+   "fieldtype": "Link",
+   "label": "Trip",
+   "options": "Trip",
+   "search_index": 1
+  },
+  {
+   "depends_on": "eval:doc.trip_date",
+   "fieldname": "trip_package",
+   "fieldtype": "Link",
+   "label": "Trip Package",
+   "options": "Trip Package"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_filter": 1,
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Customer",
+   "options": "Customer"
+  },
+  {
+   "description": "Company yang mengeluarkan Sales Order utama booking ini (dari paksi currency \u2014 currency native pakej menentukan company).",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "terms_message_section",
+   "fieldtype": "Section Break",
+   "label": "Terms & Customer Message"
+  },
+  {
+   "default": "0",
+   "description": "Ditandakan secara automatik apabila customer menerima T&C di wizard /booknow (Step 3).",
+   "fieldname": "terms_accepted",
+   "fieldtype": "Check",
+   "label": "T&C Accepted",
+   "read_only": 1
+  },
+  {
+   "description": "Dokumen T&C standard (Terms and Conditions) yang dipersetujui customer semasa booking dibuat \u2014 dokumen dipilih dalam Travel Settings > Booking Terms & Conditions.",
+   "fieldname": "terms_reference",
+   "fieldtype": "Link",
+   "label": "T&C Version",
+   "options": "Terms and Conditions",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_terms",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Masa tepat customer menerima T&C (audit).",
+   "fieldname": "terms_accepted_at",
+   "fieldtype": "Datetime",
+   "label": "T&C Accepted On",
+   "read_only": 1
+  },
+  {
+   "description": "Pesanan pilihan customer kepada admin semasa checkout (Step 3 wizard).",
+   "fieldname": "customer_message",
+   "fieldtype": "Small Text",
+   "label": "Customer Message"
+  },
+  {
+   "fieldname": "section_break_mhpl",
+   "fieldtype": "Section Break",
+   "label": "Trip Information"
+  },
+  {
+   "fieldname": "order_summary",
+   "fieldtype": "Small Text",
+   "is_virtual": 1,
+   "label": "Order Summary",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payment_section",
+   "fieldtype": "Section Break",
+   "label": "Payment"
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "in_preview": 1,
+   "is_virtual": 1,
+   "label": "Total Amount",
+   "options": "Currency",
+   "precision": "2"
+  },
+  {
+   "fieldname": "balance_amount",
+   "fieldtype": "Currency",
+   "is_virtual": 1,
+   "label": "Balance Amount",
+   "options": "currency",
+   "precision": "2"
+  },
+  {
+   "fieldname": "column_break_jnes",
+   "fieldtype": "Column Break",
+   "label": "Sales Partner"
+  },
+  {
+   "fieldname": "affiliate",
+   "fieldtype": "Link",
+   "label": "Sales Partner - Affiliate",
+   "options": "Sales Partner"
+  },
+  {
+   "fetch_from": "affiliate.referral_code",
+   "fieldname": "referral_code_used",
+   "fieldtype": "Data",
+   "label": "Referral Code Used"
+  },
+  {
+   "fieldname": "pre_discount_total",
+   "fieldtype": "Currency",
+   "label": "Pre-Discount Total",
+   "options": "Currency",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "description": "Snapshot diskaun voucher order-level semasa booking disahkan (SO kekal GROSS; diskaun diserap sebagai Payment Entry deduction ke akaun Marketing Expenses).",
+   "fieldname": "voucher_discount",
+   "fieldtype": "Currency",
+   "label": "Voucher Discount Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "description": "Snapshot jumlah jimat promosi Travel Price Rule (price slash) semasa booking disahkan. Baris SO dibina terus atas harga promo (net) \u2014 diskaun ini TIDAK diserap sebagai Payment Entry deduction (beza daripada voucher/referral).",
+   "fieldname": "price_rule_discount",
+   "fieldtype": "Currency",
+   "label": "Price Rule Discount Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "description": "Snapshot JSON Travel Price Rule yang dipakai pada masa booking (rule, label, diskaun, price key berkesan).",
+   "fieldname": "applied_price_rules",
+   "fieldtype": "JSON",
+   "label": "Applied Price Rules",
+   "read_only": 1
+  },
+  {
+   "description": "Snapshot diskaun referral/affiliate order-level semasa booking disahkan (% atas baki selepas voucher).",
+   "fieldname": "referral_discount",
+   "fieldtype": "Currency",
+   "label": "Referral Discount Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "details_information_section",
+   "fieldtype": "Section Break",
+   "label": "Traveller Info"
+  },
+  {
+   "fieldname": "total_pax",
+   "fieldtype": "Int",
+   "is_virtual": 1,
+   "label": "Total Traveller"
+  },
+  {
+   "fieldname": "verified_pax",
+   "fieldtype": "Int",
+   "is_virtual": 1,
+   "label": "Verified Traveller"
+  },
+  {
+   "fieldname": "pending_pax",
+   "fieldtype": "Int",
+   "is_virtual": 1,
+   "label": "Pending Traveller"
+  },
+  {
+   "description": "Jumlah pax (Main Guest + Extra Bed + Infant) dirayang masa booking dicipta \u2014 sumber kebenaran untuk gate overbooking (sum merentasi semua booking tak-cancelled vs Trip Group Date.max_participants). Berbeza dari Total Traveller (virtual, kira Booking Reservation Confirmed).",
+   "fieldname": "booked_pax",
+   "fieldtype": "Int",
+   "label": "Booked Pax",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "billing_address_section",
+   "fieldtype": "Section Break",
+   "label": "Billing Info"
+  },
+  {
+   "description": "Snapshot alamat billing customer masa booking dicipta (borang wizard /booknow) \u2014 salinan sejarah/audit, bukan rujukan terkini; alamat operasional customer diurus pada doctype Address yang di-link ke Customer.",
+   "fieldname": "cust_address_line1",
+   "fieldtype": "Data",
+   "label": "Street Address"
+  },
+  {
+   "fieldname": "cust_city",
+   "fieldtype": "Data",
+   "label": "City"
+  },
+  {
+   "fieldname": "cust_postcode",
+   "fieldtype": "Data",
+   "label": "Postcode"
+  },
+  {
+   "fieldname": "cust_state",
+   "fieldtype": "Data",
+   "label": "State"
+  },
+  {
+   "fieldname": "cust_country",
+   "fieldtype": "Link",
+   "label": "Country",
+   "options": "Country"
+  },
+  {
+   "depends_on": "eval:doc.trip_name",
+   "fieldname": "trip_date",
+   "fieldtype": "Link",
+   "label": "Trip Date",
+   "options": "Trip Group Date"
+  },
+  {
+   "fieldname": "column_break_nrfb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_wqvr",
+   "fieldtype": "Section Break",
+   "label": "Booking Party"
+  },
+  {
+   "fieldname": "column_break_hwbu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "BK.YY.MM.###",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "naming series",
+   "options": "BK.YY.MM.###",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_betz",
+   "fieldtype": "Column Break",
+   "label": "Checkout Info"
+  },
+  {
+   "fieldname": "column_break_whlk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "prog_payment",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Payment Progress",
+   "no_copy": 1,
+   "precision": "0",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "trip_name.status",
+   "fieldname": "trip_status",
+   "fieldtype": "Data",
+   "label": "Trip Status"
+  },
+  {
+   "fetch_from": "trip_date.status",
+   "fieldname": "trip_date_group_status",
+   "fieldtype": "Read Only",
+   "label": "Trip Date Group Status"
+  },
+  {
+   "fetch_from": "trip_package.status",
+   "fieldname": "trip_package_status",
+   "fieldtype": "Read Only",
+   "label": "Trip Package Status"
+  },
+  {
+   "fieldname": "section_break_eyrl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_tgtv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip_date.departure_date",
+   "fieldname": "departure_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Departure Date"
+  },
+  {
+   "fetch_from": "trip_date.return_date",
+   "fieldname": "return_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Return Date"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fieldname": "column_break_wyaj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fetch_from": "trip_date.is_a_cruise_trip",
+   "fieldname": "is_a_cruise_trip",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "is a cruise trip"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fetch_from": "trip_date.is_cruise_only",
+   "fieldname": "is_cruise_only",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "is cruise only"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fetch_from": "trip_date.sailing_start",
+   "fieldname": "cruise_start",
+   "fieldtype": "Date",
+   "label": "Cruise Start"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fetch_from": "trip_date.sailing_end",
+   "fieldname": "cruise_end",
+   "fieldtype": "Date",
+   "label": "Cruise End"
+  },
+  {
+   "fieldname": "column_break_qemr",
+   "fieldtype": "Column Break",
+   "label": "Voucher Info"
+  },
+  {
+   "fieldname": "voucher",
+   "fieldtype": "Link",
+   "label": "Voucher",
+   "options": "Voucher",
+   "search_index": 1
+  },
+  {
+   "fieldname": "cust_email",
+   "fieldtype": "Data",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Customer Email",
+   "options": "Email"
+  },
+  {
+   "default": "Direct",
+   "description": "Saluran booking: Direct = customer tempah sendiri; Staff = sales user (role Sales User) tempah bagi pihak customer tanpa OTP; Affiliate = rakan kongsi affiliate (role Affiliate) tempah bagi pihak customer tanpa OTP; B2B = partner/agen/reseller tempah bagi pihak pelanggan mereka \u2014 SO & billing kepada Customer partner, harga net (deducted price), end-customer lihat status sahaja di portal.",
+   "fieldname": "booking_channel",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Booking Channel",
+   "options": "Direct\nStaff\nAffiliate\nB2B"
+  },
+  {
+   "description": "User yang membuat tempahan ini (session semasa confirm_booking). Untuk booking on-behalf (Staff/Affiliate), ini ialah 3rd party yang bertanggungjawab; untuk Direct, user customer sendiri.",
+   "fieldname": "booked_by",
+   "fieldtype": "Link",
+   "label": "Booked By",
+   "options": "User",
+   "search_index": 1
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "is_virtual": 1,
+   "label": "Currency",
+   "options": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "trip_info_tab",
+   "fieldtype": "Tab Break",
+   "label": "Trip Info"
+  },
+  {
+   "fieldname": "section_break_lewo",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_ruru",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip_name.title",
+   "fieldname": "trip_title",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Trip Title"
+  },
+  {
+   "description": "Partner B2B yang DIBILKAN untuk tempahan ini (booking_channel = B2B). Sales Order / Payment Entry / Sales Invoice semua atas Customer milik partner \u2014 pelanggan end-customer tidak melihat sebarang harga.",
+   "fieldname": "b2b_partner",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "B2B Partner",
+   "options": "Travel B2B Partner",
+   "search_index": 1
+  },
+  {
+   "description": "Customer end-customer (contact traveller) yang datanya diisi partner semasa tempah bagi pihak. Memberi akses portal traveller \u2014 status/dokumen SAHAJA, tanpa harga/billing.",
+   "fieldname": "end_customer",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "End Customer",
+   "options": "Customer",
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_isdd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "checkout_method",
+   "fieldtype": "Select",
+   "label": "Checkout Method",
+   "options": "\nOnline Payment Gateway\nManual Transfer\nHeld Booking",
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "column_break_luhk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "get_cust_booking_phone",
+   "fieldtype": "Phone",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Customer Phone"
+  },
+  {
+   "fieldname": "column_break_mbgv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip_date.total_days",
+   "fieldname": "total_days",
+   "fieldtype": "Read Only",
+   "label": "Total Days"
+  },
+  {
+   "fetch_from": "trip_date.total_nights",
+   "fieldname": "total_night",
+   "fieldtype": "Read Only",
+   "label": "Total Night"
+  },
+  {
+   "fieldname": "column_break_jvfy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip_package.package_type",
+   "fieldname": "package_type",
+   "fieldtype": "Read Only",
+   "label": "Package Type"
+  },
+  {
+   "default": "0",
+   "fetch_from": "trip_package.ground_arrangement",
+   "fieldname": "ground_arrangement",
+   "fieldtype": "Check",
+   "is_virtual": 1,
+   "label": "Ground Arrangement"
+  },
+  {
+   "fieldname": "column_break_nzrb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sales_channel_section",
+   "fieldtype": "Section Break",
+   "label": "Sales Channel"
+  },
+  {
+   "fieldname": "column_break_klzg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_nebz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "paid_amount",
+   "fieldtype": "Currency",
+   "is_virtual": 1,
+   "label": "Paid Amount",
+   "options": "doc.total_amount - doc.balance_amount",
+   "precision": "2"
+  }
+ ],
+ "grid_page_length": 50,
+ "links": [
+  {
+   "link_doctype": "Sales Order",
+   "link_fieldname": "custom_booking"
+  },
+  {
+   "link_doctype": "Sales Invoice",
+   "link_fieldname": "custom_booking"
+  },
+  {
+   "link_doctype": "Booking Reservation",
+   "link_fieldname": "booking"
+  }
+ ],
+ "modified": "2026-10-17 21:48:18.545079",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Booking",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "abdsobur.abdahad@gmail.com",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "protect_attached_files": 1,
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "customer, trip_package",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [
+  {
+   "color": "Red",
+   "title": "Pending"
+  },
+  {
+   "color": "Yellow",
+   "title": "Accepted"
+  },
+  {
+   "color": "Orange",
+   "title": "Processing"
+  },
+  {
+   "color": "Blue",
+   "title": "Confirmed"
+  },
+  {
+   "color": "Light Blue",
+   "title": "Completed"
+  },
+  {
+   "color": "Red",
+   "title": "Abandoned"
+  },
+  {
+   "color": "Pink",
+   "title": "Canceled"
+  }
+ ],
+ "title_field": "booking_number",
+ "track_changes": 1
+}

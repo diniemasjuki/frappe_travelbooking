@@ -139,7 +139,8 @@
               {% if e.starting_from_price is not none %}
                 {% set sym = currency_symbol if currency_symbol else get_company_symbol() %}
                 <span class="rc-sched-plabel">From</span>
-                <span class="rc-sched-pvalue">{{ sym }}{{ "{:,.0f}".format(e.starting_from_price) }} <small>per person</small></span>
+                {# Travel Price Rule: strikethrough harga asal + badge promosi #}
+                <span class="rc-sched-pvalue">{% if e.original_starting_from_price %}<s class="rc-price-was">{{ sym }}{{ "{:,.0f}".format(e.original_starting_from_price) }}</s> {% endif %}{{ sym }}{{ "{:,.0f}".format(e.starting_from_price) }} <small>per person</small>{% if e.promo_label %} <span class="rc-promo-badge">{{ e.promo_label }}</span>{% endif %}</span>
               {% else %}
                 <span class="rc-sched-plabel">Price</span>
                 <span class="rc-sched-tba">On Request</span>

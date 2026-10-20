@@ -1,0 +1,87 @@
+{
+ "actions": [],
+ "autoname": "format:SSR-{YYYY}-{MM}-{#####}",
+ "creation": "2026-10-15 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "sales_order",
+  "booking_reservation",
+  "booking"
+ ],
+ "fields": [
+  {
+   "fieldname": "sales_order",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Sales Order",
+   "options": "Sales Order",
+   "reqd": 1
+  },
+  {
+   "fieldname": "booking_reservation",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Booking Reservation",
+   "options": "Booking Reservation",
+   "reqd": 1
+  },
+  {
+   "fieldname": "booking",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Booking",
+   "options": "Booking"
+  }
+ ],
+ "index_order": [
+  "sales_order",
+  "booking_reservation",
+  "booking"
+ ],
+ "links": [],
+ "modified": "2026-10-15 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Share Slot Reservation",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

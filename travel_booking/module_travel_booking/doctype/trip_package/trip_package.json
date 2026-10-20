@@ -1,0 +1,284 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "TP.YY.MM.##",
+ "creation": "2026-07-06 00:40:04.918276",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "information",
+  "section_break_esgt",
+  "column_break_eemr",
+  "trip_link",
+  "status",
+  "organizer_link",
+  "trip_name",
+  "column_break_lpvl",
+  "image_ydqq",
+  "trip_image",
+  "section_break_wwby",
+  "package_title",
+  "package_description",
+  "section_break_vpir",
+  "is_a_cruise_trip",
+  "package_type",
+  "airport_form",
+  "package_code",
+  "column_break_zwvy",
+  "is_cruise_only",
+  "select_group_by_date",
+  "sec_pricing",
+  "currency",
+  "import_from_cruise_rate",
+  "package_pricing",
+  "price_review_required",
+  "ground_arrangement"
+ ],
+ "fields": [
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Pending Review\nActive\nInactive"
+  },
+  {
+   "fieldname": "sec_pricing",
+   "fieldtype": "Section Break",
+   "label": "Pricing Variant"
+  },
+  {
+   "depends_on": "eval:doc.trip_link",
+   "description": "For price variant will be use:<br>\n- Main Guest : Adult<br>\n- Extra Bed : Price Upper<br>\n- Infant : Infant",
+   "fieldname": "package_pricing",
+   "fieldtype": "Table",
+   "label": "Package Pricing",
+   "options": "Trip Package Price"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fetch_from": "trip_link.is_a_cruise_trip",
+   "fieldname": "is_a_cruise_trip",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "is a Cruise Trip",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fetch_from": "trip_group_date.is_cruise_only",
+   "fieldname": "is_cruise_only",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "Filter for Cruise Only",
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "trip_link",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trip",
+   "options": "Trip",
+   "search_index": 1,
+   "set_only_once": 1
+  },
+  {
+   "depends_on": "eval:doc.trip_link",
+   "fetch_from": "trip_link.trip_organizer",
+   "fieldname": "organizer_link",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "in_list_view": 1,
+   "label": "Organizer",
+   "options": "Trip Organizer",
+   "read_only": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "column_break_lpvl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_wwby",
+   "fieldtype": "Section Break",
+   "label": "Package Description"
+  },
+  {
+   "fieldname": "package_description",
+   "fieldtype": "Text Editor",
+   "label": "Package Description"
+  },
+  {
+   "fieldname": "information",
+   "fieldtype": "HTML",
+   "label": "Information",
+   "options": "<style>\n    .wizard-ui {\n  font-family: Arial, sans-serif;\n  max-width: 800px;\n  margin: auto;\n  margin-bottom:10px;\n}\n\n.progressbar {\n  display: flex;\n  align-items: center;\n  margin: 20px 0;\n}\n\n.progress-step {\n  width: 30px;\n  height: 30px;\n  border-radius: 50%;\n  background: #ccc;\n  color: #fff;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.progress-step.completed {\n  background: #28a745;\n}\n\n.progress-step.active {\n  background: #007bff;\n}\n\n.progress-line {\n  flex: 1;\n  height: 4px;\n  background: #ccc;\n}\n\n.progress-line.completed {\n  background: #28a745;\n}\n\n.progress-line.active {\n  background: #007bff;\n}\n\n.wizard-steps {\n  display: flex;\n  gap: 20px;\n}\n\n.step-card {\n  flex: 1;\n  padding: 15px;\n  border: 1px solid #ddd;\n  border-radius: 6px;\n  background: #f9f9f9;\n  text-align:center;\n}\n\n.step-card > h3{\n    margin:0;\n}\n\n.step-card.active {\n  border: 2px solid #007bff;\n  background: #e9f2ff;\n}\n\n</style>\n<section id=\"trip-management\" class=\"wizard-ui\">\n  <div class=\"wizard-header\">\n    <h2>Trip Management Section</h2>\n    <p>Anda kini berada di <strong>Trip Package</strong></p>\n  </div>\n\n  <!-- Progress Bar -->\n  <div class=\"progressbar\">\n    <div class=\"progress-step completed\">1</div>\n    <div class=\"progress-line completed\"></div>\n    <div class=\"progress-step completed\">2</div>\n    <div class=\"progress-line active\"></div>\n    <div class=\"progress-step active\">3</div>\n  </div>\n\n  <!-- Step Cards -->\n  <div class=\"wizard-steps\">\n    <div class=\"step-card\"> \n      <h3><a href=\"/desk/trip/\" style=\"text-decoration:none\" ><small>Step 1: </small><br/>Trip</a></h3>\n    </div>\n    <div class=\"step-card \">\n      <h3><a href=\"/desk/trip-group-date/\" style=\"text-decoration:none\" ><small>Step 2: </small><br/>Trip Group</a></h3>\n    </div>\n    <div class=\"step-card active\">\n      <h3><small>Step 3: </small><br/>Trip Package</h3>\n    </div>\n  </div>\n</section>\n<br/>"
+  },
+  {
+   "fieldname": "section_break_esgt",
+   "fieldtype": "Section Break",
+   "label": "Trip Information"
+  },
+  {
+   "fieldname": "package_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Trip Package Code",
+   "no_copy": 1,
+   "read_only": 1,
+   "set_only_once": 1,
+   "unique": 1
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip == 0",
+   "fieldname": "package_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Package Type",
+   "options": "\nFly Package\nGround Only\nCruise + Flight\nCruise Only\nCustomed",
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "depends_on": "eval:(!doc.is_cruise_only && doc.is_a_cruise_trip) || (doc.package_type == \"Fly Package\")",
+   "fieldname": "airport_form",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Depart From",
+   "mandatory_depends_on": "eval:(!doc.is_cruise_only && doc.is_a_cruise_trip) || (doc.package_type == \"Fly Package\")",
+   "options": "Flight Airport",
+   "set_only_once": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "ground_arrangement",
+   "fieldtype": "Check",
+   "label": "Ground Arrangement"
+  },
+  {
+   "fieldname": "column_break_eemr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "trip_link.trip_name",
+   "fieldname": "trip_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Trip Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "package_title",
+   "fieldtype": "Small Text",
+   "label": "Package Titlle",
+   "no_copy": 1,
+   "options": "Name"
+  },
+  {
+   "default": "MYR",
+   "description": "Currency NATIVE pakej ini (paksi utama). Harga pada Package Pricing dianggap dalam currency ini; SO/bil booking akan dikeluarkan oleh company yang sepadan (rujuk Travel Settings > Multi Currency Account). MESTI salah satu currency yang diisytiharkan di sana.",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Currency",
+   "options": "Currency",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "description": "Dibenderakan oleh patch migrasi currency: harga pakej ini belum disemak/disemak semula dalam company currency. Booking pada pakej ini dihalang sehingga admin semak harga & uncheck box ini.",
+   "fieldname": "price_review_required",
+   "fieldtype": "Check",
+   "label": "Price Review Required"
+  },
+  {
+   "depends_on": "eval:doc.trip_link",
+   "fieldname": "select_group_by_date",
+   "fieldtype": "Table MultiSelect",
+   "label": "Select Trip Date",
+   "options": "Trip Package Group Date Select"
+  },
+  {
+   "fetch_from": "trip_link.trip_image",
+   "fieldname": "trip_image",
+   "fieldtype": "Attach Image",
+   "hidden": 1,
+   "label": "trip image"
+  },
+  {
+   "fieldname": "image_ydqq",
+   "fieldtype": "Image",
+   "options": "trip_image"
+  },
+  {
+   "fieldname": "section_break_vpir",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_zwvy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fieldname": "import_from_cruise_rate",
+   "fieldtype": "Button",
+   "label": "Import From Cruise Rate"
+  }
+ ],
+ "grid_page_length": 50,
+ "image_field": "trip_image",
+ "links": [],
+ "modified": "2026-09-14 15:28:07.771038",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Trip Package",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "protect_attached_files": 1,
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "package_title,organizer_link",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "package_title",
+ "track_changes": 1
+}

@@ -1,0 +1,179 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:voucher_code",
+ "creation": "2026-07-29 06:08:00.349230",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "basic_info_section",
+  "voucher_code",
+  "status",
+  "discount_setting_section",
+  "discount_type",
+  "discount_value",
+  "currency",
+  "validity_and_usage_limit_section",
+  "valid_from",
+  "valid_until",
+  "column_break_iroy",
+  "max_usage",
+  "max_usage_per_customer",
+  "scope_section",
+  "applicable_trips",
+  "applicable_packages",
+  "applicable_room_categories"
+ ],
+ "fields": [
+  {
+   "fieldname": "voucher_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Voucher Code",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "discount_type",
+   "fieldtype": "Select",
+   "label": "Discount Type",
+   "options": "Percentage\nFixed Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "discount_value",
+   "fieldtype": "Currency",
+   "label": "Discount Value",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.discount_type != 'Percentage'",
+   "description": "Currency nilai voucher (untuk Fixed Amount sahaja — Percentage diabaikan). Voucher hanya sah bila currency booking == currency ini.",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "basic_info_section",
+   "fieldtype": "Section Break",
+   "label": "Basic Info"
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nInactive\nExpired"
+  },
+  {
+   "fieldname": "discount_setting_section",
+   "fieldtype": "Section Break",
+   "label": "Discount Setting"
+  },
+  {
+   "fieldname": "validity_and_usage_limit_section",
+   "fieldtype": "Section Break",
+   "label": "Validity and Usage Limit"
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "label": "Valid From",
+   "reqd": 1
+  },
+  {
+   "fieldname": "valid_until",
+   "fieldtype": "Date",
+   "label": "Valid Until",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_iroy",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_usage",
+   "fieldtype": "Int",
+   "label": "Max Usage"
+  },
+  {
+   "fieldname": "max_usage_per_customer",
+   "fieldtype": "Int",
+   "label": "Max Usage Per Customer"
+  },
+  {
+   "fieldname": "scope_section",
+   "fieldtype": "Section Break",
+   "label": "Scope"
+  },
+  {
+   "fieldname": "applicable_trips",
+   "fieldtype": "Table MultiSelect",
+   "label": "Applicable Trips",
+   "options": "Voucher Applicable Trip"
+  },
+  {
+   "fieldname": "applicable_packages",
+   "fieldtype": "Table MultiSelect",
+   "label": "Applicable Packages",
+   "options": "Voucher Applicable Package"
+  },
+  {
+   "fieldname": "applicable_room_categories",
+   "fieldtype": "Table MultiSelect",
+   "label": "Applicable Room Categories",
+   "options": "Voucher Applicable Room Category"
+  }
+ ],
+ "grid_page_length": 50,
+ "links": [
+  {
+   "link_doctype": "Voucher Usage",
+   "link_fieldname": "voucher"
+  },
+  {
+   "link_doctype": "Booking",
+   "link_fieldname": "voucher"
+  }
+ ],
+ "modified": "2026-08-05 02:12:47.549942",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Voucher",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "voucher_code"
+}

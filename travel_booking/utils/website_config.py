@@ -262,6 +262,11 @@ def _homepage_block(doc, prefix: str) -> dict:
             "enabled": bool(doc.get(f"{prefix}_ga_enabled")),
             "measurement_id": (doc.get(f"{prefix}_ga_measurement_id") or "").strip(),
         },
+        # Booking T&C per-site — dokumen "Terms and Conditions" yang mengikat
+        # wizard /booknow untuk vertical ni. Dibaca oleh api/terms.py
+        # (get_active_terms_record) — papar panel + gate checkout, page awam
+        # /booking-terms, dan blok T&C dalam emel status booking.
+        "booking_terms": doc.get(f"{prefix}_booking_terms") or "",
     }
 
 
@@ -297,6 +302,7 @@ def _empty_config() -> dict:
             "secondary_label": "", "secondary_url": "",
         },
         "ga": {"enabled": False, "measurement_id": ""},
+        "booking_terms": "",
     }
     return {
         "website_logo": "",

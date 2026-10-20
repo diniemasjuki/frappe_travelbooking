@@ -877,3 +877,25 @@
   padding-bottom: 12px;
   line-height:1.1;
 }
+
+/* ── Travel Price Rule (promosi price slash) ── */
+.rc-price-was {
+  color: #9C9789;
+  font-weight: 400;
+  text-decoration: line-through;
+  text-decoration-color: #9C9789;
+  margin-left: 4px;
+}
+.rc-promo-badge {
+  display: inline-block;
+  margin: 6px 0 2px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(201,168,76,.12);
+  border: 1px solid rgba(201,168,76,.3);
+  color: #B8983F;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .3px;
+}
+.rc-promo-badge .ti { margin-right: 4px; }

@@ -12,16 +12,50 @@
 (function () {
   var BOOKING_REF = _pageData.booking_ref || '';
   // mode "onbehalf" = page /traveller/onbehalf-booking (manager mengurus
-  // booking pelanggan). mode lalai = booking.html pemilik.
-  var MODE = _pageData.mode === 'onbehalf' ? 'onbehalf' : 'self';
+  // booking pelanggan). mode "staff" = page desk /app/booking-manager
+  // (staf dalaman mengurus SEMUA booking — behavior sama, URL ke page
+  // desk). mode lalai = booking.html pemilik.
+  var MODE = (_pageData.mode === 'onbehalf' || _pageData.mode === 'staff')
+    ? _pageData.mode : 'self';
   // B2B end-customer: harga disembunyikan (server-authoritative flag dari
   var PRICE_HIDDEN = false;
 
-  function backListUrl() { return MODE === 'onbehalf' ? '/traveller/onbehalf' : '/traveller/bookings'; }
-  function backListLabel() { return MODE === 'onbehalf' ? '← Back to On-Behalf Bookings' : '← Back to My Bookings'; }
+  // Route desk Booking Manager untuk mod staff — ref dihantar sebagai
+  // segmen path (bukan ?ref=) supaya router page boleh baca terus.
+  // Base path dari booking_manager.js (window.BM_PAGE_HOME — /desk atau
+  // /app ikut versi Frappe); fallback /app untuk kes penggunaan luar page.
+  function _staffBookingUrl(view) {
+    const base = window.BM_PAGE_HOME || '/app/booking-manager';
+    return base + '/b/' + encodeURIComponent(BOOKING_REF) + (view ? '/' + view : '');
+  }
+  function backListUrl() {
+    if (MODE === 'staff') return window.BM_PAGE_HOME || '/app/booking-manager';
+    return MODE === 'onbehalf' ? '/traveller/onbehalf' : '/traveller/bookings';
+  }
+  function backListLabel() {
+    if (MODE === 'staff') return '← Back to All Bookings';
+    return MODE === 'onbehalf' ? '← Back to On-Behalf Bookings' : '← Back to My Bookings';
+  }
   // Page billing ikut mod — onbehalf guna page berasingan supaya
   // endpoint data (booking-scoped) & gate tahap akses jelas.
-  function billingPageUrl() { return MODE === 'onbehalf' ? '/traveller/onbehalf-billing' : '/traveller/billing'; }
+  function billingPageUrl() {
+    if (MODE === 'staff') return _staffBookingUrl('billing');
+    return MODE === 'onbehalf' ? '/traveller/onbehalf-billing' : '/traveller/billing';
+  }
+  // Page traveller & addon ikut mod juga — page berasingan dengan guard
+  // role on-behalf (corak sama dengan billingPageUrl()).
+  function travellersPageUrl() {
+    if (MODE === 'staff') return _staffBookingUrl('travellers');
+    return MODE === 'onbehalf' ? '/traveller/onbehalf-travellers' : '/traveller/travellers';
+  }
+  function addonsPageUrl() {
+    if (MODE === 'staff') return _staffBookingUrl('addons');
+    return MODE === 'onbehalf' ? '/traveller/onbehalf-addons' : '/traveller/booking_addons';
+  }
+  function manageAddonsUrl() {
+    if (MODE === 'staff') return _staffBookingUrl('addons') + '?tab=manage';
+    return '/traveller/manage_addon?ref=' + encodeURIComponent(BOOKING_REF);
+  }
 
   /* ── Init ── */
   async function init() {
@@ -48,6 +82,7 @@
         content.style.display = 'block';
         content.innerHTML = renderDetail(data);
         wireBillsModal();
+        wireCustomerEditModal(data);
       }
     } catch (e) {
       if (loading) loading.style.display = 'none';
@@ -114,8 +149,10 @@
     var airportCity = _esc(b.airport_city || '');
     var airportName = _esc(b.airport_name || airportCity);
 
-    // Flight itinerary (booking-level, dari tabFlight via booking.flight)
-    var fi = b.flight_itinerary || {};
+    // Flight itinerary (slot-level — senarai blok, satu per flight
+    // distinct dari Booking Reservation.flight; Booking tak lagi simpan
+    // flight). Booking group kini sah berpecah ke beberapa flight.
+    var fis = b.flight_itineraries || [];
 
     // Group/Trip code
     var groupName = _esc(b.group_name || '');
@@ -156,8 +193,12 @@
     if (isOnbehalf) {
       var endName = _esc(b.end_customer_name || 'Unknown Customer');
       var endEmail = _esc(b.end_customer_email || '');
+      var endPhone = _esc(b.end_customer_phone || '');
+      var endAddr = _esc(b.end_customer_address || '');
       var channel = _esc(b.booking_channel || '');
-      var levelMeta = {
+      var levelMeta = MODE === 'staff'
+        ? { icon: '🛠', label: 'Staff Access', desc: 'You are managing this booking as internal staff — travellers, documents, payments & documents are fully accessible.' }
+        : {
         'View': { icon: '👁', label: 'View Access', desc: 'You can view this booking’s status, trip & billing summary only.' },
         'Docs': { icon: '📄', label: 'Docs Access', desc: 'You can view everything and manage traveller details & documents (no payments).' },
         'Full': { icon: '🔑', label: 'Full Access', desc: 'You can manage travellers, documents, payments & download documents.' }
@@ -165,12 +206,24 @@
 
       html += '<div class="tv-card tv-animate-in">';
       html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">';
-      // Kiri: customer name (header utama) + email
+      // Kiri: customer name (header utama) + contact info
       html += '<div style="min-width:220px;">';
       html += '<div class="tv-info-label" style="margin-bottom:2px;">Customer</div>';
       html += '<h2 class="tv-th-name" style="margin:0 0 4px 0;">' + endName + '</h2>';
       if (endEmail) {
-        html += '<div style="font-size:13px;color:var(--text-secondary);">' + endEmail + '</div>';
+        html += '<div style="font-size:13px;color:var(--text-secondary);margin-top:2px;">✉️ ' + endEmail + '</div>';
+      }
+      if (endPhone) {
+        html += '<div style="font-size:13px;color:var(--text-secondary);margin-top:2px;">📞 ' + endPhone + '</div>';
+      }
+      if (endAddr) {
+        // Alamat billing customer (teks terformat dari Address customer —
+        // baris baharu dikekalkan melalui white-space:pre-line)
+        html += '<div style="font-size:13px;color:var(--text-secondary);margin-top:8px;white-space:pre-line;line-height:1.55;">' + endAddr + '</div>';
+      }
+      // Edit billing info (tahap Full sahaja — server gate endpooint "Full")
+      if (canFull) {
+        html += '<button type="button" id="tvl-edit-cust-btn" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:12px;">✏️ Edit Billing Info</button>';
       }
       html += '</div>';
       // Kanan: badge channel + access level
@@ -269,27 +322,29 @@
       html += '</div>'; // grid Block 2
     }
 
-    // ── BLOCK 3: 🛫 Flight Itinerary (booking-level flight link) ──
-    // fi dari tabFlight (booking.flight). Slot mewarisi flight sama, jadi
-    // biasanya satu flight per booking. Hanya papar jika wujud PNR.
-    if (fi && fi.pnr) {
+    // ── BLOCK 3: 🛫 Flight Itinerary (slot-level flight) ──
+    // Satu blok setiap flight distinct dalam booking. Hanya papar flight
+    // yang ada PNR; bila booking berpecah flight, setiap blok dilabel.
+    var fiAirport = function(code, name) {
+      if (!code && !name) return '<span style="color:var(--text-muted);">—</span>';
+      var h = '';
+      if (code) h += '<div style="font-size:16px;font-weight:700;color:var(--text-primary);">' + _esc(code) + '</div>';
+      if (name) h += '<div style="font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px;">' + _esc(name) + '</div>';
+      return h || '<span style="color:var(--text-muted);">—</span>';
+    };
+    var shownFlights = fis.filter(function(f) { return f && f.pnr; });
+    shownFlights.forEach(function(fi, flightIdx) {
       var fiDepDate = fi.departure_date ? fmtDate(fi.departure_date) : '';
       var fiArrDate = fi.arrival_date ? fmtDate(fi.arrival_date) : '';
-      // Airport cell: code (bold) + name (small muted)
-      var fiAirport = function(code, name) {
-        if (!code && !name) return '<span style="color:var(--text-muted);">—</span>';
-        var h = '';
-        if (code) h += '<div style="font-size:16px;font-weight:700;color:var(--text-primary);">' + _esc(code) + '</div>';
-        if (name) h += '<div style="font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px;">' + _esc(name) + '</div>';
-        return h || '<span style="color:var(--text-muted);">—</span>';
-      };
       // Airline cell: name + flight class (small subtitle)
       var fiAirline = '—';
       if (fi.airline) {
         fiAirline = _esc(fi.airline);
         if (fi.flight_class) fiAirline += '<div style="font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px;">' + _esc(fi.flight_class) + '</div>';
       }
-      html += '<div class="tv-sec">🛫 Flight Itinerary</div>';
+      var fiSecLabel = '🛫 Flight Itinerary';
+      if (shownFlights.length > 1) fiSecLabel += ' — Flight ' + (flightIdx + 1);
+      html += '<div class="tv-sec">' + fiSecLabel + '</div>';
       html += '<div class="tv-hero-grid">';
       html += '<div class="tv-hero-cell"><div class="tv-hero-label">PNR</div><div class="tv-hero-value">' + _esc(fi.pnr) + '</div></div>';
       html += '<div class="tv-hero-cell"><div class="tv-hero-label">Airline</div><div class="tv-hero-value">' + fiAirline + '</div></div>';
@@ -302,9 +357,29 @@
       if (fi.itinerary_html) {
         html += '<div class="tv-flight-itinerary-html">' + fi.itinerary_html + '</div>';
       }
-    }
+    });
 
     html += '</div>'; // hero
+
+    /* ══════════════════════════════════════
+       SECTION A2: BOOKING NOTE — pesanan customer semasa checkout
+       (Booking.customer_message, "Message to Us"). Dipaparkan untuk
+       SEMUA mod (self / onbehalf / staff) supaya customer nampak semula
+       apa yang dihantar dan manager/staf nampak konteks permintaan khas
+       tanpa buka Desk. Kosong → kad disembunyi.
+       ══════════════════════════════════════ */
+    var bookingNote = (b.customer_message || '').trim();
+    if (bookingNote) {
+      html += '<div class="tv-card tv-animate-in">';
+      html += '<div style="display:flex;align-items:flex-start;gap:12px;">';
+      html += '<div style="font-size:22px;line-height:1.2;">📝</div>';
+      html += '<div style="flex:1;min-width:0;">';
+      html += '<h3 class="tv-card__title" style="margin:0 0 6px 0;">Booking Note</h3>';
+      html += '<p style="font-size:13px;color:var(--text-secondary);margin:0;line-height:1.6;white-space:pre-line;word-break:break-word;">' + _esc(bookingNote) + '</p>';
+      html += '</div>';
+      html += '</div>';
+      html += '</div>'; // note card
+    }
 
     /* ══════════════════════════════════════
        DASHBOARD GRID — ROW 1
@@ -377,7 +452,7 @@
       html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">';
       html += '<h3 class="tv-card__title">👥 Traveller Summary</h3>';
       if (canDocs) {
-        html += '<a href="/traveller/travellers?ref=' + encodeURIComponent(ref) + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;">Manage Travellers →</a>';
+        html += '<a href="' + travellersPageUrl() + '?ref=' + encodeURIComponent(ref) + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;">Manage Travellers →</a>';
       }
       html += '</div>';
 
@@ -400,8 +475,8 @@
     if (!noPayment || isOnbehalf) {
       var addonOrders = (data.addon_orders || []);
       var hasAddonOrders = addonOrders.length > 0;
-      var addonUrl  = '/traveller/booking_addons?booking=' + encodeURIComponent(ref);
-      var manageUrl = '/traveller/manage_addon?ref=' + encodeURIComponent(ref);
+      var addonUrl  = addonsPageUrl() + '?booking=' + encodeURIComponent(ref);
+      var manageUrl = manageAddonsUrl();
 
       html += '<div class="tv-dash-grid">';
 
@@ -520,6 +595,144 @@
     html += '</div>';
     html += '</div>';
     return html;
+  }
+
+  /* ── Wire modal "Edit Billing Info" (panel Customer, onbehalf sahaja) ──
+     Butang dirender bila tahap akses Full; klik → buka modal borang
+     email / telefon / alamat billing customer. */
+  function wireCustomerEditModal(data) {
+    var btn = document.getElementById('tvl-edit-cust-btn');
+    if (!btn) return;
+    var b = (data && data.booking) || {};
+    btn.addEventListener('click', function () { openCustomerEditModal(b); });
+  }
+
+  function openCustomerEditModal(b) {
+    var existing = document.getElementById('tvl-cust-modal');
+    if (existing) existing.remove();
+
+    var billing = b.end_customer_billing || {};
+    var val = function (id) {
+      var el = document.getElementById(id);
+      return el ? el.value.trim() : '';
+    };
+    var inp = 'width:100%;padding:10px 12px;border:1.5px solid var(--border-default);border-radius:8px;font:inherit;font-size:13.5px;color:var(--text-primary);box-sizing:border-box;background:#fff;';
+    var lbl = 'display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin:10px 0 4px;';
+
+    // Country = dropdown dari dokumen Country (context page controller) —
+    // nilai canonical supaya sentiasa sah untuk Address.customer. Nilai
+    // lama yang tersimpan (cth. free-text rekod lama) tetap dipapar sebagai
+    // opsyen tambahan supaya tak hilang.
+    var countries = _pageData.billing_countries || [];
+    var curCountry = billing.country || '';
+    var countryOptions = '<option value="">Select country</option>';
+    countries.forEach(function (c) {
+      var sel = (c === curCountry) ? ' selected' : '';
+      countryOptions += '<option value="' + _esc(c) + '"' + sel + '>' + _esc(c) + '</option>';
+    });
+    if (curCountry && countries.indexOf(curCountry) === -1) {
+      countryOptions += '<option value="' + _esc(curCountry) + '" selected>' + _esc(curCountry) + '</option>';
+    }
+
+    var overlay = document.createElement('div');
+    overlay.id = 'tvl-cust-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(30,28,24,.6);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;';
+    overlay.innerHTML =
+      '<div style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:460px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(30,28,24,.35);font-family:inherit;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+          '<div style="font-size:16px;font-weight:700;color:var(--text-primary);">✏️ Edit Billing Info</div>' +
+          '<button type="button" id="tce-close" aria-label="Close" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);line-height:1;">×</button>' +
+        '</div>' +
+        '<p style="font-size:12px;color:var(--text-muted);margin:0 0 6px;line-height:1.5;">' +
+          'Update the customer’s billing contact details. These details are used on billing documents. ' +
+          'The customer’s portal login email is not changed. All fields are required.</p>' +
+        '<label style="' + lbl + '">Email <span style="color:#DC2626;">*</span></label>' +
+        '<input type="email" id="tce-email" required style="' + inp + '" value="' + _esc(b.end_customer_email || '') + '" autocomplete="email"/>' +
+        '<label style="' + lbl + '">Phone <span style="color:#DC2626;">*</span></label>' +
+        '<input type="tel" id="tce-phone" required style="' + inp + '" value="' + _esc(b.end_customer_phone || '') + '" autocomplete="tel"/>' +
+        '<label style="' + lbl + '">Street Address <span style="color:#DC2626;">*</span></label>' +
+        '<input type="text" id="tce-street" required style="' + inp + '" value="' + _esc(billing.address_line1 || '') + '" autocomplete="street-address"/>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
+          '<div><label style="' + lbl + '">City <span style="color:#DC2626;">*</span></label>' +
+          '<input type="text" id="tce-city" required style="' + inp + '" value="' + _esc(billing.city || '') + '" autocomplete="address-level2"/></div>' +
+          '<div><label style="' + lbl + '">Postcode <span style="color:#DC2626;">*</span></label>' +
+          '<input type="text" id="tce-postcode" required style="' + inp + '" value="' + _esc(billing.postcode || '') + '" autocomplete="postal-code"/></div>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
+          '<div><label style="' + lbl + '">State <span style="color:#DC2626;">*</span></label>' +
+          '<input type="text" id="tce-state" required style="' + inp + '" value="' + _esc(billing.state || '') + '" autocomplete="address-level1"/></div>' +
+          '<div><label style="' + lbl + '">Country <span style="color:#DC2626;">*</span></label>' +
+          '<select id="tce-country" required style="' + inp + '" autocomplete="country-name">' + countryOptions + '</select></div>' +
+        '</div>' +
+        '<div id="tce-error" style="display:none;margin-top:12px;padding:10px 12px;border-radius:8px;background:#FDECEC;color:#991B1B;font-size:12.5px;line-height:1.5;"></div>' +
+        '<div style="display:flex;gap:10px;margin-top:18px;">' +
+          '<button type="button" id="tce-cancel" class="tv-btn tv-btn--ghost" style="flex:1;">Cancel</button>' +
+          '<button type="button" id="tce-save" class="tv-btn tv-btn--primary" style="flex:1;">Save Changes</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+
+    function close() {
+      overlay.remove();
+      document.body.style.overflow = '';
+    }
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+    overlay.querySelector('#tce-close').addEventListener('click', close);
+    overlay.querySelector('#tce-cancel').addEventListener('click', close);
+
+    overlay.querySelector('#tce-save').addEventListener('click', async function () {
+      var errBox = overlay.querySelector('#tce-error');
+      errBox.style.display = 'none';
+
+      // Semua medan dalam modal ini wajib sebelum Save Changes —
+      // validasi tempatan form ini sahaja (endpoint server kekal menerima
+      // medan pilihan untuk panggilan lain).
+      var requiredIds = ['tce-email', 'tce-phone', 'tce-street', 'tce-city',
+                         'tce-postcode', 'tce-state', 'tce-country'];
+      var firstEmpty = null;
+      requiredIds.forEach(function (id) {
+        var el = overlay.querySelector('#' + id);
+        if (!el) return;
+        var empty = !(el.value || '').trim();
+        el.style.borderColor = empty ? '#DC2626' : '';
+        if (empty && !firstEmpty) firstEmpty = el;
+      });
+      if (firstEmpty) {
+        errBox.textContent = 'Please fill in all fields — every field is required to save changes.';
+        errBox.style.display = 'block';
+        firstEmpty.focus();
+        return;
+      }
+
+      var email = val('tce-email');
+      if (email && email.indexOf('@') === -1) {
+        errBox.textContent = 'Please enter a valid email address.';
+        errBox.style.display = 'block';
+        return;
+      }
+      var saveBtn = overlay.querySelector('#tce-save');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+      try {
+        await API_BK('update_end_customer_info', {
+          booking_number: BOOKING_REF,
+          email: email,
+          phone: val('tce-phone'),
+          address_line1: val('tce-street'),
+          city: val('tce-city'),
+          postcode: val('tce-postcode'),
+          state: val('tce-state'),
+          country: val('tce-country'),
+        });
+        window.location.reload();  // refresh panel customer dengan nilai baharu
+      } catch (e) {
+        errBox.textContent = e.message || 'Failed to update. Please try again.';
+        errBox.style.display = 'block';
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Changes';
+      }
+    });
   }
 
   /* ── Wire modal pemilihan bill/SO ──

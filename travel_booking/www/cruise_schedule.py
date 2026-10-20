@@ -239,6 +239,11 @@ def _build_timeline(data: dict) -> tuple[list, list]:
                         dd["destination_name"] for dd in (t.get("destinations") or [])
                     ],
                     "starting_from_price": t.get("starting_from_price"),
+                    # Travel Price Rule — harga asal + label promosi
+                    "original_starting_from_price": t.get(
+                        "original_starting_from_price"
+                    ),
+                    "promo_label": t.get("promo_label"),
                     # ── group date (perwakilan sailing) ──
                     "tgd": g["name"],
                     "is_cruise_only": bool(g.get("is_cruise_only")),

@@ -1,0 +1,534 @@
+{% extends "templates/base_travel.html" %}
+
+{# <title>: hormati Meta Title (SEO) bila diisi — guna apa adanya tanpa
+   imbuhan brand supaya admin ada kawalan penuh; fallback corak lama. #}
+{% set _page_title = seo.title if seo and seo.title and seo.title != (trip_name or name) else (trip_name ~ ' — ' ~ (site_name or 'Rarecation')) %}
+{% block title %}{{ _page_title }}{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/assets/travel_booking/css/trip_card.css?v={{ asset_v('css/trip_card.css') }}"/>
+<link rel="stylesheet" href="/assets/travel_booking/css/trips.css?v={{ asset_v('css/trips.css') }}"/>
+<link rel="stylesheet" href="/assets/travel_booking/css/trip_detail.css?v={{ asset_v('css/trip_detail.css') }}"/>
+{# ── PhotoSwipe 5 (fullscreen gallery slideshow) — local CSS + ESM JS #}
+<link rel="stylesheet" href="/assets/travel_booking/css/photoswipe.css?v={{ asset_v('css/photoswipe.css') }}"/>
+{% endblock %}
+
+{% block page_content %}
+{% set g = (group_dates or [{}])[0] if group_dates else {} %}
+<article class="rc-trip-detail" data-trip="{{ name }}">
+
+  {# ── Page banner (trip_image sebagai background photo + breadcrumb) ── #}
+  <div class="rc-page-banner"{% if trip_image %} style="background-image:url('{{ trip_image }}')"{% endif %}>
+    <div class="rc-banner-content">
+      <nav class="rc-crumb">
+        <a href="/">Home</a><i class="ti ti-chevron-right"></i>
+        {# Level dinamik mengikut jenis produk ini: cruise → Cruises (/cruises),
+           tour → Tours (/tours). Fallback "Trips" selamat sebelum konteks
+           tersedia (selepas reload gunicorn). #}
+        {% set crumb = trips_crumb if trips_crumb is defined else {"label": "Trips", "url": "/trips"} %}
+        <a href="{{ crumb.url }}">{{ crumb.label }}</a><i class="ti ti-chevron-right"></i>
+      </nav>
+      <h1 class="rc-trip-title-main" style="color:white; font-weight:300; " >{{ trip_name }}</h1>
+    </div>
+  </div>
+
+  {# ── Photo gallery (white card, square grid) ── #}
+  {% set hero_imgs = gallery if gallery else [trip_image] %}
+  {% set show_imgs = hero_imgs[:5] %}
+  <div class="rc-gallery-area">
+    {# Gallery data sebagai JSON script — lebih reliable dari data-attribute untuk large payload #}
+    <script id="rcGalleryData" type="application/json">{{ hero_imgs|tojson }}</script>
+    <div class="rc-gallery-grid" id="rcGalleryGrid"
+         data-gallery-caption="{{ trip_name|e }}">
+      {% if show_imgs|length > 1 %}
+      {# — Layout: kiri besar + kanan grid (max 5 thumbnail, tiada direct link) — #}
+      <div class="rc-gal-left">
+        <div class="rc-gal-wrap" data-i="0">
+          <img src="{{ show_imgs[0] }}" alt="{{ trip_name }} – Gambar 1" loading="lazy"/>
+          <span class="rc-gal-overlay"><i class="ti ti-photo"></i></span>
+        </div>
+      </div>
+      <div class="rc-gal-right">
+        {% for img in show_imgs[1:] %}
+        <div class="rc-gal-wrap" data-i="{{ loop.index }}">
+          <img src="{{ img }}" alt="{{ trip_name }} – Gambar {{ loop.index + 1 }}" loading="lazy"/>
+          <span class="rc-gal-overlay"><i class="ti ti-photo"></i></span>
+        </div>
+        {% endfor %}
+      </div>
+      {% elif show_imgs|length == 1 %}
+      {# — Satu gambar: full width — #}
+      <div class="rc-gal-full">
+        <div class="rc-gal-wrap" data-i="0">
+          <img src="{{ show_imgs[0] }}" alt="{{ trip_name }} – Gambar 1" loading="lazy"/>
+          <span class="rc-gal-overlay"><i class="ti ti-photo"></i></span>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% if hero_imgs|length > 5 %}
+    <p class="rc-gallery-more">+{{ hero_imgs|length - 5 }} more photos</p>
+    {% endif %}
+  </div>
+
+  {# ── Content area (ikut reference: tag → title → meta → destinations → description) ── #}
+  <div class="rc-trip-layout">
+
+    {# ════ MAIN COLUMN (content) ════ #}
+    <div class="rc-trip-main">
+
+      {# ── Tag badge (eg-tag2 style) ── #}
+      {% if trip_categories %}
+      <span class="rc-eg-tag">{{ trip_categories }}</span>
+      {% elif is_a_cruise_trip %}
+      <span class="rc-eg-tag">Cruise</span>
+      {% else %}
+      <span class="rc-eg-tag">Tour</span>
+      {% endif %}
+
+      {# ── Title (repeated, main content heading) ── #}
+      <h1 class="rc-trip-title-main">{{ trip_name }}</h1>
+
+      {# ── Trip info (destinations, organizer) ── #}
+      {% if organizer_name %}
+      <p class="rc-trip-organizer">
+        {% if organizer_logo %}<img src="{{ organizer_logo }}" alt="" class="rc-org-logo" onerror="this.style.display='none'"/>{% endif %}
+        by {{ organizer_name }}
+      </p>
+      {% endif %}
+
+      
+
+      {# ── Destinations (sebelum description) ── #}
+      {% if destinations %}
+      <section class="rc-trip-section rc-tour-planning">
+        <!-- <h2 class="rc-section-h">Destination</h2> -->
+        <div class="rc-planning-route">
+          {% for d in destinations %}
+          <div class="rc-route-point">
+            <div class="rc-route-icon"><i class="ti ti-map-pin"></i></div>
+            <div class="rc-route-info">
+              <span class="rc-route-value">{{ d.destination_name }}</span>
+              {% if d.country %}<span class="rc-route-country">{{ d.country }}</span>{% endif %}
+            </div>
+          </div>
+          {% if not loop.last %}<div class="rc-route-arrow"><i class="ti ti-arrow-right"></i></div>{% endif %}
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+      {# ── Video YouTube (antara gallery + content, ikut reference cruise.rarecation.com) ── #}
+      {% if video_id %}
+      <section class="rc-trip-section">
+        <div class="rc-video-card">
+          <h2 class="rc-video-title"><i class="ti ti-player-play-filled"></i> Watch Video </h2>
+          <div class="rc-video-embed">
+            <iframe
+              src="https://www.youtube.com/embed/{{ video_id }}?rel=0&modestbranding=1"
+              title="{{ trip_name }} – Video"
+              frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+              loading="lazy">
+            </iframe>
+          </div>
+          {% if video_url and not video_id %}
+          <a href="{{ video_url }}" target="_blank" rel="noopener noreferrer" class="rc-video-external">
+            <i class="ti ti-external-link"></i> Open video in new tab
+          </a>
+          {% endif %}
+        </div>
+      </section>
+      {% endif %}
+
+      {# ── Description (tanpa "Overview" heading, hanya text) ── #}
+      {% if description %}
+      <section class="rc-trip-section rc-description-only" style="margin-top:35px; ">
+        <!-- <h2 class="rc-section-h">Overview</h2> -->
+        <div class="rc-trip-description">{{ description }}</div>
+      </section>
+      {% endif %}
+
+      {# ── Highlights ── #}
+      {% if highlights %}
+      <section class="rc-trip-section">
+        <h2 class="rc-section-h">Highlights</h2>
+        <ul class="rc-highlights">
+          {% for h in highlights %}
+          <li><i class="ti ti-star-filled"></i><span>{{ h.highlight }}</span></li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+
+
+      {# ── Included / Excluded ── #}
+      {% if included or excluded %}
+      <section class="rc-trip-section rc-trip-grid-2">
+        {% if included %}
+        <div class="rc-feat-block rc-feat-incl">
+          <h2 class="rc-section-h"><i class="ti ti-circle-check"></i> Included</h2>
+          <ul class="rc-feat-list">
+            {% for f in included %}<li><i class="ti ti-circle-check"></i><span>{{ f.feature }}</span></li>{% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+        {% if excluded %}
+        <div class="rc-feat-block rc-feat-excl">
+          <h2 class="rc-section-h"><i class="ti ti-circle-x"></i> Excluded</h2>
+          <ul class="rc-feat-list">
+            {% for f in excluded %}<li><i class="ti ti-circle-x"></i><span>{{ f.feature }}</span></li>{% endfor %}
+          </ul>
+        </div>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      {# ── Facilities (full width, tanpa Travel Styles) ── #}
+      {% if facilities %}
+      <section class="rc-trip-section">
+        <div class="rc-chips-block">
+          <h2 class="rc-section-h">Facilities</h2>
+          <ul class="rc-chips">
+            {% for f in facilities %}
+            <li class="rc-chip"><i class="ti {{ f.icon or 'ti-circle-check' }}"></i><span>{{ f.facility }}</span></li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+      {% endif %}
+
+
+
+
+      {# ── Itinerary timeline (day-by-day) ── #}
+      {% if itinerary %}
+      <section class="rc-trip-section">
+        <div class="rc-itin-top">
+          <div>
+            <h2 class="rc-section-h">{{ itinerary_title or 'Itinerary' }}</h2>
+            <p class="rc-section-sub">{{ itinerary_caption or 'Day-by-day planning' }}</p>
+          </div>
+          {# Butang global minimize/expand semua hari — label & ikon disegerak
+             dengan state kad oleh trip_detail.js #}
+          <button type="button" class="rc-itin-all" id="rcItinToggleAll" aria-expanded="true">
+            <i class="ti ti-chevrons-up"></i><span>Collapse all</span>
+          </button>
+        </div>
+        {# Timeline hari — macro supaya sama digunakan untuk render flat
+           dan render segmented (Pre-Cruise / Cruise / Post-Cruise). #}
+        {% macro itin_timeline(rows) %}
+        <ol class="rc-itinerary">
+          {% for row in rows %}
+          <li class="rc-itin-day" data-day="{{ row.day }}">
+            <div class="rc-itin-marker"><span>Day {{ row.day }}</span></div>
+            <div class="rc-itin-card">
+              <div class="rc-itin-head">
+                <h3 class="rc-itin-title">{{ row.day_title }}</h3>
+                {% if row.destination_name %}<span class="rc-itin-dest">{{ row.destination_name }}{% if row.country %} · {{ row.country }}{% endif %}</span>{% endif %}
+              </div>
+              {% if row.day_image %}
+              <img src="{{ row.day_image }}" alt="{{ row.day_title }}" class="rc-itin-img" onerror="this.style.display='none'"/>
+              {% endif %}
+              {% if row.description %}<div class="rc-itin-desc">{{ row.description }}</div>{% endif %}
+              {% if row.meals %}<p class="rc-itin-meals"><i class="ti ti-tools-kitchen2"></i> {{ row.meals }}</p>{% endif %}
+              <button type="button" class="rc-itin-toggle">hide</button>
+            </div>
+          </li>
+          {% endfor %}
+        </ol>
+        {% endmacro %}
+        {% if itinerary_segments and itinerary_segments|length > 1 %}
+          {# Cruise trip dengan hari Pre/Post — fasa berlabel, nombor hari kekal berterusan. #}
+          {% for seg in itinerary_segments %}
+          <div class="rc-itin-segment">
+            <div class="rc-itin-seg-head">
+              <i class="ti {{ seg.icon }}"></i>
+              <h3 class="rc-itin-seg-label">{{ seg.label }}</h3>
+              <span class="rc-itin-seg-days">Day {{ seg.day_from }}{% if seg.day_to != seg.day_from %}&ndash;{{ seg.day_to }}{% endif %}</span>
+            </div>
+            {{ itin_timeline(seg.rows) }}
+          </div>
+          {% endfor %}
+        {% else %}
+          {{ itin_timeline(itinerary) }}
+        {% endif %}
+      </section>
+      {% endif %}
+
+      {# ── FAQ accordion ── #}
+      {% if faqs %}
+      <section class="rc-trip-section">
+        <h2 class="rc-section-h">Frequently Asked Questions</h2>
+        <div class="rc-faq" id="rcFaq">
+          {% for f in faqs %}
+          <div class="rc-faq-item">
+            <button class="rc-faq-q" type="button" aria-expanded="false">
+              <span>{{ f.question }}</span><i class="ti ti-chevron-down rc-faq-icon"></i>
+            </button>
+            <div class="rc-faq-a"><div class="rc-faq-a-inner">{{ f.answer }}</div></div>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
+    </div>{# /rc-trip-main #}
+
+    {# ════ SIDEBAR (booking widget) ════ #}
+    <aside class="rc-trip-sidebar">
+      <div class="rc-booking-card" id="rcBookingCard">
+        <button type="button" class="rc-drawer-close" aria-label="Hide booking panel"><i class="ti ti-x"></i></button>
+        <h3 class="rc-booking-title">Reserve Your Activity</h3>
+        <p class="rc-booking-sub">Price is varies base on current flight price</p>
+
+        {% if starting_from_price %}
+        {# Harga "from" + simbol currency SEBENAR harga itu (currency listing
+           aktif secara normal; currency native pakej termurah bila
+           currency_native_only — disuntik oleh get_context). Fallback
+           symbol company bila page include dari konteks lain.
+           Travel Price Rule: harga promo + strikethrough harga asal. #}
+        <p class="rc-trip-fromprice"><small>Start from</small>
+          {% if original_starting_from_price %}<s class="rc-price-was">{{ starting_from_symbol or currency_symbol or get_company_symbol() }}{{ "{:,.0f}".format(original_starting_from_price) }}</s>{% endif %}
+          {{ starting_from_symbol or currency_symbol or get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }} <span class="rc-muted">/ person{% if currency_native_only %} · package currency{% endif %}</span></p>
+        {% if promo_label %}<p class="rc-promo-line"><span class="rc-promo-badge"><i class="ti ti-rosette-discount"></i> {{ promo_label }}</span></p>{% endif %}
+        {% endif %}
+
+        {# ── meta bar (duration, max pax, type) ── #}
+        {% if g %}
+        <ul class="rc-booking-meta">
+          {% if g.total_days %}<li id="rcMetaDuration"><i class="ti ti-clock-2"></i> {{ g.total_days }}D{% if g.total_nights %}/{{ g.total_nights }}N{% endif %}</li>{% endif %}
+          {% if g.max_participants %}<li><i class="ti ti-users"></i> Max {{ g.max_participants }} pax</li>{% else %}<li><i class="ti ti-users"></i> Open pax</li>{% endif %}
+          <li><i class="ti {{ 'ti-ship' if is_cruise else 'ti-route' }}"></i> {{ 'Cruise' if is_cruise else 'Tour' }}</li>
+        </ul>
+        {% endif %}
+
+        {% if group_dates %}
+        <div class="rc-booking-widget">
+          {# ── FLOW: Date first → Package second ── #}
+          {# DIV, bukan <label> — bila >1 tarikh, rcDetailGroupDate mengandungi
+             BUTANG trigger popup date selector (labelable element); wrapper
+             <label> akan implicitly label BUTANG tersebut dan Chrome
+             mempropagasi :hover/:active label ke labeled control (bug sama
+             seperti wrapper butang pakej di bawah). #}
+          <div class="rc-field">
+            <span class="rc-field-label">{% if is_cruise %}Choose Sailing Date{% else %}Departure date{% endif %}</span>
+            <div id="rcDetailGroupDate" class="rc-date-radios">
+              <p class="rc-muted">Loading dates…</p>
+            </div>
+          </div>
+          {# DIV, bukan <label> — butang pakej adalah labelable element;
+             wrapper <label> akan implicitly label BUTANG PERTAMA dan Chrome
+             mempropagasi :hover/:active label ke labeled control tersebut
+             (hover butang lain turut "menyalakan" butang pertama). #}
+          <div class="rc-field">
+            <span class="rc-field-label">Choose Package</span>
+            <div id="rcDetailPackage" class="rc-pkg-buttons">
+              <p class="rc-muted">Pick a date to see available packages.</p>
+            </div>
+          </div>
+
+          <span class="rc-field-label">Price Info</span>
+          <div id="rcDetailCabins" class="rc-cabins-empty">
+            <p class="rc-muted">Pick a package to see room options and prices.</p>
+          </div>
+
+          <button id="rcDetailBookBtn" class="rc-btn-primary rc-btn-disabled" disabled>Book Now</button>
+          <button id="rcDetailShareBtn" class="rc-btn-share rc-btn-disabled" disabled>Share My Trip</button>
+          {# Currency dicaj = currency native pakej yang dipilih (setiap
+             pakej satu currency — trip_detail.js kemas kini nota ini bila
+             customer pilih pakej; default: currency listing aktif). #}
+          <p class="rc-booking-note" id="rcChargedCurrencyNote">Charged in {{ currency or get_company_currency() }}</p>
+        </div>
+        {% else %}
+        <p class="rc-empty-inline">No upcoming departures. <a href="/trips">Browse other trips →</a></p>
+        {% endif %}
+      </div>
+
+      {# ── Mobile drawer (≤640px): backdrop + bar sticky "harga + Book Now"
+         yang membuka card sebagai bottom drawer. Dikawal trip_detail.js;
+         disembunyi di desktop (trip_detail.css). ── #}
+      <div class="rc-drawer-backdrop" aria-hidden="true"></div>
+      <button type="button" class="rc-booking-bar" id="rcBookingBar" aria-expanded="false" aria-controls="rcBookingCard">
+        <span class="rc-bar-info">
+          {% if starting_from_price %}
+          <span class="rc-bar-price">{% if original_starting_from_price %}<s class="rc-price-was">{{ starting_from_symbol or currency_symbol or get_company_symbol() }}{{ "{:,.0f}".format(original_starting_from_price) }}</s> {% endif %}{{ starting_from_symbol or currency_symbol or get_company_symbol() }}{{ "{:,.0f}".format(starting_from_price) }}</span>
+          <span class="rc-bar-label">start from / person</span>
+          {% else %}
+          <span class="rc-bar-price">Reserve your activity</span>
+          {% endif %}
+        </span>
+        <span class="rc-bar-cta">Book Now <i class="ti ti-chevron-up"></i></span>
+      </button>
+
+      {# Sentinel sticky booking card — penanda hujung sidebar. Bila sentinel
+         keluar viewport, card masih "menunggang" di bawah skrin; trip_detail.js
+         baca sentinel ini untuk toggle .rc-stuck (bayang lebih dalam). #}
+      <div class="rc-sticky-sentinel" aria-hidden="true"></div>
+    </aside>
+
+  </div>{# /rc-trip-layout #}
+
+  {# ── Related tours (max 3 cards, full width) ── #}
+  {% if related %}
+  <section class="rc-trip-section rc-related">
+    <h2 class="rc-section-h">You may also like</h2>
+    <div class="rc-trip-grid-cards">
+      {% for r in related %}
+      {% with t=r, gds=[r.get('_first_gd', {})] %}
+      {% include "templates/includes/trip_card.html" %}
+      {% endwith %}
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+</article>
+
+{# JSON untuk trip_detail.js — packages di-preload dari get_trip_detail (sudah
+   cruise-dedup: group dates yang sama sailing_start digabung, jadi
+   trip_group_date setiap package konsisten dengan radio button yang dipaparkan).
+   Ini mengelakkan search_packages_by_date (yang tak dedup) pulangkan package
+   dari group date yang telah digabung, menyebabkan wish-matching gagal. #}
+<script id="rcDetailData" type="application/json">{
+  "trip_master": {{ name|tojson }},
+  "trip_name": {{ trip_name|tojson }},
+  "is_cruise": {{ "true" if is_cruise else "false" }},
+  "trip_type": {{ ("cruise" if is_cruise else "non_cruise")|tojson }},
+  "group_dates": {{ group_dates_json }},
+  "trip_packages": {{ trip_packages_json }},
+  "sailing_tgds": {{ sailing_tgds_json }},
+  "company_symbol": {{ get_company_symbol()|tojson }},
+  "currency": {{ (currency or get_company_currency())|tojson }},
+  "currency_symbol": {{ (currency_symbol or get_company_symbol())|tojson }},
+  "currency_native_only": {{ "true" if currency_native_only else "false" }},
+  "gallery_count": {{ gallery|length }}
+}</script>
+
+{# Harga "from" (MIN price_adult package Active currency listing) + currency
+   SEBENAR harga itu untuk event GA4 view_item — dibaca oleh public/js/analytics.js.
+   Null → item tanpa price (GA terima). #}
+<script id="rcItemPriceData" type="application/json">{"price": {{ starting_from_price|tojson }}, "currency": {{ starting_from_currency|tojson }}}</script>
+
+{# Widget logic hidup dalam /assets/travel_booking/js/trip_detail.js (single source of truth).
+   JANGAN inline salinan script di sini — duplicate IIFE berlawan atas DOM sama
+   (butang package dirender dua kali, race render cabins). #}
+
+{% endblock %}
+
+{% block footer_extra %}
+<script type="module">
+  // Simple Custom Lightbox — vanilla JS, tiada library dependency
+  (function () {
+  try {
+  var grid = document.getElementById("rcGalleryGrid");
+  if (!grid) return;
+
+  // Parse URLs
+  var dataEl = document.getElementById("rcGalleryData");
+  var urls = [];
+  if (dataEl && dataEl.textContent) {
+    try { urls = JSON.parse(dataEl.textContent); } catch(e) { console.error("[RC Lightbox] JSON error:", e); }
+  }
+  if (!urls.length) return;
+
+  var wraps = grid.querySelectorAll(".rc-gal-wrap");
+
+  // Create lightbox container dengan thumbnail strip slideshow
+  var lb = document.createElement("div");
+  lb.id = "rcLightbox";
+  lb.innerHTML =
+    '<div class="lb-overlay"></div>'
+    + '<div class="lb-content">'
+    +   '<img class="lb-img" src="" alt=""/>'
+    +   '<div class="lb-close">×</div>'
+    +   '<div class="lb-prev">‹</div>'
+    +   '<div class="lb-next">›</div>'
+    +   '<div class="lb-counter"></div>'
+    +   '<div class="lb-thumbs"></div>'  // ← thumbnail strip untuk slideshow
+    + '</div>';
+  document.body.appendChild(lb);
+
+  var lbImg = lb.querySelector(".lb-img");
+  var lbCounter = lb.querySelector(".lb-counter");
+  var lbThumbs = lb.querySelector(".lb-thumbs");  // ← thumb container
+  var currentIndex = 0;
+
+  // Build thumbnail strip
+  urls.forEach(function(url, i) {
+    var thumb = document.createElement("img");
+    thumb.src = url;
+    thumb.className = "lb-thumb" + (i === 0 ? " active" : "");
+    thumb.setAttribute("data-index", i);
+    thumb.alt = "Image " + (i+1);
+    thumb.addEventListener("click", function(e) {
+      e.stopPropagation();
+      show(parseInt(this.getAttribute("data-index"), 10));
+    });
+    lbThumbs.appendChild(thumb);
+  });
+
+  function show(index) {
+    currentIndex = index;
+    lbImg.src = urls[index];
+    lbCounter.textContent = (index + 1) + " / " + urls.length;
+    lb.classList.add("active");
+    // Highlight thumbnail aktif
+    var thumbs = lbThumbs.querySelectorAll(".lb-thumb");
+    thumbs.forEach(function(t, i) { t.classList.toggle("active", i === index); });
+    // Scroll thumb aktif ke center
+    var activeThumb = thumbs[index];
+    if (activeThumb) activeThumb.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }
+
+  function close() { lb.classList.remove("active"); lbImg.src = ""; }
+  function next() { show((currentIndex + 1) % urls.length); }
+  function prev() { show((currentIndex - 1 + urls.length) % urls.length); }
+
+  // Events
+  lb.querySelector(".lb-close").addEventListener("click", close);
+  lb.querySelector(".lb-prev").addEventListener("click", prev);
+  lb.querySelector(".lb-next").addEventListener("click", next);
+  lb.querySelector(".lb-overlay").addEventListener("click", close);
+  document.addEventListener("keydown", function(e) {
+    if (!lb.classList.contains("active")) return;
+    if (e.key === "Escape") close();
+    if (e.key === "ArrowRight") next();
+    if (e.key === "ArrowLeft") prev();
+  });
+
+  // Click on gallery thumbnails
+  Array.prototype.forEach.call(wraps, function(w) {
+    w.style.cursor = "pointer";
+    w.addEventListener("click", function(e) {
+      e.preventDefault();
+      var idx = parseInt(w.getAttribute("data-i"), 10);
+      show(isNaN(idx) ? 0 : idx);
+    });
+  });
+
+		  } catch(err) {
+		    console.error("[RC Lightbox] 💥 ERROR:", err);
+		  }
+	  })();
+</script>
+<style>
+#rcLightbox { display:none; position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,.92); }
+#rcLightbox.active { display:flex; align-items:center; justify-content:center; }
+#rcLightbox .lb-overlay { position:absolute; inset:0; }
+#rcLightbox .lb-content { position:relative; width:90vw; height:85vh; }
+#rcLightbox .lb-img { width:100%; height:100%; object-fit:contain; border-radius:4px; }
+#rcLightbox .lb-close { position:fixed; top:20px; right:30px; font-size:40px; color:#fff; cursor:pointer; line-height:1; user-select:none; z-index:10; }
+#rcLightbox .lb-prev, #rcLightbox .lb-next { position:fixed; top:50%; transform:translateY(-50%); font-size:50px; color:#fff; cursor:pointer; user-select:none; z-index:10; }
+#rcLightbox .lb-prev { left:20px; } #rcLightbox .lb-next { right:20px; }
+#rcLightbox .lb-counter { position:fixed; bottom:70px; left:50%; transform:translateX(-50%); color:#fff; font-size:14px; background:rgba(0,0,0,.5); padding:4px 12px; border-radius:12px; }
+/* Thumbnail strip untuk slideshow */
+#rcLightbox .lb-thumbs { display:flex; gap:6px; padding:10px 15px; overflow-x:auto; justify-content:center; max-width:90vw; scrollbar-width:none; }
+#rcLightbox .lb-thumbs::-webkit-scrollbar { display:none; }
+#rcLightbox .lb-thumb { width:60px; height:60px; object-fit:cover; border-radius:4px; cursor:pointer; opacity:.5; transition:all .2s; border:2px solid transparent; flex-shrink:0; }
+#rcLightbox .lb-thumb:hover { opacity:.8; transform:scale(1.05); }
+#rcLightbox .lb-thumb.active { opacity:1; border-color:#C9A84C; transform:scale(1.08); }
+</style>
+<script src="/assets/travel_booking/js/trip_detail.js?v={{ asset_v('js/trip_detail.js') }}"></script>
+{% endblock %}

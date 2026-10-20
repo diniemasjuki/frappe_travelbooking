@@ -49,6 +49,7 @@ def after_install():
 	_create_default_travel_website()
 	_create_email_templates()
 	_create_b2b_email_templates()
+	_seed_email_notification_settings()
 	_create_print_format()
 
 
@@ -435,6 +436,78 @@ def _create_b2b_email_templates():
 
 
 # ══════════════════════════════════════════════
+# 4b. TRAVEL SETTINGS — baris tab "Email Notifications"
+# ══════════════════════════════════════════════
+
+def _seed_email_notification_settings():
+	"""Seed 8 baris lalai tab "Email Notifications" (Travel Settings >
+	child table Travel Email Notification). Semua aktif, menunjuk template
+	lalai yang dicipta oleh _create_email_templates() /
+	_create_b2b_email_templates() — MESTI dipanggil SELEPAS kedua-duanya
+	supaya Link sah semasa save.
+
+	Idempotent & hormat keputusan admin: langkau jika senarai TAK kosong —
+	bagi site sedia ada, admin mungkin dah padam/susun semula baris dan
+	seed TAK boleh timpa itu. Nama baris dipadankan keys yang dibaca
+	_email_notification_config() di email_service.py (KEEP IN SYNC).
+	"""
+	settings = frappe.get_doc("Travel Settings", "Travel Settings")
+	if settings.email_notifications:
+		return
+
+	# Baris passport ikut keadaan SEMASA rekod Notification yang
+	# mencetuskannya — admin mungkin dah disable sebelum ni, jangan paksa
+	# hidup semula secara senyap.
+	passport_enabled = frappe.db.get_value(
+		"Notification", "Passport Submission", "enabled")
+
+	rows = [
+		("booking_status_pending", "Booking Status — Pending",
+		 "Booking Pending", "Booking Pending (Traveller)",
+		 "Dihantar semasa booking dicipta (Manual Transfer / Pay Later) dan bila pembayaran Stripe gagal atau checkout tamat masa."),
+		("booking_status_accepted", "Booking Status — Accepted",
+		 "Booking Accepted", "Booking Accepted (Traveller)",
+		 "Dihantar bila bayaran pertama diterima (Pending → Accepted)."),
+		("booking_status_processing", "Booking Status — Processing",
+		 "Booking Processing", "Booking Processing (Traveller)",
+		 "Dihantar bila admin tukar status Sales Order ke Processing."),
+		("booking_status_confirmed", "Booking Status — Confirmed",
+		 "Booking Confirmed", "Booking Confirmed (Traveller)",
+		 "Dihantar bila admin tukar status Sales Order ke Confirmed."),
+		("booking_status_completed", "Booking Status — Completed",
+		 "Booking Completed", "Booking Completed (Traveller)",
+		 "Dihantar oleh scheduler harian bila trip tamat (auto-complete)."),
+		("payment_receipt", "Payment Receipt",
+		 "Payment Receipt", None,
+		 "Resit untuk setiap Payment Entry berkaitan booking — PDF resit dilampirkan."),
+		("set_password", "Set Your Password",
+		 "Set Your Password", None,
+		 "Dihantar SEKALI kepada customer baharu selepas User portal dicipta. Dinyahaktif = link set-password tak sampai dan customer mungkin terkunci."),
+		("passport_submission", "Passport Submission",
+		 None, None,
+		 "Notification standard (Traveller → New) yang minta customer hantar maklumat passport. Toggle ni menyelaraskan flag enabled rekod Notification 'Passport Submission'. Kandungan diedit di rekod Notification itu sendiri."),
+	]
+	for key, label, template, traveller_template, desc in rows:
+		settings.append("email_notifications", {
+			"notification_key":         key,
+			"label":                    label,
+			"enabled":                  1,
+			"email_template":           template if (
+											template and frappe.db.exists(
+												"Email Template", template)) else None,
+			"traveller_email_template": traveller_template if (
+											traveller_template and frappe.db.exists(
+												"Email Template", traveller_template)) else None,
+			"description":              desc,
+		})
+
+	if passport_enabled is not None:
+		settings.email_notifications[-1].enabled = int(bool(passport_enabled))
+
+	settings.save(ignore_permissions=True)
+
+
+# ══════════════════════════════════════════════
 # 5. PRINT FORMAT — "Rarecation Receipt"
 # ══════════════════════════════════════════════
 
@@ -548,6 +621,19 @@ _TPL_RECEIPT = """\
   <h2 style="color: #B8860B;">Payment Receipt</h2>
   <p>Hi {{ first_name }},</p>
   <p>We've received your payment of <strong>{{ amount_fmt }}</strong> for booking <strong>{{ booking_number }}</strong>.</p>
+  {% if trip_title %}
+  <div style="background:#F5F3EE;border-radius:8px;padding:14px 18px;margin:16px 0;">
+    <div style="font-size:11px;color:#7D7A70;margin-bottom:6px;">Booking Details</div>
+    <table style="width:100%;font-size:13px;border-collapse:collapse;">
+      <tr><td style="padding:3px 0;color:#7D7A70;">Trip</td><td style="text-align:right;font-weight:600;">{{ trip_title }}</td></tr>
+      {% if package_title %}<tr><td style="padding:3px 0;color:#7D7A70;">Package</td><td style="text-align:right;font-weight:600;">{{ package_title }}</td></tr>{% endif %}
+      {% if group_date_name %}<tr><td style="padding:3px 0;color:#7D7A70;">Group Date</td><td style="text-align:right;font-weight:600;">{{ group_date_name }}</td></tr>{% endif %}
+      {% if departure_fmt %}<tr><td style="padding:3px 0;color:#7D7A70;">Departure</td><td style="text-align:right;font-weight:600;">{{ departure_fmt }}{% if return_fmt %} &ndash; {{ return_fmt }}{% endif %}</td></tr>{% endif %}
+      {% if total_fmt %}<tr><td style="padding:3px 0;color:#7D7A70;">Total</td><td style="text-align:right;font-weight:600;">{{ total_fmt }}</td></tr>{% endif %}
+      {% if balance_fmt %}<tr><td style="padding:3px 0;color:#7D7A70;">Outstanding Balance</td><td style="text-align:right;font-weight:600;">{{ balance_fmt }}</td></tr>{% endif %}
+    </table>
+  </div>
+  {% endif %}
   <p>A detailed PDF receipt is attached to this email for your records.</p>
 </div>
 """

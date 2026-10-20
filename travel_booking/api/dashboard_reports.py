@@ -358,21 +358,21 @@ def get_pending_documents() -> dict:
 	"""
 	try:
 		count = frappe.db.count('Booking Reservation', {
-			'document_status': ['in', ['Pending Review', 'Open for Update']],
+			'document_status': ['in', ['Incomplete', 'Open for Update']],
 		})
 
 		items = frappe.db.sql("""
-			SELECT 
-				br.traveller_name,
+			SELECT
+				br.traveller_full_name,
 				br.name as reservation,
 				b.name as booking,
-				CASE WHEN br.passport_no IS NOT NULL THEN 'Passport' ELSE 'IC' END as doc_type,
+				CASE WHEN br.traveller_passportno IS NOT NULL THEN 'Passport' ELSE 'IC' END as doc_type,
 				br.document_status,
 				tgd.departure_date as due_date
-			FROM `Booking Reservation` br
+			FROM `tabBooking Reservation` br
 			INNER JOIN `tabBooking` b ON b.name = br.booking
-			LEFT JOIN `Trip Group Date` tgd ON tgd.name = b.trip_date
-			WHERE br.document_status IN ('Pending Review', 'Open for Update')
+			LEFT JOIN `tabTrip Group Date` tgd ON tgd.name = b.trip_date
+			WHERE br.document_status IN ('Incomplete', 'Open for Update')
 			ORDER BY tgd.departure_date ASC
 			LIMIT 15
 		""", as_dict=True)

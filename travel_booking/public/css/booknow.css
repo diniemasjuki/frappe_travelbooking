@@ -311,6 +311,17 @@ body:has(.bnw-main) .rc-public-main {
   padding: 20px 20px;
   width:100%;
 }
+/* Billing Address (Step 2) — baris 2 medan (City+Postcode, State+Country)
+   supaya borang Step 2 tidak terlalu panjang; 1 lajur di skrin sempit. */
+.bnw-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 14px;
+  width: 100%;
+}
+@media (max-width: 480px) {
+  .bnw-field-row { grid-template-columns: 1fr; }
+}
 .bnw-label {
   display: block;
   font-family: var(--font-heading);
@@ -1201,33 +1212,6 @@ body:has(.bnw-main) .rc-public-main {
   margin-bottom: 30px;
 }
 
-/* Quick chips */
-.bnw-pay-chips {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-.bnw-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
-  border: 1.5px solid var(--bnw-border);
-  border-radius: 999px;
-  background: var(--bnw-white);
-  cursor: pointer;
-  font-family: var(--font-body);
-  font-size: 13px;
-  transition: all .2s ease;
-}
-.bnw-chip:hover { border-color: var(--bnw-gold); }
-.bnw-chip.active {
-  border-color: var(--bnw-gold);
-  background: var(--bnw-gold-light);
-}
-.bnw-chip-label { color: var(--bnw-text-muted); }
-.bnw-chip.amt { font-weight: 600; color: var(--bnw-dark); }
-
 /* Pay error / deposit notice */
 .bnw-pay-error {
   color: var(--bnw-error);
@@ -1479,48 +1463,11 @@ body:has(.bnw-main) .rc-public-main {
   margin-bottom: 10px;
 }
 
-/* Sales section */
-.bnw-sales-section { padding: 14px 0; }
-.bnw-sales-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
 .bnw-optional {
   font-weight: 400;
   color: var(--bnw-text-light);
   text-transform: none;
   letter-spacing: 0;
-}
-
-/* Sales Person rows — tiada gaya sedia ada, jadi butang "Remove" jatuh ke
-   default browser (kelabu, lari dari tema). Susun flex (dropdown + Remove
-   sebaris) dan padankan gaya butang Remove dengan .bnw-cabin-remove. */
-.bnw-sales-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-.bnw-sales-row .bnw-select-wrap { flex: 1 1 auto; min-width: 0; }
-.bnw-sales-remove {
-  background: none;
-  border: 1px solid var(--bnw-gold-hover);
-  color: var(--bnw-dark-soft);
-  cursor: pointer;
-  padding: 5px 10px;
-  margin-left: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  border-radius: 10px;
-  white-space: nowrap;
-  transition: background .2s, border-color .2s, color .2s;
-}
-.bnw-sales-remove:hover {
-  background: var(--bnw-gold-light);
-  border-color: var(--bnw-gold);
-  color: var(--bnw-dark);
 }
 
 /* Grand Total */
@@ -1726,8 +1673,6 @@ body:has(.bnw-main) .rc-public-main {
   .bnw-grand-total strong { font-size: 18px; }
 
   .bnw-pay-input { font-size: 20px; }
-  .bnw-pay-chips { flex-direction: column; }
-  .bnw-chip { justify-content: center; }
 }
 
 @media (max-width: 480px) {
@@ -1937,6 +1882,39 @@ body:has(.bnw-main) .rc-public-main {
   color: #fff;
 }
 
+/* ── Search box — cari kabin ikut nama ── */
+.bnw-cpick-search {
+  position: relative;
+  margin: 14px 22px 0;
+}
+.bnw-cpick-search .ti-search {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  color: var(--bnw-text-muted);
+  pointer-events: none;
+}
+.bnw-cpick-search-input {
+  width: 100%;
+  padding: 11px 14px 11px 40px;
+  border: 1.5px solid var(--bnw-border-dark);
+  border-radius: 10px;
+  background: var(--bnw-white);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  color: var(--bnw-dark);
+  outline: none;
+  transition: border-color .15s ease;
+}
+.bnw-cpick-search-input:focus {
+  border-color: var(--bnw-gold);
+}
+.bnw-cpick-search-input::placeholder {
+  color: var(--bnw-text-light);
+}
+
 /* ── Filter chips ikut room type ── */
 .bnw-cpick-filters {
   display: flex;
@@ -2132,17 +2110,21 @@ body:has(.bnw-main) .rc-public-main {
 /* ── Carousel media (gambar + video slide) — RATIO 16:9 utk video ── */
 .bnw-cpick-carousel {
   position: relative;
-  width: 300px;   /* 300 × 168.75 ≈ 16:9 — sesuai video playback */
+  width: 300px;
   flex-shrink: 0;
   background: var(--bnw-cream);
   border-right: 1px solid var(--bnw-border);
+  /* Nisbah bingkai slide — default 16:9; booknow.js override ikut saiz
+     semula jadi cover photo (slide pertama) supaya gambar portrait tak
+     dipotong ekstrem (clamp 3:4–16:9). */
+  --slide-ar: 16 / 9;
 }
 .bnw-cpick-track {
   position: relative;
 }
 .bnw-cpick-slide {
   position: relative;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: var(--slide-ar, 16 / 9);
   height: auto;
 }
 .bnw-cpick-slide img {
@@ -2159,39 +2141,79 @@ body:has(.bnw-main) .rc-public-main {
   color: var(--bnw-text-light);
   font-size: 44px;
 }
-.bnw-cpick-slide--video { cursor: pointer; }
-.bnw-cpick-play {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 58px;
-  height: 58px;
+
+/* ── Baris butang bawah kanan kad: mini play video + Select This Room ── */
+.bnw-cpick-btnrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bnw-cpick-video-btn {
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border: none;
+  border: 1.5px solid var(--bnw-border-dark);
   border-radius: 50%;
-  background: rgba(30, 28, 24, .72);
-  color: #fff;
+  background: var(--bnw-white);
+  color: var(--bnw-dark);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background .2s ease, transform .2s ease;
-  z-index: 2;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+  flex-shrink: 0;
 }
-.bnw-cpick-play i {
-  font-size: 26px;
-  margin-left: 4px; /* optical centering ikon play segitiga */
+.bnw-cpick-video-btn i {
+  font-size: 15px;
+  margin-left: 2px; /* optical centering ikon play segitiga */
 }
-.bnw-cpick-slide--video:hover .bnw-cpick-play {
-  background: var(--bnw-gold);
-  transform: translate(-50%, -50%) scale(1.06);
+.bnw-cpick-video-btn:hover {
+  background: var(--bnw-dark);
+  border-color: var(--bnw-dark);
+  color: var(--bnw-gold);
 }
-.bnw-cpick-slide iframe {
-  width: 100%;
-  height: 100%;
+.bnw-cpick-video-btn:active { transform: scale(.94); }
+
+/* ── Video bilik fullscreen — overlay di ATAS modal picker ── */
+.bnw-video-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10010; /* atas modal picker (10000) */
+  background: rgba(15, 14, 12, .96);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.bnw-video-overlay iframe {
+  width: min(96vw, 1600px);
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
   border: 0;
-  display: block;
+  background: #000;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
+}
+.bnw-video-close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .12);
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+.bnw-video-close:hover {
+  background: var(--bnw-gold);
+  color: var(--bnw-dark);
 }
 .bnw-cpick-arrow {
   position: absolute;
@@ -2267,6 +2289,9 @@ body:has(.bnw-main) .rc-public-main {
   .bnw-cpick-sub { font-size: 12.5px; }
   .bnw-cpick-close { width: 32px; height: 32px; font-size: 16px; }
 
+  /* Search box: padding selari dengan head/chips (16px) di skrin kecil */
+  .bnw-cpick-search { margin: 12px 16px 0; }
+
   /* Filter chips: baris mendatar boleh scroll (tak wrap sesakkan) */
   .bnw-cpick-filters {
     flex-wrap: nowrap;
@@ -2299,6 +2324,24 @@ body:has(.bnw-main) .rc-public-main {
     padding: 9px 18px;
     font-size: 13px;
   }
+  /* Butang play video turut membesar selari butang Select */
+  .bnw-cpick-video-btn {
+    width: 36px;
+    height: 36px;
+  }
+  .bnw-cpick-video-btn i { font-size: 17px; }
+
+  /* Video fullscreen: kurangkan padding utk skrin kecil */
+  .bnw-video-overlay { padding: 12px; }
+  .bnw-video-overlay iframe {
+    width: 100vw;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+  .bnw-video-close {
+    top: calc(10px + env(safe-area-inset-top, 0px));
+    right: 10px;
+  }
   .bnw-cpick-arrow {
     width: 30px;
     height: 30px;
@@ -2321,3 +2364,200 @@ body:has(.bnw-main) .rc-public-main {
   margin-right: 2px;
   color: var(--bnw-gold);
 }
+
+/* ── Travel Price Rule (promosi price slash) ──
+   Strikethrough harga asal (stepper rate + kad kabin) & badge promosi. */
+.bnw-price-was {
+  color: var(--bnw-text-light);
+  font-weight: 400;
+  text-decoration: line-through;
+  text-decoration-color: var(--bnw-text-light);
+  margin-left: 4px;
+}
+
+.bnw-promo-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bnw-gold-light);
+  border: 1px solid var(--bnw-gold-border);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: var(--bnw-gold-hover);
+  white-space: nowrap;
+  margin-left: 8px;
+}
+
+/* ── TERMS & CONDITIONS panel (Step 3, bawah Payment Method) ──
+   Kandungan dirender server-side dari dokumen Booking Terms and
+   Condition aktif; checkbox wajib sebelum Pay Now (gate UX — gate
+   sebenar di confirm_booking()). */
+.bnw-terms-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 14px;
+}
+.bnw-terms-head .bnw-card-title { margin: 0 0 4px; }
+.bnw-terms-meta {
+  font-size: 12px;
+  color: var(--bnw-text-muted);
+  letter-spacing: .02em;
+}
+.bnw-terms-content {
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bnw-cream);
+  border: 1px solid var(--bnw-border);
+  border-radius: var(--bnw-radius-sm);
+  padding: 16px 18px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--bnw-text);
+  margin-bottom: 14px;
+  scrollbar-width: thin;
+}
+.bnw-terms-content h1,
+.bnw-terms-content h2,
+.bnw-terms-content h3,
+.bnw-terms-content h4 {
+  font-family: var(--font-heading);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--bnw-dark);
+  margin: 14px 0 6px;
+}
+.bnw-terms-content h1:first-child,
+.bnw-terms-content h2:first-child,
+.bnw-terms-content h3:first-child { margin-top: 0; }
+.bnw-terms-content p,
+.bnw-terms-content ul,
+.bnw-terms-content ol { margin: 0 0 8px; }
+.bnw-terms-content ul,
+.bnw-terms-content ol { padding-left: 20px; }
+.bnw-terms-content li { margin-bottom: 4px; }
+.bnw-terms-content a { color: var(--bnw-gold-hover); text-decoration: underline; }
+.bnw-terms-content img { max-width: 100%; height: auto; }
+.bnw-terms-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 10px;
+  font-size: 12.5px;
+}
+.bnw-terms-content th,
+.bnw-terms-content td {
+  border: 1px solid var(--bnw-border-dark);
+  padding: 6px 8px;
+  text-align: left;
+}
+.bnw-terms-content th { background: var(--bnw-gold-light); font-weight: 600; }
+
+/* Checkbox persetujuan — blok tersendiri, highlight gold bila tick */
+.bnw-terms-accept {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 2px solid var(--bnw-border);
+  border-radius: var(--bnw-radius-sm);
+  background: var(--bnw-white);
+  cursor: pointer;
+  transition: border-color .2s, background .2s, box-shadow .2s;
+}
+.bnw-terms-accept:hover { border-color: var(--bnw-gold-border); }
+.bnw-terms-accept.is-checked {
+  border-color: var(--bnw-gold);
+  background: linear-gradient(135deg, var(--bnw-white) 0%, var(--bnw-gold-light) 100%);
+}
+.bnw-terms-accept input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin: 2px 0 0;
+  border: 2px solid var(--bnw-border-dark);
+  border-radius: 5px;
+  background: var(--bnw-white);
+  cursor: pointer;
+  display: grid;
+  place-content: center;
+  transition: all .15s ease;
+}
+.bnw-terms-accept input[type="checkbox"]:checked {
+  background: var(--bnw-gold);
+  border-color: var(--bnw-gold);
+}
+.bnw-terms-accept input[type="checkbox"]:checked::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  transform: scale(1);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+  background: var(--bnw-dark);
+}
+.bnw-terms-accept input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--bnw-gold);
+  outline-offset: 2px;
+}
+.bnw-terms-accept-text {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--bnw-text);
+}
+.bnw-terms-accept.bnw-terms-accept--alert {
+  border-color: var(--bnw-error);
+  animation: bnwTermsShake .3s ease;
+}
+@keyframes bnwTermsShake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-4px); }
+  75%      { transform: translateX(4px); }
+}
+.bnw-terms-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  color: var(--bnw-error);
+  font-size: 13px;
+  background: rgba(198,40,40,.06);
+  border-radius: var(--bnw-radius-sm);
+}
+.bnw-terms-error i { flex-shrink: 0; font-size: 16px; }
+
+/* ── MESSAGE TO ADMIN panel (Step 3, optional) ── */
+.bnw-message-hint {
+  font-size: 13px;
+  color: var(--bnw-text-muted);
+  margin: -4px 0 12px;
+  line-height: 1.5;
+}
+.bnw-message-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 96px;
+  line-height: 1.6;
+}
+.bnw-message-count {
+  text-align: right;
+  font-size: 11.5px;
+  color: var(--bnw-text-light);
+  margin-top: 6px;
+}
+
+/* Pautan "Read the full document" — bawa ke page awam /booking-terms
+   (dokumen penuh, boleh print). Pautan sama dipapar dalam emel status. */
+.bnw-terms-fulllink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bnw-gold, #C9A84C);
+  text-decoration: none;
+  margin: 10px 0 2px;
+}
+.bnw-terms-fulllink:hover { text-decoration: underline; }

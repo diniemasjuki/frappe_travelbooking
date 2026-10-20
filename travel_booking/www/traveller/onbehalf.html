@@ -46,6 +46,12 @@
       <select id="ob-f-trip" class="tv-input tv-select" aria-label="Trip">
         <option value="">All Trips</option>
       </select>
+      <select id="ob-f-perpage" class="tv-input tv-select" aria-label="Rows per page" title="Rows per page">
+        <option value="10">10 per page</option>
+        <option value="20">20 per page</option>
+        <option value="50">50 per page</option>
+        <option value="100">100 per page</option>
+      </select>
       <button id="ob-f-clear" type="button" class="tv-btn tv-btn--ghost tv-btn--sm">Reset</button>
     </div>
     <div id="bookings-count" class="tv-filterbar__count" style="display:none;"></div>
@@ -58,6 +64,9 @@
 
     <!-- Content Container (populated by JS) -->
     <div id="bookings-content" style="display:none;"></div>
+
+    <!-- Pagination (kumpulan Past Trip — populated by JS) -->
+    <div id="bookings-pagination" style="display:none;margin-top:16px;"></div>
 
     <!-- Empty State -->
     <div id="bookings-empty" class="tv-empty" style="display:none;">

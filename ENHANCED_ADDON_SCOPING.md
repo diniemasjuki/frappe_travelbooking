@@ -119,14 +119,14 @@ def is_applicable_for_trip_package(self, trip_package_name=None, group_date_name
 ## 📁 Files Modified/Created
 
 ### New Files:
-- `travel_booking/travel_booking_management/doctype/trip_scoping/` (child table doctype)
+- `travel_booking/module_travel_booking/doctype/trip_scoping/` (child table doctype)
 - `travel_booking/www/traveller/booking_addons.py` (route handler)
 - `travel_booking/www/traveller/booking_addons.html` (page template)
 
 ### Modified Files:
-- `travel_booking/travel_booking_management/doctype/trip_addon/trip_addon.json` (+applicable_to field)
-- `travel_booking/travel_booking_management/doctype/trip_addon_package/trip_addon_package.json` (+scoping section)
-- `travel_booking/travel_booking_management/doctype/trip_addon_package/trip_addon_package.py` (+scoping logic)
+- `travel_booking/module_travel_booking/doctype/trip_addon/trip_addon.json` (+applicable_to field)
+- `travel_booking/module_travel_booking/doctype/trip_addon_package/trip_addon_package.json` (+scoping section)
+- `travel_booking/module_travel_booking/doctype/trip_addon_package/trip_addon_package.py` (+scoping logic)
 - `travel_booking/api/addon_manager.py` (enhanced filtering)
 - `travel_booking/public/js/traveller_detail.js` (+addon panel)
 - `travel_booking/api/portal_booking.py` (+addon_orders helper)

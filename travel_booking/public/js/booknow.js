@@ -346,6 +346,17 @@ function saveState() {
         phone:     (bp && _getBillingPhoneFull()) ? _getBillingPhoneFull() : (billing ? billing.phone : ""),
       };
     }
+    if (billing) {
+      // Billing address Step 2 — turut di-snapshot supaya wizard yang
+      // di-restore (cth selepas Google OAuth redirect / refresh) kekal
+      // membawa alamat yang customer dah isi.
+      var _addr = _billingAddressValues();
+      billing.address_line1 = _addr.bnwBillingStreet;
+      billing.city          = _addr.bnwBillingCity;
+      billing.postcode      = _addr.bnwBillingPostcode;
+      billing.state         = _addr.bnwBillingState;
+      billing.country       = _addr.bnwBillingCountry;
+    }
     var snap = {
       step:         Math.min(state.step, 3),
       trip_master:  state.trip_master,
@@ -378,6 +389,15 @@ function saveState() {
       // restoreWizard() pulihkan nilai ni supaya re-confirm tahu untuk cancel
       // booking lama (elak duplicate) sebelum cipta booking baharu.
       booking_number:   (state.booking && state.booking.booking_number) || "",
+      // T&C + pesanan customer (Step 3) — tick persetujuan & teks mesej
+      // tersimpan supaya customer yang refresh / balik dari checkout tak
+      // perlu isi semula. terms_ref ikut serta: tick HANYA di-restore jika
+      // dokumen T&C aktif semasa restore masih dokumen YANG SAMA ketika
+      // customer tick (admin tukar versi semasa customer di Stripe → tick
+      // dikosongkan supaya dia baca & setuju versi baharu secara sedar).
+      terms_ok:     (function() { var cb = document.getElementById("bnwTermsAccept"); return cb ? !!cb.checked : false; })(),
+      terms_ref:    (function() { var c = document.getElementById("bnwTermsCard"); return c ? (c.getAttribute("data-terms-name") || "") : ""; })(),
+      cust_message: (function() { var el = document.getElementById("bnwCustomerMessage"); return el ? el.value : ""; })(),
     };
     sessionStorage.setItem("bnw_booking_wizard", JSON.stringify(snap));
   } catch (e) {}
@@ -522,6 +542,35 @@ async function apiCall(method, args, useGet) {
 }
 
 
+// ── Sanitasi nama pakej sebelum panggilan API ──
+// state.trip_package boleh membawa nilai BASI dari snapshot sesi lama
+// (cth format varian lama "TP260913:1") atau pakej yang dah ditapis
+// keluar oleh currency filter server. get_booking_details dengan nama
+// sedemikian memulangkan error "Trip Package not found" / 0 kabin —
+// jadi sentiasa sahkan semula terhadap senarai pakej sah TGD semasa:
+//   1. nama tepat wujud dalam TRIP_PACKAGES[TGD]      → kekal
+//   2. buang suffix varian lama ":N" → cuba padan semula
+//   3. fallback pakej PERTAMA TGD itu
+// state.trip_package dikemas kini supaya API + payload kemudian
+// (confirm_booking dsb.) semuanya konsisten dengan nama muktamad.
+function resolveTripPackageName() {
+  var pkgs = (typeof TRIP_PACKAGES !== "undefined" && TRIP_PACKAGES[state.trip_group_date])
+    ? TRIP_PACKAGES[state.trip_group_date] : [];
+  var name = state.trip_package || "";
+  var hit = pkgs.find(function(p) { return p.name === name; });
+  if (!hit && name) {
+    // Format varian lama "TP260913:1" — buang ":<digits>" hujung & cuba lagi.
+    var stripped = name.replace(/:\d+$/, "");
+    if (stripped !== name) {
+      hit = pkgs.find(function(p) { return p.name === stripped; });
+      if (hit) name = stripped;
+    }
+  }
+  if (!hit && pkgs.length) name = pkgs[0].name;
+  state.trip_package = name;
+  return name;
+}
+
 function restoreWizard() {
   var raw;
   try { raw = sessionStorage.getItem("bnw_booking_wizard"); } catch (e) { return false; }
@@ -548,9 +597,15 @@ function restoreWizard() {
   }, 0);
 
   // Re-resolve selectedPackage dari TRIP_PACKAGES (available in pageData)
-  // supaya selectedPackage.flight / .flight_label tersedia untuk banner
+  // supaya selectedPackage.flight / .flight_label tersedia untuk banner.
+  // resolveTripPackageName() TURUT membetulkan state.trip_package yang
+  // basi (snapshot lama / format varian lama "TP...:N") — tanpa ni,
+  // fallback _restoredPkgs[0] di bawah hanya betulkan selectedPackage
+  // TETAPI state.trip_package kekal basi, dan loadCabins() tetap hantar
+  // nama pakej tidak sah ke API (punca error "Trip Package not found").
   var _restoredPkgs = (typeof TRIP_PACKAGES !== "undefined" && TRIP_PACKAGES[state.trip_group_date])
     ? TRIP_PACKAGES[state.trip_group_date] : [];
+  resolveTripPackageName();
   selectedPackage = _restoredPkgs.find(function(p) { return p.name === state.trip_package; }) || (_restoredPkgs[0] || null);
 
   // NOTE (fix 2026-09-13): blok lama di sini pernah MENGGANTI
@@ -634,6 +689,29 @@ function restoreWizard() {
         if (_itiBillingPhone) _itiBillingPhone.setNumber(snap.billing.phone);
         else { var bp = document.getElementById("bnwBillingPhone"); if (bp) bp.value = snap.billing.phone; }
       }
+      // Billing address — pulihkan 5 medan alamat supaya customer yang
+      // refresh di Step 3 dan tekan "Back" nampak alamat masih terisi.
+      // Country ialah <select>: hanya set bila nilai ada dalam options
+      // (elak nilai "tidak sah" tersimpan senyap-senyap).
+      var _addrMap = {
+        address_line1: "bnwBillingStreet",
+        city:          "bnwBillingCity",
+        postcode:      "bnwBillingPostcode",
+        state:         "bnwBillingState",
+        country:       "bnwBillingCountry",
+      };
+      Object.keys(_addrMap).forEach(function(key) {
+        var el = document.getElementById(_addrMap[key]);
+        if (!el) return;
+        var val = snap.billing[key] || "";
+        if (el.tagName === "SELECT" && val) {
+          for (var i = 0; i < el.options.length; i++) {
+            if (el.options[i].value === val) { el.value = val; break; }
+          }
+        } else {
+          el.value = val;
+        }
+      });
       // Restore field email yang dah verified sebelum ni sebagai LOCKED
       // juga — UX konsisten dengan apa customer nampak sebelum refresh
       // (bukan keperluan keselamatan tambahan; "input" listener sendiri
@@ -651,6 +729,30 @@ function restoreWizard() {
     }
     if (snap.pay_method) state_payment_method = snap.pay_method;
     if (snap.pay_amount) state_payment_amount = snap.pay_amount;
+
+    // T&C + pesanan customer — pulihkan tick & teks supaya customer yang
+    // refresh di Step 3 / balik dari checkout (Stripe "Back") tak perlu
+    // tick semula. Tick hanya di-restore bila dokumen T&C aktif semasa
+    // MASIH dokumen yang sama ketika customer tick (snap.terms_ref) —
+    // kalau admin dah tukar versi, tick dikosongkan supaya customer baca
+    // & setuju versi baharu secara sedar. Guna getElementById terus
+    // (bukan var module-level) kerana restoreWizard dilaksana awal sebelum
+    // var-var itu di-assign.
+    var _termsCbR = document.getElementById("bnwTermsAccept");
+    var _termsCardR = document.getElementById("bnwTermsCard");
+    var _cardRefR = _termsCardR ? (_termsCardR.getAttribute("data-terms-name") || "") : "";
+    var _restoreTick = !!(_termsCbR && snap.terms_ok && _cardRefR && snap.terms_ref === _cardRefR);
+    if (_termsCbR && _restoreTick) _termsCbR.checked = true;
+    var _lblR = document.getElementById("bnwTermsAcceptLabel");
+    if (_lblR) _lblR.classList.toggle("is-checked", _restoreTick);
+    if (snap.cust_message) {
+      var _msgR = document.getElementById("bnwCustomerMessage");
+      if (_msgR) {
+        _msgR.value = snap.cust_message;
+        var _cntR = document.getElementById("bnwMessageCount");
+        if (_cntR) _cntR.textContent = String(_msgR.value.length);
+      }
+    }
 
     var target = Math.min(snap.step, 3);
     if (target >= 2) {
@@ -1268,6 +1370,10 @@ var allStepperRefreshers = [];
 
 async function loadCabins() {
   showLoading("Loading room options...");
+  // Pertahanan terakhir sebelum API: pastikan nama pakej masih sah dalam
+  // katalog semasa (restoreWizard/cart path dah resolve, tapi snapshot
+  // lama atau perubahan data server boleh tinggalkan nilai basi).
+  resolveTripPackageName();
   try {
     const data = await apiCall(
       "travel_booking.api.booking.get_booking_details",
@@ -1557,6 +1663,60 @@ function priceRoomSelection(pricing, mainGuests, extraBeds, infants, isCruise) {
   return total;
 }
 
+// ── Travel Price Rule (promosi price slash) ──────────────────
+// pricing cabin dari get_booking_details dah HARGA PROMO (harga jualan
+// sebenar — priceRoomSelection/calcGrandTotal terus betul tanpa ubah).
+// original_pricing (jika ada) ialah harga asal — helper bawah bina
+// paparan strikethrough + jumlah jimat untuk baris promo Payment Summary.
+
+// Teks kadar stepper: harga promo + strikethrough harga asal.
+function rateWithSlash(current, original) {
+  var c = Number(current) || 0;
+  var s = fmt(c) + "/pax";
+  var o = Number(original) || 0;
+  if (o > c) s += ' <s class="bnw-price-was">' + fmt(o) + "</s>";
+  return s;
+}
+
+// Jumlah jimat promosi atas pilihan bilik semasa (asal − promo).
+function promoTotalSaved() {
+  var saved = 0;
+  state.rooms.forEach(function(r) {
+    if ((r.main_guests + r.extra_beds + r.infants) === 0) return;
+    var c = cabinByCategory(r.room_category);
+    if (!c || !c.original_pricing) return;
+    saved += priceRoomSelection(c.original_pricing, r.main_guests, r.extra_beds, r.infants)
+           - priceRoomSelection(c.pricing, r.main_guests, r.extra_beds, r.infants);
+  });
+  return Math.round(saved * 100) / 100;
+}
+
+// Label rule dominan dari kabin terpilih (baris promo Step 3).
+function promoDominantLabel() {
+  var label = "";
+  state.rooms.some(function(r) {
+    var c = cabinByCategory(r.room_category);
+    if (c && c.price_rule && c.price_rule.label) { label = c.price_rule.label; return true; }
+    return false;
+  });
+  return label;
+}
+
+function refreshPromoDiscountRow() {
+  var row = document.getElementById("bnwPromoDiscountRow");
+  if (!row) return;
+  var saved = promoTotalSaved();
+  if (saved > 0) {
+    var lbl = document.getElementById("bnwPromoDiscountLabel");
+    var amt = document.getElementById("bnwPromoDiscountAmt");
+    if (lbl) lbl.textContent = promoDominantLabel() || "Promo";
+    if (amt) amt.textContent = "-" + fmt(saved);
+    row.style.display = "flex";
+  } else {
+    row.style.display = "none";
+  }
+}
+
 function initRooms() {
   state.rooms = [];
   roomSeq = 0;
@@ -1727,6 +1887,8 @@ function renderRooms() {
       // terus dari cabinByCategory() semasa setiap render.
       var capacity = c ? (c.capacity || 0) : 0;
       var pricing  = c ? c.pricing : {};
+      // Harga asal (pra-promosi) — untuk strikethrough Travel Price Rule.
+      var origPricing = c ? (c.original_pricing || null) : null;
 
       // Steppers harga (Main Guest / Extra Bed / Infant) HANYA dibina &
       // dipapar bila cabin type DAH dipilih — selagi placeholder
@@ -1754,8 +1916,8 @@ function renderRooms() {
           counters.appendChild(mkStepper(room, "main_guests", getPriceLabel("price_adult"), capacity, function() {
             if(!pricing.price_adult ){ pricing.price_adult = 0; }
             return room.main_guests === 1
-              ? fmt(pricing.price_adult_single) + "/pax"
-              : fmt(pricing.price_adult) + "/pax";
+              ? rateWithSlash(pricing.price_adult_single, origPricing && origPricing.price_adult_single)
+              : rateWithSlash(pricing.price_adult, origPricing && origPricing.price_adult);
           }, stepperRefreshers, getPriceNote("price_adult")));
 
           // Extra Bed (price_upperberth) — HANYA bila cabin ada slot katil
@@ -1770,7 +1932,7 @@ function renderRooms() {
           if (_hasUpperBerth) {
             counters.appendChild(mkStepper(room, "extra_beds", getPriceLabel("price_upperberth"), 0, function() {
               if(!pricing.price_upperberth ){ pricing.price_upperberth = 0; }
-              return fmt(pricing.price_upperberth) + "/pax";
+              return rateWithSlash(pricing.price_upperberth, origPricing && origPricing.price_upperberth);
             }, stepperRefreshers, getPriceNote("price_upperberth")));
           } else if (room.extra_beds) {
             // Cabin ditukar ke jenis tanpa upper berth — buang nilai lama
@@ -1781,18 +1943,18 @@ function renderRooms() {
           // Non-cruise (model UMUR): Adult (price_adult) + Children (price_children).
           counters.appendChild(mkStepper(room, "main_guests", getPriceLabel("price_adult"), capacity, function() {
             if(!pricing.price_adult ){ pricing.price_adult = 0; }
-            return fmt(pricing.price_adult) + "/pax";
+            return rateWithSlash(pricing.price_adult, origPricing && origPricing.price_adult);
           }, stepperRefreshers, getPriceNote("price_adult")));
 
           counters.appendChild(mkStepper(room, "extra_beds", getPriceLabel("price_children"), 0, function() {
             if(!pricing.price_children ){ pricing.price_children = 0; }
-            return fmt(pricing.price_children) + "/pax";
+            return rateWithSlash(pricing.price_children, origPricing && origPricing.price_children);
           }, stepperRefreshers, getPriceNote("price_children")));
         }
 
         counters.appendChild(mkStepper(room, "infants", getPriceLabel("price_infant"), 0, function() {
           if(!pricing.price_infant ){ pricing.price_infant = 0; }
-          return fmt(pricing.price_infant) + "/pax";
+          return rateWithSlash(pricing.price_infant, origPricing && origPricing.price_infant);
         }, stepperRefreshers, getPriceNote("price_infant")));
       }
 
@@ -1897,15 +2059,16 @@ function buildPrivacyBlock(room) {
 // ═════════════════════════════════════════════════════════
 // ROOM PICKER MODAL — pengganti dropdown "Select Rooming Type".
 // Modal popup yang senaraikan semua kabin available dengan INFO RINGKAS
-// (nama, deskripsi, kapasiti, harga asas) + MEDIA dalam bentuk SLIDE
-// (video YouTube sebagai thumbnail utama + gambar gallery kategori).
-// Butang
-// FILTER ikut room_type dipaparkan di bahagian AWAL modal (bila > 1
-// jenis). Lepas kabin dipilih: modal tertutup & renderRooms() papar
+// (nama, deskripsi, kapasiti, harga asas) + MEDIA: slider GAMBAR sahaja
+// (cover room_profile dahulu, diikuti gallery) — video bilik dibuka
+// melalui butang mini play (fullscreen) sebelah "Select This Room".
+// SEARCH BOX carian nama & FILTER chips room_type di bahagian AWAL
+// modal. Lepas kabin dipilih: modal tertutup & renderRooms() papar
 // kabin terpilih + kapasiti sahaja (keputusan produk 2026-09-13).
 // ═════════════════════════════════════════════════════════
 var _cabinPickerRoomUid = null;  // room.uid yang sedang membuka picker
 var _cabinPickerFilter  = "";    // room_type terfilter ("" = semua)
+var _cabinPickerSearch  = "";    // carian nama kabin ("" = semua; lowercase)
 
 // Label kapasiti kabin — format SAMA dengan option dropdown lama:
 // "2 Pax" bila capacity == max_capacity, "2-4 Pax" bila berbeza;
@@ -1921,6 +2084,7 @@ function capacityLabel(cab) {
 function openCabinPickerModal(room) {
   _cabinPickerRoomUid = room ? room.uid : null;
   _cabinPickerFilter  = "";  // reset filter setiap kali buka
+  _cabinPickerSearch  = "";  // reset carian nama setiap kali buka
 
   var old = document.getElementById("bnwCabinPickerOverlay");
   if (old) old.remove();
@@ -1959,6 +2123,28 @@ function openCabinPickerModal(room) {
   closeBtn.addEventListener("click", closeCabinPickerModal);
   head.appendChild(closeBtn);
   dialog.appendChild(head);
+
+  // ── Search box — cari kabin ikut NAMA (room_name / room_category).
+  // Digabung dengan filter chips room_type: kedua-dua syarat mesti padan.
+  // Input event rebuild senarai sahaja (renderCabinPickerList), bukan
+  // keseluruhan dialog — fokus kekal dalam input semasa menaip.
+  var search = document.createElement("div");
+  search.className = "bnw-cpick-search";
+  var searchIcon = document.createElement("i");
+  searchIcon.className = "ti ti-search";
+  var searchInput = document.createElement("input");
+  searchInput.type = "text";
+  searchInput.className = "bnw-cpick-search-input";
+  searchInput.id = "bnwCabinPickerSearch";
+  searchInput.placeholder = "Search room by name…";
+  searchInput.setAttribute("autocomplete", "off");
+  searchInput.addEventListener("input", function() {
+    _cabinPickerSearch = searchInput.value.trim().toLowerCase();
+    renderCabinPickerList();
+  });
+  search.appendChild(searchIcon);
+  search.appendChild(searchInput);
+  dialog.appendChild(search);
 
   // ── Filter chips ikut room_type — di AWAL section senarai kabin.
   // Hanya dipapar bila ada > 1 jenis room_type yang berbeza (kalau semua
@@ -2026,13 +2212,25 @@ function renderCabinPickerList() {
 
   var room = currentPickerRoom();
   var avail = availableCabins().filter(function(cab) {
-    return !_cabinPickerFilter || (cab.room_type || "").trim() === _cabinPickerFilter;
+    if (_cabinPickerFilter && (cab.room_type || "").trim() !== _cabinPickerFilter) return false;
+    if (_cabinPickerSearch) {
+      // Padan ikut nama paparan ATAU kod kategori — kedua-duanya dilihat
+      // user sebagai "nama" bilik. Case-insensitive substring.
+      var hay = ((cab.room_name || "") + " " + (cab.room_category || "")).toLowerCase();
+      if (hay.indexOf(_cabinPickerSearch) === -1) return false;
+    }
+    return true;
   });
 
   if (!avail.length) {
     var empty = document.createElement("div");
     empty.className = "bnw-cpick-empty";
-    empty.textContent = "No room matches this filter.";
+    // Papar teks asli yang user taip (bukan versi lowercase _cabinPickerSearch).
+    var searchEl = document.getElementById("bnwCabinPickerSearch");
+    var typed = searchEl ? searchEl.value.trim() : "";
+    empty.textContent = typed
+      ? 'No room matches "' + typed + '".'
+      : "No room matches this filter.";
     list.appendChild(empty);
     return;
   }
@@ -2056,6 +2254,13 @@ function renderCabinPickerList() {
     name.className = "bnw-cpick-name";
     name.textContent = cab.room_name || cab.room_category;
     titleRow.appendChild(name);
+    // Badge promosi Travel Price Rule — hanya bila rule berkesan kabin ni.
+    if (cab.original_pricing && cab.price_rule && cab.price_rule.label) {
+      var promoBadge = document.createElement("span");
+      promoBadge.className = "bnw-promo-badge";
+      promoBadge.textContent = cab.price_rule.label;
+      titleRow.appendChild(promoBadge);
+    }
     body.appendChild(titleRow);
 
     // Deskripsi kategori — terus selepas tajuk. Had 2 peringkat: JS potong
@@ -2117,8 +2322,40 @@ function renderCabinPickerList() {
     if (base > 0) {
       var priceSpan = document.createElement("span");
       priceSpan.className = "bnw-cpick-meta-price";
-      priceSpan.textContent = "From " + fmt(base) + " /pax";
+      // Harga promo + strikethrough harga asal (Travel Price Rule).
+      var priceHtml = "From " + fmt(base) + " /pax";
+      var op = cab.original_pricing || null;
+      if (op) {
+        var origPrices = state.is_cruise_trip
+          ? [Number(op.price_adult_single) || 0, Number(op.price_adult) || 0].filter(function(v) { return v > 0; })
+          : [Number(op.price_adult) || 0];
+        var origBase = origPrices.length ? Math.min.apply(null, origPrices) : 0;
+        if (origBase > base) {
+          priceHtml += ' <s class="bnw-price-was">' + fmt(origBase) + "</s>";
+        }
+      }
+      priceSpan.innerHTML = priceHtml;
       bottomRight.appendChild(priceSpan);
+    }
+
+    // Baris butang: mini play video (fullscreen) SEBELAH "Select This
+    // Room". Butang play hanya wujud bila kategori ada video YouTube —
+    // slider carousel kini gambar sahaja.
+    var btnRow = document.createElement("div");
+    btnRow.className = "bnw-cpick-btnrow";
+
+    var ytId = cab.room_video_url ? parseYouTubeId(cab.room_video_url) : null;
+    if (ytId) {
+      var playBtn = document.createElement("button");
+      playBtn.type = "button";
+      playBtn.className = "bnw-cpick-video-btn";
+      playBtn.setAttribute("aria-label", "Play room video");
+      playBtn.title = "Play room video";
+      playBtn.innerHTML = '<i class="ti ti-player-play"></i>';
+      playBtn.addEventListener("click", function() {
+        openRoomVideoFullscreen(cab);
+      });
+      btnRow.appendChild(playBtn);
     }
 
     var selBtn = document.createElement("button");
@@ -2130,7 +2367,9 @@ function renderCabinPickerList() {
     selBtn.addEventListener("click", function() {
       selectCabinFromPicker(cab);
     });
-    bottomRight.appendChild(selBtn);
+    btnRow.appendChild(selBtn);
+
+    bottomRight.appendChild(btnRow);
     bottom.appendChild(bottomRight);
 
     body.appendChild(bottom);
@@ -2156,24 +2395,100 @@ function selectCabinFromPicker(cab) {
   saveState();
 }
 
+// ── Video bilik dalam mod FULLSCREEN ──
+// Dibuka oleh butang mini play sebelah "Select This Room". Overlay fixed
+// penuh skrin (di ATAS modal picker) memegang iframe YouTube autoplay;
+// Fullscreen API diminta pada overlay bila disokong — kalau ditolak/tak
+// disokong (cth iOS Safari pada iPad, sesetengah pelayar), overlay
+// 100vw/100vh/dvh tetap memberi pengalaman fullscreen. Ditutup melalui:
+// butang X, klik kawasan gelap, Escape, atau keluar native fullscreen.
+function openRoomVideoFullscreen(cab) {
+  var ytId = cab.room_video_url ? parseYouTubeId(cab.room_video_url) : null;
+  if (!ytId) return;
+
+  closeRoomVideoFullscreen();  // buang overlay lama kalau ada
+
+  var wrap = document.createElement("div");
+  wrap.id = "bnwRoomVideoOverlay";
+  wrap.className = "bnw-video-overlay";
+
+  var iframe = document.createElement("iframe");
+  iframe.src = "https://www.youtube.com/embed/" + ytId + "?autoplay=1&rel=0&modestbranding=1";
+  iframe.title = (cab.room_name || "Room") + " video";
+  iframe.setAttribute("frameborder", "0");
+  iframe.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share");
+  iframe.setAttribute("allowfullscreen", "");
+  wrap.appendChild(iframe);
+
+  var closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "bnw-video-close";
+  closeBtn.setAttribute("aria-label", "Close video");
+  closeBtn.innerHTML = '<i class="ti ti-x"></i>';
+  closeBtn.addEventListener("click", closeRoomVideoFullscreen);
+  wrap.appendChild(closeBtn);
+
+  // Klik kawasan gelap di luar video → tutup
+  wrap.addEventListener("click", function(e) {
+    if (e.target === wrap) closeRoomVideoFullscreen();
+  });
+
+  document.body.appendChild(wrap);
+
+  if (wrap.requestFullscreen) {
+    wrap.requestFullscreen().catch(function() { /* fallback: overlay dah penuh skrin */ });
+  } else if (wrap.webkitRequestFullscreen) {
+    wrap.webkitRequestFullscreen();
+  }
+}
+
+function closeRoomVideoFullscreen() {
+  var wrap = document.getElementById("bnwRoomVideoOverlay");
+  if (!wrap) return;
+  if (document.fullscreenElement && document.exitFullscreen) {
+    document.exitFullscreen().catch(function() {});
+  }
+  wrap.remove();
+}
+
 // ── Carousel media untuk kad kabin dalam modal ──
-// Slide = video YouTube (jadi THUMBNAIL UTAMA bila link wujud — poster +
-// butang play, iframe hanya dibina bila diklik) + gambar dari gallery
-// kategori (fallback: room_profile). Dots + panah dipapar hanya bila
-// > 1 slide.
+// Slider GAMBAR sahaja: cover kategori (room_profile) PALING DEPAN,
+// diikuti gambar gallery kategori. Video bilik TAK lagi jadi slide —
+// ia dibuka melalui butang mini play (fullscreen) sebelah butang
+// "Select This Room" (rujuk openRoomVideoFullscreen). Dots + panah
+// dipaparkan hanya bila > 1 slide.
 function buildCabinCarousel(cab) {
   var slides = [];
-  var ytId = cab.room_video_url ? parseYouTubeId(cab.room_video_url) : null;
-  if (ytId) slides.push({ type: "video", ytId: ytId });
-  var gallery = (cab.room_gallery && cab.room_gallery.length)
-    ? cab.room_gallery
-    : (cab.room_image ? [cab.room_image] : []);
-  gallery.forEach(function(src) {
-    slides.push({ type: "image", src: src });
+  // Cover image dulu — user nampak gambar sebenar bilik serta-merta.
+  if (cab.room_image) slides.push({ type: "image", src: cab.room_image });
+  (cab.room_gallery || []).forEach(function(src) {
+    if (src && src !== cab.room_image) slides.push({ type: "image", src: src });
   });
 
   var wrap = document.createElement("div");
   wrap.className = "bnw-cpick-carousel";
+
+  // ── Nisbah bingkai slide ikut SAIZ SEMULA JADI cover photo (slide
+  // pertama). Cover bilik selalunya BUKAN 16:9 (portrait/4:3) — bingkai
+  // tetap 16:9 memotong gambar ekstrem walhal object-fit:cover. Siasat
+  // saiz asal gambar (Image probe — cuma metadata, tak render), clamp
+  // antara 3:4 (portrait) dan 16:9 (landscape), override --slide-ar pada
+  // carousel. Slide gallery lain kekal cover-fit dalam bingkai SAMA
+  // supaya tinggi kad tak melompat bila slide ditukar.
+  if (slides.length) {
+    (function() {
+      var probe = new Image();
+      probe.onload = function() {
+        var w = probe.naturalWidth, h = probe.naturalHeight;
+        if (!w || !h) return;
+        var r = w / h;
+        if (r < 3 / 4) r = 3 / 4;      // portrait paling tegak
+        if (r > 16 / 9) r = 16 / 9;    // landscape paling lebar
+        wrap.style.setProperty("--slide-ar", String(r));
+      };
+      probe.src = slides[0].src;
+    })();
+  }
 
   if (!slides.length) {
     // Tiada media — placeholder ikon supaya kad kekal sekata tingginya.
@@ -2205,37 +2520,11 @@ function buildCabinCarousel(cab) {
   function buildSlide(s) {
     var slide = document.createElement("div");
     slide.className = "bnw-cpick-slide";
-    if (s.type === "image") {
-      var img = document.createElement("img");
-      img.src = s.src;
-      img.alt = cab.room_name || "Room";
-      img.loading = "lazy";
-      slide.appendChild(img);
-    } else {
-      slide.classList.add("bnw-cpick-slide--video");
-      var poster = document.createElement("img");
-      poster.src = "https://img.youtube.com/vi/" + s.ytId + "/hqdefault.jpg";
-      poster.alt = (cab.room_name || "Room") + " video";
-      poster.loading = "lazy";
-      slide.appendChild(poster);
-      var play = document.createElement("button");
-      play.type = "button";
-      play.className = "bnw-cpick-play";
-      play.setAttribute("aria-label", "Play room video");
-      play.innerHTML = '<i class="ti ti-player-play"></i>';
-      slide.appendChild(play);
-      slide.addEventListener("click", function() {
-        slide.innerHTML = "";
-        slide.classList.remove("bnw-cpick-slide--video");
-        var iframe = document.createElement("iframe");
-        iframe.src = "https://www.youtube.com/embed/" + s.ytId + "?autoplay=1&rel=0&modestbranding=1";
-        iframe.title = cab.room_name || "Room video";
-        iframe.setAttribute("frameborder", "0");
-        iframe.setAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share");
-        iframe.setAttribute("allowfullscreen", "");
-        slide.appendChild(iframe);
-      });
-    }
+    var img = document.createElement("img");
+    img.src = s.src;
+    img.alt = cab.room_name || "Room";
+    img.loading = "lazy";
+    slide.appendChild(img);
     return slide;
   }
 
@@ -2409,7 +2698,10 @@ function mkStepper(room, key, label, max, rateFn, refreshers, noteText) {
   }
 
   function refreshRate() {
-    rate.textContent = rateFn ? rateFn() : "";
+    // innerHTML — rateFn boleh pulangkan <s> strikethrough harga asal
+    // (Travel Price Rule, rujuk rateWithSlash()). String rateFn semua
+    // dibina dalaman dari fmt() nombor sahaja.
+    rate.innerHTML = rateFn ? rateFn() : "";
   }
 
   function refreshButtons() {
@@ -2694,14 +2986,14 @@ function renderSummaryHead(tripId, paxId, data) {
 
 // Anggaran deposit standard (pct daripada jumlah, dinaikkan ke min gateway
 // bila kaedah Online). Dipakai Step 1 & 2 supaya NOMBOR deposit sentiasa
-// sama; Step 3 pula cermin chip Deposit (getEffectiveMin) yang tepat dengan
-// kaedah bayaran terpilih.
+// sama; Step 3 pula guna getEffectiveMin yang tepat dengan kaedah bayaran
+// terpilih.
 function depositEstimateFor(amt) {
   var stdDep = Math.round(amt * (state_payment_settings.default_deposit_percent / 100) * 100) / 100;
   var onlineMin = parseFloat((state_payment_settings || {}).online_payment_min_amount) || 0;
   // Rule 2: bila Online (kaedah default) & deposit (%) < min gateway,
   // naikkan anggaran deposit ke min (di-cap pada total) supaya Step 1
-  // padan dengan chip Deposit di Step 3 (getOnlineMinPay).
+  // padan dengan floor minimum di Step 3 (getOnlineMinPay).
   return (state_payment_method === "Online Payment" && onlineMin && stdDep < onlineMin)
     ? Math.min(onlineMin, amt) : stdDep;
 }
@@ -3397,11 +3689,45 @@ function checkPostGoogleAuth() {
 // Panggil check selepas init selesai (delay sedikit pastikan DOM ready)
 setTimeout(checkPostGoogleAuth, 500);
 
+// ─── Billing Address (Step 2) — 5 medan WAJIB untuk tujuan bil/invois ───
+// confirm_booking() menyimpannya sebagai Address 'Billing' (primary)
+// Customer di ERPNext & mengesahkan semula di server-side. Senarai id ini
+// dipakai seragam oleh: validasi Continue (checkStep2Ready), snapshot
+// wizard (saveState/restoreWizard) dan payload confirm_booking.
+var BILLING_ADDRESS_IDS = [
+  "bnwBillingStreet", "bnwBillingCity", "bnwBillingPostcode",
+  "bnwBillingState", "bnwBillingCountry",
+];
+
+var BILLING_ADDRESS_LABELS = {
+  bnwBillingStreet:   "Street Address",
+  bnwBillingCity:     "City",
+  bnwBillingPostcode: "Postcode",
+  bnwBillingState:    "State",
+  bnwBillingCountry:  "Country",
+};
+
+function _billingAddressValues() {
+  // Nilai trimmed semua medan billing address — satu sumber untuk
+  // validasi, snapshot & payload supaya ketiga-tiga sentiasa konsisten.
+  var vals = {};
+  BILLING_ADDRESS_IDS.forEach(function(id) {
+    var el = document.getElementById(id);
+    vals[id] = el ? el.value.trim() : "";
+  });
+  return vals;
+}
+
+function _billingAddressComplete() {
+  var vals = _billingAddressValues();
+  return BILLING_ADDRESS_IDS.every(function(id) { return !!vals[id]; });
+}
+
 function checkStep2Ready() {
   var nameEl = document.getElementById("bnwBillingName");
   var name  = nameEl ? nameEl.value.trim() : "";
   var phone = _getBillingPhoneFull();
-  step2NextBtn.disabled = !(name && phone && state.otp_verified);
+  step2NextBtn.disabled = !(name && phone && state.otp_verified && _billingAddressComplete());
 }
 
 // Full Name dipaksa UPPERCASE semasa customer menaip — bukan sekadar
@@ -3424,6 +3750,15 @@ if (billingNameEl) billingNameEl.addEventListener("input", function() {
   if (el) el.addEventListener("input", checkStep2Ready);
 });
 
+// Billing address — "input" untuk teks dan "change" untuk <select> Country
+// (programmatic/pilihan dropdown tidak selalu trigger "input").
+BILLING_ADDRESS_IDS.forEach(function(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener("input", checkStep2Ready);
+  el.addEventListener("change", checkStep2Ready);
+});
+
 var step2NextEl = document.getElementById("bnwStep2Next");
 if (step2NextEl) step2NextEl.addEventListener("click", function() {
   var phone = _getBillingPhoneFull();
@@ -3434,10 +3769,25 @@ if (step2NextEl) step2NextEl.addEventListener("click", function() {
     alert('Phone number "' + phone + '" does not look like a valid number. Please check the country code and number.');
     return;
   }
+  // Billing address wajib (tujuan bil) — disahkan semula server-side di
+  // confirm_booking(); check di sini untuk mesej yang jelas & segera.
+  var addr = _billingAddressValues();
+  var missing = BILLING_ADDRESS_IDS.filter(function(id) { return !addr[id]; })
+    .map(function(id) { return BILLING_ADDRESS_LABELS[id]; });
+  if (missing.length) {
+    alert("Please complete your billing address: " + missing.join(", ") + ".");
+    return;
+  }
   state.billing = {
     full_name: document.getElementById("bnwBillingName").value.trim(),
     email:     emailInput.value.trim(),
     phone:     phone,
+    // Billing address — kunci disamakan dengan kontrak API confirm_booking
+    address_line1: addr.bnwBillingStreet,
+    city:          addr.bnwBillingCity,
+    postcode:      addr.bnwBillingPostcode,
+    state:         addr.bnwBillingState,
+    country:       addr.bnwBillingCountry,
   };
   buildOrderSummary();
   showStep(3);
@@ -3453,6 +3803,7 @@ function buildOrderSummary() {
   renderSummaryHead("bnwOrderSummaryTrip", "bnwOrderTotalGuests", data);
   document.getElementById("bnwOrderGrandTotal").textContent = fmt(data.grand);
 
+  refreshPromoDiscountRow();
   updatePaymentUI();
 }
 
@@ -3480,12 +3831,14 @@ function refreshOrderSummaryTotal() {
   var totalEl = document.getElementById("bnwOrderGrandTotal");
   if (!totalEl) return;
 
+  refreshPromoDiscountRow();
+
   // B2B — pastikan peratus net dah/sedang di-fetch untuk pakej terpilih.
   if (typeof ensureB2bPercent === "function") ensureB2bPercent();
   totalEl.textContent = fmt(calcDiscountedTotal());
   if (typeof applyB2bPercentToDisplay === "function") applyB2bPercentToDisplay();
 
-  // Deposit row Step 3 — cermin chip Deposit (getEffectiveMin) supaya kad
+  // Deposit row Step 3 — getEffectiveMin supaya kad
   // Payment Summary selaras dengan angka sebenar yang akan dibayar mengikut
   // kaedah bayaran terpilih (Online diangkat ke min gateway, dll).
   var depEl = document.getElementById("bnwOrderDeposit");
@@ -3541,83 +3894,6 @@ async function loadPaymentSettings() {
   }
   renderPaymentSettingsUI();
 }
-
-// Sales Person — optional, staff dalaman RareCruise. Customer boleh tambah
-// lebih dari SATU (butang "+ Add another"); setiap satu disimpan sebagai
-// row berasingan dalam SO's child table Sales Team bila confirm_booking()
-// dipanggil (cuma nama — Contribution %/Commission Rate/Incentives biarkan
-// kosong, admin isi sendiri di Desk kalau perlu, ini sekadar tracking).
-var state_sales_persons_available = [];
-var state_sales_person_rows       = [];
-var salesPersonRowSeq = 0;
-
-async function loadSalesPersons() {
-  try {
-    var list = await apiCall("travel_booking.api.booking.get_sales_persons", {}, true);
-    if (Array.isArray(list)) state_sales_persons_available = list;
-  } catch (e) {
-    // Diam-diam gagal — field ni optional, tak patut sekat wizard.
-  }
-  if (!state_sales_person_rows.length) addSalesPersonRow();
-  renderSalesPersonRows();
-}
-
-function addSalesPersonRow() {
-  state_sales_person_rows.push({ uid: ++salesPersonRowSeq, value: "" });
-  renderSalesPersonRows();
-}
-
-function removeSalesPersonRow(uid) {
-  state_sales_person_rows = state_sales_person_rows.filter(function(r) { return r.uid !== uid; });
-  renderSalesPersonRows();
-}
-
-function renderSalesPersonRows() {
-  var list = document.getElementById("bnwSalesPersonList");
-  if (!list) return;
-  list.innerHTML = "";
-
-  state_sales_person_rows.forEach(function(row) {
-    var rowEl = document.createElement("div");
-    rowEl.className = "bnw-sales-row";
-
-    var selWrap = document.createElement("div");
-    selWrap.className = "bnw-select-wrap";
-    var sel = document.createElement("select");
-    sel.className = "bnw-select";
-    var ph = document.createElement("option");
-    ph.value = "";
-    ph.textContent = " Select Sales Person ";
-    if (!row.value) ph.selected = true;
-    sel.appendChild(ph);
-    state_sales_persons_available.forEach(function(sp) {
-      var opt = document.createElement("option");
-      opt.value = sp.name;
-      opt.textContent = sp.sales_person_name || sp.name;
-      if (sp.name === row.value) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    sel.addEventListener("change", function() { row.value = this.value; });
-    var chev = document.createElement("i");
-    chev.className = "ti ti-chevron-down bnw-select-icon";
-    selWrap.appendChild(sel);
-    selWrap.appendChild(chev);
-    rowEl.appendChild(selWrap);
-
-    if (state_sales_person_rows.length > 1) {
-      var rm = document.createElement("button");
-      rm.type = "button";
-      rm.className = "bnw-sales-remove";
-      rm.textContent = "Remove";
-      rm.addEventListener("click", function() { removeSalesPersonRow(row.uid); });
-      rowEl.appendChild(rm);
-    }
-
-    list.appendChild(rowEl);
-  });
-}
-
-document.getElementById("bnwAddSalesPersonBtn").addEventListener("click", addSalesPersonRow);
 
 function renderPaymentSettingsUI() {
   // Guard: state_payment_settings mungkin belum di-initialize kalau fungsi ini
@@ -3679,7 +3955,7 @@ function renderPaymentSettingsUI() {
   // Online Payment radio visibility — diuruskan oleh evaluateOnlinePayment()
   // (single source of truth: gateway configured + jumlah caj customer
   // mencukupi online_payment_min_amount). Dipanggil juga dari refreshPaySummary
-  // bila customer tukar Deposit↔Full / edit amount, supaya Online boleh
+  // bila customer edit amount, supaya Online boleh
   // muncul/hilang ikut jumlah yang dicaj.
   evaluateOnlinePayment();
 
@@ -3701,12 +3977,10 @@ function renderPaymentSettingsUI() {
   // (label sama dipakai di kad Payment Summary Step 1, 2 & 3)
   var depositLabelStep1 = document.getElementById("bnwTotalsDepositLabel");
   var depositLabelStep2 = document.getElementById("bnwBookingDepositLabel");
-  var depositLabelStep3 = document.getElementById("bnwPayDepositChipLabel");
   var depositLabelSum3  = document.getElementById("bnwOrderDepositLabel");
   var depositLabelText  = "Deposit (" + s.default_deposit_percent + "%)";
   if (depositLabelStep1) depositLabelStep1.textContent = depositLabelText;
   if (depositLabelStep2) depositLabelStep2.textContent = depositLabelText;
-  if (depositLabelStep3) depositLabelStep3.textContent = depositLabelText;
   if (depositLabelSum3)  depositLabelSum3.textContent  = depositLabelText;
 
   // Refresh total/pay summary sekiranya method dah dipilih dan cashback berbeza dari fallback
@@ -4002,7 +4276,7 @@ function showAffiliateMsg(type, msg) {
 }
 
 function onPaymentMethodChange(radio) {
-  // Sebelum tukar method: kenal pasti amaun semasa samada preset Deposit/Full
+  // Sebelum tukar method: kenal pasti amaun semasa samada min/full
   // bagi method LAMA. Bila cashback aktif (Travel Settings), min/max berbeza
   // antara Online Payment (tanpa cashback) dan Manual Transfer (dengan
   // cashback) — tanpa remap ni, amaun "full" lama (cth RM 950 selepas
@@ -4016,7 +4290,7 @@ function onPaymentMethodChange(radio) {
   state_payment_method = radio.value;
   updatePaymentUI();
 
-  // Re-apply preset ikut range method BARU. Amaun custom (yang pelanggan
+  // Re-apply amaun ikut range method BARU. Amaun custom (yang pelanggan
   // taip sendiri) dibiarkan — updatePaymentUI dah clamp ke range sah.
   // Pay Later tiada amount (0) — jangan re-apply.
   if ((wasDeposit || wasFull) && state_payment_method !== "Pay Later") {
@@ -4063,14 +4337,8 @@ function refreshPaySummary() {
   var payAmtEl = document.getElementById("bnwPayNowAmount");
   if (payAmtEl) payAmtEl.textContent = " — " + fmt(state_payment_amount);
 
-  var depChipEl = document.getElementById("bnwPayDepositChip");
-  if (depChipEl) depChipEl.classList.toggle("active", Math.abs(state_payment_amount - min) < 0.001);
-
-  var fullChipEl = document.getElementById("bnwPayFullChip");
-  if (fullChipEl) fullChipEl.classList.toggle("active", Math.abs(state_payment_amount - max) < 0.001);
-
   // Re-eval Online Payment availability — jumlah caj mungkin berubah
-  // (Deposit↔Full / input custom), dan minimum amount bergantung padanya.
+  // (edit amount custom), dan minimum amount bergantung padanya.
   evaluateOnlinePayment();
 }
 
@@ -4081,8 +4349,7 @@ function refreshPaySummary() {
 // currency). Bila tak available, sembunyikan radio + note, dan kalau Online
 // terlanjur dipilih, fallback ke Manual Transfer (kalau bank configured)
 // atau Held Booking (Pay Later). Dipanggil dari renderPaymentSettingsUI
-// (settings load) dan refreshPaySummary (bila customer tukar Deposit↔Full /
-// edit amount).
+// (settings load) dan refreshPaySummary (bila customer edit amount).
 function evaluateOnlinePayment() {
   var s = state_payment_settings || {};
   // MULTI-COMPANY: ketersediaan payment ikut CURRENCY BILLING (pakej) —
@@ -4198,17 +4465,11 @@ function updatePaymentUI() {
 
   // Guard: elemen Step 3 (Payment) mungkin belum wujud bila fungsi ini
   // dipanggil awal (semasa init dari cart, user masih di Step 1).
-  var chipDepEl = document.getElementById("bnwChipDeposit");
-  var chipFullEl = document.getElementById("bnwChipFull");
-  if (chipDepEl) chipDepEl.textContent = fmt(min);
-  if (chipFullEl) chipFullEl.textContent = fmt(max);
 
   // MULTI-COMPANY: prefix input "Payment Amount" — amaun yang customer
-  // BAYAR (deposit/full) sentiasa dalam CURRENCY BILLING (currency native
-  // pakej — dicaj Stripe/Payment Entry oleh company berkenaan), jadi
-  // prefix mesti billingSymbol(). fmt() pada chip Deposit/Pay-in-full
-  // sebelah guna currency billing juga (display currency hanya paparan
-  // tambahan dalam kurungan).
+  // BAYAR sentiasa dalam CURRENCY BILLING (currency native pakej —
+  // dicaj Stripe/Payment Entry oleh company berkenaan), jadi prefix
+  // mesti billingSymbol().
   var prefixEl = document.getElementById("bnwPayAmountPrefix");
   if (prefixEl) prefixEl.textContent = billingSymbol();
 
@@ -4216,8 +4477,7 @@ function updatePaymentUI() {
   if (inp) { inp.min = min; inp.max = max; }
 
   if (isPayLater) {
-    // Pay Later: tiada bayaran sekarang — amount sentiasa 0, tiada
-    // Deposit/Full toggle relevan.
+    // Pay Later: tiada bayaran sekarang — amount sentiasa 0.
     state_payment_amount = 0;
   } else if (!state_payment_amount || state_payment_amount > max || state_payment_amount < min) {
     // Default to full payment, or clamp an existing amount into the new range
@@ -4226,7 +4486,7 @@ function updatePaymentUI() {
   if (inp) inp.value = state_payment_amount;
 
   // Sembunyikan seluruh card "Payment Amount" untuk Pay Later — tiada
-  // Deposit/Full/custom amount relevan bila tiada bayaran dibuat sekarang.
+  // amaun relevan bila tiada bayaran dibuat sekarang.
   var amountCard = document.getElementById("bnwPaymentAmountCard");
   if (amountCard) amountCard.style.display = isPayLater ? "none" : "block";
 
@@ -4273,24 +4533,89 @@ function updatePaymentUI() {
 }
 
 // Payment-amount input wiring
+// Medan amount HANYA menerima format float currency — digit + maks 2 titik
+// perpuluhan. Sanitasi di input (potong perpuluhan ke-3 dan selepasnya) dan
+// normalisasi di blur (toFixed(2)); alert-level sahaja — tiada blok keras
+// semasa menaip (nilai akhir tetap di-clamp oleh setPayAmount/validatePay).
+function sanitizeAmountInput(input) {
+  var v = String(input.value || "");
+  var m = v.match(/^\d*(?:\.\d{0,2})?/);
+  var clean = m ? m[0] : "";
+  if (clean !== v) input.value = clean;
+  return clean;
+}
 var payInputEl = document.getElementById("bnwPayAmountInput");
 if (payInputEl) {
   payInputEl.addEventListener("input", function() {
+    sanitizeAmountInput(this);
     state_payment_amount = parseFloat(this.value);
     if (isNaN(state_payment_amount)) state_payment_amount = 0;
+    // Amount sentiasa float currency 2dp dalam state — elak artifact
+    // seperti 123.45600 tersebar ke summary/pengiraan.
+    state_payment_amount = Math.round(state_payment_amount * 100) / 100;
     validatePay();
     refreshPaySummary();
   });
   payInputEl.addEventListener("blur", function() {
-    setPayAmount(parseFloat(this.value));
+    var v = parseFloat(this.value);
+    if (!isNaN(v) && this.value !== "") this.value = v.toFixed(2);
+    setPayAmount(v);
   });
 } // end if (payInputEl)
 
-// Payment chip buttons (Step 3)
-var depositChipEl = document.getElementById("bnwPayDepositChip");
-var fullChipEl = document.getElementById("bnwPayFullChip");
-if (depositChipEl) depositChipEl.addEventListener("click", function() { setPayAmount(getEffectiveMin()); });
-if (fullChipEl) fullChipEl.addEventListener("click", function() { setPayAmount(getMaxPay()); });
+// ─── STEP 3: TERMS & CONDITIONS + MESSAGE TO ADMIN ─────────────────────
+// Panel dirender server-side (booknow.py) HANYA bila dokumen Booking Terms
+// and Condition aktif wujud. Gate frontend di sini adalah UX — gate sebenar
+// disahkan semula server-side dalam confirm_booking() (terms_reference
+// mesti padan dokumen aktif semasa), jadi nilai-nilai ini tidak dipercayai
+// begitu sahaja di backend.
+function getTermsCheckbox()  { return document.getElementById("bnwTermsAccept"); }
+function getTermsCard()      { return document.getElementById("bnwTermsCard"); }
+function getTermsRef() {
+  var card = getTermsCard();
+  return card ? (card.getAttribute("data-terms-name") || "") : "";
+}
+function customerMessageEl() { return document.getElementById("bnwCustomerMessage"); }
+function customerMessageValue() {
+  var el = customerMessageEl();
+  return el ? el.value.trim() : "";
+}
+// Bila panel T&C tidak wujud (tiada dokumen aktif), tiada syarat di
+// frontend — konsisten dengan server yang skip gate bila tiada dokumen.
+function isTermsAccepted() {
+  var cb = getTermsCheckbox();
+  return (!cb) ? true : !!cb.checked;
+}
+function showTermsError(show) {
+  var err = document.getElementById("bnwTermsError");
+  var lbl = document.getElementById("bnwTermsAcceptLabel");
+  if (err) err.style.display = show ? "flex" : "none";
+  if (lbl) lbl.classList.toggle("bnw-terms-accept--alert", !!show);
+}
+function syncTermsAcceptLabel() {
+  var lbl = document.getElementById("bnwTermsAcceptLabel");
+  var cb  = getTermsCheckbox();
+  if (lbl && cb) lbl.classList.toggle("is-checked", !!cb.checked);
+}
+
+var _termsCb = getTermsCheckbox();
+if (_termsCb) {
+  _termsCb.addEventListener("change", function() {
+    if (_termsCb.checked) showTermsError(false);
+    syncTermsAcceptLabel();
+    // Persist tick dalam snapshot wizard — customer yang balik dari
+    // checkout (Stripe "Back") tak perlu setuju semula secara senyap.
+    saveState();
+  });
+}
+var _msgEl = customerMessageEl();
+if (_msgEl) {
+  _msgEl.addEventListener("input", function() {
+    var cnt = document.getElementById("bnwMessageCount");
+    if (cnt) cnt.textContent = String(_msgEl.value.length);
+  });
+  _msgEl.addEventListener("blur", function() { saveState(); });
+}
 
 function calcGrandTotal() {
   // Kira PER-CABIN dari state.rooms — model SLOT (Main Guest/Extra Bed/
@@ -4427,8 +4752,10 @@ function onReceiptSelected(input) {
       if (nameEl) nameEl.style.display = "block";
       if (nameTxt) nameTxt.textContent = file.name;
       showReceiptPreview(e.target.result, false);
-      var ocrBox = document.getElementById("bnwReceiptOCR");
-      if (ocrBox) ocrBox.style.display = "none";
+      // Setiap dokumen yang dimuat naik diproses — PDF dibaca oleh AI OCR
+      // server-side (Tesseract fallback tak sokong PDF; analyzeReceipt
+      // tunjuk mesej isi-manual bila AI tak configured/gagal).
+      analyzeReceipt(file);
     };
     reader.readAsDataURL(file);
   }
@@ -4466,9 +4793,9 @@ async function initReceiptOCR() {
   return _ocrWorker;
 }
 
-/* Parse Malaysian bank slip text for date, reference & amount */
+/* Parse Malaysian bank slip text for date, reference, amount & currency */
 function parseBankSlip(text) {
-  if (!text) return { date: null, reference: null, amount: null, rawText: '' };
+  if (!text) return { date: null, reference: null, amount: null, currency: '', rawText: '' };
   var clean = text.replace(/\s+/g, ' ').trim();
   var date = null, reference = null;
 
@@ -4524,11 +4851,21 @@ function parseBankSlip(text) {
     }
   }
 
-  return { date: date, reference: reference, amount: amount, rawText: clean };
+  // Currency detection (kod ISO kasar untuk alert currency) — hanya isyarat
+  // jelas (RM/MYR, S$/SGD, USD, IDR, THB) yang diiktiraf, selain itu kosong
+  // (elak false alert).
+  var currency = '';
+  if (/\bS\s*\$|SGD\b/i.test(clean)) currency = 'SGD';
+  else if (/\bRM\b|\bMYR\b/i.test(clean)) currency = 'MYR';
+  else if (/\bUSD\b|\bUS\s*\$/i.test(clean)) currency = 'USD';
+  else if (/\bIDR\b|\bRp\b/i.test(clean)) currency = 'IDR';
+  else if (/\bTHB\b/i.test(clean)) currency = 'THB';
+
+  return { date: date, reference: reference, amount: amount, currency: currency, rawText: clean };
 }
 
 /* Papar hasil pembacaan resit (AI atau OCR tempatan) — auto-isi medan +
-   alert perbandingan jumlah (ALERT sahaja, tak block submit). */
+   alert perbandingan jumlah/currency (ALERT sahaja, tak block submit). */
 function renderReceiptOCRResult(parsed, statusEl, resultEl) {
   // Auto-isi Bank Transfer Reference No.
   if (parsed.reference) {
@@ -4537,6 +4874,18 @@ function renderReceiptOCRResult(parsed, statusEl, resultEl) {
       refInput.value = parsed.reference;
       refInput.style.borderColor = 'var(--bnw-success,#2e7d32)';
       setTimeout(function () { refInput.style.borderColor = ''; }, 2000);
+    }
+  }
+
+  // Auto-isi Transfer Date — nilai input YYYY-MM-DD (format internal
+  // sistem); tarikh dipapar dalam format sistem (RC_DATE_FORMAT) pada
+  // hasil OCR di bawah.
+  if (parsed.date) {
+    var dateInput = document.getElementById('bnwBankTransferDateInput');
+    if (dateInput) {
+      dateInput.value = parsed.date;
+      dateInput.style.borderColor = 'var(--bnw-success,#2e7d32)';
+      setTimeout(function () { dateInput.style.borderColor = ''; }, 2000);
     }
   }
 
@@ -4568,13 +4917,26 @@ function renderReceiptOCRResult(parsed, statusEl, resultEl) {
     amtColor = 'var(--bnw-success,#2e7d32)';
   }
 
+  // Pengesahan CURRENCY — alert sahaja (tak block). Hanya bila resit
+  // jelas nyatakan currency lain dari currency billing wizard ni
+  // (cth resit SGD tapi bayaran MYR) — elak false alert bila OCR tak
+  // pasti.
+  var curAlert = '';
+  var billCur = billingCurrency();
+  if (parsed.currency && parsed.currency !== billCur) {
+    curAlert = '<div style="color:var(--bnw-error,#c62828);margin-bottom:4px;">⚠ Receipt currency ' +
+      parsed.currency + ' differs from billing currency ' + billCur +
+      ' — please double-check before submitting.</div>';
+  }
+
   var srcTag = parsed.source === 'ai' ? ' (AI)' : ' (OCR)';
 
   // Bina result card
   var html = '<div style="font-weight:600;color:' + amtColor + ';margin-bottom:6px;">' + amtStatus + srcTag + '</div>';
   if (amtDetail) html += '<div style="color:var(--bnw-text-muted,#6E6A5F);margin-bottom:4px;">' + amtDetail + '</div>';
+  html += curAlert;
   if (parsed.reference) html += '<div style="color:var(--bnw-text-muted,#6E6A5F);">Reference: <strong style="color:var(--bnw-text,#1E1C18);">' + parsed.reference + '</strong> → auto-filled</div>';
-  if (parsed.date) html += '<div style="color:var(--bnw-text-muted,#6E6A5F);">Date: ' + parsed.date + '</div>';
+  if (parsed.date) html += '<div style="color:var(--bnw-text-muted,#6E6A5F);">Date: ' + fmtDate(parsed.date) + ' → auto-filled</div>';
   if (!parsed.reference && !parsed.date && !parsed.amount) {
     html = '<div style="color:var(--bnw-gold,#C9A84C);">⚠ Could not extract details. Please fill reference manually.</div>';
   }
@@ -4639,7 +5001,10 @@ async function analyzeReceipt(file) {
       renderReceiptOCRResult({
         reference: ai.reference_no || null,
         amount: (ai.amount !== null && ai.amount !== undefined) ? ai.amount : null,
-        date: null,
+        // Tarikh transaksi ISO (YYYY-MM-DD) + kod currency (cth MYR) dari
+        // endpoint — dinormalisasi server-side (float 2dp / ISO / kod ISO).
+        date: ai.date || null,
+        currency: ai.currency || '',
         source: 'ai'
       }, statusEl, resultEl);
       return true;
@@ -4691,12 +5056,30 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
     return;
   }
   var bankTransferRef = "";
+  var bankTransferDate = "";
+  var bankTransferNote = "";
   if (state_payment_method === "Manual Transfer") {
     bankTransferRef = document.getElementById("bnwBankTransferRefInput").value.trim();
     if (!bankTransferRef) {
       alert("Please enter your bank transfer reference number before submitting.");
       return;
     }
+    // Tarikh transaksi (YYYY-MM-DD dari input date) + nota/memo — pilihan;
+    // nilai di-trim, tarikh disahkan semula di backend (getdate).
+    var dateEl = document.getElementById("bnwBankTransferDateInput");
+    var noteEl = document.getElementById("bnwBankTransferNoteInput");
+    bankTransferDate = dateEl ? (dateEl.value || "").trim() : "";
+    bankTransferNote = noteEl ? noteEl.value.trim().slice(0, 500) : "";
+  }
+  // ── T&C gate — checkbox WAJIB bila panel T&C dipaparkan (dokumen aktif
+  // wujud). Bila belum tick: tunjuk error inline + scroll ke kad supaya
+  // customer nampak apa yang kurang (bukan alert pukal). Server sahkan
+  // SEMULA di confirm_booking() — ini hanya UX.
+  if (!isTermsAccepted()) {
+    showTermsError(true);
+    var _termsCard = getTermsCard();
+    if (_termsCard) _termsCard.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
   }
   var payment_type = state_payment_method === "Pay Later"
     ? "Deposit"  // amount_paid=0 dihantar terus di bawah — nilai ni tak
@@ -4727,10 +5110,6 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
         };
       });
 
-    var selectedSalesPersons = state_sales_person_rows
-      .map(function(r) { return r.value; })
-      .filter(function(v) { return v; });
-
     var result = await apiCall(
       "travel_booking.api.booking.confirm_booking",
       {
@@ -4739,13 +5118,16 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
         selections:     activeSelections,
         billing:        state.billing,
         payment_type:   payment_type,
-        amount_paid:    state_payment_amount,
+        amount_paid:    Math.round((state_payment_amount || 0) * 100) / 100,
         payment_method: state_payment_method,
         voucher_code:   state_voucher_code,
         affiliate_code: state_affiliate_code,
         receipt:        state_receipt_data || "",
         bank_transfer_ref: bankTransferRef,
-        sales_persons:  JSON.stringify(selectedSalesPersons),
+        // Tarikh transaksi bank (ISO) + nota transaksi — disimpan pada
+        // Payment Entry (posting_date/reference_date + remarks).
+        bank_transfer_date: bankTransferDate,
+        bank_transfer_note: bankTransferNote,
         // booking_number dari wizard state yang di-restored (jika customer
         // kembali dari checkout "Back" untuk tukar kaedah bayaran). Backend
         // guna ini untuk cancel booking lama (elak duplicate) sebelum cipta
@@ -4755,6 +5137,12 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
         // bagi pihak customer — minta server langkau OTP. Server sahkan
         // semula role session; nilai ini sahaja TIDAK mencukupi.
         on_behalf:      !!state.on_behalf,
+        // ── T&C + pesanan customer (Step 3) ── terms_reference ialah nama
+        // dokumen T&C yang DIPAPAR semasa customer tick — server validasi
+        // ia masih dokumen aktif semasa confirm (elak versi lapuk).
+        terms_accepted:  isTermsAccepted() && !!getTermsCheckbox(),
+        terms_reference: getTermsRef(),
+        customer_message: customerMessageValue(),
       },
       false  // POST
     );
@@ -5114,7 +5502,6 @@ function refreshCurrencyDisplay() {
 // Muat Travel Settings (bank account, cashback %) lebih awal supaya sedia
 // bila user sampai ke Step 3 (Payment). Tidak menghalang render page lain.
 loadPaymentSettings();
-loadSalesPersons();
 
 // Auto-fill + auto-apply referral code if the customer arrived via an
 // affiliate's shareable link (?sp=CODE), or via a restored wizard snapshot
@@ -5122,8 +5509,23 @@ loadSalesPersons();
 // Enter key continues to work exactly as before.
 prefillAffiliateCodeFromUrl();
 
-// Escape key menutup cabin picker modal (sekali register sahaja di page
-// level — closeCabinPickerModal() sendiri no-op bila modal tiada).
+// Escape key menutup overlay video fullscreen dahulu (jika terbuka),
+// barulah cabin picker modal (kedua-duanya no-op bila elemen tiada).
 document.addEventListener("keydown", function(e) {
-  if (e.key === "Escape") closeCabinPickerModal();
+  if (e.key === "Escape") {
+    if (document.getElementById("bnwRoomVideoOverlay")) {
+      closeRoomVideoFullscreen();
+    } else {
+      closeCabinPickerModal();
+    }
+  }
+});
+
+// Keluar native fullscreen (Escape/butang sistem OS) juga perlu buang
+// overlay video — kalau tidak, iframe autoplay kekal melekat di skrin.
+document.addEventListener("fullscreenchange", function() {
+  if (!document.fullscreenElement) closeRoomVideoFullscreen();
+});
+document.addEventListener("webkitfullscreenchange", function() {
+  if (!document.webkitFullscreenElement) closeRoomVideoFullscreen();
 });

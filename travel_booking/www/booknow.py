@@ -15,6 +15,7 @@ from travel_booking.api._helpers import (
     get_own_affiliate_code,
     resolve_booking_actor,
 )
+from travel_booking.api.terms import get_active_terms_record
 from travel_booking.utils.trip_catalog import get_ready_bundle
 from travel_booking.www.trips import _get_currency_filter
 
@@ -166,6 +167,15 @@ def get_context(context):
     # tidak pernah dikunci (keputusan produk: prefill adalah kemudahan).
     context.user_profile_json = json.dumps(_get_session_profile())
 
+    # Senarai negara untuk dropdown Billing Address (Step 2). Dibaca
+    # server-side kerana Guest tidak boleh panggil frappe.client.get_list
+    # (403 di console). Nilai ialah NAMA canonical dokumen Country (bukan
+    # country_name bebas) supaya sentiasa sah untuk Link field
+    # Address.country bila confirm_booking() cipta Address 'Billing'
+    # customer. Malaysia didahulukan (pasaran utama), selebihnya A-Z.
+    _countries = frappe.get_all("Country", pluck="name")
+    context.billing_countries = sorted(_countries, key=lambda n: (n != "Malaysia", n))
+
     # Booking actor (fasa 1 modul booking-channel): session user dengan
     # role "Affiliate" / "Sales User" yang layak aktifkan checkbox
     # "Booking on behalf" di wizard — email customer boleh diisi tanpa OTP.
@@ -193,3 +203,16 @@ def get_context(context):
     context.own_affiliate_code = (
         (get_own_affiliate_code() if frappe.session.user != "Guest" else None) or ""
     )
+
+    # ── TERMS & CONDITIONS (Step 3) ──────────────────────────────────────
+    # Dokumen T&C yang dipilih untuk site ni dalam Travel Website (medan
+    # per-vertikal cruise_booking_terms / tour_booking_terms — doctype
+    # standard "Terms and Conditions") dirender SERVER-SIDE ke dalam kad
+    # Step 3 — tiada API call tambahan dari client (Guest pun nampak tanpa
+    # endpoint). Bila tiada pilihan / dokumen disabled, panel T&C langsung
+    # TIDAK dipaparkan dan confirm_booking() tidak mengenakan syarat
+    # persetujuan (rollout berperingkat: admin pilih dokumen di Travel
+    # Website bila sedia). Nama dokumen dibawa melalui data-attribute kad
+    # untuk confirm_booking payload — gate sebenar disahkan semula
+    # server-side.
+    context.booking_terms = get_active_terms_record()

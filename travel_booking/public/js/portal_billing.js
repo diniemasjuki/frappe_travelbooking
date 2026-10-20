@@ -16,11 +16,10 @@
       - SO lunas, tiada SI  → nota "invoice akan muncul di sini"
    4. Transactions — senarai Payment Entry untuk SO tersebut
       (status Verified/Pending/Cancelled + ↓ Receipt)
-   5. Make a Payment (hanya jika ada baki) — corak borang dipinjam
-      dari wizard booking.html Step 3: kotak amount besar + chip
-      Deposit/Full, kaedah radio Online / Manual Bank Transfer,
-      borang manual menunjukkan butir bank (per currency, dari
-      Travel Settings — TIADA fallback butir bank palsu).
+   5. Make a Payment (hanya jika ada baki) — kotak amount besar
+      (default = baki bayaran), kaedah radio Online / Manual Bank
+      Transfer, borang manual menunjukkan butir bank (per currency,
+      dari Travel Settings — TIADA fallback butir bank palsu).
 
    Semua render di-escape guna _esc(); interaksi melalui event
    delegation (data-act) — tiada onclick string yang boleh pecah
@@ -202,7 +201,7 @@ function renderSoCard(so) {
         renderItemsSection(so, symbol, total) +
         renderDocumentsSection(so, symbol, isPaid, isCancelled) +
         renderTransactionsSection(so, symbol) +
-        renderPaymentSection(so, soId, symbol, outstanding, paid, depositAmt, minAmt, isCancelled) +
+        renderPaymentSection(so, soId, symbol, outstanding, paid, minAmt, isCancelled) +
       '</div>' +
     '</div>'
   );
@@ -358,7 +357,7 @@ function renderTransactionsSection(so, symbol) {
 
 
 /* ── Make a Payment — corak borang wizard booking.html Step 3 ── */
-function renderPaymentSection(so, soId, symbol, outstanding, paid, depositAmt, minAmt, isCancelled) {
+function renderPaymentSection(so, soId, symbol, outstanding, paid, minAmt, isCancelled) {
   if (isCancelled || outstanding <= 0.001) return '';
 
   const bank = BANK_ACCOUNTS[so.currency || 'MYR'];
@@ -369,18 +368,6 @@ function renderPaymentSection(so, soId, symbol, outstanding, paid, depositAmt, m
     : CASHBACK.enabled && CASHBACK.percent > 0
       ? 'Get ' + CASHBACK.percent + '% cashback when you pay via bank transfer'
       : 'Verified within 1–2 business days';
-
-  // Chip Deposit hanya relevan sebelum bayaran pertama.
-  const chipsHtml = paid <= 0
-    ? '<button type="button" class="pay-chip" data-act="chip" data-so="' + soId + '" data-amt="' + depositAmt.toFixed(2) + '">' +
-        '<span class="pay-chip__label">Deposit (' + DEPOSIT_PCT + '%)</span>' +
-        '<span class="pay-chip__amt">' + fmtDual(depositAmt, symbol) + '</span></button>' +
-      '<button type="button" class="pay-chip on" data-act="chip" data-so="' + soId + '" data-amt="' + outstanding.toFixed(2) + '">' +
-        '<span class="pay-chip__label">Full balance</span>' +
-        '<span class="pay-chip__amt">' + fmtDual(outstanding, symbol) + '</span></button>'
-    : '<button type="button" class="pay-chip on" data-act="chip" data-so="' + soId + '" data-amt="' + outstanding.toFixed(2) + '">' +
-        '<span class="pay-chip__label">Full balance</span>' +
-        '<span class="pay-chip__amt">' + fmtDual(outstanding, symbol) + '</span></button>';
 
   const bankHtml = hasBank
     ? '<div class="bank-details">' +
@@ -397,7 +384,7 @@ function renderPaymentSection(so, soId, symbol, outstanding, paid, depositAmt, m
         '<div style="font-size:12px;color:#7D7A70;">Balance due <strong style="color:#92400E;">' + fmtDual(outstanding, symbol) + '</strong></div>' +
       '</div>' +
 
-      /* Amount — sama macam wizard: input besar + chip pantas */
+      /* Amount — input besar, default = baki bayaran (outstanding) */
       '<div class="pay-amount">' +
         '<span class="pay-amount__prefix">' + _esc(RC.company_symbol || symbol) + '</span>' +
         '<input type="number" class="pay-amount__input" id="pay-amt-' + soId + '" inputmode="decimal" step="0.01" min="0" value="' + outstanding.toFixed(2) + '" aria-label="Amount to pay"/>' +
@@ -406,7 +393,6 @@ function renderPaymentSection(so, soId, symbol, outstanding, paid, depositAmt, m
         'Min ' + fmtDual(minAmt, symbol) + ' · Max ' + fmtDual(outstanding, symbol) +
         (paid <= 0 ? ' · first payment must be at least the deposit' : '') +
       '</div>' +
-      '<div class="pay-quick">' + chipsHtml + '</div>' +
       '<div id="pay-err-' + soId + '" role="alert" style="display:none;font-size:11px;color:#C0392B;margin-top:8px;"></div>' +
 
       /* Kaedah — radio-style macam wizard Payment Method.
@@ -492,11 +478,6 @@ function bindBillingEvents(container) {
       card.classList.toggle('open', open);
       el.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
-    else if (act === 'chip') {
-      e.preventDefault();
-      const input = document.getElementById('pay-amt-' + soId);
-      if (input) { input.value = el.getAttribute('data-amt'); syncChips(soId, input.value); }
-    }
     else if (act === 'method') {
       e.preventDefault();
       selectMethod(soId, el.getAttribute('data-kind'));
@@ -508,22 +489,6 @@ function bindBillingEvents(container) {
       downloadDocument(el, el.getAttribute('data-doctype'), el.getAttribute('data-docname'));
     }
     else if (act === 'reload') { window.location.reload(); }
-  });
-
-  // Taip amount sendiri → tarik semula keadaan chip.
-  container.addEventListener('input', e => {
-    if (e.target.classList && e.target.classList.contains('pay-amount__input')) {
-      const m = (e.target.id || '').match(/^pay-amt-(.+)$/);
-      if (m) syncChips(m[1], e.target.value);
-    }
-  });
-}
-
-function syncChips(soId, val) {
-  const v = parseFloat(val);
-  document.querySelectorAll('.pay-chip[data-so="' + soId + '"]').forEach(ch => {
-    const amt = parseFloat(ch.getAttribute('data-amt'));
-    ch.classList.toggle('on', !isNaN(v) && Math.abs(v - amt) < 0.001);
   });
 }
 

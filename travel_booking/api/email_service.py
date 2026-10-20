@@ -17,6 +17,39 @@ from travel_booking.api.so_helpers import (
     _resolve_booking_from_so,
     _compute_payment_status,
 )
+from travel_booking.api.terms import get_active_terms_record
+
+
+# ══════════════════════════════════════════════
+# EMAIL NOTIFICATION SETTINGS (Travel Settings)
+# ══════════════════════════════════════════════
+
+def _email_notification_config(key):
+    """Baca konfigurasi satu notifikasi dari tab "Email Notifications"
+    (Travel Settings > child table Travel Email Notification, baris di-seed
+    oleh install.py / patch).
+
+    Pulangkan dict {"enabled", "email_template", "traveller_email_template"}
+    untuk baris `key`, atau None jika baris tiada / senarai dikosongkan —
+    pemanggil mesti treat None sebagai "guna tingkah laku lalai asal"
+    (template default, sentiasa hantar) supaya site lama & settings kosong
+    kekal berfungsi macam sebelum ada tab ni.
+
+    EMEL KESELAMATAN TIDAK dilalui function ni: OTP (otp.py), magic-link
+    portal (portal_auth.py) dan jemputan passport (portal_traveller.py)
+    sentiasa dihantar — tiada toggle, elak customer terkunci daripada login.
+    """
+    rows = frappe.get_all(
+        "Travel Email Notification",
+        filters={
+            "parent": "Travel Settings",
+            "parenttype": "Travel Settings",
+            "notification_key": key,
+        },
+        fields=["enabled", "email_template", "traveller_email_template"],
+        limit=1,
+    )
+    return rows[0] if rows else None
 
 
 # ══════════════════════════════════════════════
@@ -64,11 +97,20 @@ def _send_set_password_email(email, first_name):
     lebih ketara.
     """
     try:
+        cfg = _email_notification_config("set_password")
+        if cfg and not cfg.enabled:
+            # Dinyahaktif di Travel Settings > Email Notifications — bukan
+            # kegagalan penghantaran (pemanggil tak semak nilai pulangan).
+            return True
+
         context = {
             "first_name":       first_name,
             "set_password_url": _generate_set_password_url(email),
         }
-        email_template = frappe.get_doc("Email Template", "Set Your Password")
+        template_name = "Set Your Password"
+        if cfg and cfg.email_template and frappe.db.exists("Email Template", cfg.email_template):
+            template_name = cfg.email_template
+        email_template = frappe.get_doc("Email Template", template_name)
         message = email_template.get_formatted_response(context)
         subject = frappe.render_template(email_template.subject, context)
 
@@ -126,7 +168,7 @@ def _booking_email_context(booking_name):
     b = frappe.db.get_value("Booking", booking_name,
                             ["booking_number", "customer", "trip_date",
                              "booking_channel", "b2b_partner", "end_customer",
-                             "cust_email"],
+                             "cust_email", "terms_reference", "terms_accepted_at"],
                             as_dict=True)
     if not b:
         return None
@@ -174,6 +216,10 @@ def _booking_email_context(booking_name):
         "end_customer":        b.end_customer,
         "end_customer_email":  b.cust_email,
         "b2b_partner_name":    b2b_partner_name,
+        # T&C — dokumen yang mengikat booking ni (untuk blok penghantaran
+        # + vars Jinja yang boleh dirujuk Email Template di Desk).
+        "terms_reference":   b.terms_reference or "",
+        "terms_accepted_at": b.terms_accepted_at,
     }
 
 
@@ -181,6 +227,69 @@ def _booking_email_context(booking_name):
 # dicipta dalam install.py / patch. Kalau varian tiada (site lama), fallback
 # ke template asas dengan nilai harga None (baris harga kosong).
 _TRAVELLER_TEMPLATE_SUFFIX = " (Traveller)"
+
+
+def _terms_delivery_block(booking_name, site_url):
+    """Blok HTML "Terms & Conditions" dilampir pada SETIAP emel status
+    booking — saluran penghantaran formal T&C yang DITETAPKAN kepada
+    pelanggan.
+
+    Wizard /booknow memang papar + gate T&C semasa checkout (Booking
+    merekod terms_accepted / terms_reference / terms_accepted_at), tapi
+    "disampaikan" bermakna customer juga MENERIMA rujukan T&C tersebut
+    selepas booking. Emel status ialah satu-satu saluran yang pasti sampai
+    ke tangan customer, jadi setiap emel status bawa: nama dokumen T&C
+    yang mengikat booking, masa persetujuan (bila direkod), dan pautan ke
+    dokumen penuh di /booking-terms (page awam yang membaca pilihan
+    Travel Website per-vertikal — boleh dibuka tanpa login).
+
+    Gaya inline-style dipadankan dengan Email Template sedia ada
+    (hr #EAE7E0, teks #7D7A70, link #C9A84C). Tiada harga dalam blok —
+    SELAMAT untuk varian traveller B2B yang tidak boleh nampak billing.
+    """
+    terms_ref, accepted_at = frappe.db.get_value(
+        "Booking", booking_name, ["terms_reference", "terms_accepted_at"]
+    ) or (None, None)
+
+    if terms_ref:
+        terms_title = frappe.db.get_value(
+            "Terms and Conditions", terms_ref, "title") or terms_ref
+    else:
+        # Booking lama (sebelum gate wujud) — rujuk T&C aktif semasa emel
+        # dihantar supaya blok tetap bermakna. Tiada T&C dipilih = tiada
+        # blok (penghantaran hanya berlaku bila T&C memang ditetapkan).
+        row = get_active_terms_record()
+        if not row:
+            return ""
+        terms_title = row.title or row.name
+
+    accepted_clause = ""
+    if accepted_at:
+        accepted_clause = (
+            ', accepted at the time of booking on <strong>{}</strong>'.format(
+                frappe.utils.format_datetime(accepted_at))
+        )
+
+    # Tajuk dokumen selalunya sudah mengandungi "TERMS AND CONDITIONS" —
+    # elak pengulangan "…TERMS AND CONDITIONS Terms & Conditions".
+    if "terms" in terms_title.lower():
+        governed = "<strong>{}</strong>".format(terms_title)
+    else:
+        governed = "<strong>{}</strong> Terms &amp; Conditions".format(terms_title)
+
+    terms_url = site_url.rstrip("/") + "/booking-terms"
+    return (
+        '<hr style="border:none;border-top:1px solid #EAE7E0;margin:24px 0"/>'
+        '<div style="font-size:12px;color:#7D7A70;line-height:1.7">'
+        '<p style="margin:0 0 6px;font-weight:700;color:#4A4740;'
+        'text-transform:uppercase;letter-spacing:.08em;font-size:11px">'
+        'Terms &amp; Conditions</p>'
+        '<p style="margin:0 0 6px">This booking is governed by our '
+        '{governed}{accepted}.</p>'
+        '<p style="margin:0">Read the full document: '
+        '<a href="{url}" style="color:#C9A84C;text-decoration:underline">{url}</a></p>'
+        '</div>'
+    ).format(governed=governed, accepted=accepted_clause, url=terms_url)
 
 
 def _status_email_context(ctx, status, first_name, site_url, include_prices=True):
@@ -207,6 +316,15 @@ def _status_email_context(ctx, status, first_name, site_url, include_prices=True
         "agent_name":       ctx.get("b2b_partner_name") or "your travel agent",
         "b2b_traveller":    not include_prices,
         "booking_url":      site_url + "/traveller",
+        # T&C delivery — vars untuk Email Template di Desk (cth.
+        # {% if has_terms %} ... {{ terms_title }} ... {% endif %}). Blok
+        # standard tetap dilampir automatik dalam _send_status_email(),
+        # jadi template TIDAK perlu guna vars ni.
+        "terms_url":     site_url.rstrip("/") + "/booking-terms",
+        "terms_title":   (frappe.db.get_value(
+                            "Terms and Conditions", ctx.get("terms_reference"), "title")
+                          if ctx.get("terms_reference") else ""),
+        "has_terms":     bool(ctx.get("terms_reference")),
     }
 
 
@@ -244,6 +362,16 @@ def _send_status_email(booking_name, status, email_override=None):
     if not template_name:
         return
 
+    cfg = _email_notification_config("booking_status_" + status.lower())
+    if cfg and not cfg.enabled:
+        # Dinyahaktif di Travel Settings > Email Notifications — tiada emel
+        # untuk status ni (partner B2B & traveller B2B sama-sama di-skip).
+        return
+    if cfg and cfg.email_template and frappe.db.exists("Email Template", cfg.email_template):
+        # Template gantian yang dipilih admin (fallback ke default jika
+        # template tersebut sudah dipadam dari Desk).
+        template_name = cfg.email_template
+
     def _render(template, context):
         email_template = frappe.get_doc("Email Template", template)
         message = email_template.get_formatted_response(context)
@@ -266,6 +394,9 @@ def _send_status_email(booking_name, status, email_override=None):
                 context = _status_email_context(ctx, status, first_name, site_url,
                                                 include_prices=True)
                 subject, message = _render(template_name, context)
+                # Lampir blok penghantaran T&C — saluran formal dokumen
+                # yang ditetapkan (rujuk _terms_delivery_block).
+                message += _terms_delivery_block(booking_name, site_url)
                 frappe.sendmail(
                     recipients=[partner_email],
                     # Sender TIDAK di-hardcode — rujuk nota di _send_set_password_email().
@@ -278,8 +409,19 @@ def _send_status_email(booking_name, status, email_override=None):
             # TIADA harga/billing (keperluan utama model B2B).
             traveller_email = ctx.get("end_customer_email")
             if traveller_email:
-                t_template = template_name + _TRAVELLER_TEMPLATE_SUFFIX
-                if not frappe.db.exists("Email Template", t_template):
+                # Keutamaan varian traveller B2B: template yang dipilih dalam
+                # Travel Settings → varian default "<Status> (Traveller)" →
+                # template asas (fallback site lama). Jangan guna template
+                # PARTNER yang di-override tadi — walaupun context B2B
+                # memang kosongkan harga, varian traveller patut kekal
+                # berdikari supaya tak terlalu bergantung pada guard Jinja.
+                t_default = STATUS_TEMPLATE_MAP[status] + _TRAVELLER_TEMPLATE_SUFFIX
+                if cfg and cfg.traveller_email_template and frappe.db.exists(
+                        "Email Template", cfg.traveller_email_template):
+                    t_template = cfg.traveller_email_template
+                elif frappe.db.exists("Email Template", t_default):
+                    t_template = t_default
+                else:
                     t_template = template_name  # fallback site lama
                 end_name = frappe.db.get_value(
                     "Customer", ctx["end_customer"], "customer_name"
@@ -288,6 +430,9 @@ def _send_status_email(booking_name, status, email_override=None):
                 t_context = _status_email_context(ctx, status, t_first, site_url,
                                                   include_prices=False)
                 subject, message = _render(t_template, t_context)
+                # Traveller B2B pun perlu T&C (dokumen mengikat booking;
+                # blok tiada harga — selamat untuk varian tanpa billing).
+                message += _terms_delivery_block(booking_name, site_url)
                 frappe.sendmail(
                     recipients=[traveller_email],
                     subject=subject,
@@ -306,6 +451,8 @@ def _send_status_email(booking_name, status, email_override=None):
                                         include_prices=True)
 
         subject, message = _render(template_name, context)
+        # Lampir blok penghantaran T&C (saluran langsung / override).
+        message += _terms_delivery_block(booking_name, site_url)
 
         frappe.sendmail(
             recipients=[email],
@@ -337,12 +484,44 @@ def _receipt_pdf(pe_name):
     return frappe.utils.pdf.get_pdf(full_html)
 
 
+def _booking_trip_context(booking_name):
+    """Maklumat pembelian untuk resit — trip/pakej/group date daripada
+    snapshot Booking; jumlah/baki/currency daripada property live Booking
+    (jumlah SEMUA SO utama + addon, ikut currency SO utama).
+
+    Semua nilai ada fallback kosong supaya template boleh guard {% if %}
+    bila maklumat tak lengkap (contoh: booking lama sebelum field wujud).
+    """
+    booking = frappe.get_doc("Booking", booking_name)
+    currency = booking.currency or ""
+    return {
+        "trip_title":      booking.trip_title or booking.trip_name or "",
+        "package_title":   (frappe.db.get_value("Trip Package", booking.trip_package, "package_title") or "")
+                           if booking.trip_package else "",
+        "group_date_name": (frappe.db.get_value("Trip Group Date", booking.trip_date, "trip_group_name") or "")
+                           if booking.trip_date else "",
+        "departure_fmt":   frappe.utils.format_date(booking.departure_date) if booking.departure_date else "",
+        "return_fmt":      frappe.utils.format_date(booking.return_date) if booking.return_date else "",
+        "total_fmt":       fmt_currency(booking.total_amount, currency),
+        "balance_fmt":     fmt_currency(booking.balance_amount, currency),
+        "payment_status":  booking.payment_status or "",
+    }
+
+
 def _send_receipt_email(pe_doc):
     """Email resit untuk satu Payment Entry (setiap bayaran = satu resit).
     Kandungan (subject + HTML) ditarik dari Email Template "Payment Receipt"
     — boleh diedit terus di Frappe Desk tanpa perlu sentuh kod.
+
+    Context turut membawa maklumat pembelian (trip/pakej/group date/jumlah/
+    baki) daripada Booking yang dipaut melalui SO — template boleh papar
+    melalui trip_title, package_title, group_date_name, departure_fmt,
+    return_fmt, total_fmt, balance_fmt, payment_status.
     """
     try:
+        cfg = _email_notification_config("payment_receipt")
+        if cfg and not cfg.enabled:
+            return
         if pe_doc.party_type != "Customer" or not pe_doc.party:
             return
         email = get_customer_email(pe_doc.party)
@@ -364,8 +543,9 @@ def _send_receipt_email(pe_doc):
                 so_name = ref.reference_name
                 break
         booking_number = ""
+        booking_name = ""
         if so_name:
-            booking_name = _resolve_booking_from_so(so_name)
+            booking_name = _resolve_booking_from_so(so_name) or ""
             if booking_name:
                 booking_number = frappe.db.get_value("Booking", booking_name, "booking_number") or ""
 
@@ -377,8 +557,18 @@ def _send_receipt_email(pe_doc):
             "first_name":     first_name,
             "amount_fmt":     amount_fmt,
         }
+        if booking_name:
+            # Maklumat pembelian gagal dikumpul → resit TETAP dihantar
+            # tanpa blok trip (template guard {% if trip_title %}).
+            try:
+                context.update(_booking_trip_context(booking_name))
+            except Exception as e:
+                frappe.log_error("Receipt trip info failed: " + str(e), "Booking Email Error")
 
-        email_template = frappe.get_doc("Email Template", "Payment Receipt")
+        template_name = "Payment Receipt"
+        if cfg and cfg.email_template and frappe.db.exists("Email Template", cfg.email_template):
+            template_name = cfg.email_template
+        email_template = frappe.get_doc("Email Template", template_name)
         message = email_template.get_formatted_response(context)
         subject = frappe.render_template(email_template.subject, context)
 

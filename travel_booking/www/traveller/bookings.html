@@ -25,6 +25,32 @@
       </a>
     </div>
 
+    <!-- Search & Filters (JS papar bila ada bookings) -->
+    <div id="bookings-filters" class="tv-filterbar" style="display:none;">
+      <div class="tv-filterbar__search">
+        <span class="tv-filterbar__icon">🔍</span>
+        <input id="bk-search" type="text" class="tv-input" autocomplete="off"
+               placeholder="Search trip, package or ref..."/>
+      </div>
+      <select id="bk-f-status" class="tv-input tv-select" aria-label="Booking status">
+        <option value="">All Statuses</option>
+      </select>
+      <select id="bk-f-payment" class="tv-input tv-select" aria-label="Payment status">
+        <option value="">All Payments</option>
+      </select>
+      <select id="bk-f-trip" class="tv-input tv-select" aria-label="Trip">
+        <option value="">All Trips</option>
+      </select>
+      <select id="bk-f-perpage" class="tv-input tv-select" aria-label="Rows per page" title="Rows per page">
+        <option value="10">10 per page</option>
+        <option value="20">20 per page</option>
+        <option value="50">50 per page</option>
+        <option value="100">100 per page</option>
+      </select>
+      <button id="bk-f-clear" type="button" class="tv-btn tv-btn--ghost tv-btn--sm">Reset</button>
+    </div>
+    <div id="bookings-count" class="tv-filterbar__count" style="display:none;"></div>
+
     <!-- Loading State -->
     <div id="bookings-loading" class="tv-card tv-text-center" style="padding:60px 24px;">
       <div style="font-size:32px;color:var(--text-muted);margin-bottom:12px;">⏳</div>
@@ -33,6 +59,9 @@
 
     <!-- Content Container (populated by JS) -->
     <div id="bookings-content" style="display:none;"></div>
+
+    <!-- Pagination (populated by JS — muncul bila > 1 halaman) -->
+    <div id="bookings-pagination" style="display:none;margin-top:16px;"></div>
 
     <!-- Empty State -->
     <div id="bookings-empty" class="tv-empty" style="display:none;">

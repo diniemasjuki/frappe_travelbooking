@@ -108,7 +108,7 @@ class TripAddonPackageRateTestCase(UnitTestCase):
 	method get_rate_for_currency) — dokumen sintetik, tiada DB."""
 
 	def _pkg(self, rates, legacy_currency="MYR", legacy_unit_price=100.0):
-		from travel_booking.travel_booking_management.doctype.trip_addon_package.trip_addon_package import TripAddonPackage
+		from travel_booking.module_travel_booking.doctype.trip_addon_package.trip_addon_package import TripAddonPackage
 		doc = TripAddonPackage({"doctype": "Trip Addon Package"})
 		doc.currency = legacy_currency
 		doc.unit_price = legacy_unit_price

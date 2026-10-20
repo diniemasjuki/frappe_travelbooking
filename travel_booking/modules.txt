@@ -1,4 +1,3 @@
-Travel Booking Management
+Module Travel Booking
+Module Admin Portal
 Resources Management
-Travel Product
-Travel Booking

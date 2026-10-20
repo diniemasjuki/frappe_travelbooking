@@ -80,12 +80,17 @@ def _stamp_candidates(so_name, booking, cabin_no, room_category, pax_type, neede
 
 
 def execute():
-    if not frappe.db.has_column("Booking Reservation", "sales_order"):
-        frappe.throw("Booking Reservation.sales_order belum di-sync oleh migrate")
+    # Field Booking Reservation.sales_order telah bersara (diganti junction
+    # Share Slot Reservation — rujuk patch v17). Site lama yang pernah sync
+    # field tu masih ada kolum pautannya; site baharu langsung tiada.
+    # Backfill hanya bermakna bila kedua-dua kolum lama wujud — selain itu
+    # langkau; langkah buang flag lama Sales Order tetap dijalankan.
+    has_link = frappe.db.has_column("Booking Reservation", "sales_order")
+    has_flag = frappe.db.has_column("Sales Order", "custom_share_slot_activated")
 
     # 1. Backfill — hanya bila kolum flag lama MASIH wujud (site yang
     #    kolumnya telah dibuang lebih awal / site baharu: langkau terus).
-    if not frappe.db.has_column("Sales Order", "custom_share_slot_activated"):
+    if not has_link or not has_flag:
         rows = []
     else:
         rows = frappe.db.sql("""

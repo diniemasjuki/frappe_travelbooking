@@ -6,8 +6,9 @@
 #     stok/cutoff untuk paparan portal.
 #   - checkout_addons(booking_number, lines, ...) — cart checkout:
 #     re-price server-side, cipta SATU Sales Order addon (item "Trip Addon
-#     Package") + Booking Addon (header) + Booking Addon Item (baris),
-#     redirect ke billing page untuk pembayaran.
+#     Package") + Booking Addon (header) + Booking Addon Item (baris).
+#     Manual Transfer: Payment Entry DRAFT + resit dilampirkan serta-merta
+#     (menunggu admin verify); Online Payment: payment URL gateway.
 #
 # Ownership booking disahkan setiap panggilan melalui _get_customer()
 # (portal_booking.py) — customer HANYA boleh checkout addon untuk booking
@@ -25,7 +26,9 @@ from travel_booking.api.constants import ADDON_PACKAGE_ITEM_CODE
 from travel_booking.api.so_helpers import (
     _get_or_create_travel_item,
     _resolve_so_currency_and_rate,
+    _create_manual_payment_entry,
 )
+from travel_booking.utils.upload_normalize import _decode_and_normalize_upload
 
 
 # ══════════════════════════════════════════════
@@ -127,6 +130,7 @@ def _scoping_is_applicable(
     return False
 
 
+@frappe.whitelist()
 def get_available_addons(booking_number: str, currency: str = None):
     """Senarai Trip Addon (produk) dengan Trip Addon Package sebagai variant.
     Setiap addon boleh ada beberapa package (plan type, pricing, scoping berbeza).
@@ -140,6 +144,11 @@ def get_available_addons(booking_number: str, currency: str = None):
 
     Checkout_addons() re-price semula dari DB — jangan percaya harga dari
     client.
+
+    Whitelisted untuk page desk Booking Portal (/app/booking-manager —
+    staf beli addon bagi pihak customer); gate akses DI DALAM fungsi
+    melalui _get_owned_booking() (pemilik / manager on-behalf / staf
+    MANAGED_ALL) — sama seperti endpoint addon yang lain.
     """
     booking = _get_owned_booking(booking_number)
     _b2b_user, b2b_customer_name, _b2b_managed = _portal_access()
@@ -630,8 +639,59 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
 
         # Increment current_qty_sold on each Trip Addon Package
         for l in validated_lines:
-            new_sold = (frappe.db.get_value("Trip Addon Package", l["addon_package"], "current_qty_sold") or 0) + l["qty"]
+            new_sold = frappe.db.get_value("Trip Addon Package", l["addon_package"], "current_qty_sold") or 0
             frappe.db.set_value("Trip Addon Package", l["addon_package"], "current_qty_sold", new_sold)
+
+        # MANUAL TRANSFER — cipta Payment Entry DRAFT + attach resit
+        # (corak sama dengan booking wizard & portal billing). Dahulu
+        # parameter receipt/bank_transfer_ref diterima tapi dibuang terus:
+        # customer upload bukti transfer, tiada PE dicipta, admin tiada
+        # rekod untuk verify dan order tergantung Pending. PE draft kini
+        # membawa resit (PDF auto-render ke PNG oleh helper normalization)
+        # + no. rujukan bank; submit oleh admin menyalakan hook
+        # on_payment_entry_submit → refresh_payment_status → Booking
+        # Addon Pending → Confirmed.
+        pe_name = None
+        if payment_method == "Manual Transfer":
+            try:
+                pe_name = _create_manual_payment_entry(
+                    so_name           = so.name,
+                    customer_name     = booking.customer,
+                    amount            = grand_total,
+                    receipt_data      = receipt or "",
+                    label             = "receipt-" + order.name,
+                    bank_transfer_ref = bank_transfer_ref,
+                )
+            except Exception:
+                # Order + SO sudah dicipta & disubmit — JANGAN throw
+                # (customer akan retry dan cipta order pendua). Log error
+                # + fallback: attach resit TERUS pada Booking Addon
+                # supaya bukti tetap sampai kepada admin untuk cipta PE
+                # manual di Desk.
+                frappe.log_error(
+                    title="Addon Manual PE Error",
+                    message="Addon manual payment entry failed for SO " +
+                            so.name + " (booking " + booking.name +
+                            ", addon order " + order.name + ").",
+                )
+                if receipt:
+                    try:
+                        file_content, file_name = _decode_and_normalize_upload(
+                            receipt, "receipt-" + order.name + ".png", label="receipt")
+                        frappe.get_doc({
+                            "doctype":             "File",
+                            "file_name":           file_name,
+                            "attached_to_doctype": "Booking Addon",
+                            "attached_to_name":    order.name,
+                            "is_private":          1,
+                            "content":             file_content
+                        }).insert(ignore_permissions=True)
+                    except Exception:
+                        frappe.log_error(
+                            title="Addon Receipt Fallback Failed",
+                            message="Could not attach addon receipt to " +
+                                    "Booking Addon " + order.name + ".",
+                        )
 
         frappe.db.commit()
     finally:
@@ -641,6 +701,7 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
         "success":      True,
         "addon_order":   order.name,
         "sales_order":   so.name,
+        "payment_entry": pe_name,
         "grand_total":   grand_total,
         "currency":      so_currency,
         "billing_url":   "/traveller/billing?ref=" + booking_number,

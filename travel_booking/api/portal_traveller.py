@@ -14,6 +14,23 @@ from travel_booking.api.portal_booking import (
     _booking_accessible,
     _booking_action_allowed,
 )
+from travel_booking.utils.upload_normalize import (
+    _decode_and_normalize_upload,
+    _detect_file_kind,
+    _pdf_extract_text,
+    _pdf_to_image,
+)
+
+
+def _throw_expected(msg: str):
+    """Validasi bisnis yang dijangkakan (cth: IC duplikat, passport section
+    belum lengkap). Respons kepada tamu SAMA seperti frappe.throw (msgprint +
+    HTTP 417), tetapi exception ditandai skip_error_log supaya frappe core
+    tidak merekamnya ke Error Log — Error Log kekal untuk ralat sistem sahaja.
+    """
+    err = frappe.ValidationError(msg)
+    err.skip_error_log = True
+    frappe.msgprint(msg, raise_exception=err)
 
 
 def _ai_extract_passport(content: bytes) -> dict | None:
@@ -57,6 +74,11 @@ def _ai_extract_passport(content: bytes) -> dict | None:
         "(from MRZ, e.g. 'MYS' for Malaysia)\n"
         "- place_of_birth: if visible\n"
         "- issue_date: YYYY-MM-DD if visible\n"
+        "- mrz_line2: the SECOND MRZ line at the very bottom of the page "
+        "(44 characters, exactly as printed, including '<' filler "
+        "characters and check digits). This line is cross-checked with "
+        "ICAO check digits, so accuracy matters more than speed. Empty "
+        "if not visible.\n"
         "Respond with ONLY a JSON object, no other text. Use empty string "
         '"" for fields you cannot read.'
     )
@@ -92,7 +114,8 @@ def _ai_extract_passport(content: bytes) -> dict | None:
     out = {}
     for k in ("first_name", "last_name", "ic_number", "gender",
               "date_of_birth", "passport_no", "passport_expiry",
-              "nationality_code", "place_of_birth", "issue_date"):
+              "nationality_code", "place_of_birth", "issue_date",
+              "mrz_line2"):
         v = str(parsed.get(k) or "").strip()
         if not v or v.upper().startswith("YYYY") or v.upper() == "N/A":
             continue
@@ -212,7 +235,7 @@ def _resolve_guest_token(token: str):
                      frappe.PermissionError)
     slot = frappe.db.get_value(
         "Booking Reservation", slot_name,
-        ["name", "booking", "document_status", "traveller",
+        ["name", "booking", "document_status", "traveller", "is_a_cruise",
          "passport_link_email", "passport_link_expires_on"], as_dict=True
     )
     # Expiry WAJIB — token tanpa tarikh tamat (legacy/NULL) dianggap
@@ -223,9 +246,12 @@ def _resolve_guest_token(token: str):
                      frappe.PermissionError)
     if slot.document_status == "Verified":
         frappe.throw("This slot has been verified by admin and cannot be edited.")
+
     booking = frappe.db.get_value(
         "Booking", slot.booking,
-        ["name", "customer", "status", "booking_number"], as_dict=True
+        ["name", "customer", "status", "booking_number",
+         "cust_address_line1", "cust_city", "cust_postcode",
+         "cust_state", "cust_country"], as_dict=True
     )
     if not booking:
         frappe.throw("Booking not found.")
@@ -271,6 +297,8 @@ def save_booking_traveller(booking_number: str, slot_name: str,
                             special_needs: str = "",
                             wheelchair_assistant: str = "",
                             medicine_treatment: str = "",
+                            address_line1: str = "", city: str = "",
+                            postcode: str = "", state: str = "", country: str = "",
                             pdpa_consent: bool = False,
                             guest_token: str = ""):
     """Simpan maklumat traveller SECARA BERTAHAP IKUT SECTION.
@@ -361,6 +389,29 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         if not email:
             frappe.throw("Email is required.")
         frappe.utils.validate_email_address(email, throw=True)
+        # Alamat traveller WAJIB LENGKAP (semua medan) — cermin validasi
+        # frontend; perlu untuk pengurusan trip (visa, dokumen, kecemasan).
+        _missing_addr = [
+            lbl for val, lbl in (
+                (address_line1, "Street address"),
+                (city, "City"),
+                (postcode, "Postcode"),
+                (state, "State"),
+                (country, "Country"),
+            ) if not (val or "").strip()
+        ]
+        if _missing_addr:
+            frappe.throw(
+                "Address is required — please complete: "
+                + ", ".join(_missing_addr) + "."
+            )
+    # Wheelchair Assistance WAJIB dipilih (bukan optional) — perlu persiapan
+    # bantuan ketibaan/berlepas oleh kru trip.
+    if section == "health":
+        if not (wheelchair_assistant or "").strip():
+            frappe.throw("Wheelchair Assistance is required — please select an option.")
+        if wheelchair_assistant not in ("Not Required", "Long Walk Only", "All Time"):
+            frappe.throw("Invalid Wheelchair Assistance option.")
     if phone and len(re.sub(r"\D", "", phone)) < 7:
         frappe.throw("The phone number seems too short. Please enter the full number.")
     if emergency_contact_phone and len(re.sub(r"\D", "", emergency_contact_phone)) < 7:
@@ -398,7 +449,7 @@ def save_booking_traveller(booking_number: str, slot_name: str,
                 "name"
             )
             if conflict:
-                frappe.throw(
+                _throw_expected(
                     "This IC Number has already been used for another traveller in this booking "
                     "(" + conflict + "). Please check again \u2014 each traveller must have a different IC."
                 )
@@ -437,7 +488,7 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         # contact / health — traveller mesti sudah wujud & linked pada slot
         # (dicipta oleh save section passport).
         if not slot.traveller:
-            frappe.throw(
+            _throw_expected(
                 "Please complete and save the Passport section first."
             )
         traveller_name = slot.traveller
@@ -448,6 +499,15 @@ def save_booking_traveller(booking_number: str, slot_name: str,
             tvl.emergency_contact_name         = emergency_contact_name
             tvl.emergency_contact_phone        = _format_phone(emergency_contact_phone)
             tvl.emergency_contact_relationship = emergency_contact_relationship
+            # Alamat traveller (WAJIB lengkap — divalidasikan di atas) —
+            # disimpan pada doctype Traveller; alamat slot pada Booking
+            # Reservation TIDAK disentuh di sini (snapshot manifest kekal
+            # diurus admin di Desk).
+            tvl.address_line1 = (address_line1 or "").strip()
+            tvl.city          = (city or "").strip()
+            tvl.postcode      = (postcode or "").strip()
+            tvl.state         = (state or "").strip()
+            tvl.country       = (country or "").strip()
         else:  # health
             tvl.dietary_requirements = dietary_requirements
             tvl.medical_conditions   = medical_conditions
@@ -484,15 +544,15 @@ def save_booking_traveller(booking_number: str, slot_name: str,
     # penuh (bukan db.set_value()).
     res_doc = frappe.get_doc("Booking Reservation", slot_name)
     res_doc.traveller       = traveller_name
-    res_doc.document_status = "Pending"
+    res_doc.document_status = "Incomplete"
     res_doc.save(ignore_permissions=True)
 
     # Upload passport — hanya untuk section passport, simpan dalam
-    # Traveller.passport_image
+    # Traveller.passport_image. Jenis fail disahkan (JPG/PNG/PDF — magic
+    # bytes); PDF disimpan sebagai imej render halaman 1 supaya preview
+    # borang (<img>), matching dhash/sha dan paparan Desk berfungsi.
     if section == "passport" and filedata and filename:
-        if "," in filedata:
-            filedata = filedata.split(",")[1]
-        file_content = base64.b64decode(filedata)
+        file_content, filename = _decode_and_normalize_upload(filedata, filename)
 
         file_doc = frappe.get_doc({
             "doctype":             "File",
@@ -507,11 +567,10 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         frappe.db.set_value("Traveller", traveller_name, "passport_image", file_doc.file_url)
 
     # Upload visa photo — hanya untuk section contact, simpan dalam
-    # Traveller.visa_photo
+    # Traveller.visa_photo. Rawatan PDF sama dengan passport (disimpan
+    # sebagai imej render).
     if section == "contact" and visa_filedata and visa_filename:
-        if "," in visa_filedata:
-            visa_filedata = visa_filedata.split(",")[1]
-        visa_file_content = base64.b64decode(visa_filedata)
+        visa_file_content, visa_filename = _decode_and_normalize_upload(visa_filedata, visa_filename)
 
         visa_file_doc = frappe.get_doc({
             "doctype":             "File",
@@ -543,7 +602,7 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         "section":      section,
         "slot_name":    slot_name,
         "traveller_id": traveller_name,
-        "doc_status":   "Pending",
+        "doc_status":   "Incomplete",
         "all_filled":   filled_count >= total_slots and total_slots > 0,
         "message":      "Traveller information saved successfully."
     }
@@ -573,6 +632,11 @@ def _traveller_payload(traveller, ic_fallback: str = "") -> dict:
         "special_needs":          traveller.get("special_needs")          or "",
         "wheelchair_assistant":   traveller.get("wheelchair_assistant")   or "",
         "medicine_treatment":     traveller.get("medicine_treatment")     or "",
+        "address_line1":          traveller.get("address_line1")          or "",
+        "city":                   traveller.get("city")                   or "",
+        "postcode":               traveller.get("postcode")               or "",
+        "state":                  traveller.get("state")                  or "",
+        "country":                traveller.get("country")                or "",
     }
 
 
@@ -734,6 +798,9 @@ def _extract_mrz(text: str) -> dict:
                 "gender":           {"M": "Male", "F": "Female"}.get(l2[20:21], ""),
                 "passport_expiry":  _mrz_date(l2[21:23], l2[23:25], l2[25:27], future=True),
                 "nationality_code": ln[2:5],
+                # Baris mentah disimpan untuk pengesahan checksum oleh
+                # _apply_mrz_checksum_guard() (dipanggil sebelum return).
+                "_mrz_line2":       l2,
             })
             break
         # TD1 (kad passport sesetengah negara): 3 baris x 30 char
@@ -753,6 +820,10 @@ def _extract_mrz(text: str) -> dict:
                 "nationality_code": ln[2:5],
             })
             break
+    # Pengesahan checksum ICAO: medan MRZ yang check digitnya gagal
+    # (bacaan OCR salah digit) dibuang supaya sumber lain (AI/zona visual)
+    # boleh mengisinya — nilai checksum-sah kekal (bukti matematik).
+    extracted = _apply_mrz_checksum_guard(extracted)
     return extracted
 
 
@@ -1264,6 +1335,112 @@ def _ocr_passport(content: bytes, deadline_seconds: int = 60) -> dict:
     return extracted
 
 
+# ══════════════════════════════════════════════
+# UPLOAD NORMALIZATION (JPG/PNG/PDF) + MRZ CHECKSUM + CACHE HELPERS
+# (normalization helpers kini di travel_booking/utils/upload_normalize.py
+#  — dikongsi dengan resit manual payment portal & booking wizard)
+# ══════════════════════════════════════════════
+
+def _mrz_check_digit(value: str) -> str:
+    """Check digit ICAO 9303 (pemberat 7-3-1 berulang; 0-9 = 0-9,
+    A-Z = 10-35, '<' = 0; hasil mod 10)."""
+    weights = (7, 3, 1)
+    total = 0
+    for i, ch in enumerate((value or "").upper()):
+        if ch.isdigit():
+            val = int(ch)
+        elif "A" <= ch <= "Z":
+            val = ord(ch) - ord("A") + 10
+        else:  # '<' atau aksara rosak = 0
+            val = 0
+        total += val * weights[i % 3]
+    return str(total % 10)
+
+
+def _mrz_field_validity(line2: str) -> dict:
+    """Sahkan medan TD3 MRZ line-2 dengan check digitnya sendiri.
+    Return {"passport_no": bool, "date_of_birth": bool,
+    "passport_expiry": bool} — True = nilai terbukti betul secara
+    matematik (bukan tekaan OCR/AI)."""
+    line2 = (line2 or "").strip().upper()
+    out = {"passport_no": False, "date_of_birth": False, "passport_expiry": False}
+    if len(line2) < 28:
+        return out
+    out["passport_no"] = _mrz_check_digit(line2[0:9]) == line2[9]
+    out["date_of_birth"] = _mrz_check_digit(line2[13:19]) == line2[19]
+    out["passport_expiry"] = _mrz_check_digit(line2[21:27]) == line2[27]
+    return out
+
+
+def _apply_mrz_checksum_guard(extracted: dict) -> dict:
+    """Buang medan MRZ yang check digitnya GAGAL (bacaan OCR salah digit)
+    supaya sumber lain boleh mengisi; medan checksum-sah dikekalkan.
+    Key dalaman '_mrz_line2' dibuang dari hasil."""
+    line2 = extracted.pop("_mrz_line2", "") or ""
+    if not line2:
+        return extracted
+    validity = _mrz_field_validity(line2)
+    dropped = []
+    for field, ok in validity.items():
+        if extracted.get(field) and not ok:
+            dropped.append(field)
+            extracted.pop(field)
+    if dropped:
+        frappe.logger("passport").warning(
+            "MRZ checksum failed for %s — dropped, other sources will fill",
+            dropped,
+        )
+    return extracted
+
+
+def _apply_validated_mrz_overrides(extracted: dict, line2: str) -> dict:
+    """Baris MRZ yang dibaca semula oleh AI — bila check digitnya SAH,
+    nilai daripada baris itu MENGATASI bacaan visual AI (checksum ialah
+    bukti matematik; bacaan visual kerap salah digit)."""
+    line2 = (line2 or "").strip().upper().replace(" ", "")
+    if len(line2) < 28:
+        return extracted
+    validity = _mrz_field_validity(line2)
+    if validity["passport_no"] and line2[0:9].replace("<", "").strip():
+        extracted["passport_no"] = line2[0:9].replace("<", "").strip()
+    if validity["date_of_birth"]:
+        dob = _mrz_date(line2[13:15], line2[15:17], line2[17:19])
+        if dob:
+            extracted["date_of_birth"] = dob
+    if validity["passport_expiry"]:
+        exp = _mrz_date(line2[21:23], line2[23:25], line2[25:27], future=True)
+        if exp:
+            extracted["passport_expiry"] = exp
+    return extracted
+
+
+def _merge_authoritative(base: dict, overlay: dict) -> tuple:
+    """Gabung extraction: medan MRZ teras dari overlay (teks terbenam
+    PDF — aksara TEPAT dokumen, bukan tekaan OCR/AI) MENGATASI base;
+    nama & nationality diisi untuk kekosongan sahaja.
+    Return (base, used) — used=True bila overlay menyumbang."""
+    used = False
+    for k in ("passport_no", "date_of_birth", "passport_expiry", "gender"):
+        if overlay.get(k) and overlay.get(k) != base.get(k):
+            base[k] = overlay[k]
+            used = True
+    for k in ("first_name", "last_name", "full_name"):
+        if overlay.get(k) and not base.get(k):
+            base[k] = overlay[k]
+            used = True
+    if overlay.get("nationality_code") and not base.get("nationality"):
+        country = _country_from_mrz(overlay["nationality_code"])
+        if country:
+            base["nationality"] = country
+            used = True
+    return base, used
+
+
+def _sanitize_extracted(extracted: dict) -> dict:
+    """Buang key dalaman ('_'-prefixed) sebelum dihantar ke klien/cache."""
+    return {k: v for k, v in (extracted or {}).items() if not str(k).startswith("_")}
+
+
 @frappe.whitelist(allow_guest=True)
 def check_traveller_passport(filedata: str, guest_token: str = ""):
     """Langkah 1 wizard: customer/guest muat naik gambar passport DULU.
@@ -1301,52 +1478,141 @@ def check_traveller_passport(filedata: str, guest_token: str = ""):
     except Exception:
         frappe.throw("Invalid image data.")
 
+    # Jenis fail via magic bytes (bukan nama fail — upload boleh menghantar
+    # apa saja). PDF diterima: halaman bio-data dirender ke imej supaya
+    # SEMUA enjin sedia ada (dhash, AI vision, Tesseract) memprosesnya
+    # tanpa diubah.
+    file_kind = _detect_file_kind(content)
+    if not file_kind:
+        frappe.throw("Please upload a JPG, PNG, or PDF file.")
+
+    # Cache key atas bytes ASAL yang diupload — fail yang sama (retake
+    # sama, aliran share-link yang rescan dokumen sama) mendapat hasil
+    # cache tanpa panggilan AI/OCR. Extraction deterministik bagi bytes
+    # yang sama, jadi cache 24h adalah selamat.
+    original_hash = hashlib.sha256(content).hexdigest()
+    _CACHE_KEY = f"passport_scan_v1:{original_hash}"
+    try:
+        cached = frappe.cache().get_value(_CACHE_KEY)
+    except Exception:
+        cached = None
+
+    # PDF: teks terbenam (PDF digital — aksara TEPAT dokumen) diekstrak
+    # dahulu sebagai fast-path; kemudian halaman 1 dirender ke imej untuk
+    # AI/OCR dan matching (dhash/sha beroperasi atas imej — konsisten
+    # dengan fail yang disimpan save_booking_traveller, juga imej render).
+    pdf_text_mrz = {}
+    if file_kind == "pdf":
+        try:
+            pdf_text_mrz = _sanitize_extracted(
+                _apply_mrz_checksum_guard(_extract_mrz(_pdf_extract_text(content))))
+        except Exception:
+            pdf_text_mrz = {}
+        rendered = _pdf_to_image(content)
+        if not rendered:
+            frappe.throw(
+                "This PDF could not be processed — please upload a clear "
+                "JPG or PNG photo of the passport instead."
+            )
+        content = rendered
+
     try:
         upload_hash = _dhash(content)
     except Exception:
-        frappe.throw("The file could not be read as an image. Please upload a JPG or PNG.")
+        frappe.throw("The file could not be read as an image. Please upload a clear JPG, PNG, or PDF of the passport.")
 
     exact_hash = hashlib.sha256(content).hexdigest()
 
-    # ── Ekstraksi maklumat passport: AI DULU, Tesseract (Image + MRZ)
-    # fallback & pengisi kekosongan ──
-    # AI vision baca keseluruhan halaman (MRZ + visual zone) — bila AI
-    # dikonfigur, ia adalah enjin utama. Tesseract menjalankan OCR
-    # GABUNGAN (MRZ + zona visual imej) dan digunakan:
-    #   1. fallback bila AI tidak dikonfigur / gagal, dan
-    #   2. pengisi kekosongan bila AI tinggalkan medan teras kosong
-    #      (combine — nilai AI tidak ditimpa).
-    # PENTING (latency): jangan jalan Tesseract bersama AI secara serentak
-    # — tesseract boleh ambil BERMINIT pada beban tinggi (diukur 151s) dan
-    # request web worker mati pada timeout 120s. Sebab itu pengisi
-    # kekosongan dihadkan deadline 30s (bukan 60s penuh): AI (≤45s) + OCR
-    # (≤30s) kekal dalam budget 120s.
-    ai_extracted = None
-    try:
-        ai_extracted = _ai_extract_passport(content)
-    except Exception:
-        ai_extracted = None
-
-    _engine = "ocr"
-    if ai_extracted:
-        extracted = dict(ai_extracted)
-        _engine = "ai"
-        # Combine: AI kurang lengkap (ada medan teras kosong) → lengkapkan
-        # daripada OCR Image+MRZ. Nilai AI kekal diutamakan.
-        _CORE_FIELDS = ("passport_no", "passport_expiry", "date_of_birth",
-                        "first_name", "full_name")
-        if not all(extracted.get(k) for k in _CORE_FIELDS):
-            ocr_fill = _ocr_passport(content, deadline_seconds=30)
-            filled = False
-            for k, v in ocr_fill.items():
-                if v and not extracted.get(k):
-                    extracted[k] = v
-                    filled = True
-            if filled:
-                _engine = "ai+ocr"
+    if isinstance(cached, dict) and cached.get("extracted") is not None:
+        # CACHE HIT — bahagian mahal (AI/OCR) dilangkau; matching di bawah
+        # tetap dijalankan (scoped ikut customer).
+        extracted = dict(cached["extracted"])
+        _engine = cached.get("engine") or "ocr"
     else:
-        extracted = _ocr_passport(content)
-        _engine = "ocr"
+        # ── Ekstraksi maklumat passport: AI DULU, Tesseract (Image + MRZ)
+        # fallback & pengisi kekosongan; teks terbenam PDF (aksara tepat)
+        # MENGATASI bacaan visual untuk medan MRZ teras. ──
+        # AI vision baca keseluruhan halaman (MRZ + visual zone) — bila AI
+        # dikonfigur, ia adalah enjin utama. Tesseract menjalankan OCR
+        # GABUNGAN (MRZ + zona visual imej) dan digunakan:
+        #   1. fallback bila AI tidak dikonfigur / gagal, dan
+        #   2. pengisi kekosongan bila AI tinggalkan medan teras kosong
+        #      (combine — nilai AI tidak ditimpa).
+        # PENTING (latency): jangan jalan Tesseract bersama AI secara serentak
+        # — tesseract boleh ambil BERMINIT pada beban tinggi (diukur 151s) dan
+        # request web worker mati pada timeout 120s. Sebab itu pengisi
+        # kekosongan dihadkan deadline 30s (bukan 60s penuh): AI (≤45s) + OCR
+        # (≤30s) kekal dalam budget 120s.
+        ai_extracted = None
+        try:
+            ai_extracted = _ai_extract_passport(content)
+        except Exception:
+            ai_extracted = None
+
+        _engine = ""
+        if ai_extracted:
+            extracted = dict(ai_extracted)
+            # Baris MRZ yang dibaca semula AI — bila check digitnya sah,
+            # nilai baris itu MENGATASI bacaan visual (ralat digit kerap;
+            # checksum adalah bukti matematik).
+            extracted = _apply_validated_mrz_overrides(
+                extracted, (extracted.pop("mrz_line2", "") or ""))
+            _engine = "ai"
+            # Combine: AI kurang lengkap (ada medan teras kosong) → lengkapkan
+            # daripada OCR Image+MRZ. Nilai AI kekal diutamakan.
+            _CORE_FIELDS = ("passport_no", "passport_expiry", "date_of_birth",
+                            "first_name", "full_name")
+            if not all(extracted.get(k) for k in _CORE_FIELDS):
+                ocr_fill = _ocr_passport(content, deadline_seconds=30)
+                filled = False
+                for k, v in ocr_fill.items():
+                    if v and not extracted.get(k):
+                        extracted[k] = v
+                        filled = True
+                if filled:
+                    _engine = "ai+ocr"
+        elif (pdf_text_mrz.get("passport_no") or pdf_text_mrz.get("ic_number")
+              or pdf_text_mrz.get("first_name") or pdf_text_mrz.get("full_name")):
+            # PDF digital: teks terbenam cukup untuk medan identiti —
+            # Tesseract DILANGKAU (jimat sehingga 30s; teks adalah aksara
+            # tepat dokumen, bukan tekaan OCR).
+            extracted = dict(pdf_text_mrz)
+            _engine = "pdf-text"
+            pdf_text_mrz = {}
+        else:
+            extracted = _ocr_passport(content)
+            _engine = "ocr"
+
+        # Teks terbenam PDF mengatasi bacaan visual untuk medan MRZ teras;
+        # nama/nationality diisi untuk kekosongan sahaja.
+        if pdf_text_mrz:
+            extracted, pdf_used = _merge_authoritative(extracted, pdf_text_mrz)
+            if pdf_used:
+                _engine = (_engine + "+pdf-text") if _engine else "pdf-text"
+
+        if not _engine:
+            _engine = "ocr"
+
+        # Simpan hasil extraction ke cache (24 jam).
+        try:
+            frappe.cache().set_value(
+                _CACHE_KEY,
+                {"extracted": _sanitize_extracted(extracted), "engine": _engine},
+                expires_in_sec=86400,
+            )
+        except TypeError:
+            # Pustaka cache lama tanpa expires_in_sec — simpan tanpa TTL.
+            try:
+                frappe.cache().set_value(
+                    _CACHE_KEY,
+                    {"extracted": _sanitize_extracted(extracted), "engine": _engine},
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    extracted = _sanitize_extracted(extracted)
 
     # Semua ID dinormalisasi ke [A-Z0-9] sebelum matching.
     # Padanan #1: nombor passport. #2: IC number. #3 (fallback terakhir):
@@ -1571,7 +1837,7 @@ def confirm_traveller_documents(booking_number: str, slot_name: str,
                                 guest_token: str = ""):
     """Butang pengesahan akhir (bar bawah form docs): customer ATAU guest
     (via token) sahkan semua maklumat traveller sudah lengkap. Validasi
-    kelengkapan setiap section; set slot & Traveller kepada "Pending"
+    kelengkapan setiap section; set slot & Traveller kepada "Incomplete"
     (sedia disemak admin) + Comment audit (guna actor — session user
     atau guest email, BUKAN frappe.session.user yang "Guest" kosong)."""
     frappe.flags.ignore_permissions = True
@@ -1600,7 +1866,7 @@ def confirm_traveller_documents(booking_number: str, slot_name: str,
     if slot.document_status == "Verified":
         frappe.throw("This slot has been verified by admin and cannot be edited.")
     if not slot.traveller:
-        frappe.throw(
+        _throw_expected(
             "Please complete and save the Passport section first."
         )
 
@@ -1631,15 +1897,20 @@ def confirm_traveller_documents(booking_number: str, slot_name: str,
         missing.append("Email (Contact Info section)")
     if not (tvl.emergency_contact_name and tvl.emergency_contact_phone):
         missing.append("Emergency contact (Contact Info section)")
+    if not (tvl.address_line1 and tvl.city and tvl.postcode
+            and tvl.state and tvl.country):
+        missing.append("Full address (Contact Info section)")
+    if not tvl.wheelchair_assistant:
+        missing.append("Wheelchair assistance (Health section)")
     if missing:
         frappe.throw(
             "Some details are still incomplete:\n\u2022 " + "\n\u2022 ".join(missing)
         )
 
-    tvl.status = "Pending"
+    tvl.status = "Incomplete"
     tvl.save(ignore_permissions=True)
 
-    frappe.db.set_value("Booking Reservation", slot_name, "document_status", "Pending")
+    frappe.db.set_value("Booking Reservation", slot_name, "document_status", "Incomplete")
 
     frappe.get_doc({
         "doctype":           "Comment",
@@ -1663,7 +1934,7 @@ def confirm_traveller_documents(booking_number: str, slot_name: str,
     return {
         "status":     "ok",
         "slot_name":  slot_name,
-        "doc_status": "Pending",
+        "doc_status": "Incomplete",
         "all_filled": filled_count >= total_slots and total_slots > 0,
     }
 
@@ -1718,7 +1989,8 @@ def request_guest_passport_link(booking_number: str = "", slot_name: str = "",
     # guna endpoint yang sama.
     slot = frappe.db.get_value(
         "Booking Reservation", slot_name,
-        ["name", "booking", "document_status", "traveller"], as_dict=True
+        ["name", "booking", "document_status", "traveller",
+         "guest_label", "pax_type"], as_dict=True
     )
     if not slot:
         frappe.throw("Slot not found.")
@@ -1751,6 +2023,12 @@ def request_guest_passport_link(booking_number: str = "", slot_name: str = "",
     link = frappe.utils.get_url("/guest_passport?token=" + token)
     trip_name = booking.trip_name or "your trip"
 
+    # Slot label utk subject emel — sama format dgn paparan portal
+    # ("Traveller N (Pax Type)"); fallback docname jika guest_label kosong.
+    slot_label = (slot.guest_label or "").strip() or slot.name
+    if slot.pax_type:
+        slot_label += " (" + slot.pax_type + ")"
+
     # Email opsional (corak "share me"): kalau email diberi, hantar link juga
     # sebagai fallback; jika tidak, caller (portal/Desk) terima link utk dikongsi
     # terus — WhatsApp / Web Share / salin. Orang sekarang lebih suka kongsi
@@ -1758,7 +2036,7 @@ def request_guest_passport_link(booking_number: str = "", slot_name: str = "",
     if email:
         frappe.sendmail(
             recipients=[email],
-            subject="Submit your passport details — " + str(trip_name),
+            subject="Submit Your Passport Info for " + slot_label + " on " + str(trip_name),
             message=(
                 "<p>Hello,</p>"
                 "<p>You've been invited to submit your passport and travel details for "
@@ -1824,7 +2102,14 @@ def verify_guest_token(token: str = ""):
             td.trip_group_name,
             tp.package_title,
             tp.package_code,
-            tp.package_type
+            tp.package_type,
+            -- Status cruise peringkat trip/pakej — penentu paparan panel
+            -- Cruise Cabin (rantau fetch: Trip → Trip Group Date → Booking
+            -- → Reservation; semua salinan flag yang sama, di-OR supaya
+            -- rekod lama yang fetch_from belum sync kekal betul).
+            tm.is_a_cruise_trip AS trip_is_cruise,
+            tp.is_a_cruise_trip AS package_is_cruise,
+            b.is_a_cruise_trip  AS booking_is_cruise
         FROM `tabBooking` b
         LEFT JOIN `tabTrip`            tm ON tm.name = b.trip_name
         LEFT JOIN `tabTrip Group Date` td ON td.name = b.trip_date
@@ -1838,6 +2123,38 @@ def verify_guest_token(token: str = ""):
         (trip_row.booking_departure if trip_row else None)
     return_date    = (trip_row.group_return if trip_row else None) or \
         (trip_row.booking_return if trip_row else None)
+
+    # Room info untuk panel Room Info header guest — bilik yang dibeli
+    # (slot INI ialah rekod Booking Reservation) + penempatan kabin cruise
+    # (stateroom/delegate/aroya) jika booking bercruise.
+    room = frappe.db.get_value(
+        "Booking Reservation", slot.name,
+        ["guest_label", "room_category", "pax_type", "room_id",
+         "room_privacy", "stateroom_no", "delegate_no", "aroya_guest_no",
+         "is_a_cruise"],
+        as_dict=True,
+    )
+    # Label mesra manusia utk Room Category (docname Link selalunya kod),
+    # konsisten dgn paparan portal customer (rc.category_name / rc.room_type).
+    room_category_label = ""
+    if room and room.room_category:
+        rc = frappe.db.get_value(
+            "Trip Price Category", room.room_category,
+            ["category_name", "room_type"], as_dict=True,
+        )
+        if rc:
+            room_category_label = rc.category_name or rc.room_type or ""
+
+    # Penentu paparan panel Cruise Cabin: TRIP/PACKAGE bercruise sahaja
+    # (is_a_cruise_trip). Salinan flag rantau fetch di-OR untuk rekod lama
+    # yang belum disync; nilai kabin (stateroom/delegate/aroya) semata-mata
+    # TIDAK mencukupi untuk memaparkan panel.
+    is_cruise_trip = bool(
+        ((trip_row.trip_is_cruise    if trip_row else 0) or 0) or
+        ((trip_row.package_is_cruise if trip_row else 0) or 0) or
+        ((trip_row.booking_is_cruise if trip_row else 0) or 0) or
+        (slot.is_a_cruise or 0)
+    )
 
     ctx = {
         "mode":            "guest",
@@ -1854,9 +2171,22 @@ def verify_guest_token(token: str = ""):
         "package_title":   ((trip_row.package_title if trip_row else "") or ""),
         "package_code":    ((trip_row.package_code if trip_row else "") or ""),
         "package_type":    ((trip_row.package_type if trip_row else "") or ""),
-        "document_status": slot.document_status or "Pending",
+        "document_status": slot.document_status or "Incomplete",
         "is_verified":     slot.document_status == "Verified",
         "traveller_id":    slot.traveller or "",
+        # Room Info (dari Booking Reservation slot ini)
+        "guest_label":         (room.guest_label if room else "") or "",
+        "room_category":       (room.room_category if room else "") or "",
+        "room_category_label": room_category_label or ((room.room_category if room else "") or ""),
+        "pax_type":            (room.pax_type if room else "") or "",
+        "room_id":             (room.room_id if room else "") or "",
+        "room_privacy":        (room.room_privacy if room else "") or "",
+        # Cruise cabin (HANYA bila trip/pakej bercruise — is_a_cruise_trip;
+        # paparan ditentukan oleh flag ini di JS, bukan oleh nilai kabin)
+        "stateroom_no":    (str(room.stateroom_no) if room and room.stateroom_no else ""),
+        "delegate_no":     (str(room.delegate_no) if room and room.delegate_no else ""),
+        "aroya_guest_no":  (str(room.aroya_guest_no) if room and room.aroya_guest_no else ""),
+        "is_a_cruise":     is_cruise_trip,
         "has_passport":    False,
         "has_visa_photo":  False,
         "passport_image":  "",
@@ -1888,7 +2218,8 @@ def verify_guest_token(token: str = ""):
              "gender", "passport_image", "visa_photo", "emergency_contact_name",
              "emergency_contact_phone", "emergency_contact_relationship",
              "dietary_requirements", "medical_conditions", "special_needs",
-             "medicine_treatment", "wheelchair_assistant"],
+             "medicine_treatment", "wheelchair_assistant",
+             "address_line1", "city", "postcode", "state", "country"],
             as_dict=True,
         )
         if t:
@@ -1920,6 +2251,34 @@ def verify_guest_token(token: str = ""):
             })
             if t.full_name:
                 ctx["slot_label"] = t.full_name
+
+    # Alamat billing customer (terkini — Booking.cust_* disegerak dua-hala
+    # dengan Address 'Billing' customer) untuk butang "Copy from billing"
+    # di borang guest.
+    ctx["billing_address"] = {
+        "address_line1": booking.cust_address_line1 or "",
+        "city":          booking.cust_city          or "",
+        "postcode":      booking.cust_postcode      or "",
+        "state":         booking.cust_state         or "",
+        "country":       booking.cust_country       or "",
+    }
+
+    # Alamat untuk prefill borang guest: alamat traveller yang tersimpan
+    # terdahulu; FALLBACK ke alamat slot (Booking Reservation — salinan
+    # alamat billing booking) supaya guest terus nampak alamat yang betul
+    # tanpa perlu taip semula.
+    slot_addr = frappe.db.get_value(
+        "Booking Reservation", slot.name,
+        ["guest_address_line1", "guest_city", "guest_postcode", "guest_state", "guest_country"],
+        as_dict=True,
+    ) or {}
+    for ctx_key, slot_field in (("address_line1", "guest_address_line1"),
+                                ("city", "guest_city"),
+                                ("postcode", "guest_postcode"),
+                                ("state", "guest_state"),
+                                ("country", "guest_country")):
+        if not ctx.get(ctx_key):
+            ctx[ctx_key] = slot_addr.get(slot_field) or ""
 
     return ctx
 

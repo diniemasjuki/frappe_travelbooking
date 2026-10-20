@@ -1,0 +1,33 @@
+{
+ "content": null,
+ "creation": "2026-10-16 18:00:00",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2026-10-17 12:44:58.553000",
+ "modified_by": "Administrator",
+ "module": "Module Admin Portal",
+ "name": "ongoing-today",
+ "owner": "Administrator",
+ "page_name": "ongoing-today",
+ "roles": [
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Tour Manager"
+  },
+  {
+   "role": "Tour Operator"
+  },
+  {
+   "role": "Accounts User"
+  }
+ ],
+ "script": null,
+ "shared_page": 0,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 1,
+ "title": "Ongoing Today"
+}

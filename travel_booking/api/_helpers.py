@@ -8,7 +8,29 @@
 # portal_payment.py, stripe_checkout.py). Fungsi di sini jadi SATU sumber
 # kebenaran untuk logic tu — ubah di sini sahaja bila perlu di masa depan.
 
+import re
+
 import frappe
+
+
+def standardize_phone_to_hyphen(phone):
+    """Standardize phone ke format sengkang fieldtype Phone frappe:
+    '<isd>-<nombor>' (cth +60-0193447181, +65-91446740). Sumber yang hantar
+    E.164 padat (+60193447181 — intl-tel-input, borang chat inquiry) dipecah
+    semula supaya konsisten dengan seluruh data Booking/Travel Inquiry
+    (data-fix 2026-10-15). Nilai selain +60/+65, yang sudah bersengkang,
+    kosong, atau tanpa '+', dipulangkan tanpa diubah.
+    """
+    p = (phone or "").strip()
+    if not p or "-" in p or not p.startswith("+"):
+        return p
+    digits = re.sub(r"\D", "", p)
+    if digits.startswith("60") and len(digits) >= 10:
+        rest = digits[2:]
+        return "+60-" + (rest if rest.startswith("0") else "0" + rest)
+    if digits.startswith("65") and len(digits) >= 9:
+        return "+65-" + digits[2:]
+    return p
 
 
 def get_customer_by_email(email):
@@ -64,7 +86,7 @@ def get_customer_phone(customer_name):
         JOIN `tabContact` c ON c.name = cp.parent
         JOIN `tabDynamic Link` dl ON dl.parent = c.name
         WHERE dl.link_doctype = 'Customer' AND dl.link_name = %s
-        ORDER BY cp.is_primary_phone DESC
+        ORDER BY cp.is_primary_phone DESC, cp.idx ASC, cp.creation ASC
         LIMIT 1
     """, customer_name, as_dict=True)
     return result[0].phone if result else None
@@ -73,9 +95,12 @@ def get_customer_phone(customer_name):
 def sanitize_portal_return_path(path):
     """Validasi laluan pulangan portal untuk URL balik Stripe checkout.
 
-    Hanya terima laluan relatif DALAM portal ("/traveller/...")
-    — tolak apa-apa yang boleh jadi open redirect (domain luar, scheme,
-    protocol-relative "//", backslash). Pulangkan "" kalau tidak sah.
+    Hanya terima laluan relatif DALAM portal ("/traveller/...") ATAU page
+    desk Booking Portal ("/app/booking-portal..." — staf bayar daripada
+    page /app/booking-portal/b/<ref>/billing; Stripe perlu bawa mereka
+    balik ke situ). Tolak apa-apa yang boleh jadi open redirect (domain
+    luar, scheme, protocol-relative "//", backslash). Pulangkan "" kalau
+    tidak sah.
     Digunakan oleh create_payment_request() -> create_payment_intent()
     -> checkout.py supaya customer dibawa balik ke page asal dia
     (cth /traveller/booking_billing?ref=RC-XXXX) selepas bayar.
@@ -85,7 +110,12 @@ def sanitize_portal_return_path(path):
     path = str(path).strip()
     if len(path) > 500:
         return ""
-    if not (path.startswith("/traveller/") or path.startswith("/traveller/")):
+    allowed_prefixes = (
+        "/traveller/",
+        "/app/booking-manager",
+        "/desk/booking-manager",
+    )
+    if not any(path.startswith(p) for p in allowed_prefixes):
         return ""
     if path.startswith("//") or "\\" in path or ":" in path:
         return ""
@@ -96,8 +126,12 @@ def sanitize_portal_return_path(path):
 
 def get_on_behalf_role_rows():
     """Senarai baris mentah Travel Settings.on_behalf_roles —
-    [{role, booking_channel, access_level}, ...] dalam susunan Desk.
-    Sumber tunggal untuk semua resolver on-behalf di bawah.
+    [{role, booking_channel, access_level, access_scope}, ...] dalam
+    susunan Desk. Sumber tunggal untuk semua resolver on-behalf di bawah.
+
+    access_scope kosong (rekod lama sebelum field wujud) dinormalisasikan
+    ke "Own Bookings" — backward compatible: role lama kekal terkurung
+    pada booking yang ditempah sendiri.
     """
     ts = frappe.get_cached_doc("Travel Settings")
     rows = []
@@ -107,6 +141,7 @@ def get_on_behalf_role_rows():
                 "role":           row.role,
                 "booking_channel": row.booking_channel,
                 "access_level":   row.access_level or "Full",
+                "access_scope":   row.access_scope if row.access_scope in ("Own Bookings", "All Bookings") else "Own Bookings",
             })
     return rows
 
@@ -204,11 +239,54 @@ def has_on_behalf_role(user=None):
     return get_user_b2b_partner(user) is not None
 
 
+# ══════════════════════════════════════════════
+# SKOP "SEMUA BOOKING" (dahulu: STAFF BOOKING MANAGER hardcoded)
+# ══════════════════════════════════════════════
+# KESELAMATAN (revoked 2026-10-19): senarai hardcoded
+# STAFF_BOOKING_ROLES = ("System Manager", "Tour Manager", "Tour Operator",
+# "Accounts User") telah DIBUANG — ia memberi akses PENUH ke SEMUA booking
+# (termasuk imej passport & bayaran) kepada role yang tiada kaitan dengan
+# tetapan on-behalf, dan membuat baris On-Behalf Booking Roles di Travel
+# Settings tidak berkesan untuk role yang sama.
+#
+# Kini kewibadaan "semua booking" DIDAYAKAN SEPENUHNYA oleh Travel
+# Settings > On-Behalf Booking Roles (baris dengan Access Scope =
+# "All Bookings"): Tour Manager boleh MENGURUS semua booking
+# (access_level Full), Tour Operator HANYA LIHAT semua booking
+# (access_level View — tindakan dinegafikan oleh on_behalf_level_ok).
+# Role yang tiada baris (cth. Accounts User, System Manager) TIADA akses
+# on-behalf portal — kecuali sebagai customer biasa (booking sendiri).
+
+def has_all_bookings_scope(user=None):
+    """True jika user memiliki sekurang-kurangnya SATU role yang
+    dikonfigurasi dalam Travel Settings.on_behalf_roles dengan
+    Access Scope = "All Bookings" — mereka dapat akses SEMUA booking
+    melalui portal (set managed = MANAGED_ALL), tetapi TINDAKAN masih
+    dikawal oleh Access Level role masing-masing (rujuk
+    _booking_action_allowed dalam portal_booking.py). Bukan endpoint —
+    helper dalaman.
+    """
+    user = user or frappe.session.user
+    if not user or user == "Guest":
+        return False
+    roles = set(frappe.get_roles(user))
+    return any(r["access_scope"] == "All Bookings" and r["role"] in roles
+               for r in get_on_behalf_role_rows())
+
+
+# Nama lama (era hardcoded) — dikekalkan sebagai alias supaya panggilan
+# sedia ada tidak pecah, tetapi semantiknya kini 100% daripada Travel
+# Settings (tiada lagi bypass role hardcoded).
+is_staff_booking_manager = has_all_bookings_scope
+
+
 def get_on_behalf_access_level(user=None):
     """Tahap akses on-behalf user (View/Docs/Full) — TERTINGGI antara
     semua sumber kewibadaan user: role yang dikonfigurasi (Travel
     Settings.on_behalf_roles) DAN barisan staf partner B2B (Travel B2B
-    Partner User). Pulangkan None jika user tiada kewibadaan on-behalf.
+    Partner User). TIADA lagi override "Full" untuk staf dalaman —
+    semuanya ikut tetapan (cth. Tour Operator = View walaupun skopnya
+    semua booking). Pulangkan None jika user tiada kewibadaan on-behalf.
     Bukan endpoint — helper dalaman untuk gate tindakan portal
     (traveller/payment) pada booking on-behalf.
     """

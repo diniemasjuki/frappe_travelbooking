@@ -251,6 +251,16 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
     if not trip:
         frappe.throw("Trip not found.")
 
+    # Nama pakej tidak sah (cth nilai basi dari snapshot sesi lama dengan
+    # suffix varian "TP260913:1") — dahulu memulangkan 0 kabin secara
+    # senyap, kini error jelas supaya frontend/user tahu pilihan pakej
+    # perlu dibuat semula (booknow.js resolveTripPackageName() dah
+    # auto-betulkan nilai sebegini, throw ni perlindungan lapis kedua).
+    if trip_package and not frappe.db.exists("Trip Package", trip_package):
+        frappe.throw(
+            "Trip Package not found. Please go back and select your package again."
+        )
+
     # Pricing rows dari Trip Package Price (child Trip Package), JOIN
     # Trip Price Category untuk dapatkan maklumat kategori bilik/kabin.
     pricing_rows = frappe.db.sql("""
@@ -300,13 +310,29 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             ):
                 gallery_map.setdefault(f.attached_to_name, []).append(f.file_url)
 
+    # Travel Price Rule (promosi price-slash): pricing yang dipulangkan
+    # adalah HARGA PROMO (harga jualan sebenar). Bila rule berkesan,
+    # original_pricing + price_rule disertakan supaya frontend boleh
+    # papar strikethrough harga asal + badge promosi.
+    from travel_booking.api.price_rule import (
+        apply_price_rules, resolve_ctx, dominant_rule_info,
+    )
+    rule_ctx = resolve_ctx(trip_package, trip_group_date)
+    eff_map, applied_info = apply_price_rules(
+        {r.room_category: r for r in pricing_rows}, rule_ctx
+    )
+
     cabins = []
     for row in pricing_rows:
         # Room Availability doctype dibuang — semua kategori dianggap available.
         # Kawalan bilik sebenar diurus admin (order batch dari Aroya).
         available = 1
 
-        cabins.append({
+        # Harga berkesan (promo) — fallback ke row asal bila tiada rule.
+        eff = eff_map.get(row.room_category) or row
+        applied = applied_info.get(row.room_category)
+
+        cabin = {
             "room_category": row.room_category,
             "room_name":     row.category_name or row.room_category,
             "room_type":     row.room_type,
@@ -325,15 +351,25 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             # jadi POSTER/placeholder — klik untuk embed iframe YouTube.
             "room_video_url": row.youtube_url or "",
             "pricing": {
-                "price_adult_single":     float(row.price_adult_single     or 0),
-                "price_adult":            float(row.price_adult           or 0),
-                "price_upperberth": float(row.price_upperberth or 0),
-                "price_children":         float(row.price_children        or 0),
-                "price_infant":           float(row.price_infant          or 0),
+                "price_adult_single":     float(eff.price_adult_single     or 0),
+                "price_adult":            float(eff.price_adult           or 0),
+                "price_upperberth": float(eff.price_upperberth or 0),
+                "price_children":         float(eff.price_children        or 0),
+                "price_infant":           float(eff.price_infant          or 0),
             },
             "available":    available,
             "is_available": available > 0,
-        })
+        }
+        if applied:
+            cabin["original_pricing"] = {
+                "price_adult_single":     float(row.price_adult_single     or 0),
+                "price_adult":            float(row.price_adult            or 0),
+                "price_upperberth": float(row.price_upperberth or 0),
+                "price_children":         float(row.price_children         or 0),
+                "price_infant":           float(row.price_infant           or 0),
+            }
+            cabin["price_rule"] = dominant_rule_info(applied)
+        cabins.append(cabin)
 
 
     return {

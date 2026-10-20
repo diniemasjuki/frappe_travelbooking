@@ -1,12 +1,23 @@
 /* ============================================================
    travel_booking/public/js/traveller_list.js
-   Bookings list rendering — grouping (Upcoming / Future / Past).
+   Bookings list rendering — grouping (Upcoming / Future / Past),
+   carian & penapis (client-side) + pagination SELURUH senarai:
+   setiap halaman dihadkan kepada `perPage` baris merentas kumpulan
+   (susunan paparan: Upcoming → Future → Past) supaya senarai panjang
+   tidak dirender sekali gus.
    Requires: traveller_common.js (loaded before this)
    ============================================================ */
 
 'use strict';
 
 (function () {
+  /* ── Semua booking dimuatkan sekali — penapis & pagination di browser ── */
+  var ALL_BOOKINGS = [];
+  var currentPage = 1;
+  var perPage = 10;
+  var FILTER_DEBOUNCE = null;
+  var FILTER_IDS = ['bk-f-status', 'bk-f-payment', 'bk-f-trip'];
+
   /* ── Init: verify session then load bookings ── */
   async function init() {
     try {
@@ -35,8 +46,12 @@
       }
 
       if (content) {
-        content.style.display = 'block';
-        content.innerHTML = renderBookings(bookings);
+        ALL_BOOKINGS = bookings;
+        // Keutamaan bilangan baris per halaman kekal antara sesi (corak
+        // sama dengan page transactions).
+        perPage = parseInt(localStorage.getItem('tv_bk_per_page'), 10) || 10;
+        setupFilters(bookings);
+        renderFiltered();
       }
     } catch (e) {
       if (loading) loading.style.display = 'none';
@@ -99,36 +114,212 @@
     return { upcoming: upcoming, future: future, past: past };
   }
 
-  /* ── Render all groups ── */
-  function renderBookings(bookings) {
-    var g = groupBookings(bookings);
+  /* ── Carian & penapis (client-side) ──
+     Corak sama dengan onbehalf_list.js — carian merangkumi trip,
+     package, group dan no. rujukan. */
+  function uniqueSorted(vals) {
+    var seen = {}, out = [];
+    vals.forEach(function (v) {
+      if (v && !seen[v]) { seen[v] = 1; out.push(v); }
+    });
+    return out.sort(function (a, b) { return String(a).localeCompare(String(b)); });
+  }
+
+  function fillSelect(id, options, allLabel) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    var current = sel.value;
+    sel.innerHTML = '<option value="">' + _esc(allLabel) + '</option>' +
+      options.map(function (o) {
+        return '<option value="' + _esc(o) + '">' + _esc(o) + '</option>';
+      }).join('');
+    if (current && options.indexOf(current) !== -1) sel.value = current;
+  }
+
+  function clearFilterInputs() {
+    var search = document.getElementById('bk-search');
+    if (search) search.value = '';
+    FILTER_IDS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+  }
+
+  function setupFilters(bookings) {
+    var bar = document.getElementById('bookings-filters');
+    if (!bar) return;
+    if (!bookings.length) { bar.style.display = 'none'; return; }
+
+    fillSelect('bk-f-status', uniqueSorted(bookings.map(function (b) { return b.booking_status; })), 'All Statuses');
+    fillSelect('bk-f-payment', uniqueSorted(bookings.map(function (b) { return b.payment_status; })), 'All Payments');
+    fillSelect('bk-f-trip', uniqueSorted(bookings.map(function (b) { return b.trip_name; })), 'All Trips');
+
+    var perPageSel = document.getElementById('bk-f-perpage');
+    if (perPageSel) perPageSel.value = String(perPage);
+
+    if (!bar.dataset.wired) {
+      bar.dataset.wired = '1';
+      var search = document.getElementById('bk-search');
+      search.addEventListener('input', function () {
+        clearTimeout(FILTER_DEBOUNCE);
+        FILTER_DEBOUNCE = setTimeout(function () { renderFiltered(true); }, 200);
+      });
+      FILTER_IDS.forEach(function (id) {
+        document.getElementById(id).addEventListener('change', function () {
+          renderFiltered(true);
+        });
+      });
+      document.getElementById('bk-f-clear').addEventListener('click', function () {
+        clearFilterInputs();
+        renderFiltered(true);
+      });
+      if (perPageSel) {
+        perPageSel.addEventListener('change', function () {
+          perPage = parseInt(this.value, 10) || 10;
+          localStorage.setItem('tv_bk_per_page', String(perPage));
+          renderFiltered(true);
+        });
+      }
+    }
+    bar.style.display = 'flex';
+  }
+
+  function applyFilters(bookings) {
+    var searchEl = document.getElementById('bk-search');
+    var q = searchEl ? searchEl.value.trim().toLowerCase() : '';
+    function selVal(id) {
+      var el = document.getElementById(id);
+      return el ? el.value : '';
+    }
+    var fStatus = selVal('bk-f-status');
+    var fPayment = selVal('bk-f-payment');
+    var fTrip = selVal('bk-f-trip');
+
+    return bookings.filter(function (b) {
+      if (fStatus && (b.booking_status || '') !== fStatus) return false;
+      if (fPayment && (b.payment_status || '') !== fPayment) return false;
+      if (fTrip && (b.trip_name || '') !== fTrip) return false;
+      if (q) {
+        var hay = [b.trip_name, b.package_title, b.group_name, b.booking_number, b.name]
+          .join(' ').toLowerCase();
+        if (hay.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderFiltered(resetPage) {
+    if (resetPage) currentPage = 1;
+    var content = document.getElementById('bookings-content');
+    if (!content) return;
+    content.style.display = 'block';
+
+    var list = applyFilters(ALL_BOOKINGS);
+    var g = groupBookings(list);
+
+    // Susunan mendatar seluruh senarai: Upcoming → Future (asc) → Past.
+    // Pagination menghadkan bilangan baris SETIAP halaman merentas
+    // kumpulan — bukan setiap kumpulan berasingan — supaya halaman
+    // kekal pendek tanpa mengira kumpulan mana yang besar.
+    var flat = (g.upcoming ? [g.upcoming] : []).concat(g.future, g.past);
+    var total = flat.length;
+
+    var totalPages = Math.max(1, Math.ceil(total / perPage));
+    if (currentPage > totalPages) currentPage = totalPages;
+    var startIdx = (currentPage - 1) * perPage;
+    var endIdx = Math.min(startIdx + perPage, total);
+
+    // Kerat setiap kumpulan mengikut julat halaman semasa
+    function grpSlice(gs, ge) {
+      var s = Math.max(startIdx, gs), e = Math.min(endIdx, ge);
+      return s < e ? flat.slice(s - gs, e - gs) : [];
+    }
+    var uLen = g.upcoming ? 1 : 0;
+    var parts = {
+      upcoming: grpSlice(0, uLen),
+      future: grpSlice(uLen, uLen + g.future.length),
+      past: grpSlice(uLen + g.future.length, total),
+      futureTotal: g.future.length,
+      pastTotal: g.past.length
+    };
+
+    // Kiraan julat baris halaman semasa — nampak had pagination & penapis
+    var count = document.getElementById('bookings-count');
+    if (count) {
+      count.style.display = 'block';
+      count.textContent = 'Showing ' + (total ? (startIdx + 1) + '–' + endIdx : 0)
+        + ' of ' + total + ' booking' + (total === 1 ? '' : 's')
+        + (list.length !== ALL_BOOKINGS.length ? ' (filtered from ' + ALL_BOOKINGS.length + ')' : '');
+    }
+
+    if (!list.length) {
+      // Pager di luar content — sembunyikan supaya tiada keadaan lama tertinggal
+      var pg = document.getElementById('bookings-pagination');
+      if (pg) { pg.style.display = 'none'; pg.innerHTML = ''; }
+      content.innerHTML =
+        '<div class="tv-bk-nomatch">' +
+        '<div class="tv-bk-nomatch__icon">🔍</div>' +
+        '<p style="margin:0 0 14px 0;">No bookings match your search or filters.</p>' +
+        '<button type="button" class="tv-btn tv-btn--ghost tv-btn--sm" id="bk-f-clear2">Clear Filters</button>' +
+        '</div>';
+      var btn = document.getElementById('bk-f-clear2');
+      if (btn) btn.addEventListener('click', function () {
+        clearFilterInputs();
+        renderFiltered(true);
+      });
+      return;
+    }
+
+    // Keadaan <details> Past Trips dikekalkan semasa re-render pagination
+    var pastDetails = document.getElementById('bk-past-details');
+    var pastWasOpen = !!(pastDetails && pastDetails.open);
+
+    content.innerHTML = renderBookings(parts);
+
+    var newDetails = document.getElementById('bk-past-details');
+    if (newDetails) newDetails.open = pastWasOpen;
+
+    // Pager global bawah senarai — muncul bila jumlah baris > 1 halaman
+    tvRenderPager(document.getElementById('bookings-pagination'), currentPage, totalPages, total, 'bookings', function (p) {
+      currentPage = p;
+      renderFiltered(false);
+      content.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  /* ── Render all groups (halaman semasa sahaja) ──
+     Header kumpulan muncul hanya bila kumpulan itu ada baris pada
+     halaman ini; label kekal memaparkan JUMLAH penuh kumpulan supaya
+     pengguna tahu ada lagi di halaman lain. */
+  function renderBookings(parts) {
     var html = '';
 
     // Upcoming Trip (highlighted)
-    if (g.upcoming) {
+    if (parts.upcoming.length) {
       html += '<div class="tv-group-label">⭐ Upcoming Trip</div>';
-      html += bookingCard(g.upcoming, true);
+      html += bookingCard(parts.upcoming[0], true);
     }
 
     // Future Trips
-    if (g.future.length > 0) {
-      html += '<div class="tv-group-label">📅 Future Trips</div>';
+    if (parts.future.length) {
+      html += '<div class="tv-group-label">📅 Future Trips (' + parts.futureTotal + ')</div>';
       html += '<div class="tv-stagger">';
-      g.future.forEach(function (b) {
+      parts.future.forEach(function (b) {
         html += bookingCard(b, false);
       });
       html += '</div>';
     }
 
     // Past Trips (collapsible)
-    if (g.past.length > 0) {
+    if (parts.past.length) {
       html += '<div class="tv-past-summary tv-animate-in">';
-      html += '<details><summary>📦 Past Trips (' + g.past.length + ')</summary>';
+      html += '<details id="bk-past-details"><summary>📦 Past Trips (' + parts.pastTotal + ')</summary>';
       html += '<div class="tv-past-list">';
-      g.past.forEach(function (b) {
+      parts.past.forEach(function (b) {
         html += bookingCard(b, false, true);
       });
-      html += '</div></details></div>';
+      html += '</div>';
+      html += '</details></div>';
     }
 
     return html;
@@ -233,10 +424,13 @@
         + '<div class="tv-bk-fact__value">' + (durTxt ? _esc(durTxt) : '—') + '</div></div>';
       html += '</div>';
 
-      // Flight block (bukan cruise-only, jika ada flight arrangement)
-      var fl = b.flight || {};
-      var hasFlight = fl.airline || fl.pnr || fl.from_code || fl.to_code;
-      if (hasFlight) {
+      // Flight block (bukan cruise-only) — sumber kini SLOT:
+      // senarai flight distinct booking (Booking Reservation.flight),
+      // satu seksyen setiap flight (group boleh berpecah flight).
+      var fls = b.flights || [];
+      fls.forEach(function(fl) {
+        var hasFlight = fl.airline || fl.pnr || fl.from_code || fl.to_code;
+        if (!hasFlight) return;
         var flHead = '✈️ Flight';
         if (fl.airline) flHead += ' — ' + _esc(fl.airline);
         if (fl.pnr) flHead += ' <span class="tv-bk-card__info-sep">·</span> PNR <span class="tv-bk-pnr">' + _esc(fl.pnr) + '</span>';
@@ -255,7 +449,7 @@
           html += '<div class="tv-bk-sec__line">' + flBits.join(' <span class="tv-bk-card__info-sep">·</span> ') + '</div>';
         }
         html += '</div>';
-      }
+      });
     }
 
     // ── 2b. Cruise block — jika trip cruise (cruise-only: cruise SAHAJA) ──

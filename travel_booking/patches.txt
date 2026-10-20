@@ -3,6 +3,8 @@
 # Read docs to understand patches: https://docs.frappe.io/framework/en/database-migrations
 travel_booking.patches.v9_backfill_checkout_method
 travel_booking.patches.v1_deduplicate_package_codes
+travel_booking.patches.v17_share_slot_link_backfill
+travel_booking.patches.v24_flight_to_reservation_slots_backfill
 
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
@@ -29,3 +31,15 @@ travel_booking.patches.v12_rename_fly_cruise_to_cruise_flight
 travel_booking.patches.v13_room_id_backfill
 travel_booking.patches.v15_share_flag_to_reservation_link
 travel_booking.patches.v16_rename_cruise_flight_spacing
+travel_booking.patches.v18_sync_reservation_document_status
+travel_booking.patches.v19_sync_booking_price_snapshot_from_so
+travel_booking.patches.v20_roommate_gender_fields
+travel_booking.patches.v21_terms_and_conditions_track_changes
+travel_booking.patches.v22_booking_terms_to_travel_website
+travel_booking.patches.v25_booking_snapshot_backfill
+travel_booking.patches.v26_seed_email_notification_settings
+travel_booking.patches.v27_receipt_trip_info
+travel_booking.patches.v28_sync_booked_pax_from_so
+travel_booking.patches.v29_on_behalf_access_scope
+travel_booking.patches.v30_traveller_status_incomplete
+travel_booking.patches.v31_module_travel_booking_migration

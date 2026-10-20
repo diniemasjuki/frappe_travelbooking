@@ -10,7 +10,7 @@ app_license = "mit"
 # di desktop (lihat frappe.boot.get_app_data). route = workspace "Travel Booking".
 # Icon dock pula datang dari dock/travel_booking/travel_booking.json (Dock
 # standard, di-import oleh migrate) — bukan lagi fixture Desktop Icon lama.
-app_home = "/desk/travel-booking"
+app_home = "/desk/manage-booking-app"
 
 add_to_apps_screen = [
 	{
@@ -25,6 +25,14 @@ add_to_apps_screen = [
 # Send non-GET requests for this app's endpoints as native `application/json`
 # bodies instead of form-encoded, per-key JSON-stringified values.
 use_json_request_body = True
+
+# Desk assets — paket generik senarai booking (window.TravelBookingBookingList):
+# satu komponen drop-in (data + toolbar + render + event) yang diguna semula
+# merentas section desk — kini tab Booking page Manage Booking App &
+# Manage Booking Group; section lain kelak cukup panggil create() pada
+# container masing-masing.
+app_include_js = ["/assets/travel_booking/js/booking_list.js"]
+app_include_css = ["/assets/travel_booking/css/booking_list.css"]
 
 # Patches (run once at app init, before any request handling)
 app_init = "travel_booking.patches.patch_create_contact.apply"
@@ -63,7 +71,33 @@ doc_events = {
 		"on_cancel": "travel_booking.api.booking_engine.on_payment_entry_cancel",
 	},
 	"Booking": {
-		"on_update": "travel_booking.api.booking_engine.on_booking_update",
+		"on_update": [
+			"travel_booking.api.booking_engine.on_booking_update",
+			# Billing address: cust_* Booking diedit → tulis balik ke
+			# Address 'Billing' Customer (invois seterusnya ikut nilai itu).
+			"travel_booking.api.billing_address_sync.on_booking_billing_address_update",
+		],
+	},
+	# Billing address: Address 'Billing' Customer berubah → sebar ke medan
+	# cust_* semua booking aktif customer itu (supaya export dari Booking
+	# sentiasa sepadan dengan alamat yang dipakai invois). Invois yang dah
+	# submit tidak disentuh.
+	"Address": {
+		"on_update": "travel_booking.api.billing_address_sync.on_billing_address_update",
+	},
+	# SO ialah sumber kebenaran harga booking (custom_booking → Booking).
+	# Setiap perubahan SO — edit item pax/rate di Desk (draft mahupun
+	# update-after-submit), diskaun tambahan, cancel, atau delete — mesti
+	# disegerak balik ke field snapshot Booking (pre_discount_total,
+	# payment_status, prog_payment, booked_pax) supaya paparan Booking
+	# (dan gate overbooking SUM(booked_pax)) tak stale.
+	# on_update berjalan juga semasa insert (SO addon dicipta lepas booking
+	# wujud) — agregat booking terus berkembang ikut SO addon.
+	"Sales Order": {
+		"on_update": "travel_booking.api.booking_engine.on_sales_order_change",
+		"on_update_after_submit": "travel_booking.api.booking_engine.on_sales_order_change",
+		"on_cancel": "travel_booking.api.booking_engine.on_sales_order_change",
+		"on_trash": "travel_booking.api.booking_engine.on_sales_order_change",
 	},
 	# Sync occupancy & availability kabin pada Trip Cruise Schedule setiap
 	# kali reservasi berubah. Pemetaan: reservation.trip_cruise_schedule +
@@ -72,9 +106,9 @@ doc_events = {
 	# sebab baris dah didelete dari DB masa hook itu jadi — kiraan tak
 	# termasuk rekod yang sedang dipadam.
 	"Booking Reservation": {
-		"after_insert": "travel_booking.travel_booking_management.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
-		"on_update": "travel_booking.travel_booking_management.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
-		"after_delete": "travel_booking.travel_booking_management.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
+		"after_insert": "travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
+		"on_update": "travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
+		"after_delete": "travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
 	},
 	# on_update berjalan selepas insert & setiap save — sync Trip Group
 	# Date "Cruise Only" dengan schedule: update group date sedia ada,
@@ -84,8 +118,8 @@ doc_events = {
 	# baris → nilai terus selari dengan reservasi sebenar).
 	"Trip Cruise Schedule": {
 		"on_update": [
-			"travel_booking.travel_booking_management.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cruise_only_group_date",
-			"travel_booking.travel_booking_management.doctype.trip_cruise_schedule.trip_cruise_schedule.recompute_cabin_availability",
+			"travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cruise_only_group_date",
+			"travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.recompute_cabin_availability",
 		],
 	},
 }
@@ -96,14 +130,22 @@ doc_events = {
 scheduler_events = {
 	"daily": [
 		"travel_booking.api.booking_engine.mark_completed_trips",
+		# Auto-Abandoned: booking 'Pending' (tiada bayaran) yang melebihi had
+		# hari di Travel Settings (pending_abandoned_days) ditukar ke
+		# 'Abandoned'. Had 0 = ciri dimatikan (rujuk mark_abandoned_pending_bookings).
+		"travel_booking.api.booking_engine.mark_abandoned_pending_bookings",
+		# Jaring SO booking fully-paid yang tertinggal Sales Invoice (auto-
+		# invois hook Payment Entry hanya dicuba SEKALI semasa submit — tanpa
+		# jaringan ni satu kegagalan = invois hilang selamanya).
+		"travel_booking.api.booking_engine.reconcile_missing_invoices",
 	],
 	"cron": {
 		# Setiap hari jam 12:00 malam (site time) — semak & update status
 		# Trip Group Date (Running / Completed / Closed / Full ikut tarikh
 		# & kapasiti). Rujuk auto_update_trip_group_statuses().
 		"0 0 * * *": [
-				"travel_booking.travel_booking_management.doctype.trip_group_date.trip_group_date.auto_update_trip_group_statuses",
-				"travel_booking.travel_booking_management.doctype.trip_cruise_schedule.trip_cruise_schedule.auto_update_cruise_schedule_statuses",
+				"travel_booking.module_travel_booking.doctype.trip_group_date.trip_group_date.auto_update_trip_group_statuses",
+				"travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.auto_update_cruise_schedule_statuses",
 			],
 	},
 }
@@ -121,25 +163,32 @@ require_type_annotated_api_methods = True
 
 pages = [
 	{
+		'name': 'ongoing-today',
+		'label': 'Ongoing Today',
+		'icon': 'clock',
+		'roles': ['System Manager', 'Tour Manager', 'Tour Operator', 'Accounts User'],
+		'script': 'module_travel_booking.page.ongoing_today.ongoing_today',
+	},
+	{
 		'name': 'trip-command-center',
 		'label': 'Trip Command Center',
 		'icon': 'plane',
 		'roles': ['Tour Manager', 'Tour Operator'],
-		'script': 'travel_booking_management.page.trip_command_center.trip_command_center',
+		'script': 'module_travel_booking.page.trip_command_center.trip_command_center',
 	},
 	{
 		'name': 'booking-hub',
 		'label': 'Booking Operations Hub',
 		'icon': 'briefcase',
 		'roles': ['Tour Manager', 'Tour Operator'],
-		'script': 'travel_booking_management.page.booking_hub.booking_hub',
+		'script': 'module_travel_booking.page.booking_hub.booking_hub',
 	},
 	{
 		'name': 'dashboard-reports',
 		'label': 'Dashboard & Reports',
 		'icon': 'chart',
 		'roles': ['Tour Manager', 'Tour Operator'],
-		'script': 'travel_booking_management.page.dashboard_reports.dashboard_reports',
+		'script': 'module_travel_booking.page.dashboard_reports.dashboard_reports',
 	},
 	{
 			'name': 'travel-resources',

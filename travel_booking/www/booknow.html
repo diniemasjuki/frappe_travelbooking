@@ -171,7 +171,7 @@ if ('serviceWorker' in navigator) {
 
       <div class="bnw-page-header">
         <h1>Billing Details</h1>
-        <p>Contact details for the lead booking person</p>
+        <p>Contact &amp; billing address for the lead booking person</p>
       </div>
 
       <div class="bnw-grid-two-col">
@@ -264,6 +264,47 @@ if ('serviceWorker' in navigator) {
           <input type="tel" class="bnw-input" id="bnwBillingPhone" placeholder="12-3456789"/>
         </div>
 
+        {# ── Billing Address — 5 medan WAJIB untuk tujuan bil/invois.
+           confirm_booking() mengesahkan semula di server-side dan
+           menyimpannya sebagai Address 'Billing' (primary) Customer.
+           Country = dropdown dari dokumen Country (context booknow.py)
+           supaya nilai sentiasa sah untuk Link field Address.country. #}
+        <div class="bnw-field">
+          <label class="bnw-label">Street Address <span class="bnw-required">*</span></label>
+          <input type="text" class="bnw-input" id="bnwBillingStreet"
+                 placeholder="Street, apartment, unit, etc." autocomplete="street-address"/>
+        </div>
+
+        <div class="bnw-field-row">
+          <div class="bnw-field">
+            <label class="bnw-label">City <span class="bnw-required">*</span></label>
+            <input type="text" class="bnw-input" id="bnwBillingCity"
+                   placeholder="City" autocomplete="address-level2"/>
+          </div>
+          <div class="bnw-field">
+            <label class="bnw-label">Postcode <span class="bnw-required">*</span></label>
+            <input type="text" class="bnw-input" id="bnwBillingPostcode"
+                   placeholder="Postcode" autocomplete="postal-code"/>
+          </div>
+        </div>
+
+        <div class="bnw-field-row">
+          <div class="bnw-field">
+            <label class="bnw-label">State <span class="bnw-required">*</span></label>
+            <input type="text" class="bnw-input" id="bnwBillingState"
+                   placeholder="State" autocomplete="address-level1"/>
+          </div>
+          <div class="bnw-field">
+            <label class="bnw-label">Country <span class="bnw-required">*</span></label>
+            <select class="bnw-input" id="bnwBillingCountry" autocomplete="country-name">
+              <option value="">Select country</option>
+              {% for c in billing_countries %}
+              <option value="{{ c }}">{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
       </div>{# /.bnw-card #}
 
         </div>{# /.bnw-bill-col #}
@@ -337,16 +378,6 @@ if ('serviceWorker' in navigator) {
               <i class="ti ti-pencil bnw-pay-icon"></i>
             </div>
             <p class="bnw-pay-hint">Tap to enter a custom amount</p>
-            <div class="bnw-pay-chips">
-              <button type="button" class="bnw-chip" id="bnwPayDepositChip">
-                <span class="bnw-chip-label" id="bnwPayDepositChipLabel">Deposit (20%)</span>
-                <span id="bnwChipDeposit" class="bnw-chip-amt">RM 0</span>
-              </button>
-              <button type="button" class="bnw-chip" id="bnwPayFullChip">
-                <span class="bnw-chip-label">Pay in full</span>
-                <span id="bnwChipFull" class="bnw-chip-amt">RM 0</span>
-              </button>
-            </div>
             <div class="bnw-pay-error" id="bnwPayAmountError" style="display:none"></div>
             <div class="bnw-deposit-notice" id="bnwDepositNotice" style="display:none">
               <i class="ti ti-alert-triangle"></i>
@@ -442,6 +473,28 @@ if ('serviceWorker' in navigator) {
               <label class="bnw-label">Bank Transfer Reference No. <span class="bnw-required">*</span></label>
               <input type="text" class="bnw-input" id="bnwBankTransferRefInput" placeholder="FPX1234567"/>
             </div>
+
+            {# Tarikh transaksi bank (dari resit) — auto-isi oleh OCR.
+               Nilai input ialah YYYY-MM-DD (format internal sistem);
+               paparan hint ikut format tarikh Travel Website. #}
+            <div class="bnw-field" style="margin-top:16px">
+              <label class="bnw-label">Transfer Date <span class="bnw-optional">(optional)</span></label>
+              <input type="date" class="bnw-input" id="bnwBankTransferDateInput"/>
+              <small style="display:block;margin-top:4px;font-size:11px;color:var(--bnw-text-muted,#6E6A5F);">
+                Date of your bank transfer — auto-filled from your receipt when detected.
+              </small>
+            </div>
+
+            {# Nota / memo transaksi — pilihan; dihantar ke Payment Entry
+               remarks supaya admin nampak semasa verify resit. #}
+            <div class="bnw-field" style="margin-top:16px">
+              <label class="bnw-label">Transaction Note / Memo <span class="bnw-optional">(optional)</span></label>
+              <textarea class="bnw-input" id="bnwBankTransferNoteInput" rows="2" maxlength="500"
+                        placeholder="e.g. transferred from Maybank, 2nd payment for balance..."></textarea>
+              <small style="display:block;margin-top:4px;font-size:11px;color:var(--bnw-text-muted,#6E6A5F);">
+                Anything our team should know about this transfer.
+              </small>
+            </div>
             {# Notis lama "confirmed within 1-2 business days" dibuang 2026-09-04 —
                hardcoded dan bercanggah dengan nota radio Manual Transfer
                ("verification time might be longer, 3-5 working days"). Tiada
@@ -449,11 +502,57 @@ if ('serviceWorker' in navigator) {
                rujukan tunggal. #}
           </div>
 
+          {# ── TERMS & CONDITIONS — wajib dibaca & disetujui sebelum Pay Now.
+             Kandungan dirender SERVER-SIDE dari dokumen "Terms and Conditions"
+             yang dipilih dalam Travel Settings ("Default T&C (Booking
+             Wizard)"). Panel langsung TIDAK dipaparkan bila tiada pilihan /
+             dokumen disabled — confirm_booking() pula mengesahkan SEMULA
+             persetujuan + kesahan dokumen (terms_reference mesti padan
+             dokumen yang dipilih semasa) supaya panggilan terus ke API tak
+             boleh melangkau keperluan ni. #}
+          {% if booking_terms %}
+          <div class="bnw-card bnw-terms-card" id="bnwTermsCard" data-terms-name="{{ booking_terms.name }}">
+            <div class="bnw-terms-head">
+              <h3 class="bnw-card-title"><i class="ti ti-shield-check"></i> Terms &amp; Conditions</h3>
+              {% if booking_terms.title %}<span class="bnw-terms-meta">{{ booking_terms.title }}</span>{% endif %}
+            </div>
+            <div class="bnw-terms-content" id="bnwTermsContent" tabindex="0">{{ booking_terms.content }}</div>
+            {# Saluran #2 — pautan ke dokumen penuh (page awam /booking-terms,
+               baca pilihan Travel Settings yang sama). Emel status booking
+               pautkan page yang sama supaya customer boleh baca semula. #}
+            <a class="bnw-terms-fulllink" href="/booking-terms" target="_blank" rel="noopener">
+              <i class="ti ti-external-link"></i> Read the full document
+            </a>
+            <label class="bnw-terms-accept" id="bnwTermsAcceptLabel" for="bnwTermsAccept">
+              <input type="checkbox" id="bnwTermsAccept"/>
+              <span class="bnw-terms-accept-text">
+                I have read and agree to the <strong>Terms &amp; Conditions</strong> above,
+                including the cancellation &amp; refund policy that applies to this booking.
+              </span>
+            </label>
+            <div class="bnw-terms-error" id="bnwTermsError" style="display:none">
+              <i class="ti ti-alert-circle"></i>
+              <span>Please tick the box above to accept the Terms &amp; Conditions before continuing.</span>
+            </div>
+          </div>
+          {% endif %}
+
+          {# ── MESSAGE TO ADMIN (optional) — textarea kemas, dihantar ke
+             Booking.customer_message semasa confirm_booking() supaya admin
+             nampak terus di Desk booking. #}
+          <div class="bnw-card" id="bnwMessageCard">
+            <h3 class="bnw-card-title"><i class="ti ti-message-2"></i> Message to Us <span class="bnw-optional">(Optional)</span></h3>
+            <p class="bnw-message-hint">Anything we should know? Special requests, dietary needs, celebrations — our team will read this together with your booking.</p>
+            <textarea class="bnw-input bnw-message-input" id="bnwCustomerMessage" rows="4" maxlength="1000"
+                      placeholder="Type your message here..."></textarea>
+            <div class="bnw-message-count"><span id="bnwMessageCount">0</span> / 1000</div>
+          </div>
+
         </div>{# /.bnw-pay-col #}
 
         {# RIGHT COLUMN: Payment Summary — kad yang sama dengan Step 1 & 2
            (Total Guests + bilik/guest + Total + Deposit), dengan tambahan
-           baris diskaun, voucher/referral & sales person khas Step 3 #}
+           baris diskaun & voucher/referral khas Step 3 #}
         <div class="bnw-summary-col">
           <div class="bnw-summary-card">
             <h4 class="bnw-summary-title">Payment Summary</h4>
@@ -465,6 +564,10 @@ if ('serviceWorker' in navigator) {
             <div class="bnw-order-lines" id="bnwOrderLines"></div>
 
             {# Discount rows #}
+            <div class="bnw-discount-row" id="bnwPromoDiscountRow" style="display:none">
+              <span><i class="ti ti-rosette-discount"></i> Promo (<span id="bnwPromoDiscountLabel"></span>)</span>
+              <span id="bnwPromoDiscountAmt" class="bnw-discount-amt">-RM 0</span>
+            </div>
             <div class="bnw-discount-row" id="bnwB2bDiscountRow" style="display:none">
               <span><i class="ti ti-building"></i> B2B Net Rate (<span id="bnwB2bPercentApplied"></span>% off)</span>
               <span id="bnwB2bDiscountAmt" class="bnw-discount-amt">-RM 0</span>
@@ -511,18 +614,6 @@ if ('serviceWorker' in navigator) {
                 Referral code applied: <strong id="bnwAffiliateAppliedCode"></strong>
               </div>
               <div id="bnwAffiliateMsg" style="display:none;margin-top:8px;font-size:12px"></div>
-            </div>
-
-            {# Sales Person #}
-            <div class="bnw-divider"></div>
-            <div class="bnw-sales-section">
-              <div class="bnw-sales-header">
-                <h3 class="bnw-card-title-sm">Sales Person <span class="bnw-optional">(Optional)</span></h3>
-                <button class="bnw-btn-add-room" id="bnwAddSalesPersonBtn" type="button">
-                  <i class="ti ti-plus"></i> Add another
-                </button>
-              </div>
-              <div id="bnwSalesPersonList"></div>
             </div>
 
             {# Grand Total #}

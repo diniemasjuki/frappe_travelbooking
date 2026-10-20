@@ -1,0 +1,214 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "PR.YY.MM.##",
+ "creation": "2026-10-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "basic_section",
+  "rule_name",
+  "promo_label",
+  "column_break_basic",
+  "is_active",
+  "priority",
+  "validity_section",
+  "valid_from",
+  "valid_until",
+  "column_break_validity",
+  "min_days_before_departure",
+  "scope_section",
+  "applicable_trips",
+  "applicable_group_dates",
+  "applicable_packages",
+  "applicable_room_categories",
+  "applicable_guest_types",
+  "discount_section",
+  "discount_type",
+  "column_break_discount",
+  "discount_percent",
+  "discount_amounts"
+ ],
+ "fields": [
+  {
+   "fieldname": "basic_section",
+   "fieldtype": "Section Break",
+   "label": "Basic Info"
+  },
+  {
+   "fieldname": "rule_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Rule Name",
+   "reqd": 1
+  },
+  {
+   "description": "Label singkat untuk badge/strip promosi di website & wizard (cth \"Early Bird\"). Kosong = guna Rule Name.",
+   "fieldname": "promo_label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Promo Label"
+  },
+  {
+   "fieldname": "column_break_basic",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Is Active"
+  },
+  {
+   "default": "0",
+   "description": "Tie-break bila lebih dari satu rule memberi potongan sama besar.",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "label": "Priority"
+  },
+  {
+   "fieldname": "validity_section",
+   "fieldtype": "Section Break",
+   "label": "Validity"
+  },
+  {
+   "description": "Tetingkap tarikh BOOKING dibuat (bukan tarikh perjalanan).",
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "label": "Valid From",
+   "reqd": 1
+  },
+  {
+   "fieldname": "valid_until",
+   "fieldtype": "Date",
+   "label": "Valid Until",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_validity",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Syarat early-bird: rule hanya sah bila tarikh booking sekurang-kurangnya N hari sebelum departure date group date. 0 = tiada had.",
+   "fieldname": "min_days_before_departure",
+   "fieldtype": "Int",
+   "label": "Min Days Before Departure"
+  },
+  {
+   "description": "Semua scope KOSONG = berkesan untuk SEMUA. Isi untuk hadkan.",
+   "fieldname": "scope_section",
+   "fieldtype": "Section Break",
+   "label": "Scope"
+  },
+  {
+   "fieldname": "applicable_trips",
+   "fieldtype": "Table MultiSelect",
+   "label": "Applicable Trips",
+   "options": "Travel Price Rule Trip"
+  },
+  {
+   "fieldname": "applicable_group_dates",
+   "fieldtype": "Table MultiSelect",
+   "label": "Applicable Group Dates",
+   "options": "Travel Price Rule Group Date"
+  },
+  {
+   "fieldname": "applicable_packages",
+   "fieldtype": "Table MultiSelect",
+   "label": "Applicable Packages",
+   "options": "Travel Price Rule Package"
+  },
+  {
+   "fieldname": "applicable_room_categories",
+   "fieldtype": "Table MultiSelect",
+   "label": "Applicable Room Categories",
+   "options": "Travel Price Rule Room Category"
+  },
+  {
+   "description": "Guest type (kunci harga) yang terkesan. Kosong = semua. Contoh: price_infant sahaja untuk promosi infant, price_upperberth untuk extra bed.",
+   "fieldname": "applicable_guest_types",
+   "fieldtype": "Table",
+   "label": "Applicable Guest Types",
+   "options": "Travel Price Rule Guest Type"
+  },
+  {
+   "fieldname": "discount_section",
+   "fieldtype": "Section Break",
+   "label": "Discount"
+  },
+  {
+   "default": "Percentage",
+   "fieldname": "discount_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Discount Type",
+   "options": "Percentage\nFixed Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_discount",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.discount_type == 'Percentage'",
+   "description": "Diskaun per unit (per pax) atas harga asal guest type. Berkesan semua currency.",
+   "fieldname": "discount_percent",
+   "fieldtype": "Percent",
+   "label": "Discount Percent"
+  },
+  {
+   "depends_on": "eval:doc.discount_type == 'Fixed Amount'",
+   "description": "Potongan SEUNIT (per pax) mengikut currency package — hanya berkesan pada package yang currency-nya tersenarai (paksi Travel Settings > Multi Currency Account).",
+   "fieldname": "discount_amounts",
+   "fieldtype": "Table",
+   "label": "Discount Amounts",
+   "options": "Travel Price Rule Amount"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-16 07:45:00.000000",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Travel Price Rule",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "rule_name"
+}

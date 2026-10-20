@@ -16,6 +16,7 @@
 # untuk api/*.py, doctype controllers, patch dan utils.
 
 import frappe
+from frappe.utils import flt
 
 from travel_booking.api.constants import DEFAULT_CURRENCY, DEFAULT_SELLING_PRICE_LIST
 
@@ -24,44 +25,58 @@ from travel_booking.api.constants import DEFAULT_CURRENCY, DEFAULT_SELLING_PRICE
 # berulang. Antara request, frappe.get_cached_doc cukup (cache Redis).
 
 
+def _travel_settings_default_currency():
+    """Override default currency daripada Travel Settings.default_currency
+    (null bila tak di-set / doctype belum dipatch)."""
+    try:
+        return frappe.get_cached_doc("Travel Settings").default_currency or None
+    except Exception:
+        return None
+
+
+def _company_default_currency():
+    """Currency company default (Global Defaults.default_company)."""
+    default_company = frappe.db.get_single_value("Global Defaults", "default_company")
+    if default_company:
+        return frappe.get_cached_value("Company", default_company, "default_currency")
+    return None
+
+
 def get_currency_axis():
-	"""Pulangkan list[dict] baris paksi currency dari Travel Settings.
+    """Pulangkan list[dict] baris paksi currency dari Travel Settings.
 
-	Setiap dict: {currency, symbol, company, selling_price_list,
-	bank_account, manual_transfer_paid_to_account,
-	payment_gateway_account, is_default}. Baris dengan currency ==
-	company default (Global Defaults.default_company) ditandakan
-	is_default=True dan sentiasa dihantar FIRST (untuk default selector
-	frontend).
+    Setiap dict: {currency, symbol, company, selling_price_list,
+    bank_account, manual_transfer_paid_to_account,
+    payment_gateway_account, is_default}. Baris dengan currency ==
+    default currency (Travel Settings.default_currency, fallback currency
+    company default) ditandakan is_default=True dan sentiasa dihantar
+    FIRST (untuk default selector frontend).
 
-	Baris tanpa currency/company diabaikan senyap (grid Draft boleh ada
-	barisan separa isi semasa admin edit — jangan crash bacaan runtime).
-	"""
-	ts = frappe.get_cached_doc("Travel Settings")
-	default_company = frappe.db.get_single_value("Global Defaults", "default_company")
-	default_currency = None
-	if default_company:
-		default_currency = frappe.get_cached_value("Company", default_company, "default_currency")
+    Baris tanpa currency/company diabaikan senyap (grid Draft boleh ada
+    barisan separa isi semasa admin edit — jangan crash bacaan runtime).
+    """
+    ts = frappe.get_cached_doc("Travel Settings")
+    default_currency = get_default_currency()
 
-	out = []
-	for row in (ts.currency_accounts or []):
-		if not row.currency or not row.company:
-			continue
-		out.append({
-			"currency": row.currency,
-			"symbol": _currency_symbol(row.currency),
-			"company": row.company,
-			"selling_price_list": row.selling_price_list,
-			"bank_account": row.bank_account,
-			"manual_transfer_paid_to_account": row.manual_transfer_paid_to_account,
-			"payment_gateway_account": row.payment_gateway_account,
-			"is_default": bool(default_currency and row.currency == default_currency),
-		})
+    out = []
+    for row in (ts.currency_accounts or []):
+        if not row.currency or not row.company:
+            continue
+        out.append({
+            "currency": row.currency,
+            "symbol": _currency_symbol(row.currency),
+            "company": row.company,
+            "selling_price_list": row.selling_price_list,
+            "bank_account": row.bank_account,
+            "manual_transfer_paid_to_account": row.manual_transfer_paid_to_account,
+            "payment_gateway_account": row.payment_gateway_account,
+            "is_default": bool(default_currency and row.currency == default_currency),
+        })
 
-	# Baris default dulu — caller frontend guna elemen pertama sebagai
-	# pilihan asas (behavior hari ini: company default currency).
-	out.sort(key=lambda r: not r["is_default"])
-	return out
+    # Baris default dulu — caller frontend guna elemen pertama sebagai
+    # pilihan asas (behavior hari ini: company default currency).
+    out.sort(key=lambda r: not r["is_default"])
+    return out
 
 
 def get_currency_options():
@@ -90,18 +105,69 @@ def get_declared_currencies():
 
 
 def get_default_currency():
-	"""Currency default laman — currency company default (baris axis
-	is_default). Fallback DEFAULT_CURRENCY jika axis belum dikonfigur
-	(pemasangan baru sebelum patch seed jalan)."""
-	for r in get_currency_axis():
-		if r["is_default"]:
-			return r["currency"]
-	company_currency = frappe.db.get_single_value(
-		"Global Defaults", "default_company"
-	) and frappe.get_cached_value(
-		"Company", frappe.db.get_single_value("Global Defaults", "default_company"), "default_currency"
-	)
-	return company_currency or DEFAULT_CURRENCY
+    """Currency default laman — urutan: Travel Settings.default_currency
+    (tetapan admin), currency company default (baris axis is_default),
+    fallback DEFAULT_CURRENCY (pemasangan baru sebelum patch seed jalan).
+    """
+    return (_travel_settings_default_currency()
+            or _company_default_currency()
+            or DEFAULT_CURRENCY)
+
+
+def get_rate_to_default(currency):
+    """Kadar tukaran currency → default currency (nilai semasa,
+    best-effort) → (rate|None, tarikh_kadar|None).
+
+    Sumber: rekod doctype Currency Exchange (pasangan terus, kemudian
+    pasangan songsang 1/rate), tarikh terkini dulu. SENGAJA tiada HTTP
+    call di sini — page admin yang render banyak currency tidak patut
+    bergantung pada API luar secara segerak; kadar dikemas kini oleh
+    auto-fetch Currency Exchange Settings (scheduler ERPNext) atau
+    rekod manual. Tiada kadar → (None, None) — caller papar nilai
+    native sahaja.
+    """
+    if not currency:
+        return None, None
+    default = get_default_currency()
+    if currency == default:
+        return 1.0, None
+
+    # Cache per-request — kadar sama dipakai berulang dalam satu page.
+    cache = getattr(frappe.local, "tb_rate_to_default_cache", None)
+    if cache is None:
+        cache = frappe.local.tb_rate_to_default_cache = {}
+    key = f"{currency}->{default}"
+    if key in cache:
+        return cache[key]
+
+    rate = rate_date = None
+    try:
+        rows = frappe.get_all(
+            "Currency Exchange",
+            filters={
+                "from_currency": ["in", [currency, default]],
+                "to_currency": ["in", [currency, default]],
+            },
+            fields=["from_currency", "to_currency", "exchange_rate", "date"],
+            order_by="date desc, creation desc",
+            limit=2,
+        )
+        for r in rows:
+            if r.from_currency == currency and r.to_currency == default and flt(r.exchange_rate) > 0:
+                rate, rate_date = flt(r.exchange_rate), r.date
+                break
+        if not rate:
+            for r in rows:
+                if (r.from_currency == default and r.to_currency == currency
+                        and flt(r.exchange_rate) > 0):
+                    rate, rate_date = flt(1.0 / flt(r.exchange_rate)), r.date
+                    break
+    except Exception:
+        pass
+
+    result = (rate, str(rate_date) if rate else None) if rate else (None, None)
+    cache[key] = result
+    return result
 
 
 def _axis_row(currency):

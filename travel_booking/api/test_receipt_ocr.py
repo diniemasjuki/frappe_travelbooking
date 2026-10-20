@@ -32,16 +32,26 @@ _SETTINGS_ON = {
 _SETTINGS_OFF = {**_SETTINGS_ON, "enabled": False}
 
 
-def _restore_flag():
-	frappe.db.set_single_value("Travel Settings", "enable_ai_receipt_ocr", 0)
+def _restore_flag(original=None):
+	"""Pulihkan flag enable_ai_receipt_ocr kepada nilai ASAL site — bukan
+	hardcode 0 (test lama hardcode 0, menyebabkan run test melumpuhkan AI
+	OCR pada site production yang flag-nya hidup)."""
+	frappe.db.set_single_value(
+		"Travel Settings", "enable_ai_receipt_ocr", original if original is not None else 0
+	)
 	frappe.db.commit()
+
+
+def _current_flag() -> int:
+	return int(frappe.db.get_single_value("Travel Settings", "enable_ai_receipt_ocr") or 0)
 
 
 class ReceiptOCRConfigTestCase(UnitTestCase):
 	"""Ujian _get_settings terhadap flag sebenar (dipulihkan selepas test)."""
 
 	def setUp(self):
-		self.addCleanup(_restore_flag)
+		self._original = _current_flag()
+		self.addCleanup(_restore_flag, self._original)
 
 	def test_disabled_flag_means_not_enabled(self):
 		frappe.db.set_single_value("Travel Settings", "enable_ai_receipt_ocr", 0)
@@ -120,6 +130,7 @@ class ReceiptOCRFlowTestCase(UnitTestCase):
 				"ok": True,
 				"reference_no": "FPX12345678",
 				"amount": 10900.0,
+				"currency": "MYR",
 				"date": "04/09/2026",
 			}
 
@@ -131,6 +142,56 @@ class ReceiptOCRFlowTestCase(UnitTestCase):
 
 		self.assertTrue(res["ok"])
 		self.assertEqual(res["date"], "2026-09-04")  # DD/MM/YYYY → ISO
+		self.assertEqual(res["currency"], "MYR")
+
+	def test_amount_normalized_to_float_currency(self):
+		"""Amount dari AI mesti FLOAT currency 2dp — string bersimbol pun
+		diterima (cth "1,234.50"); nilai tak sah/negatif → None."""
+		f = receipt_ocr._normalize_amount
+		self.assertEqual(f(10900), 10900.0)
+		self.assertEqual(f("1234.5"), 1234.5)
+		self.assertEqual(f("1,234.50"), 1234.5)
+		self.assertEqual(f("RM 1,234.50"), 1234.5)
+		self.assertEqual(f("S$90.00"), 90.0)
+		self.assertEqual(f(10.456), 10.46)   # round 2dp
+		self.assertIsNone(f(-5))             # negatif → None
+		self.assertIsNone(f(0))              # sifar → None
+		self.assertIsNone(f("abc"))          # bukan nombor → None
+		self.assertIsNone(f(None))
+		self.assertIsNone(f(""))
+
+	def test_normalize_currency_variants(self):
+		"""Currency dari AI → kod ISO uppercase; tak dikenali → ''."""
+		f = receipt_ocr._normalize_currency
+		self.assertEqual(f("MYR"), "MYR")
+		self.assertEqual(f("myr"), "MYR")
+		self.assertEqual(f("RM"), "MYR")
+		self.assertEqual(f("S$"), "SGD")
+		self.assertEqual(f("SGD"), "SGD")
+		self.assertEqual(f("USD"), "USD")
+		self.assertEqual(f("$"), "USD")
+		self.assertEqual(f("IDR"), "IDR")
+		self.assertEqual(f(""), "")
+		self.assertEqual(f("XYZ"), "XYZ")  # kod 3-huruf bentuk sah diterima (AI mungkin pulangkan kod luar biasa)
+		self.assertEqual(f("Ringgit?"), "")  # sampah → kosong
+		self.assertEqual(f(None), "")
+
+	def test_analyze_amount_string_from_ai(self):
+		"""Model kadang pulangkan amount sebagai string — analyze_receipt
+		wajib pulangkan float 2dp ke client."""
+		def mock_call_ai(settings, payload, mime):
+			return {"ok": True, "reference_no": "FPX1", "amount": "1,234.456", "currency": "rm", "date": ""}
+
+		with patch.object(receipt_ocr, "_get_settings", return_value=_SETTINGS_ON):
+			with patch.object(receipt_ocr, "_call_ai", side_effect=mock_call_ai):
+				res = receipt_ocr.analyze_receipt(
+					filedata="data:image/png;base64," + _PNG_1PX, filename="receipt.png"
+				)
+
+		self.assertTrue(res["ok"])
+		self.assertEqual(res["amount"], 1234.46)
+		self.assertIsInstance(res["amount"], float)
+		self.assertEqual(res["currency"], "MYR")
 
 	def test_normalize_date_variants(self):
 		f = receipt_ocr._normalize_date

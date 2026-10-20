@@ -1,0 +1,199 @@
+/* travel_booking/public/css/booking_list.css
+   Gaya paket generik senarai booking — window.TravelBookingBookingList
+   (public/js/booking_list.js). Kelas prefix .tblk-* — sendiri
+   berkertas (tidak bersandar CSS page pengguna), rupa selari jadual
+   desk frappe (selari .mba-table / .mtb-table).
+
+   Responsif: kad (telefon) <992px; jadual (desktop) ≥992px. */
+
+.tblk-root { min-height: 40px; }
+
+.tblk-muted { color: var(--text-muted); }
+.tblk-danger { color: var(--red-600, #e05252) !important; }
+.tblk-success { color: var(--green-600, #1a7a1a) !important; }
+
+.tblk-loading {
+	padding: 24px 16px;
+	text-align: center;
+	color: var(--text-muted);
+}
+
+.tblk-empty {
+	padding: 24px 16px;
+	text-align: center;
+	color: var(--text-muted);
+	border: 1px dashed var(--border-color);
+	border-radius: 8px;
+	margin: 8px 0;
+}
+
+/* ── Tajuk seksyen + pill kiraan ── */
+.tblk-section-title {
+	font-size: 14px;
+	font-weight: 600;
+	margin: 4px 0 10px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.tblk-count-pill {
+	display: inline-block;
+	min-width: 20px;
+	padding: 1px 7px;
+	border-radius: 999px;
+	background: var(--control-bg, var(--bg-color));
+	color: var(--text-muted);
+	font-size: 11px;
+	font-weight: 600;
+	text-align: center;
+}
+
+/* ── Toolbar tapisan ── */
+.tblk-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	align-items: center;
+	margin-bottom: 10px;
+}
+.tblk-toolbar input[type="text"] {
+	flex: 1 1 180px;
+	min-width: 140px;
+	max-width: 320px;
+}
+.tblk-toolbar select {
+	flex: 0 0 auto;
+	min-width: 90px;
+}
+
+/* ── Badge status ── */
+.tblk-badge {
+	display: inline-block;
+	padding: 1px 7px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1.6;
+	white-space: nowrap;
+}
+.tblk-badge--green  { background: var(--green-100, #e8f8e8);  color: var(--green-700, #1a7a1a); }
+.tblk-badge--blue   { background: var(--blue-100, #e3edfc);   color: var(--blue-700, #235bd8); }
+.tblk-badge--orange { background: var(--orange-100, #fdeee0); color: var(--orange-700, #b75404); }
+.tblk-badge--yellow { background: var(--yellow-100, #fdf6dd); color: var(--yellow-800, #8a6d0b); }
+.tblk-badge--red    { background: var(--red-100, #fde8e8);    color: var(--red-700, #c0392b); }
+.tblk-badge--gray   { background: var(--gray-200, #ececec);   color: var(--gray-700, #666); }
+
+/* ── Kad booking (telefon) ── */
+.tblk-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+	gap: 10px;
+	margin-bottom: 10px;
+}
+.tblk-bkcard {
+	border: 1px solid var(--border-color);
+	border-radius: 8px;
+	padding: 10px 12px;
+	background: var(--card-bg);
+	cursor: pointer;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.tblk-bkcard:hover { border-color: var(--gray-400, #d0d0d0); }
+.tblk-bkcard-top {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+}
+.tblk-bkcard-no { font-weight: 700; font-size: 13px; overflow-wrap: anywhere; }
+.tblk-bkcard-badges { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.tblk-bkcard-cust { font-weight: 500; }
+.tblk-bkcard-meta { color: var(--text-muted); font-size: 12px; }
+.tblk-bkcard-foot {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+	font-size: 12px;
+}
+.tblk-bkcard-foot > span:last-child { text-align: right; }
+
+/* ── Jadual booking (desktop) ── */
+.tblk-table-wrap {
+	display: none;   /* telefon: kad sahaja */
+	overflow-x: auto;
+}
+.tblk-table {
+	width: 100%;
+	border-collapse: collapse;
+	background: var(--card-bg);
+	font-size: 12.5px;
+}
+.tblk-table th, .tblk-table td {
+	border-bottom: 1px solid var(--border-color);
+	padding: 8px 10px;
+	text-align: left;
+	vertical-align: top;
+}
+.tblk-table thead th {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	color: var(--text-muted);
+	background: var(--control-bg, var(--bg-color));
+	white-space: nowrap;
+	position: sticky;
+	top: 0;
+}
+.tblk-table .num { text-align: right; white-space: nowrap; }
+.tblk-table tbody tr { cursor: pointer; }
+.tblk-table tbody tr:hover { background: var(--control-bg, var(--bg-color)); }
+.tblk-table tfoot td {
+	font-weight: 600;
+	border-top: 2px solid var(--border-color);
+	background: var(--card-bg);
+}
+.tblk-tfoot-label { color: var(--text-muted); font-weight: 400 !important; }
+
+.tblk-cell-main { font-weight: 500; }
+.tblk-cell-sub {
+	color: var(--text-muted);
+	font-size: 11px;
+	margin-top: 2px;
+	white-space: nowrap;
+}
+.tblk-table td.num .tblk-cell-sub { margin-left: auto; }
+.tblk-col-bkopen { cursor: pointer; }
+.tblk-col-msg { text-align: center; }
+
+.tblk-msg-btn {
+	padding: 2px 4px;
+	color: var(--text-muted);
+}
+.tblk-msg-btn:hover { color: var(--text-color); }
+.tblk-msg-body { max-width: 480px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ── Footer showing + ringkas (telefon) ── */
+.tblk-showing {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 2px;
+	color: var(--text-muted);
+	font-size: 12px;
+}
+.tblk-tab-total {
+	padding: 8px 2px;
+	color: var(--text-muted);
+	font-size: 12px;
+}
+
+/* ── Desktop (≥992px) — jadual menggantikan kad ── */
+@media (min-width: 992px) {
+	.tblk-cards { display: none; }
+	.tblk-table-wrap { display: block; }
+	.tblk-tab-total { display: none; }
+}

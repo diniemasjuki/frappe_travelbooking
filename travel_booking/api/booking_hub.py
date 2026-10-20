@@ -336,7 +336,7 @@ def get_booking_detail(booking_name: str) -> dict:
 				# Pilihan privacy customer (cruise solo) — ops guna untuk
 				# cari siapa perlu dipadankan roommate + proses refund.
 				'room_privacy': getattr(res_doc, 'room_privacy', '') or '',
-				'document_status': getattr(res_doc, 'document_status', 'Pending Review') or 'Pending Review',
+				'document_status': getattr(res_doc, 'document_status', 'Incomplete') or 'Incomplete',
 				**traveller_info,
 			})
 		except Exception as res_err:
@@ -366,7 +366,7 @@ def get_booking_detail(booking_name: str) -> dict:
 				'passport_no': res.get('passport_no', ''),
 				'room_category': first_cabin.get('room_category', ''),
 				'cabin_no': first_cabin.get('cabin_no', ''),
-				'document_status': first_cabin.get('document_status', 'Pending Review'),
+				'document_status': first_cabin.get('document_status', 'Incomplete'),
 			})
 
 	# Get addon orders
@@ -635,7 +635,7 @@ def get_cabin_grid(booking_name: str) -> dict:
 			'traveller': res_doc.traveller or '',
 			'traveller_name': traveller_name_val,
 			'pax_type': getattr(res_doc, 'pax_type', '') or '',
-			'document_status': getattr(res_doc, 'document_status', None) or 'Pending Review',
+			'document_status': getattr(res_doc, 'document_status', None) or 'Incomplete',
 			'status': getattr(res_doc, 'status', '') or '',
 		})
 
@@ -1332,6 +1332,358 @@ def get_trip_list() -> list:
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), 'Get Trip List Error')
 		return []
+
+
+# ══════════════════════════════════════════════
+# RESYNC & REGENERATE — Booking ↔ dokumen terkait
+# ══════════════════════════════════════════════
+
+def _resync_warn(warnings: list, area: str, error) -> None:
+	"""Kumpul ralat satu langkah resync tanpa menggagalkan langkah lain."""
+	detail = '{0}: {1}'.format(area, error)
+	warnings.append(detail)
+	frappe.log_error(frappe.get_traceback(), 'Booking Resync Error')
+
+
+def _resync_active_invoice(so_name: str):
+	"""Sales Invoice AKTIF (docstatus != 2) pertama yang merujuk SO ni,
+	kalau wujud — corak query sama _maybe_auto_invoice_so()."""
+	row = frappe.db.sql("""
+		SELECT sii.parent
+		FROM `tabSales Invoice Item` sii
+		JOIN `tabSales Invoice` si ON si.name = sii.parent
+		WHERE sii.sales_order = %s AND si.docstatus != 2
+		LIMIT 1
+	""", so_name)
+	return row[0][0] if row else None
+
+
+def _main_reservations_absent(booking_name: str, force: bool) -> bool:
+	"""Guard langkah 4 resync: 'tiada reservation' bermaksud tiada slot
+	individu dari _activate_booking (SO utama).
+
+	Mode force mengecualikan baris share traveller (pautan junction
+	Share Slot Reservation) daripada kiraan — senario: fasa 1 gagal
+	kapasiti pada slot utama (rollback) TAPI slot share traveller cabin
+	lain berjaya dicipta; tanpa pengecualian ni guard count() != 0 akan
+	menyekat _activate_booking selamanya walau admin sudah sahkan
+	overwrite. Reservation manual admin (bukan share-link) tetap
+	menghalang aktivasi semula seperti biasa.
+	"""
+	if frappe.db.count('Booking Reservation', {'booking': booking_name}) == 0:
+		return True
+	if not force:
+		return False
+	share_linked = frappe.get_all('Share Slot Reservation',
+		filters={'booking': booking_name}, pluck='booking_reservation') or ['']
+	return not frappe.get_all('Booking Reservation',
+		filters={'booking': booking_name, 'name': ['not in', share_linked]},
+		limit_page_length=1)
+
+
+@frappe.whitelist()
+def resync_booking(booking_name: str, force: int = 0) -> dict:
+	"""Resync & regenerate SEMUA data terkait sebuah Booking — dipanggil
+	dari butang 'Resync & Regenerate' pada form Booking (booking.js).
+
+	Setiap langkah IDEMPOTEN dan TIDAK memusnahkan dokumen sedia ada.
+	Sales Order / Payment Entry yang dah submit TIDAK dijana semula
+	(dokumen perakaunan) — yang dibetulkan ialah SNAPSHOT, LINK dan
+	dokumen yang HILANG sahaja:
+
+	1. Snapshot Booking (payment_status, prog_payment, pre_discount_total,
+	   booked_pax) dikira semula dari SEMUA SO berkaitan — corak sama
+	   patch v19/v28, fire_flows=False (tiada email/dokumen sampingan).
+	2. Contact ↔ Customer: pastikan Dynamic Link Contact (email booking)
+	   terpasang ke Customer booking (jambatan portal /traveller).
+	3. Address 'Billing' Customer di-upsert dari medan cust_* Booking.
+	4. Booking Reservation HILANG dijana semula dari cabin layout SO —
+	   hanya bila dah ada bayaran (Partially Paid/Paid), tiada reservation
+	   langsung, dan booking bukan Cancelled. Slot share traveller SO
+	   fully-paid turut diaktifkan semula (idempoten sendiri).
+	5. Sales Invoice HILANG dijana semula untuk setiap SO yang dah
+	   fully paid (per-SO, corak reconcile_missing_invoices()).
+	6. Booking Addon: refresh payment_status/status setiap order addon.
+	7. Downstream: backfill snapshot kewangan reservation yang kosong,
+	   refresh Trip Group Date (current_participants), cabin availability
+	   Trip Cruise Schedule, dan seat Flight.
+
+	Kegagalan satu langkah TIDAK menghalang langkah lain — ralat dikumpul
+	dalam result['warnings'] + Error Log. Audit trail dicatat sebagai
+	Communication pada Booking (corak sama update_booking_status()).
+
+	ALERT OVERWRITE (force): bila penciptaan reservation (langkah 4)
+	ditolak VALIDASI — cth room capacity limitation, mismatch room
+	category, extra bed tak sah — ralat TIDAK dibatalkan senyap.
+	force=0 (fasa 1): ralat dimasukkan dalam result['confirmable_errors']
+	dan result['confirmation_required']=True — frontend (booking.js)
+	papar alert "Proceed with Overwrite / Abort" pada admin. force=1
+	(fasa 2, selepas admin pilih overwrite): langkah 4 diulang dengan
+	flags.skip_cabin_capacity_validation — reservation diterima walau
+	melepasi had kapasiti; apa yang dipaksa dicatat dalam
+	result['forced_overwrites'] untuk audit.
+	"""
+	from travel_booking.api.booking_engine import _recompute_booking_status
+	from travel_booking.api.so_helpers import (
+		_activate_booking,
+		_ensure_contact_customer_link,
+		_get_all_booking_sales_orders,
+		_maybe_auto_invoice_so,
+		_upsert_customer_billing_address,
+	)
+	from travel_booking.api.cabin_sharing import _activate_share_traveller_reservation
+	from travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule \
+		import refresh_cabin_availability
+
+	# SECURITY: Kemaskini master data & cipta dokumen kewangan — perlukan
+	# role Booking Hub (mencegah IDOR dari user portal biasa).
+	_require_booking_manager()
+	if not booking_name:
+		frappe.throw(_('Booking name is required'))
+	if not frappe.db.exists('Booking', booking_name):
+		frappe.throw(_('Booking {0} not found').format(booking_name))
+
+	# frappe.call boleh hantar force sebagai int (JSON) ATAU string "1"
+	# (form data) — cint() seragamkan kedua-duanya.
+	force = bool(frappe.utils.cint(force))
+
+	booking = frappe.get_doc('Booking', booking_name)
+	warnings = []
+	result = {
+		'sales_orders': [],
+		'payment_status': None,
+		'contact_linked': None,
+		'address_synced': None,
+		'reservations_created': 0,
+		'share_slots_created': 0,
+		'invoices_created': [],
+		'addons_refreshed': [],
+		'reservations_money_filled': 0,
+		'trip_group_date_refreshed': None,
+		'cruise_schedules_refreshed': [],
+		'flights_refreshed': [],
+		'force': force,
+		'confirmation_required': False,
+		'confirmable_errors': [],
+		'forced_overwrites': [],
+		'warnings': warnings,
+	}
+
+	# ── 1. Snapshot Booking dari SEMUA SO berkaitan (tiada email —
+	# fire_flows=False, corak patch migration).
+	so_names = _get_all_booking_sales_orders(booking_name)
+	result['sales_orders'] = so_names
+	for so_name in so_names:
+		try:
+			_recompute_booking_status(so_name, fire_flows=False)
+		except Exception as e:
+			_resync_warn(warnings, _('Snapshot from SO {0}').format(so_name), e)
+
+	# Baca semula nilai FRESH dari DB — recompute atas menulis terus via
+	# db.set_value, dan nilai pada objek 'booking' mungkin stale.
+	fresh = frappe.db.get_value('Booking', booking_name,
+		['status', 'payment_status'], as_dict=True) or booking
+	result['payment_status'] = fresh.payment_status
+
+	# ── 2. Contact ↔ Customer — pastikan link wujud supaya portal
+	# /traveller jumpa booking ni (corak _create_customer()).
+	if booking.customer and booking.cust_email:
+		try:
+			contact_row = frappe.db.sql("""
+				SELECT parent FROM `tabContact Email`
+				WHERE email_id = %s AND parenttype = 'Contact'
+				ORDER BY is_primary DESC LIMIT 1
+			""", booking.cust_email)
+			if contact_row:
+				contact_name = contact_row[0][0]
+				_ensure_contact_customer_link(contact_name, booking.customer)
+				result['contact_linked'] = contact_name
+			else:
+				warnings.append(
+					_('No Contact found for email {0} — create one and link '
+					  'to Customer {1} manually.').format(
+						booking.cust_email, booking.customer))
+		except Exception as e:
+			_resync_warn(warnings, _('Contact-Customer link'), e)
+	elif booking.customer:
+		warnings.append(_('Booking has no cust_email — Contact link not checked.'))
+
+	# ── 3. Address 'Billing' Customer dari medan cust_* Booking
+	# (upsert — kemaskini Address sedia ada, bukan duplikasi).
+	if booking.customer:
+		try:
+			addr_name = _upsert_customer_billing_address(booking.customer, {
+				'address_line1': booking.cust_address_line1,
+				'city':          booking.cust_city,
+				'state':         booking.cust_state,
+				'postcode':      booking.cust_postcode,
+				'country':       booking.cust_country,
+			})
+			result['address_synced'] = addr_name
+		except Exception as e:
+			_resync_warn(warnings, _('Billing Address upsert'), e)
+
+	# ── 4. Booking Reservation HILANG + slot share traveller.
+	# Guna nilai fresh — bukan nilai form (boleh stale).
+	has_payment = fresh.payment_status in ('Partially Paid', 'Paid')
+	if so_names and has_payment and fresh.status != 'Cancelled':
+		share_before = frappe.db.count('Share Slot Reservation',
+			{'sales_order': ['in', so_names]})
+		if _main_reservations_absent(booking_name, force):
+			# SAVEPOINT wajib: _activate_booking insert satu-persatu — kalau
+			# ia gagal di tengah (cth validate_cabin_capacity tolak pax ke-5),
+			# baris separuh jana di-rollback supaya kekal "tiada reservation"
+			# (boleh ulang resync selepas data dibetulkan; baris separuh jana
+			# akan tersangkut selamanya sebab guard count() != 0 di atas).
+			frappe.db.savepoint('resync_activate_booking')
+			try:
+				result['reservations_created'] = (
+					_activate_booking(booking_name, force=force) or 0)
+				frappe.db.release_savepoint('resync_activate_booking')
+				if force and result['reservations_created']:
+					result['forced_overwrites'].append(
+						_('{0} reservation slot(s) created — cabin capacity '
+						  'validation skipped').format(
+							result['reservations_created']))
+			except Exception as e:
+				frappe.db.rollback(save_point='resync_activate_booking')
+				# JANGAN cancel senyap: ralat VALIDASI (cth room capacity
+				# limitation / mismatch room category) dipegang sebagai
+				# 'confirmable' — frontend papar alert Proceed with
+				# Overwrite / Abort. Ralat bukan-validasi (programming/data)
+				# kekal sebagai warning biasa sebab force takkan membantu.
+				if not force and isinstance(e, frappe.ValidationError):
+					result['confirmation_required'] = True
+					result['confirmable_errors'].append(
+						_('Reservation activation') + ': ' + str(e))
+				else:
+					_resync_warn(warnings, _('Reservation activation'), e)
+		# Idempoten sendiri (guard Share Slot Reservation + SO fully paid);
+		# savepoint + exception ditangkap supaya langkah lain tetap berjalan.
+		for so_name in so_names:
+			frappe.db.savepoint('resync_share_traveller')
+			try:
+				share_res = _activate_share_traveller_reservation(
+					so_name, force=force)
+				frappe.db.release_savepoint('resync_share_traveller')
+				if force and share_res:
+					result['forced_overwrites'].append(
+						_('Share traveller slot {0} (SO {1}) — cabin capacity '
+						  'validation skipped').format(share_res, so_name))
+			except Exception as e:
+				frappe.db.rollback(save_point='resync_share_traveller')
+				# Corak sama dengan _activate_booking di atas — validasi
+				# ditahan untuk keputusan overwrite admin, bukan cancel.
+				if not force and isinstance(e, frappe.ValidationError):
+					result['confirmation_required'] = True
+					result['confirmable_errors'].append(
+						_('Share traveller activation SO {0}').format(so_name)
+						+ ': ' + str(e))
+				else:
+					_resync_warn(warnings,
+						_('Share traveller activation SO {0}').format(so_name), e)
+		result['share_slots_created'] = (
+			frappe.db.count('Share Slot Reservation', {'sales_order': ['in', so_names]})
+			- share_before)
+
+	# ── 5. Sales Invoice HILANG untuk SO fully paid (per-SO idempotent —
+	# skip automatik kalau SI aktif dah wujud / SO belum lunas).
+	for so_name in so_names:
+		if _resync_active_invoice(so_name):
+			continue
+		try:
+			_maybe_auto_invoice_so(so_name)
+			si_name = _resync_active_invoice(so_name)
+			if si_name:
+				result['invoices_created'].append(si_name)
+		except Exception as e:
+			_resync_warn(warnings, _('Auto-invoice SO {0}').format(so_name), e)
+
+	# ── 6. Booking Addon — refresh payment_status/status setiap order.
+	if frappe.db.exists('DocType', 'Booking Addon'):
+		for addon_name in frappe.get_all('Booking Addon',
+				filters={'booking': booking_name}, pluck='name'):
+			try:
+				frappe.get_doc('Booking Addon', addon_name).refresh_payment_status()
+				result['addons_refreshed'].append(addon_name)
+			except Exception as e:
+				_resync_warn(warnings, _('Addon refresh {0}').format(addon_name), e)
+
+	# ── 7. Downstream — snapshot kewangan reservation yang kosong
+	# (fill-empty-only, corak validate() reservation) + kiraan pax,
+	# cabin availability dan seat flight yang bergantung padanya.
+	res_names = frappe.get_all('Booking Reservation',
+		filters={'booking': booking_name}, pluck='name')
+	money_fields = ('booking_currency', 'booking_total_amount',
+		'booking_balance_amount', 'booking_paid_amount')
+	for res_name in res_names:
+		res = frappe.get_doc('Booking Reservation', res_name)
+		before = [res.get(f) for f in money_fields]
+		try:
+			res.sync_booking_money_snapshot()
+		except Exception as e:
+			_resync_warn(warnings, _('Money snapshot {0}').format(res_name), e)
+			continue
+		after = [res.get(f) for f in money_fields]
+		if before != after:
+			frappe.db.set_value('Booking Reservation', res_name,
+				{f: res.get(f) for f in money_fields}, update_modified=False)
+			result['reservations_money_filled'] += 1
+
+	if booking.trip_date and frappe.db.exists('Trip Group Date', booking.trip_date):
+		try:
+			frappe.get_doc('Trip Group Date', booking.trip_date).refresh_bookings()
+			result['trip_group_date_refreshed'] = booking.trip_date
+		except Exception as e:
+			_resync_warn(warnings, _('Trip Group Date refresh'), e)
+
+	for schedule in {r for r in frappe.get_all('Booking Reservation',
+			filters={'booking': booking_name}, pluck='trip_cruise_schedule') if r}:
+		try:
+			refresh_cabin_availability(schedule)
+			result['cruise_schedules_refreshed'].append(schedule)
+		except Exception as e:
+			_resync_warn(warnings, _('Cabin availability {0}').format(schedule), e)
+
+	for flight in {f for f in frappe.get_all('Booking Reservation',
+			filters={'booking': booking_name}, pluck='flight') if f}:
+		if not frappe.db.exists('Flight', flight):
+			continue
+		try:
+			frappe.get_doc('Flight', flight).refresh_seats()
+			result['flights_refreshed'].append(flight)
+		except Exception as e:
+			_resync_warn(warnings, _('Flight seats {0}').format(flight), e)
+
+	# ── Audit trail (corak update_booking_status) — jejak apa yang
+	# berlaku pada timeline Booking untuk transparency admin. Result
+	# penuh (termasuk confirmable_errors / forced_overwrites) diserial
+	# ke JSON supaya keputusan overwrite admin turut terjejak.
+	try:
+		subject = _('Resync & Regenerate: {0}').format(booking_name)
+		if force:
+			subject = _('Resync & Regenerate (FORCED OVERWRITE): {0}').format(
+				booking_name)
+		frappe.get_doc({
+			'doctype': 'Communication',
+			'subject': subject,
+			'content': 'Resync & Regenerate by {0}\n\n{1}'.format(
+				frappe.session.user, json.dumps(result, indent=2, default=str)),
+			'sending_user': frappe.session.user,
+			'communication_medium': 'Other',
+			'sent_or_received': 'Sent',
+			'reference_doctype': 'Booking',
+			'reference_name': booking_name,
+			'status': 'Linked',
+		}).insert(ignore_permissions=True)
+	except Exception as e:
+		_resync_warn(warnings, _('Audit log Communication'), e)
+
+	return {
+		'success': True,
+		'message': _('Resync completed for {0}').format(booking_name),
+		'result': result,
+	}
 
 
 # ========== UTILITY FUNCTIONS ==========

@@ -1,0 +1,1737 @@
+/* travel_booking/module_admin_portal/page/manage_booking_app/manage_booking_app.css
+   Booking Manager — mobile-first. Namespace: mba-.
+   Prinsip: kad pada telefon, jadual pada desktop (≥992px); visual tenang;
+   sifar scroll mendatar pada 360px untuk paparan utama. */
+
+/* Lebar page ikut tetapan layout standard Frappe — User Settings →
+   Layout (Compact / Full Width), disimpan framework dalam localStorage
+   'container_fullwidth' dan dipasang sebagai class body.full-width.
+
+   Compact (default)  → max-width --page-max-width (900px) di tengah,
+                        sama seperti form/workspace/treeview standard.
+   Full Width         → lebar container penuh (max-width 100%).
+
+   Shortcut toggle turut disediakan dalam Menu page (manage_booking_app.js)
+   — ia memanggil frappe.ui.toolbar.toggle_full_width() milik framework,
+   jadi kekal segerak dengan dialog User Settings. */
+.page-container[data-page-route="manage-booking-app"] .page-body {
+	max-width: 100%;
+	padding-inline: var(--padding-md, 15px);
+}
+body:not(.full-width) .page-container[data-page-route="manage-booking-app"] .page-body {
+	max-width: var(--page-max-width, 900px);
+}
+
+.mba-app {
+	font-size: var(--text-sm, 13px);
+}
+
+.mba-muted { color: var(--text-muted); }
+.mba-loading {
+	padding: 28px 14px;
+	text-align: center;
+	color: var(--text-muted);
+}
+.mba-empty {
+	padding: 24px 14px;
+	text-align: center;
+	color: var(--text-muted);
+	background: var(--card-bg);
+	border: 1px dashed var(--border-color);
+	border-radius: var(--border-radius-lg);
+	margin: 10px 0;
+}
+.is-danger { color: var(--red-600, #e05252) !important; }
+.is-success { color: var(--green-600, #1a7a1a) !important; }
+
+/* ── Badge ─────────────────────────────────────────────── */
+.mba-badge {
+	display: inline-block;
+	padding: 1px 8px;
+	font-size: 11px;
+	font-weight: 600;
+	border-radius: 20px;
+	white-space: nowrap;
+}
+.mba-badge--green  { background: var(--green-100, #e8f8e8);  color: var(--green-700, #1a7a1a); }
+.mba-badge--blue   { background: var(--blue-100, #e3edfc);   color: var(--blue-700, #235bd8); }
+.mba-badge--orange { background: var(--orange-100, #fdeee0); color: var(--orange-700, #b75404); }
+.mba-badge--yellow { background: var(--yellow-100, #fdf6dd); color: var(--yellow-800, #8a6d0b); }
+.mba-badge--red    { background: var(--red-100, #fde8e8);    color: var(--red-700, #c0392b); }
+.mba-badge--gray   { background: var(--gray-200, #ececec);   color: var(--gray-700, #666); }
+.mba-badge--cyan   { background: var(--cyan-100, #e0f4f6);   color: var(--cyan-800, #0e7c86); }
+.mba-badge--violet { background: var(--violet-100, #ece9fb); color: var(--violet-700, #5a4fcf); }
+
+.mba-count-pill {
+	display: inline-block;
+	min-width: 18px;
+	padding: 0 6px;
+	border-radius: 10px;
+	background: var(--control-bg, var(--bg-color));
+	color: var(--text-muted);
+	font-size: 11px;
+	font-weight: 600;
+	text-align: center;
+	line-height: 18px;
+}
+
+/* ── Toolbar (L1) ──────────────────────────────────────── */
+.mba-toolbar { margin-bottom: 8px; }
+
+.mba-search-row {
+	display: flex;
+	gap: 8px;
+	align-items: stretch;
+}
+
+.mba-search-box { flex: 1; position: relative; }
+
+.mba-search-input {
+	width: 100%;
+	height: 34px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	padding: 0 12px;
+	background: var(--card-bg);
+	font-size: var(--text-sm);
+}
+
+.mba-filter-btn {
+	white-space: nowrap;
+	flex-shrink: 0;
+}
+
+.mba-filter-count { color: var(--text-muted); font-weight: 600; }
+
+.mba-chip-row {
+	display: flex;
+	gap: 6px;
+	overflow-x: auto;
+	padding: 8px 0 2px;
+	-webkit-overflow-scrolling: touch;
+	scrollbar-width: none;
+}
+.mba-chip-row::-webkit-scrollbar { display: none; }
+
+.mba-chip {
+	flex-shrink: 0;
+	border: 1px solid var(--border-color);
+	background: var(--card-bg);
+	border-radius: 18px;
+	padding: 3px 12px;
+	font-size: 12px;
+	cursor: pointer;
+	text-align: left;
+	line-height: 1.4;
+}
+.mba-chip.active {
+	background: var(--brand-primary, var(--blue-500, #4f7bfd));
+	border-color: var(--brand-primary, var(--blue-500, #4f7bfd));
+	color: #fff;
+}
+.mba-chip-sub {
+	display: block;
+	font-size: 10px;
+	color: var(--text-muted);
+	font-weight: 400;
+	white-space: nowrap;
+}
+.mba-chip.active .mba-chip-sub { color: rgba(255, 255, 255, 0.75); }
+
+.mba-filter-panel {
+	display: none;
+	margin-top: 8px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: #f9f9f9;
+	padding: 10px;
+}
+.mba-filter-panel.open { display: block; }
+
+.mba-filter-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+	align-items: end;
+}
+.mba-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mba-field > span {
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	color: var(--text-muted);
+}
+.mba-field select {
+	height: 30px;
+	font-size: var(--text-sm);
+	width: 100%;
+	min-width: 0;
+}
+.mba-field--check {
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	padding-bottom: 6px;
+}
+.mba-field--check > span { text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--text-color); }
+
+/* ── Strip jumlah (L1) ─────────────────────────────────── */
+.mba-summary-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 12px;
+	margin: 4px 0 10px;
+	/* Sticky semasa skrol senarai panjang */
+	position: sticky;
+	top: 0;
+	z-index: 10;
+	background: var(--card-bg, #fff);
+	padding: 8px 0;
+}
+
+.mba-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 14px;
+	font-size: 12px;
+	color: var(--text-muted);
+	flex: 1;
+	min-width: 0;
+}
+.mba-summary b { color: var(--text-color); font-weight: 600; }
+
+/* ── L1: kad group (telefon) ───────────────────────────── */
+.mba-cards {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 8px;
+}
+
+.mba-card {
+	display: flex;
+	gap: 8px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	padding: 10px 12px;
+}
+
+.mba-card .mba-sel-group {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	margin-top: 3px;
+	accent-color: var(--brand-primary, var(--blue-500, #4f7bfd));
+}
+
+.mba-card-click { flex: 1; min-width: 0; cursor: pointer; }
+
+.mba-card-top {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.mba-card-title {
+	font-weight: 600;
+	font-size: var(--text-base, 14px);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.mba-card-badges { flex-shrink: 0; display: inline-flex; gap: 4px; align-items: center; }
+
+.mba-card-sub {
+	color: var(--text-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	margin-top: 1px;
+}
+
+.mba-card-date { margin-top: 2px; color: var(--text-color); }
+
+.mba-card-stats {
+	display: flex;
+	gap: 12px;
+	margin-top: 6px;
+	padding-top: 6px;
+	border-top: 1px solid var(--border-color, #eee);
+	font-size: 12px;
+	color: var(--text-muted);
+	flex-wrap: wrap;
+}
+.mba-card-stats b { color: var(--text-color); }
+
+.mba-group--batch .mba-card,
+tr.mba-group-row td .mba-badge--violet { /* penanda halus batch */ }
+
+/* ── Jadual generik (desktop sahaja) ───────────────────── */
+.mba-table-wrap {
+	display: none;   /* telefon: kad sahaja */
+	overflow-x: auto;
+}
+
+.mba-table {
+	width: 100%;
+	border-collapse: collapse;
+	background: var(--card-bg);
+	font-size: 12.5px;
+}
+
+.mba-table th, .mba-table td {
+	border-bottom: 1px solid var(--border-color);
+	padding: 8px 10px;
+	text-align: left;
+	vertical-align: top;
+}
+
+.mba-table thead th {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	color: var(--text-muted);
+	background: var(--control-bg, var(--bg-color));
+	white-space: nowrap;
+	position: sticky;
+	top: 0;
+}
+
+.mba-table .num { text-align: right; white-space: nowrap; }
+.mba-table tbody tr { cursor: pointer; }
+.mba-table tbody tr:hover { background: var(--control-bg, var(--bg-color)); }
+.mba-table tfoot td {
+	font-weight: 600;
+	border-top: 2px solid var(--border-color);
+	background: var(--card-bg);
+}
+.mba-tfoot-label { color: var(--text-muted); font-weight: 400 !important; }
+
+/* Jadual booking (tab Bookings) — kolum nombor (Pax/Bills/More):
+   semua sub-info di-pin ke tepi kanan supaya sejajar dengan nilai
+   utama walaupun cell lebih lebar daripada cap 320px .mba-cell-sub */
+.mba-bk-table td.num .mba-cell-sub { margin-left: auto; }
+
+.mba-cell-main { font-weight: 500; }
+/* Nama batch lebih tebal daripada nama group tunggal */
+.mba-cell-main.is-batch { font-weight: 700; }
+.mba-cell-sub {
+	font-size: 11px;
+	color: var(--text-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: min(100%, 320px);
+}
+.mba-cell-sub.is-danger { white-space: normal; }
+
+.mba-trip-cell {
+	max-width: 260px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mba-col-sel { width: 30px; }
+.mba-col-sel input { accent-color: var(--brand-primary, var(--blue-500, #4f7bfd)); }
+
+.mba-row-cancelled td { opacity: 0.55; }
+
+/* ── L2: header detail ─────────────────────────────────── */
+#mba-detail { margin-top: 4px; }
+
+.mba-detail-head { margin-bottom: 25px; }
+
+traveller {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 25px;
+	flex-wrap: wrap;
+}
+
+.mba-detail-title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.mba-detail-name {
+	font-size: 18px;
+	font-weight: 700;
+	overflow-wrap: anywhere;
+}
+
+/* Butang pensil rename batch — sejajar dengan nama */
+.mba-detail-title .mba-rename-batch {
+	align-self: center;
+	flex-shrink: 0;
+	padding: 2px 8px;
+}
+.mba-detail-title .mba-rename-batch .icon {
+	vertical-align: middle;
+}
+
+.mba-detail-sub {
+	margin-top: 4px;
+	color: var(--text-muted);
+	/* Setiap bit info pada barisnya sendiri (teks muted, berbaris-baris)
+	   — bukan lagi sebaris mengufuk. Span ialah blok, gap kecil antara
+	   baris; line-height lalai dikekalkan supaya wrap panjang rapi. */
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 2px;
+	margin-bottom:20px;
+}
+
+.mba-member-chips {
+	display: flex;
+	gap: 6px;
+	overflow-x: auto;
+	padding: 6px 0 2px;
+	scrollbar-width: none;
+	-webkit-overflow-scrolling: touch;
+}
+.mba-member-chips::-webkit-scrollbar { display: none; }
+.mba-member-chips .mba-chip { flex-shrink: 0; }
+
+.mba-stat-row {
+	display: flex;
+	gap: 4px 16px;
+	margin-top: 8px;
+	padding: 8px 12px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	overflow-x: auto;
+	white-space: nowrap;
+	scrollbar-width: none;
+	-webkit-overflow-scrolling: touch;
+}
+.mba-stat-row::-webkit-scrollbar { display: none; }
+.mba-stat-row span { flex-shrink: 0; color: var(--text-muted); font-size: 12px; }
+.mba-stat-row b { color: var(--text-color); font-weight: 600; }
+
+/* ── Tabs (L2 + L3) ────────────────────────────────────── */
+.mba-tabs {
+	display: flex;
+	gap: 4px;
+	overflow-x: auto;
+	border-bottom: 1px solid var(--border-color);
+	margin: 10px 0;
+	scrollbar-width: none;
+	-webkit-overflow-scrolling: touch;
+}
+.mba-tabs::-webkit-scrollbar { display: none; }
+
+.mba-tab {
+	flex-shrink: 0;
+	border: none;
+	background: none;
+	padding: 8px 14px;
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+	border-bottom: 2px solid transparent;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+.mba-tab.active {
+	color: var(--brand-primary, var(--blue-500, #4f7bfd));
+	border-bottom-color: var(--brand-primary, var(--blue-500, #4f7bfd));
+	font-weight: 600;
+}
+
+.mba-tab-pane { display: none; }
+.mba-tab-pane.active { display: block; }
+
+.mba-tab-panes > .mba-tab-pane { padding-bottom: 20px; }
+
+.mba-tab-toolbar {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	align-items: center;
+	margin-bottom: 10px;
+}
+
+/* Tab Bookings — toolbar (carian/penapis) sticky semasa skrol */
+.mba-tab-pane[data-pane="booking"] .mba-tab-toolbar {
+	position: sticky;
+	top: 0;
+	z-index: 10;
+	background: var(--card-bg, #fff);
+	padding: 8px 0;
+}
+.mba-tab-toolbar input[type="text"] {
+	flex: 1 1 160px;
+	min-width: 140px;
+	height: 30px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	padding: 0 10px;
+	background: var(--card-bg);
+	font-size: 12.5px;
+}
+.mba-tab-toolbar select {
+	height: 30px;
+	font-size: 12.5px;
+	max-width: 220px;
+}
+
+/* Extras toolbar pakej traveller (L2) — tapisan server (carian/group/doc/
+   limit) dalam toolbar pakej; gaya selari .mba-tab-toolbar. */
+.mba-tv-extras {
+	display: inline-flex;
+	gap: 6px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+.mba-tv-extras input[type="text"] {
+	flex: 1 1 160px;
+	min-width: 140px;
+	height: 28px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	padding: 0 10px;
+	background: var(--card-bg);
+	font-size: 12.5px;
+}
+.mba-tv-extras select { height: 28px; font-size: 12.5px; max-width: 220px; }
+
+.mba-tab-total {
+	margin-top: 8px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+.mba-showing {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	margin-top: 8px;
+	color: var(--text-muted);
+	font-size: 12px;
+}
+
+.mba-section-title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-weight: 600;
+	font-size: var(--text-base, 14px);
+	margin: 16px 0 8px;
+}
+.mba-section-title:first-child { margin-top: 0; }
+
+/* ── L2 Overview: KPI + panel + analytics ──────────────── */
+.mba-kpi-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 8px;
+}
+
+.mba-kpi {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	padding: 10px 12px;
+	background: var(--card-bg);
+	min-width: 0;
+}
+.mba-kpi.is-danger  { border-left: 3px solid var(--red-600, #e05252); }
+.mba-kpi.is-warn    { border-left: 3px solid var(--orange-600, #f29317); }
+.mba-kpi.is-success { border-left: 3px solid var(--green-600, #29cd42); }
+
+.mba-kpi-label {
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	color: var(--text-muted);
+}
+
+.mba-kpi-value {
+	font-size: 17px;
+	font-weight: 700;
+	margin: 2px 0;
+	overflow-wrap: anywhere;
+}
+
+.mba-kpi-sub {
+	font-size: 11px;
+	color: var(--text-muted);
+	overflow-wrap: anywhere;
+}
+
+.mba-sec-line {
+	display: flex;
+	gap: 4px 16px;
+	margin-top: 8px;
+	font-size: 12px;
+	color: var(--text-muted);
+	flex-wrap: wrap;
+}
+.mba-sec-line b { color: var(--text-color); }
+
+.mba-panel {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	overflow: hidden;
+	margin-top: 10px;
+}
+
+.mba-panel-head {
+	padding: 9px 14px;
+	border-bottom: 1px solid var(--border-color);
+	font-weight: 600;
+	font-size: var(--text-sm);
+	background: var(--control-bg, var(--bg-color));
+}
+
+.mba-panel-tools {
+	float: right;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	font-weight: 400;
+}
+
+.mba-panel-tools select { font-size: 12px; height: 24px; padding: 0 4px; margin: 0; }
+.mba-panel-sub { color: var(--text-muted); }
+.mba-panel-body { padding: 8px 10px 12px; }
+
+.mba-chart { width: 100%; }
+
+/* Analytics — boleh lipat; bar mendatar berlabel */
+.mba-analytics {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	margin-top: 10px;
+}
+
+.mba-analytics > summary {
+	padding: 10px 14px;
+	font-weight: 600;
+	cursor: pointer;
+	list-style: none;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	color: var(--text-color);
+}
+.mba-analytics > summary::-webkit-details-marker { display: none; }
+.mba-analytics > summary::after {
+	content: "›";
+	font-size: 16px;
+	color: var(--text-muted);
+	transform: rotate(90deg);
+	transition: transform 0.15s;
+}
+.mba-analytics[open] > summary::after { transform: rotate(-90deg); }
+
+/* Section Analytics — Bookings / Travellers / Breakdowns */
+.mba-an-sec { padding: 6px 0 2px; }
+.mba-an-sec + .mba-an-sec { border-top: 1px solid var(--border-color); margin-top: 6px; }
+.mba-an-sec-title {
+	font-size: 12px;
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	color: var(--text-color);
+	padding: 2px 0 4px;
+}
+
+.mba-an-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 0 16px;
+	padding: 0 0 8px;
+}
+/* Tablet — 2 kolum; telefon — 1 kolum (donut 180px muat penuh). */
+@media (max-width: 1199px) and (min-width: 768px) {
+	.mba-an-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+	.mba-an-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.mba-an-block { padding: 8px 0; }
+.mba-an-title {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	color: var(--text-muted);
+	margin-bottom: 6px;
+}
+
+.mba-bd-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 8px;
+	padding: 2px 0;
+	font-size: 12px;
+}
+.mba-bd-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-color);
+}
+.mba-bd-value { text-align: right; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Donut chart (analytics) — pusat jumlah pax + legend HTML menegak */
+.mba-donut-block { padding: 2px 0 4px; }
+.mba-donut-legend {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 3px 0;
+	padding: 4px 0 2px;
+	font-size: 12px;
+}
+.mba-donut-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	max-width: 100%;
+}
+.mba-donut-legend-dot {
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+.mba-donut-legend-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+.mba-donut-legend-item b {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+.mba-donut-legend-pct { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* ── Kad booking (L2 + addon/flight) ───────────────────── */
+.mba-bkcard {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	padding: 10px 12px;
+	cursor: pointer;
+}
+
+.mba-bkcard-top {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.mba-bkcard-no {
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.mba-bkcard-cust {
+	margin-top: 2px;
+	color: var(--text-color);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mba-bkcard-meta {
+	font-size: 11.5px;
+	color: var(--text-muted);
+	margin-top: 1px;
+}
+
+.mba-bkcard-foot {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin-top: 6px;
+	padding-top: 6px;
+	border-top: 1px solid var(--border-color, #eee);
+	font-size: 12px;
+}
+.mba-bkcard-foot > span:last-child { text-align: right; }
+
+.mba-msg-btn {
+	padding: 0 2px !important;
+	line-height: 1;
+	vertical-align: middle;
+	color: var(--orange-500, #f29317);
+}
+
+/* ── Kad traveller ─────────────────────────────────────── */
+.mba-tvcard {
+	/* Panel kad — susunan MENEGAK: thumbnail dokumen di atas, maklumat
+	   kontak di bawahnya. */
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	padding: 10px;
+	cursor: pointer;
+}
+
+.mba-tvcard--cancelled { opacity: 0.55; }
+
+.mba-tv-photo {
+	/* Thumbnail dokumen di atas kad — lebar penuh kad, cover (crop). */
+	width: 100%;
+	height: 130px;
+	border-radius: var(--border-radius);
+	object-fit: cover;
+	flex-shrink: 0;
+	background: var(--control-bg, var(--bg-color));
+}
+.mba-tv-photo--empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 30px;
+}
+
+.mba-tvcard-body { flex: 1; min-width: 0; }
+
+.mba-tvcard-name {
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.mba-tvcard-badges { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.mba-tvcard-sub { font-size: 11.5px; color: var(--text-muted); overflow-wrap: anywhere; }
+
+/* Aksi traveller (L3) — lihat dokumen (modal), jana guest link & edit info;
+   butang sentiasa JAJAR KANAN; dalam kad & kolum Status jadual. */
+.mba-tv-status-actions {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	margin: 4px 0;
+}
+.mba-tv-status-actions .btn .icon { vertical-align: middle; margin-top: -2px; }
+.mba-tv-status-actions .btn { line-height: 1; }
+
+/* Slot TANPA rekod Traveller — klik kad/baris tidak buka modal. */
+.mba-tvcard.mba-tv-nodialog, tr.mba-tv-trow.mba-tv-nodialog { cursor: default; }
+
+.mba-tv-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 10px;
+}
+/* Kiri: carian + toggol paparan (ikon) · Kanan: label Download + kumpulan
+   fail + Order By. Setiap sisi membungkus (flex-wrap) pada skrin kecil. */
+.mba-tv-toolbar-left,
+.mba-tv-toolbar-right {
+	display: inline-flex;
+	gap: 6px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+.mba-tv-dl-label {
+	font-size: 11.5px;
+	font-weight: 600;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+}
+.mba-tv-view { padding: 3px 9px; font-size: 12px; line-height: 1; }
+.mba-tv-view .icon { vertical-align: middle; }
+.mba-tv-view.active {
+	background: var(--brand-primary, var(--blue-500, #4f7bfd));
+	color: #fff;
+	border-color: var(--brand-primary, var(--blue-500, #4f7bfd));
+}
+.mba-tv-tools { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.mba-tv-tools input { width: 180px; max-width: 60vw; height: 28px; font-size: 12px; }
+.mba-tv-search { width: 200px; max-width: 60vw; height: 28px; font-size: 12px; }
+
+/* Select tapisan pakej traveller (doc status + bilangan baris, L3) */
+.mba-tv-toolbar-left select {
+	height: 28px;
+	font-size: 12.5px;
+	max-width: 170px;
+}
+/* Baris kiraan bila tapisan/limit aktif */
+.mba-tv-count {
+	font-size: 11.5px;
+	color: var(--text-muted);
+	margin: -2px 0 8px;
+}
+
+/* Header jadual Travellers boleh sort (klik → sort, klik lagi → tukar arah) */
+.mba-tv-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+.mba-tv-sort:hover { background: var(--control-bg, var(--bg-color)); }
+.mba-tv-sort .mba-tv-sort-ico { opacity: 0.4; font-size: 10px; margin-left: 2px; }
+.mba-tv-sort.is-sorted { color: var(--brand-primary, var(--blue-500, #4f7bfd)); }
+.mba-tv-sort.is-sorted .mba-tv-sort-ico { opacity: 1; }
+
+/* Kolum Status (terakhir) jadual traveller — jajar kanan (butang & badge) */
+.mba-tv-tablewrap th:last-child,
+.mba-tv-tablewrap td:last-child { text-align: right; }
+
+/* Order By (komponen Frappe) — kecilkan supaya sekali dengan toolbar xs */
+.mba-tv-tools .sort-selector .btn { height: 28px; font-size: 12px; padding: 2px 8px; }
+.mba-tv-tools .sort-selector .dropdown-text { font-size: 12px; }
+
+.mba-tv-grid {
+	display: grid;
+	/* Skrin biasa: ~2–4 kolum (min track membesar ikut lebar skrin supaya
+	 kolum tidak melebihi 4); telefon: satu kolum penuh. */
+	grid-template-columns: repeat(auto-fill, minmax(clamp(200px, 23vw, 320px), 1fr));
+	gap: 8px;
+	margin-bottom: 10px;
+}
+@media (max-width: 767px) {
+	.mba-tv-grid { grid-template-columns: 1fr; }
+}
+
+.mba-tvmodal {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.mba-tvmodal-photo {
+	max-width: 100%;
+	max-height: 260px;
+	border-radius: var(--border-radius);
+	align-self: center;
+}
+
+.mba-tvmodal-frame {
+	width: 100%;
+	height: 60vh;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--control-bg, var(--bg-color));
+}
+
+/* Sub-heading seksyen dalam kolum info modal — Traveller's Info / Booking
+   Info; Booking Info diberi jarak pemisah lebih besar daripada seksyen
+   traveller di atasnya. */
+.mba-tvmodal-subhead {
+	font-size: 11.5px;
+	font-weight: 700;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	margin: 0 0 8px;
+	padding-bottom: 4px;
+	border-bottom: 1px solid var(--border-color);
+}
+.mba-tvmodal-info > .mba-tvmodal-subhead + .mba-bkg-card { margin-top: 0; }
+.mba-tvmodal-info > .mba-tvmodal-subhead:not(:first-child) { margin-top: 20px; }
+
+/* PC (skrin biasa) — modal maksimum, 2 kolum 50/50: preview dokumen
+   sticky kiri, kad info scroll di kanan. :has() melabuhkan lebar dialog
+   (msgprint kongsi wrapper generik). */
+@media (min-width: 992px) {
+	.modal .modal-dialog:has(.mba-tvmodal) {
+		max-width: min(1400px, 96vw);
+	}
+
+	.mba-tvmodal {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		gap: 16px;
+		align-items: start;
+	}
+
+	.mba-tvmodal-side {
+		position: sticky;
+		top: 0;
+		min-width: 0;
+	}
+
+	.mba-tvmodal-side .mba-tvmodal-photo {
+		width: 100%;
+		max-height: calc(100vh - 280px);
+		object-fit: contain;
+	}
+
+	.mba-tvmodal-side .mba-tvmodal-frame {
+		height: calc(100vh - 330px);
+	}
+
+	.mba-tvmodal-side .mba-file-actions {
+		margin-top: 8px;
+		flex-wrap: wrap;
+	}
+
+	.mba-tvmodal-info {
+		min-width: 0;
+		max-height: min(74vh, 660px);
+		overflow-y: auto;
+		padding-right: 6px;
+	}
+}
+
+/* Telefon (≤991px) — modal skrin penuh: preview passport melekat (sticky)
+   di atas, maklumat dokumen menatal di bawahnya (modal-body menatal). */
+@media (max-width: 991px) {
+	.modal .modal-dialog:has(.mba-tvmodal) {
+		width: 100vw;
+		max-width: 100vw;
+		margin: 0;
+		height: 100vh;
+		max-height: 100vh;
+		height: 100dvh;
+		max-height: 100dvh;
+	}
+
+	.modal .modal-dialog:has(.mba-tvmodal) .modal-content {
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+		border: 0;
+		border-radius: 0;
+	}
+
+	.modal .modal-dialog:has(.mba-tvmodal) .modal-body {
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+		-webkit-overflow-scrolling: touch;
+	}
+
+	.mba-tvmodal-side {
+		position: sticky;
+		top: 0;
+		z-index: 2;
+		background: var(--card-bg, #fff);
+		padding-bottom: 10px;
+		border-bottom: 1px solid var(--border-color);
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.07);
+	}
+
+	.mba-tvmodal-side .mba-tvmodal-photo {
+		max-height: 40vh;
+		object-fit: contain;
+		margin: 0 auto;
+	}
+
+	.mba-tvmodal-side .mba-tvmodal-frame {
+		height: 40vh;
+	}
+}
+
+/* ── Rooming (L2) — senarai lipat ──────────────────────── */
+.mba-rooms {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 6px;
+}
+
+.mba-room {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	overflow: hidden;
+}
+
+.mba-room summary {
+	list-style: none;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 9px 12px;
+	cursor: pointer;
+	min-height: 44px;
+}
+.mba-room summary::-webkit-details-marker { display: none; }
+.mba-room summary::after {
+	content: "›";
+	margin-left: auto;
+	font-size: 16px;
+	color: var(--text-muted);
+	transform: rotate(90deg);
+	transition: transform 0.15s;
+}
+.mba-room[open] summary::after { transform: rotate(-90deg); }
+
+.mba-room-id { font-weight: 600; flex-shrink: 0; }
+.mba-room-cat {
+	color: var(--text-muted);
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.mba-room-right { display: inline-flex; gap: 6px; align-items: center; flex-shrink: 0; }
+
+.mba-room-body { padding: 4px 12px 10px; border-top: 1px solid var(--border-color); }
+.mba-room-bookings { margin: 6px 0; font-size: 12px; }
+
+.mba-guests { display: grid; gap: 4px; margin-top: 4px; }
+.mba-guest {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 0;
+	border-bottom: 1px dashed var(--border-color);
+}
+.mba-guest:last-child { border-bottom: none; }
+.mba-guest-gender {
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background: var(--control-bg, var(--bg-color));
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 10px;
+	color: var(--text-muted);
+	flex-shrink: 0;
+}
+
+/* ── L3: topbar, rail, strip ───────────────────────────── */
+.mba-bkg-topbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-bottom: 10px;
+}
+
+.mba-crumbs {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+	min-width: 0;
+}
+
+.mba-crumb {
+	border: none;
+	background: none;
+	padding: 2px 4px;
+	font-size: 12.5px;
+	color: var(--text-muted);
+	cursor: pointer;
+	white-space: nowrap;
+}
+button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); }
+.mba-crumb--cur {
+	font-weight: 600;
+	color: var(--text-color);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 200px;
+	cursor: default;
+}
+.mba-crumb-sep { color: var(--text-muted); }
+
+.mba-bkg-shell {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 12px;
+}
+
+.mba-bkg-rail {
+	display: grid;
+	gap: 8px;
+	align-content: start;
+}
+
+.mba-bkg-rsec {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	padding: 10px 12px;
+}
+
+.mba-bkg-rlab {
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	color: var(--text-muted);
+	margin-bottom: 4px;
+}
+
+.mba-bkg-rsec--id { border-left: 3px solid var(--brand-primary, var(--blue-500, #4f7bfd)); }
+
+.mba-bkg-idhead {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.mba-bkg-rid { font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
+.mba-bkg-rbadges { display: inline-flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+
+.mba-bkg-pbar {
+	height: 6px;
+	border-radius: 3px;
+	background: var(--control-bg, var(--bg-color));
+	overflow: hidden;
+	margin: 8px 0 3px;
+}
+.mba-bkg-pbar > span {
+	display: block;
+	height: 100%;
+	border-radius: 3px;
+	background: var(--green-500, #29cd42);
+}
+
+.mba-bkg-rrow {
+	display: flex;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 2px 0;
+	font-size: 12px;
+}
+.mba-bkg-rrow .k { color: var(--text-muted); flex-shrink: 0; }
+.mba-bkg-rrow .v { text-align: right; min-width: 0; overflow-wrap: anywhere; }
+
+.mba-bkg-msg-btn {
+	display: inline-block;
+	margin-top: 6px;
+	border: 1px solid var(--border-color);
+	background: var(--control-bg, var(--bg-color));
+	border-radius: var(--border-radius);
+	padding: 3px 10px;
+	font-size: 12px;
+	cursor: pointer;
+	max-width: 100%;
+	text-align: left;
+	overflow-wrap: anywhere;
+}
+
+.mba-bkg-cust-actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+
+.mba-quickbtn {
+	border: 1px solid var(--border-color);
+	background: var(--card-bg);
+	border-radius: 16px;
+	padding: 3px 12px;
+	font-size: 12px;
+	text-decoration: none !important;
+	color: var(--text-color);
+}
+.mba-quickbtn--wa {
+	background: var(--green-100, #e8f8e8);
+	color: var(--green-700, #1a7a1a);
+	border-color: transparent;
+}
+
+/* Ikon padat sebelah no. telefon (jadual booking) */
+.mba-contact-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: var(--border-radius);
+	color: var(--text-muted);
+	text-decoration: none !important;
+	vertical-align: middle;
+	transition: background 0.12s, color 0.12s;
+}
+.mba-contact-icon .icon { vertical-align: middle; }
+.mba-contact-icon:hover {
+	background: var(--control-bg, var(--bg-color));
+	color: var(--text-color);
+}
+.mba-contact-icon--wa { color: var(--green-600, #1a7a1a); }
+.mba-contact-icon--wa:hover { background: var(--green-100, #e8f8e8); }
+
+/* Strip wang */
+.mba-bkg-money {
+	display: flex;
+	align-items: stretch;
+	gap: 8px;
+	flex-wrap: wrap;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	padding: 10px 12px;
+	margin-bottom: 4px;
+}
+
+.mba-mitem { flex: 1 1 120px; min-width: 0; }
+.mba-mitem-l { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted); }
+.mba-mitem-v { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+.mba-mitem-s { font-size: 11px; color: var(--text-muted); overflow-wrap: anywhere; }
+.mba-mitem--warn .mba-mitem-v { color: var(--orange-600, #b75404); }
+
+.mba-bkg-msep { align-self: center; color: var(--text-muted); }
+
+/* Telefon — pemisah strip wang tersembunyi (item wrap 2×2) */
+@media (max-width: 991px) {
+	.mba-bkg-msep { display: none; }
+	.mba-bkg-money { gap: 10px 14px; }
+	.mba-mitem { flex: 1 1 40%; }
+	.mba-panel-sub { display: none; }   /* sub-teks panel — jadual kekal ringkas */
+}
+
+.mba-bkg-paystat {
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	justify-content: center;
+	padding-left: 12px;
+	border-left: 1px solid var(--border-color);
+	min-width: 120px;
+}
+
+/* Chips operasi */
+.mba-bkg-mchips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.mba-bkg-chip {
+	border: 1px solid var(--border-color);
+	border-radius: 16px;
+	background: var(--card-bg);
+	padding: 2px 10px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+.mba-bkg-chip b { color: var(--text-color); }
+.mba-bkg-chip--danger {
+	border-color: var(--red-300, #f3b6b6);
+	background: var(--red-100, #fde8e8);
+	color: var(--red-700, #c0392b);
+}
+.mba-bkg-chip--danger b { color: var(--red-700, #c0392b); }
+
+/* ── L3: Order Summary ─────────────────────────────────── */
+.mba-bkg-osum { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+
+.mba-bkg-osum-cabin {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	padding: 10px 12px;
+}
+
+.mba-bkg-osum-name { font-weight: 600; margin-bottom: 4px; }
+
+.mba-bkg-osum-row {
+	display: flex;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 2px 0;
+	font-size: 12.5px;
+}
+.mba-bkg-osum-row.is-fare { font-weight: 600; border-top: 1px dashed var(--border-color); margin-top: 2px; padding-top: 4px; }
+.mba-bkg-osum-row.is-dsc { color: var(--red-600, #c0392b); }
+
+/* ── L3: Timeline ──────────────────────────────────────── */
+.mba-bkg-tl {
+	position: relative;
+	margin: 4px 0 4px 7px;
+	padding-left: 18px;
+	border-left: 2px solid var(--border-color);
+}
+
+.mba-bkg-tli {
+	position: relative;
+	padding: 0 0 12px 8px;
+	font-size: var(--text-sm);
+	color: var(--text-color);
+}
+
+.mba-bkg-tli:last-child { padding-bottom: 2px; }
+
+.mba-bkg-tli::before {
+	content: "";
+	position: absolute;
+	left: -25px;
+	top: 3px;
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	background: var(--card-bg);
+	border: 2px solid var(--gray-500, #98a1a9);
+}
+
+.mba-bkg-tli--pay::before { border-color: var(--green-500, #29cd42); background: var(--green-500, #29cd42); }
+.mba-bkg-tli--doc::before { border-color: var(--violet-500, #7c6ff0); }
+.mba-bkg-tli--ok::before  { border-color: var(--green-500, #29cd42); }
+.mba-bkg-tli--future::before { border-style: dashed; }
+.mba-bkg-tli--future { color: var(--text-muted); }
+
+.mba-bkg-tld {
+	font-size: 10.5px;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	color: var(--text-muted);
+}
+
+/* ── L3: Documents & Payments ──────────────────────────── */
+.mba-doc-card {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	padding: 10px 12px;
+	margin-bottom: 10px;
+}
+
+.mba-doc-card-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+}
+.mba-doc-card-head .mba-section-title { margin: 0; }
+
+.mba-bkg-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.mba-doc-filter {
+	border: 1px solid var(--border-color);
+	background: var(--card-bg);
+	border-radius: 16px;
+	padding: 2px 10px;
+	font-size: 12px;
+	cursor: pointer;
+}
+.mba-doc-filter.active {
+	background: var(--brand-primary, var(--blue-500, #4f7bfd));
+	color: #fff;
+	border-color: var(--brand-primary, var(--blue-500, #4f7bfd));
+}
+
+.mba-doc-list { display: grid; gap: 8px; margin-top: 10px; }
+
+.mba-docitem {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
+	gap: 10px;
+	align-items: center;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	padding: 8px 10px;
+	background: var(--card-bg);
+	cursor: pointer;
+}
+
+.mba-docitem-chip {
+	font-size: 10px;
+	font-weight: 700;
+	border-radius: 6px;
+	padding: 3px 6px;
+	letter-spacing: 0.5px;
+}
+.mba-docitem-chip--so { background: var(--blue-100, #e3edfc); color: var(--blue-700, #235bd8); }
+.mba-docitem-chip--si { background: var(--green-100, #e8f8e8); color: var(--green-700, #1a7a1a); }
+.mba-docitem-chip--pi { background: var(--violet-100, #ece9fb); color: var(--violet-700, #5a4fcf); }
+.mba-docitem-chip--pe { background: var(--orange-100, #fdeee0); color: var(--orange-700, #b75404); }
+
+.mba-docitem-main { min-width: 0; }
+.mba-docitem-main a { font-weight: 600; overflow-wrap: anywhere; }
+.mba-docitem-sub { font-size: 11px; color: var(--text-muted); overflow-wrap: anywhere; }
+
+.mba-docitem-side { text-align: right; }
+.mba-docitem-amt { font-weight: 600; white-space: nowrap; }
+.mba-docitem-badges { display: inline-flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+
+.mba-docitem-files { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
+.mba-doc-file-btn {
+	border: 1px solid var(--border-color);
+	background: var(--card-bg);
+	border-radius: var(--border-radius);
+	padding: 3px 8px;
+	font-size: 12px;
+	text-decoration: none !important;
+	color: var(--text-color);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.mba-doc-empty {
+	padding: 14px;
+	text-align: center;
+	color: var(--text-muted);
+	border: 1px dashed var(--border-color);
+	border-radius: var(--border-radius);
+	margin-top: 10px;
+}
+
+.mba-doc-paysum {
+	display: flex;
+	gap: 6px 14px;
+	flex-wrap: wrap;
+	align-items: center;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+.mba-doc-paysum b { color: var(--text-color); }
+
+/* ── L3: Others ────────────────────────────────────────── */
+.mba-bkg-others-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 0 14px;
+}
+
+.mba-bkg-card {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	padding: 10px 12px;
+}
+
+.mba-bkg-card-title { font-weight: 600; margin-bottom: 4px; }
+
+.mba-bkg-card-row {
+	display: flex;
+	justify-content: space-between;
+	gap: 10px;
+	padding: 3px 0;
+	font-size: 12.5px;
+	border-bottom: 1px dashed var(--border-color);
+}
+.mba-bkg-card-row:last-child { border-bottom: none; }
+.mba-bkg-card-row > span:first-child { color: var(--text-muted); flex-shrink: 0; }
+.mba-bkg-card-row > span:last-child { text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.mba-bkg-card-row.is-strong > span:last-child { font-weight: 600; }
+.mba-bkg-card-row.is-dsc > span:last-child { color: var(--red-600, #c0392b); font-weight: 600; }
+
+/* Baris kad dengan aksi kanan (call/WhatsApp) — nilai tengah, aksi kekal kanan */
+.mba-bkg-card-row--act > span:nth-child(2) {
+	flex: 1;
+	text-align: right;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.mba-bkg-card-row-actions {
+	display: inline-flex;
+	gap: 6px;
+	flex-shrink: 0;
+	margin-left: 10px;
+	align-items: center;
+}
+/* Varian baris baharu — butang kekal dalam kolum nilai yang sama,
+   diletak di bawah nilai (jajar kanan). */
+.mba-bkg-card-row-actions--stack {
+	display: flex;
+	margin-left: 0;
+	margin-top: 6px;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+}
+
+/* Modal guest passport link — QR + URL + aksi kongsi (WhatsApp/copy/open). */
+.mba-glink {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 10px;
+	padding: 6px 0;
+	text-align: center;
+}
+.mba-glink-qr {
+	padding: 10px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: #fff;
+}
+.mba-glink-qr img { width: 180px; height: 180px; display: block; }
+.mba-glink-url {
+	font-size: 12px;
+	color: var(--text-muted);
+	overflow-wrap: anywhere;
+	max-width: 420px;
+	padding: 6px 10px;
+	background: var(--control-bg, var(--bg-color));
+	border-radius: var(--border-radius);
+}
+.mba-glink-meta { font-size: 12px; color: var(--text-muted); }
+
+.mba-bkg-card-actions { display: flex; gap: 6px; padding-top: 6px; flex-wrap: wrap; }
+
+.mba-bkg-dsc-note {
+	margin-top: 8px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+.mba-bkg-dsc-note b { color: var(--text-color); }
+
+/* ── Penonton fail & mesej ─────────────────────────────── */
+.mba-file-viewer { display: flex; flex-direction: column; gap: 10px; }
+.mba-file-media { max-width: 100%; max-height: 65vh; object-fit: contain; align-self: center; }
+.mba-file-frame { width: 100%; height: 65vh; border: 1px solid var(--border-color); border-radius: var(--border-radius); }
+.mba-file-actions {
+	display: flex;
+	gap: 8px;
+	justify-content: center;
+	margin-top: 5px;
+	margin-bottom: 5px;
+}
+
+/* Crop dokumen passport — seret untuk pan, slider untuk zum;
+   viewport ialah bingkai potret tetap 3:4. */
+.mba-crop-view {
+	position: relative;
+	width: 240px;
+	height: 320px;
+	margin: 0 auto;
+	overflow: hidden;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--control-bg, var(--bg-color));
+	touch-action: none;
+	cursor: grab;
+}
+.mba-crop-view:active { cursor: grabbing; }
+.mba-crop-img {
+	position: absolute;
+	left: 0;
+	top: 0;
+	user-select: none;
+	-webkit-user-drag: none;
+	pointer-events: none;
+}
+.mba-crop-zoom {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin-top: 10px;
+}
+.mba-crop-zoom span { color: var(--text-muted); }
+.mba-crop-zoom input[type="range"] { width: 180px; }
+.mba-msg-body { max-width: 480px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ═════════════════════════════════════════════════════════
+   Desktop (≥992px) — jadual menggantikan kad; rail sticky
+   ═════════════════════════════════════════════════════════ */
+@media (min-width: 992px) {
+	.mba-cards { display: none; }
+	.mba-table-wrap { display: block; }
+	.mba-tab-total { display: none; }
+
+	.mba-bkg-shell { grid-template-columns: 280px minmax(0, 1fr); align-items: start; }
+	.mba-bkg-rail { position: sticky; top: 24px; }
+
+	.mba-bkg-others-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.mba-bkg-others-grid > div { min-width: 0; }
+
+	.mba-an-grid { column-gap: 20px; }
+	.mba-analytics { padding: 0 8px 8px; }
+
+	.mba-kpi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+	.mba-detail-name { font-size: 20px; }
+
+	.mba-bkg-paystat {
+		margin-left: 4px;
+		padding-left: 16px;
+	}
+}
+
+/* Tablet sederhana — KPI 2 kolum kekal; filter 4 kolum */
+@media (min-width: 600px) and (max-width: 991px) {
+	.mba-filter-grid { grid-template-columns: repeat(4, 1fr); }
+	.mba-field--check { justify-content: start; }
+}
+
+/* Telefon sempit — penapis 1 kolum */
+@media (max-width: 480px) {
+	.mba-filter-grid { grid-template-columns: 1fr 1fr; }
+	.mba-crumb--cur { max-width: 140px; }
+}
+
+/* Telefon — butang Assign Group Batch bawah strip jumlah, penuh lebar */
+@media (max-width: 767px) {
+	.mba-summary-row { flex-direction: column; align-items: stretch; }
+	.mba-summary-row .btn { width: 100%; }
+}
+
+/* Kolum dokumen pada telefon — side pindah ke baris kedua */
+@media (max-width: 720px) {
+	.mba-docitem {
+		grid-template-columns: auto minmax(0, 1fr) auto;
+	}
+	.mba-docitem-chip { grid-row: 1 / span 2; }
+	.mba-docitem-side {
+		grid-column: 2 / 4;
+		grid-row: 2;
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		text-align: left;
+		margin-top: 2px;
+	}
+	.mba-docitem-files {
+		grid-column: 2 / 4;
+		grid-row: 3;
+		justify-content: flex-start;
+		margin-top: 4px;
+	}
+}
+
+/* Sentuh — sasaran ketukan mencukupi */
+@media (pointer: coarse) {
+	.mba-chip, .mba-doc-filter, .mba-tv-view, .mba-tab {
+		padding-top: 6px;
+		padding-bottom: 6px;
+	}
+}
+
+/* ── Carian tab Travellers di TENGAH toolbar — antara section tapisan
+   (kiri) dan butang Download (kanan). ── */
+.mba-tv-toolbar-mid {
+	display: inline-flex;
+	flex: 1 1 180px;
+	justify-content: center;
+	min-width: 150px;
+	max-width: 380px;
+}
+.mba-tv-toolbar-mid input { width: 100%; height: 28px; font-size: 12px; }
+
+/* ── Panel penapis dinamik tab Travellers (L2 & L3) ── */
+.mba-cf {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 8px;
+	margin: -2px 0 10px;
+	border: 1px solid var(--border-color, #d1d8dd);
+	border-radius: var(--border-radius, 6px);
+	background: var(--control-bg, var(--bg-color, #f8f8f8));
+}
+.mba-cf-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.mba-cf-field { height: 28px; font-size: 12.5px; flex: 1 1 220px; max-width: 340px; }
+.mba-cf-value { height: 28px; font-size: 12.5px; flex: 1 1 160px; max-width: 260px; }
+.mba-cf-del { padding: 3px 8px; line-height: 1; }
+.mba-cf-actions { display: flex; gap: 6px; align-items: center; }
+/* Telefon — baris penapis satu lajur penuh */
+@media (max-width: 600px) {
+	.mba-tv-toolbar-mid { max-width: none; }
+	.mba-cf-field, .mba-cf-value { max-width: none; flex: 1 1 100%; }
+}

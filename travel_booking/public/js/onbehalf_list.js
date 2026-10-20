@@ -50,8 +50,11 @@
 
       if (content) {
         ALL_BOOKINGS = bookings;
+        // Keutamaan bilangan baris per halaman kekal antara sesi (corak
+        // sama dengan page transactions).
+        perPage = parseInt(localStorage.getItem('tv_ob_per_page'), 10) || 10;
         setupFilters(bookings);
-        renderFiltered();
+        renderFiltered(true);
       }
     } catch (e) {
       if (loading) loading.style.display = 'none';
@@ -108,12 +111,12 @@
     return { future: future, running: running, past: past };
   }
 
-  /* ── Render semua kumpulan (TABLE view) ──
-     Satu table penuh; baris dikumpul dgn baris tajuk kumpulan
-     (Future Trip / Running Trip / Past Trip). */
-  function renderBookings(bookings) {
-    var g = groupBookings(bookings);
-
+  /* ── Render semua kumpulan (TABLE view — halaman semasa sahaja) ──
+     Baris dikumpul dgn baris tajuk kumpulan (Future / Running / Past);
+     header muncul hanya bila kumpulan itu ada baris pada halaman ini,
+     dan kekal memaparkan JUMLAH penuh kumpulan. Pager dirender di bawah
+     table oleh renderFiltered(). */
+  function renderBookings(parts) {
     var html = '';
     html += '<div class="tv-table-wrap tv-animate-in">';
     html += '<table class="tv-bk-table">';
@@ -130,26 +133,22 @@
       + '</tr></thead>';
     html += '<tbody>';
 
-    var rendered = 0;
-    if (g.future.length > 0) {
-      html += groupRow('📅 Future Trip');
-      g.future.forEach(function (b) {
+    if (parts.future.length) {
+      html += groupRow('📅 Future Trip (' + parts.futureTotal + ')');
+      parts.future.forEach(function (b) {
         html += bookingRow(b, false);
-        rendered++;
       });
     }
-    if (g.running.length > 0) {
-      html += groupRow('🚢 Running Trip');
-      g.running.forEach(function (b) {
+    if (parts.running.length) {
+      html += groupRow('🚢 Running Trip (' + parts.runningTotal + ')');
+      parts.running.forEach(function (b) {
         html += bookingRow(b, false);
-        rendered++;
       });
     }
-    if (g.past.length > 0) {
-      html += groupRow('📦 Past Trip');
-      g.past.forEach(function (b) {
+    if (parts.past.length) {
+      html += groupRow('📦 Past Trip (' + parts.pastTotal + ')');
+      parts.past.forEach(function (b) {
         html += bookingRow(b, true);
-        rendered++;
       });
     }
 
@@ -251,8 +250,12 @@
   /* ── Carian & penapis (client-side) ──
      Senarai manager biasanya kecil — tapis di browser sahaja, tiada
      panggilan API setiap taipan. Carian merangkumi nama customer,
-     emel dan no. rujukan. */
+     emel dan no. rujukan. Pagination menghadkan bilangan baris setiap
+     halaman merentas kumpulan supaya senarai panjang tidak dirender
+     sekali gus. */
   var ALL_BOOKINGS = [];
+  var currentPage = 1;
+  var perPage = 10;
   var FILTER_DEBOUNCE = null;
   var FILTER_IDS = ['ob-f-status', 'ob-f-payment', 'ob-f-trip'];
 
@@ -293,20 +296,32 @@
     fillSelect('ob-f-payment', uniqueSorted(bookings.map(function (b) { return b.payment_status; })), 'All Payments');
     fillSelect('ob-f-trip', uniqueSorted(bookings.map(function (b) { return b.trip_name; })), 'All Trips');
 
+    var perPageSel = document.getElementById('ob-f-perpage');
+    if (perPageSel) perPageSel.value = String(perPage);
+
     if (!bar.dataset.wired) {
       bar.dataset.wired = '1';
       var search = document.getElementById('ob-search');
       search.addEventListener('input', function () {
         clearTimeout(FILTER_DEBOUNCE);
-        FILTER_DEBOUNCE = setTimeout(renderFiltered, 200);
+        FILTER_DEBOUNCE = setTimeout(function () { renderFiltered(true); }, 200);
       });
       FILTER_IDS.forEach(function (id) {
-        document.getElementById(id).addEventListener('change', renderFiltered);
+        document.getElementById(id).addEventListener('change', function () {
+          renderFiltered(true);
+        });
       });
       document.getElementById('ob-f-clear').addEventListener('click', function () {
         clearFilterInputs();
-        renderFiltered();
+        renderFiltered(true);
       });
+      if (perPageSel) {
+        perPageSel.addEventListener('change', function () {
+          perPage = parseInt(this.value, 10) || 10;
+          localStorage.setItem('tv_ob_per_page', String(perPage));
+          renderFiltered(true);
+        });
+      }
     }
     bar.style.display = 'flex';
   }
@@ -335,7 +350,8 @@
     });
   }
 
-  function renderFiltered() {
+  function renderFiltered(resetPage) {
+    if (resetPage) currentPage = 1;
     var content = document.getElementById('bookings-content');
     if (!content) return;
     content.style.display = 'block';
@@ -343,14 +359,16 @@
     var list = applyFilters(ALL_BOOKINGS);
 
     var count = document.getElementById('bookings-count');
-    if (count) {
-      count.style.display = 'block';
-      count.textContent = 'Showing ' + list.length + ' of ' + ALL_BOOKINGS.length
-        + ' booking' + (ALL_BOOKINGS.length === 1 ? '' : 's')
-        + (list.length !== ALL_BOOKINGS.length ? ' (filtered)' : '');
-    }
 
     if (!list.length) {
+      // Pager di luar content — sembunyikan supaya tiada keadaan lama tertinggal
+      var pg = document.getElementById('bookings-pagination');
+      if (pg) { pg.style.display = 'none'; pg.innerHTML = ''; }
+      if (count) {
+        count.style.display = 'block';
+        count.textContent = 'Showing 0 of ' + ALL_BOOKINGS.length
+          + ' booking' + (ALL_BOOKINGS.length === 1 ? '' : 's') + ' (filtered)';
+      }
       content.innerHTML =
         '<div class="tv-bk-nomatch">' +
         '<div class="tv-bk-nomatch__icon">🔍</div>' +
@@ -360,12 +378,55 @@
       var btn = document.getElementById('ob-f-clear2');
       if (btn) btn.addEventListener('click', function () {
         clearFilterInputs();
-        renderFiltered();
+        renderFiltered(true);
       });
       return;
     }
 
-    content.innerHTML = renderBookings(list);
+    var g = groupBookings(list);
+
+    // Susunan mendatar seluruh senarai: Future (asc) → Running (asc) →
+    // Past (terkini dulu). Pagination menghadkan bilangan baris SETIAP
+    // halaman merentas kumpulan.
+    var flat = g.future.concat(g.running, g.past);
+    var total = flat.length;
+
+    var totalPages = Math.max(1, Math.ceil(total / perPage));
+    if (currentPage > totalPages) currentPage = totalPages;
+    var startIdx = (currentPage - 1) * perPage;
+    var endIdx = Math.min(startIdx + perPage, total);
+
+    // Kerat setiap kumpulan mengikut julat halaman semasa
+    function grpSlice(gs, ge) {
+      var s = Math.max(startIdx, gs), e = Math.min(endIdx, ge);
+      return s < e ? flat.slice(s - gs, e - gs) : [];
+    }
+    var fLen = g.future.length, rLen = g.running.length;
+    var parts = {
+      future: grpSlice(0, fLen),
+      running: grpSlice(fLen, fLen + rLen),
+      past: grpSlice(fLen + rLen, total),
+      futureTotal: fLen,
+      runningTotal: rLen,
+      pastTotal: g.past.length
+    };
+
+    // Kiraan julat baris halaman semasa — nampak had pagination & penapis
+    if (count) {
+      count.style.display = 'block';
+      count.textContent = 'Showing ' + (startIdx + 1) + '–' + endIdx
+        + ' of ' + total + ' booking' + (total === 1 ? '' : 's')
+        + (list.length !== ALL_BOOKINGS.length ? ' (filtered from ' + ALL_BOOKINGS.length + ')' : '');
+    }
+
+    content.innerHTML = renderBookings(parts);
+
+    // Pager global bawah table — muncul bila jumlah baris > 1 halaman
+    tvRenderPager(document.getElementById('bookings-pagination'), currentPage, totalPages, total, 'bookings', function (p) {
+      currentPage = p;
+      renderFiltered(false);
+      content.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     wireRowLinks();
   }
 

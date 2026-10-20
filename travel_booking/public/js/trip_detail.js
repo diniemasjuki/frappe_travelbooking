@@ -697,6 +697,9 @@
       return;
     }
     var priceMap = {};
+    // Harga asal (pra-promosi Travel Price Rule) — untuk strikethrough.
+    var origPriceMap = {};
+    var promoLabel = "";
     cabins.forEach(function (c) {
       var pr = c.pricing || {};
       Object.keys(pr).forEach(function(key) {
@@ -707,9 +710,26 @@
           }
         }
       });
+      if (c.original_pricing) {
+        var opr = c.original_pricing || {};
+        Object.keys(opr).forEach(function(key) {
+          if (key.indexOf("price_") === 0 && opr[key] != null) {
+            var oval = Number(opr[key]);
+            if (!(key in origPriceMap) || oval < origPriceMap[key]) {
+              origPriceMap[key] = oval;
+            }
+          }
+        });
+        if (!promoLabel && c.price_rule && c.price_rule.label) {
+          promoLabel = c.price_rule.label;
+        }
+      }
     });
     var labels = PRICE_LABELS.length ? PRICE_LABELS : getDefaultPriceLabels();
     var html = '<div class="rc-price-summary">';
+    if (promoLabel) {
+      html += '<div class="rc-promo-badge"><i class="ti ti-rosette-discount"></i> ' + esc(promoLabel) + '</div>';
+    }
     labels.forEach(function(cfg) {
       var minPrice = priceMap[cfg.price_key];
       // Auto-hide price category if price is null or zero (0 = not applicable)
@@ -717,7 +737,12 @@
         html += '<div class="rc-price-row">';
         html += '<div class="rc-price-label">' + esc(cfg.display_label) + '</div>';
         var note = (cfg.display_note || "").replace(/<[^>]+>/g, "");
-        html += '<div class="rc-price-value">from ' + fmt(minPrice) + '</div>';
+        // Travel Price Rule: harga promo + strikethrough harga asal.
+        var origPrice = origPriceMap[cfg.price_key];
+        var slash = (origPrice != null && Number(origPrice) > Number(minPrice))
+          ? ' <s class="rc-price-was">' + fmt(origPrice) + '</s>'
+          : "";
+        html += '<div class="rc-price-value">from ' + fmt(minPrice) + slash + '</div>';
         if (note.trim()) {
           html += '<div class="rc-price-note">' + esc(note.trim()) + '</div>';
         }

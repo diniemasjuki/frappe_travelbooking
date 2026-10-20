@@ -278,3 +278,43 @@
 }
 .rc-trip-card:nth-child(2) { animation-delay: .05s; }
 .rc-trip-card:nth-child(3) { animation-delay: .1s; }
+
+/* ── Travel Price Rule (promosi price slash) ──
+   Strikethrough harga asal + badge promosi pada kad/ harga "from". */
+.rc-price-was {
+  font-size: 12.5px;
+  color: #9C9789;
+  font-weight: 500;
+  text-decoration: line-through;
+  text-decoration-color: #9C9789;
+  margin-right: 3px;
+  font-family: var(--font-rubik);
+}
+.rc-card-promo-badge {
+  display: inline-block;
+  width: fit-content;
+  margin-bottom: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(201,168,76,.12);
+  border: 1px solid rgba(201,168,76,.3);
+  color: #B8983F;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  font-family: var(--font-jost);
+}
+.rc-promo-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(201,168,76,.12);
+  border: 1px solid rgba(201,168,76,.3);
+  color: #B8983F;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  text-transform: none;
+}
+.rc-promo-line { margin: 6px 0 0; }

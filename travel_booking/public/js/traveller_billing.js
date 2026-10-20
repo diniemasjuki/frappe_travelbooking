@@ -19,22 +19,45 @@
   var _bankSettings = null; // cache for get_payment_settings() response
 
   // mode "onbehalf" = page /traveller/onbehalf-billing (manager mengurus
-  // billing booking pelanggan). mode lalai = /traveller/billing pemilik.
-  var MODE = _pageData.mode === 'onbehalf' ? 'onbehalf' : 'self';
+  // billing booking pelanggan). mode "staff" = page desk
+  // /app/booking-manager/b/<ref>/billing (staf urus SEMUA booking).
+  // mode lalai = /traveller/billing pemilik.
+  var MODE = (_pageData.mode === 'onbehalf' || _pageData.mode === 'staff')
+    ? _pageData.mode : 'self';
 
   // Tahap akses on-behalf (server-authoritative dari endpoint data):
   //   View (0): baca sahaja · Docs (1): + add-ons · Full (2): + bayaran/PDF
   var LEVEL_RANK = { 'View': 0, 'Docs': 1, 'Full': 2 };
   var ACCESS_LEVEL = 'Full';
-  var END_CUSTOMER_NAME = ''; // customer akhir (mod onbehalf sahaja)
+  var END_CUSTOMER_NAME = ''; // customer akhir (mod onbehalf/staff sahaja)
 
   function canDocs() { return MODE !== 'onbehalf' || LEVEL_RANK[ACCESS_LEVEL] >= 1; }
   function canFull() { return MODE !== 'onbehalf' || LEVEL_RANK[ACCESS_LEVEL] >= 2; }
 
+  // Route desk Booking Manager untuk mod staff (corak sama dengan
+  // traveller_detail.js _staffBookingUrl() — base dari window.BM_PAGE_HOME
+  // yang ditetapkan booking_manager.js, fallback /app).
+  function _staffBookingUrl(view) {
+    const base = window.BM_PAGE_HOME || '/app/booking-manager';
+    return base + '/b/' + encodeURIComponent(BOOKING_REF) + (view ? '/' + view : '');
+  }
+  function bookingDetailUrl() {
+    return MODE === 'staff'
+      ? _staffBookingUrl('')
+      : '/traveller/booking?ref=' + encodeURIComponent(BOOKING_REF);
+  }
+  function manageAddonsUrl() {
+    return MODE === 'staff'
+      ? _staffBookingUrl('addons') + '?tab=manage'
+      : '/traveller/manage_addon?ref=' + encodeURIComponent(BOOKING_REF);
+  }
+
   function billingPageUrl() {
+    if (MODE === 'staff') return _staffBookingUrl('billing');
     return MODE === 'onbehalf' ? '/traveller/onbehalf-billing' : '/traveller/billing';
   }
   function backToBookingUrl() {
+    if (MODE === 'staff') return _staffBookingUrl('');
     return (MODE === 'onbehalf' ? '/traveller/onbehalf-booking' : '/traveller/booking')
       + '?ref=' + encodeURIComponent(BOOKING_REF);
   }
@@ -197,11 +220,12 @@
     }
 
     try {
-      // Mod onbehalf: endpoint booking-scoped (SO satu booking, akses
-      // manager on-behalf disaring server) + tahap akses dari respons.
-      // Mod self: kelakuan sedia ada — semua SO milik customer session.
+      // Mod onbehalf/staff: endpoint booking-scoped (SO satu booking,
+      // akses manager on-behalf / staf disaring server) + tahap akses
+      // dari respons. Mod self: kelakuan sedia ada — semua SO milik
+      // customer session.
       var data;
-      if (MODE === 'onbehalf') {
+      if (MODE !== 'self') {
         data = await API_PM('get_booking_so_payments', { booking_number: BOOKING_REF });
         ACCESS_LEVEL = (data && data.on_behalf_access_level) || 'View';
         END_CUSTOMER_NAME = (data && data.end_customer_name) || '';
@@ -221,7 +245,7 @@
             '<div style="font-size:34px;margin-bottom:8px;">🧾</div>' +
             '<h3 class="tv-empty__title" style="margin:0 0 8px 0;">Billing Managed by Your Agent</h3>' +
             '<p class="tv-empty__desc" style="max-width:420px;margin:0 auto;line-height:1.6;">Billing and payments for this booking are handled by your travel agent. For invoices or receipts, please contact your agent directly.</p>' +
-            '<a href="/traveller/booking?ref=' + encodeURIComponent(BOOKING_REF) + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:16px;">← Back to Booking</a>' +
+            '<a href="' + bookingDetailUrl() + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:16px;">← Back to Booking</a>' +
             '</div>';
         }
         return;
@@ -348,13 +372,13 @@
     html += '<span style="font-family:\'SF Mono\',Monaco,monospace;font-size:14px;font-weight:600;color:var(--c-gold-dark);">' + name + '</span>';
     html += '</div>';
 
-    // Mod onbehalf — customer akhir yang billing ini untuk (identiti
+    // Mod onbehalf/staff — customer akhir yang billing ini untuk (identiti
     // utama page, selari dengan blok customer di onbehalf-booking).
-    if (MODE === 'onbehalf' && END_CUSTOMER_NAME) {
+    if (MODE !== 'self' && END_CUSTOMER_NAME) {
       html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:10px 14px;background:var(--bg-secondary);border-radius:8px;">';
       html += '<span style="font-size:13px;color:var(--text-muted);">Customer</span>';
       html += '<span style="font-size:14px;font-weight:700;color:var(--text-primary);">' + _esc(END_CUSTOMER_NAME) + '</span>';
-      html += '<span class="tv-badge tv-badge--info" style="margin-left:auto;">On-Behalf</span>';
+      html += '<span class="tv-badge tv-badge--info" style="margin-left:auto;">' + (MODE === 'staff' ? 'Staff' : 'On-Behalf') + '</span>';
       html += '</div>';
     }
 
@@ -399,7 +423,7 @@
     // Manage Add-ons link — hanya kalau SO ada booking addon. Add-on
     // endpoints digate "Docs" di server — View nampak tanpa butang.
     if (so.has_booking_addon && canDocs()) {
-      html += '<a href="/traveller/manage_addon?ref=' + encodeURIComponent(BOOKING_REF) + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="text-decoration:none;">🎁 Manage Add-ons</a>';
+      html += '<a href="' + manageAddonsUrl() + '" class="tv-btn tv-btn--ghost tv-btn--sm" style="text-decoration:none;">🎁 Manage Add-ons</a>';
     }
     html += '</div>';
 
@@ -567,21 +591,15 @@
 
     html += '<form id="pay-form-' + soName + '" data-so="' + soName + '" autocomplete="off">';
 
-    // Amount input — min 0.01 (method-specific minimums enforced in JS handlers)
+    // Amount input — default = baki bayaran (outstanding). Min 0.01
+    // (method-specific minimums enforced in JS handlers)
     html += '<div class="tv-form-group">';
     html += '<label class="tv-label">Payment Amount (' + _esc(sym) + ')</label>';
-    html += '<input type="number" class="tv-input pay-amount-input" min="0.01" step="0.01" max="' + outstanding + '" placeholder="Enter amount"/>';
+    html += '<input type="number" class="tv-input pay-amount-input" min="0.01" step="0.01" max="' + outstanding + '" value="' + outstanding.toFixed(2) + '" placeholder="Enter amount"/>';
     var minHint = outstanding < 2.00
       ? 'Max: ' + fmtDual(outstanding, sym) + ' · Online payment unavailable below ' + _esc(sym) + ' 2.00 — please use Manual Bank Transfer'
       : 'Min: ' + _esc(sym) + ' 2.00 (online) · Max: ' + fmtDual(outstanding, sym);
     html += '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">' + minHint + '</div>';
-    html += '</div>';
-
-    // Quick chips — 2-column layout
-    var depositPct = parseInt(_bankSettings && _bankSettings.default_deposit_percent) || 20;
-    html += '<div class="tv-pay-chips" style="display:flex;gap:12px;">';
-    html += '<button type="button" class="tv-pay-chip" data-pct="' + depositPct + '" style="flex:0.4;">Deposit<br/><span style="font-size:11px;">(' + depositPct + '%)</span></button>';
-    html += '<button type="button" class="tv-pay-chip" data-pct="100" style="flex:0.6;">Full Balance<br/><span style="font-size:11px;">' + fmtDual(outstanding, sym) + '</span></button>';
     html += '</div>';
 
     // Method selection — Online Payment hanya dipaparkan kalau payment
@@ -659,6 +677,13 @@
     html += '<input type="text" class="tv-input pay-ref-no" placeholder="Bank transaction reference"/>';
     html += '</div>';
 
+    // Transaction Note / Memo — pilihan; dihantar ke Payment Entry remarks
+    // (backend submit_manual_payment sudah menerima parameter `notes`).
+    html += '<div class="tv-form-group">';
+    html += '<label class="tv-label">Transaction Note / Memo <span style="font-weight:400;color:var(--text-muted);">(optional)</span></label>';
+    html += '<input type="text" class="tv-input pay-note" maxlength="500" placeholder="e.g. transferred from Maybank, 2nd payment for balance..."/>';
+    html += '</div>';
+
     // Cashback note — hanya papar bila dikonfigur (dimuat selepas API)
     html += '<div class="tv-form-group pay-cashback-note" style="display:none;background:var(--c-gold-light);border:1px solid var(--c-gold-dark);border-radius:8px;padding:10px 14px;font-size:12.5px;color:var(--c-gold-dark);"></div>';
 
@@ -697,9 +722,9 @@
     return _ocrWorker;
   }
 
-  /* Parse Malaysian bank slip text (fallback Tesseract) — date/ref/amount */
+  /* Parse Malaysian bank slip text (fallback Tesseract) — date/ref/amount/currency */
   function parseBankSlip(text) {
-    if (!text) return { date: null, reference: null, amount: null };
+    if (!text) return { date: null, reference: null, amount: null, currency: '' };
     var clean = text.replace(/\s+/g, ' ').trim();
     var date = null, reference = null;
 
@@ -751,7 +776,16 @@
       }
     }
 
-    return { date: date, reference: reference, amount: amount };
+    // Currency detection (kod ISO kasar untuk alert currency) — hanya isyarat
+    // jelas yang diiktiraf; selain itu kosong (elak false alert).
+    var currency = '';
+    if (/\bS\s*\$|SGD\b/i.test(clean)) currency = 'SGD';
+    else if (/\bRM\b|\bMYR\b/i.test(clean)) currency = 'MYR';
+    else if (/\bUSD\b|\bUS\s*\$/i.test(clean)) currency = 'USD';
+    else if (/\bIDR\b|\bRp\b/i.test(clean)) currency = 'IDR';
+    else if (/\bTHB\b/i.test(clean)) currency = 'THB';
+
+    return { date: date, reference: reference, amount: amount, currency: currency };
   }
 
   /* Pemampatan imej (kamera 3-8MB → ~300KB) — sama corak booknow. */
@@ -864,7 +898,8 @@
         scanned = {
           date: msg.date || null,  // tarikh transaksi (YYYY-MM-DD) dari AI
           reference: msg.reference_no || '',
-          amount: msg.amount,
+          amount: msg.amount,      // float currency 2dp (dinormalisasi server)
+          currency: msg.currency || '',  // kod ISO (cth MYR) — untuk alert currency
           engine: 'ai'
         };
       }
@@ -886,6 +921,7 @@
               date: parsed.date,
               reference: parsed.reference || '',
               amount: parsed.amount,
+              currency: parsed.currency || '',
               engine: 'ocr'
             };
           }
@@ -911,11 +947,23 @@
   function showScanConfirmPopup(form, scanned) {
     var engineTag = scanned.engine === 'ai' ? '🤖 Scanned with AI' : 'Scanned with OCR';
     // Amaun resit dibanding dalam currency SO borang ini
-    var sym = curSym(soByName(form.dataset.so));
+    var so = soByName(form.dataset.so);
+    var sym = curSym(so);
+    var soCurrency = (so && so.currency) || '';
     var rows = '';
     if (scanned.reference) rows += '<div><strong>Reference No:</strong> ' + _esc(scanned.reference) + '</div>';
     if (scanned.date) rows += '<div><strong>Transfer Date:</strong> ' + _esc(fmtDate(scanned.date)) + '</div>';
     if (scanned.amount != null) rows += '<div><strong>Amount:</strong> ' + fmtDual(scanned.amount, sym) + '</div>';
+
+    // Pengesahan CURRENCY — alert sahaja (tidak menyekat submit). Hanya bila
+    // resit jelas nyatakan currency lain dari currency SO (cth resit SGD tapi
+    // baki MYR); amaun papar ikut currency SO seperti biasa.
+    var curAlert = '';
+    if (scanned.currency && soCurrency && scanned.currency !== soCurrency) {
+      curAlert = '<div style="margin-top:10px;color:var(--c-warning-text);font-weight:600;">⚠ Receipt currency ' +
+        _esc(scanned.currency) + ' differs from this order\u2019s currency ' + _esc(soCurrency) +
+        ' — please double-check before submitting.</div>';
+    }
 
     var declared = round2(form.querySelector('.pay-amount-input')?.value);
     var amtNote = '';
@@ -931,7 +979,7 @@
     showModal({
       type: 'info',
       title: engineTag,
-      message: (rows || '<div>No readable details found on this receipt.</div>') + amtNote +
+      message: (rows || '<div>No readable details found on this receipt.</div>') + curAlert + amtNote +
         '<br><br>Fill in the form with these details?',
       buttons: [
         { label: 'Fill in manually', cls: 'ghost', onClick: function () {
@@ -959,6 +1007,7 @@
           if (resBox) {
             resBox.style.display = 'block';
             resBox.innerHTML = '<strong>' + engineTag + '</strong><br>' + rows +
+              (curAlert ? curAlert : '') +
               (amtNote ? amtNote : '') +
               '<div style="margin-top:4px;color:var(--text-muted);">Please review the details above before submitting.</div>';
           }
@@ -1077,23 +1126,6 @@
       });
     });
 
-    // Quick chips
-    document.querySelectorAll('.tv-pay-chip').forEach(function (chip) {
-      chip.addEventListener('click', function () {
-        var form = this.closest('form');
-        form.querySelectorAll('.tv-pay-chip').forEach(c => c.classList.remove('on'));
-        this.classList.add('on');
-        var pct = parseInt(this.dataset.pct) || 0;
-        var so = allOrders.find(function(o){return o.name === form.dataset.so;});
-        if (so) {
-          var gt = parseFloat(so.grand_total) || 0;
-          var ap = parseFloat(so.advance_paid) || 0;
-          var input = form.querySelector('.pay-amount-input');
-          if (input) input.value = round2((gt - ap) * pct / 100);
-        }
-      });
-    });
-
     // Upload / camera buttons — scan bermula AUTOMATIK selepas pilih.
     document.querySelectorAll('.tv-file-upload').forEach(function (zone) {
       var form = zone.closest('form');
@@ -1129,6 +1161,23 @@
           if (form) form._payReceiptFile = file;
           if (form) autoFillFromReceipt(form, file);
         });
+      });
+    });
+
+    // Medan amount HANYA menerima format float currency — digit + maks 2
+    // titik perpuluhan. Sanitasi semasa menaip (potong perpuluhan ke-3+),
+    // normalisasi toFixed(2) di blur. Alert-level sahaja — nilai akhir tetap
+    // disahkan oleh handler submit (round2).
+    document.querySelectorAll('.pay-amount-input').forEach(function (input) {
+      input.addEventListener('input', function () {
+        var v = String(this.value || '');
+        var m = v.match(/^\d*(?:\.\d{0,2})?/);
+        var clean = m ? m[0] : '';
+        if (clean !== v) this.value = clean;
+      });
+      input.addEventListener('blur', function () {
+        var v = parseFloat(this.value);
+        if (!isNaN(v) && this.value !== '') this.value = v.toFixed(2);
       });
     });
 
@@ -1330,6 +1379,7 @@
     var amountInput = form.querySelector('.pay-amount-input');
     var dateInput = form.querySelector('.pay-date');
     var refInput = form.querySelector('.pay-ref-no');
+    var noteInput = form.querySelector('.pay-note');
 
     // Fail resit dari state form (Bukan dari .files — input.value telah
     // dikosongkan selepas pilih/capture supaya fail sama boleh dipilih lagi)
@@ -1337,6 +1387,8 @@
 
     var amount = round2(amountInput?.value);
     var refNo = (refInput?.value || '').trim();
+    // Nota/memo transaksi (pilihan) — dihantar ke Payment Entry remarks.
+    var note = (noteInput?.value || '').trim().slice(0, 500);
 
     if (amount <= 0) {
       showPayError(form, 'Please enter a valid payment amount.');
@@ -1382,6 +1434,7 @@
         amount: amount,
         reference_no: refNo,
         payment_date: dateInput?.value || '',
+        notes: note || '',
         filedata: fileData || '',
         filename: payFile ? payFile.name : ''
       });

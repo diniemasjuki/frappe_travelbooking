@@ -136,7 +136,15 @@
              multi-currency) — fallback symbol company jika context
              halaman tidak menyediakannya (cth include di page lain). #}
           {% set sym = currency_symbol if currency_symbol else get_company_symbol() %}
+          {# Travel Price Rule: badge promosi + strikethrough harga asal
+             (kunci guna .get() — kad luar yang tak bawa kunci ni selamat). #}
+          {% if t.get("promo_label") %}
+          <span class="rc-card-promo-badge">{{ t.get("promo_label") }}</span>
+          {% endif %}
           <span class="rc-price-label">From</span>
+          {% if t.get("original_starting_from_price") %}
+          <s class="rc-price-was">{{ sym }}{{ "{:,.0f}".format(t.get("original_starting_from_price")) }}</s>
+          {% endif %}
           <span class="rc-price-value">
             {{ sym }}{{ "{:,.0f}".format(t.starting_from_price) }}
           </span>

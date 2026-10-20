@@ -1,0 +1,1878 @@
+/* travel_booking/module_travel_booking/page/manage_booking/manage_booking.css
+   Styles untuk page /app/manage-booking (Manage Booking) */
+
+.mtb-container {
+	padding: 0;
+	/* Highlight warm (hover baris & paparan detail) — ganti mode biru
+	   sejuk. Translucent supaya sesuai untuk mod cerah DAN gelap. */
+	--mtb-warm-soft: rgba(232, 108, 19, 0.07);
+	--mtb-warm: rgba(232, 108, 19, 0.13);
+	--mtb-warm-solid: var(--orange-500, #e86c13);
+}
+
+/* ── Toolbar ─────────────────────────────────────────── */
+/* Tiga baris, center: 1) carian  2) filter senarai  3) bulk edit */
+
+.mtb-toolbar {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 10px;
+	padding: 16px 12px 18px 12px;
+	margin-bottom: 14px;
+}
+
+.mtb-toolbar-row {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: 8px;
+	width: 100%;
+}
+
+.mtb-toolbar .mtb-search-box {
+	position: relative;
+	flex: 1;
+	min-width: 240px;
+	max-width: 560px;
+}
+
+.mtb-toolbar .mtb-search-input {
+	width: 100%;
+	height: 38px;
+	padding: 6px 34px 6px 14px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--control-bg);
+	font-size: var(--text-md);
+}
+
+.mtb-toolbar .mtb-search-icon {
+	position: absolute;
+	right: 12px;
+	top: 50%;
+	transform: translateY(-50%);
+	color: var(--text-muted);
+	pointer-events: none;
+}
+
+.mtb-toolbar select {
+	height: 32px;
+	padding: 4px 8px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--control-bg);
+	font-size: var(--text-md);
+	color: var(--text-color);
+}
+
+/* Checkbox filter (Hide Passive Group) — segaris dengan select */
+.mtb-toolbar .mtb-check {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 32px;
+	margin: 0;
+	font-size: var(--text-md);
+	color: var(--text-color);
+	white-space: nowrap;
+	cursor: pointer;
+	user-select: none;
+}
+
+.mtb-toolbar .mtb-check input {
+	cursor: pointer;
+}
+
+/* Bulk action bar — sejajar kiri penuh, di atas table (sejajar dengan
+   kolum checkbox). Margin atas/bawah beri ruang bernafas daripada
+   toolbar dan table. */
+.mtb-bulk-bar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 6px 0 6px 0;
+	min-height: 22px;
+}
+
+.mtb-bulk-bar .btn {
+	margin-right: 4px;
+}
+
+/* ── Accordion group list ────────────────────────────── */
+/* Baris tanpa jarak — senarai berterusan, pemisah 1px sahaja */
+
+/* ── Collapsible datatable (senarai group / batch) ──────────────
+   Satu tbody per item: tr.mtb-group-row — klik buka page detail
+   group/batch. */
+
+table.mtb-groups-table tbody.mtb-group > tr.mtb-group-row {
+	cursor: pointer;
+	user-select: none;
+	transition: background 0.15s ease;
+}
+
+table.mtb-groups-table tbody.mtb-group > tr.mtb-group-row:hover {
+	background: var(--mtb-warm-soft);
+}
+
+/* ── Kolum sticky: checkbox + Trip Group/Batch ──────────
+   Kekal nampak bila table discroll mendatar. Lebar kolum checkbox
+   tetap supaya offset `left` kolum kedua tepat. Pemisah guna
+   box-shadow (border collapse + sticky tak serasi). */
+table.mtb-groups-table th.mtb-col-sel,
+table.mtb-groups-table td.mtb-col-sel {
+	position: sticky;
+	left: 0;
+	z-index: 2;
+	width: 40px;
+	min-width: 40px;
+	max-width: 40px;
+	padding-left: 8px;
+	padding-right: 8px;
+	text-align: center !important;
+	background: var(--card-bg);
+}
+
+table.mtb-groups-table th.mtb-col-name,
+table.mtb-groups-table td.mtb-col-name {
+	position: sticky;
+	left: 40px;
+	z-index: 2;
+	min-width: 150px;
+	background: var(--card-bg);
+	box-shadow: inset -1px 0 0 var(--border-color);
+}
+
+/* Kepala table — ikut latar header sedia ada */
+table.mtb-groups-table th.mtb-col-sel,
+table.mtb-groups-table th.mtb-col-name {
+	background: var(--bg-color, var(--control-bg));
+}
+
+/* Baris hover — kolum sticky turut warm */
+table.mtb-groups-table tbody.mtb-group > tr.mtb-group-row:hover td.mtb-col-sel,
+table.mtb-groups-table tbody.mtb-group > tr.mtb-group-row:hover td.mtb-col-name {
+	background: var(--mtb-warm-soft);
+}
+
+td.mtb-col-sel {
+	vertical-align: middle;
+}
+
+/* Kolum Trip Name — potong dengan ellipsis bila panjang; penuh di
+   tooltip */
+.mtb-trip-cell {
+	max-width: 220px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Item umpukan batch — sedikit tint bezanya daripada group biasa */
+table.mtb-groups-table tbody.mtb-group--batch > tr.mtb-group-row td:first-child {
+	box-shadow: inset 3px 0 0 var(--violet-500, #7c6ff0);
+}
+
+/* Pemisah antara item kekal walaupun dengan pelbagai tbody */
+table.mtb-groups-table tbody.mtb-group > tr:last-child td {
+	border-bottom: 1px solid var(--border-color);
+}
+
+table.mtb-groups-table tbody.mtb-group:last-child > tr:last-child td {
+	border-bottom: none;
+}
+
+/* ── Paparan detail group/batch (route /group/<name>, /batch/<batch>) ── */
+
+.mtb-detail-card {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	overflow: hidden;
+}
+
+/* Header detail — latar warm (aktif), bar warm di tepi */
+.mtb-detail-head {
+	padding: 14px 16px;
+	background: var(--mtb-warm-soft);
+	box-shadow: inset 3px 0 0 var(--mtb-warm-solid);
+	border-bottom: 1px solid var(--border-color);
+}
+
+.mtb-detail-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin-bottom: 10px;
+	padding: 15px 0px;
+}
+
+.mtb-detail-title {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin-top: 12px;
+	margin-bottom: 12px;
+}
+
+.mtb-detail-name {
+	font-size: 16px;
+	font-weight: 700;
+	color: var(--text-color);
+}
+
+.mtb-detail-meta {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 6px;
+	margin-top: 6px;
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+}
+
+.mtb-meta-table {
+	margin-top: 8px;
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+	border-collapse: collapse;
+}
+
+.mtb-meta-table td {
+	padding: 4px 14px 4px 0;
+	vertical-align: top;
+}
+
+.mtb-meta-table td:first-child {
+	white-space: nowrap;
+}
+
+.mtb-meta-badges {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 4px;
+}
+
+button.mtb-member-chip {
+	font: inherit;
+	cursor: pointer;
+	transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+button.mtb-member-chip:hover {
+	border-color: var(--mtb-warm-solid);
+	background: var(--mtb-warm-soft);
+}
+
+.mtb-chip {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: flex-start;
+	padding: 3px 10px;
+	border-radius: var(--border-radius);
+	background: var(--control-bg);
+	border: 1px solid var(--border-color);
+	font-size: 11px;
+	line-height: 1.5;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.mtb-chip b {
+	font-size: var(--text-md);
+	color: var(--text-color);
+}
+
+.mtb-chip .mtb-chip-sub {
+	font-size: 10px;
+	line-height: 1.4;
+	color: var(--text-muted);
+}
+
+.mtb-chip.mtb-chip--warn b {
+	color: var(--text-on-red, var(--red-500, #e05252));
+}
+
+.mtb-chip.mtb-chip--ok b {
+	color: var(--green-700, #1a7a1a);
+}
+
+/* ── Tabs (maklumat lanjutan item) ────────────────────── */
+
+.mtb-tabs {
+	display: flex;
+	gap: 2px;
+	border-bottom: 1px solid var(--border-color);
+	margin-bottom: 0;
+	flex-wrap: wrap;
+}
+
+.mtb-tab {
+	appearance: none;
+	border: 1px solid transparent;
+	border-bottom: none;
+	background: #00000005;
+	padding: 7px 14px;
+	font-size: var(--text-sm);
+	font-weight: 500;
+	color: var(--text-muted);
+	cursor: pointer;
+	border-radius: var(--border-radius) var(--border-radius) 0 0;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.mtb-tab:hover {
+	color: var(--text-color);
+	background: var(--bg-color, var(--control-bg));
+}
+
+.mtb-tab.active {
+	color: var(--text-color);
+	font-weight: 600;
+	background: var(--card-bg);
+	border-color: var(--border-color);
+	margin-bottom: -1px;
+	border-bottom: 1px solid var(--card-bg);
+}
+
+.mtb-tab-icon {
+	font-size: 12px;
+}
+
+.mtb-tab-pane {
+	display: none;
+	padding: 0;
+}
+
+.mtb-tab-pane.active {
+	display: block;
+}
+
+.mtb-tab-toolbar {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	flex-wrap: wrap;
+	margin-bottom: 10px;
+}
+
+.mtb-tab-toolbar input,
+.mtb-tab-toolbar select {
+	height: 30px;
+	padding: 4px 8px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--control-bg);
+	font-size: var(--text-sm);
+	color: var(--text-color);
+}
+
+.mtb-tab-toolbar input {
+	min-width: 220px;
+}
+
+.mtb-showing {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-top: 8px;
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+}
+
+/* ── Badges ──────────────────────────────────────────── */
+
+.mtb-badge {
+	display: inline-block;
+	padding: 1px 8px;
+	font-size: 11px;
+	font-weight: 600;
+	border-radius: 20px;
+	white-space: nowrap;
+}
+
+.mtb-badge--green { background: var(--green-100, #e8f8e8); color: var(--green-700, #1a7a1a); }
+.mtb-badge--blue { background: var(--blue-100, #e3edfc); color: var(--blue-700, #235bd8); }
+.mtb-badge--orange { background: var(--orange-100, #fdeee0); color: var(--orange-700, #b75404); }
+.mtb-badge--yellow { background: var(--yellow-100, #fdf6dd); color: var(--yellow-800, #8a6d0b); }
+.mtb-badge--red { background: var(--red-100, #fde8e8); color: var(--red-700, #c0392b); }
+.mtb-badge--gray { background: var(--gray-200, #ececec); color: var(--gray-700, #666); }
+.mtb-badge--cyan { background: var(--cyan-100, #e0f4f6); color: var(--cyan-800, #0e7c86); }
+.mtb-badge--violet { background: var(--violet-100, #ece9fb); color: var(--violet-700, #5a4fcf); }
+
+/* ── Dashboard ───────────────────────────────────────── */
+
+.mtb-dash {
+	margin-bottom: 18px;
+}
+
+.mtb-kpi-row {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+	gap: 10px;
+	margin-bottom: 14px;
+}
+
+.mtb-kpi {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	padding: 12px 14px;
+	background: var(--card-bg);
+}
+
+.mtb-kpi-label {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-muted);
+	margin-bottom: 4px;
+}
+
+.mtb-kpi-value {
+	font-size: 20px;
+	font-weight: 700;
+	color: var(--text-color);
+	line-height: 1.2;
+}
+
+.mtb-kpi-sub {
+	font-size: 12px;
+	color: var(--text-muted);
+	margin-top: 4px;
+	line-height: 1.5;
+}
+
+.mtb-kpi--danger { border-left: 3px solid var(--red-600, #e05252); }
+.mtb-kpi--warn { border-left: 3px solid var(--orange-600, #f29317); }
+.mtb-kpi--info { border-left: 3px solid var(--blue-600, #4f7bfd); }
+.mtb-kpi--success { border-left: 3px solid var(--green-600, #29cd42); }
+
+/* Mobile — Total Revenue & Unpaid Balance penuh satu baris */
+@media (max-width: 767px) {
+	.mtb-kpi--success,
+	.mtb-kpi--warn {
+		grid-column: 1 / -1;
+	}
+}
+
+.mtb-panel-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	gap: 10px;
+}
+
+.mtb-panel {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	overflow: hidden;
+}
+
+.mtb-panel--full {
+	margin-bottom: 10px;
+}
+
+.mtb-panel-head-tools {
+	float: right;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	font-weight: 400;
+}
+
+.mtb-panel-head-tools select {
+	font-size: var(--text-sm);
+	height: 24px;
+	padding: 0 4px;
+	margin: 0;
+}
+
+.mtb-panel-head-sub {
+	color: var(--text-muted);
+}
+
+@media (max-width: 767px) {
+	.mtb-panel-head-tools {
+		float: none;
+		display: flex;
+		flex-wrap: wrap;
+		margin-top: 6px;
+	}
+}
+
+.mtb-panel-head {
+	padding: 10px 14px;
+	border-bottom: 1px solid var(--border-color);
+	font-weight: 600;
+	font-size: var(--text-sm);
+	background: var(--bg-color, var(--control-bg));
+}
+
+.mtb-panel-body {
+	padding: 8px 14px 12px 14px;
+}
+
+/* Panel senarai panjang (cth. Affiliate Breakdown) — kunci ketinggian,
+   kandungan melebihi discroll menegak. */
+.mtb-panel-body--scroll {
+	max-height: 220px;
+	overflow-y: auto;
+}
+
+/* Panel pie chart — kawal ketinggian & elak overflow */
+.mtb-panel-body.mtb-chart {
+	padding: 4px 8px 8px 8px;
+	min-height: 200px;
+}
+
+.mtb-panel-body.mtb-chart .chart-container {
+	width: 100%;
+}
+
+/* Legend pie chart — senarai mendatar (flex row, wrap) */
+.mtb-chart-legend {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 4px 14px;
+	padding: 2px 4px 4px 4px;
+	font-size: 12px;
+	color: var(--text-color);
+}
+
+.mtb-chart-legend-item {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	white-space: nowrap;
+}
+
+.mtb-chart-legend-dot {
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.mtb-chart-legend-item b {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.mtb-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 5px 0;
+	font-size: var(--text-sm);
+}
+
+.mtb-row .mtb-row-label {
+	flex: 1;
+	color: var(--text-color);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mtb-row .mtb-row-value {
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.mtb-bar {
+	flex: 1.2;
+	height: 6px;
+	border-radius: 3px;
+	background: var(--control-bg);
+	overflow: hidden;
+	min-width: 60px;
+}
+
+.mtb-bar > span {
+	display: block;
+	height: 100%;
+	border-radius: 3px;
+	background: var(--blue-500, #4f7bfd);
+}
+
+/* ── Tables ──────────────────────────────────────────── */
+
+.mtb-table-wrap {
+	overflow-x: auto;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+}
+
+table.mtb-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--text-sm);
+}
+
+table.mtb-table th {
+	text-align: left;
+	padding: 8px 12px;
+	background: var(--bg-color, var(--control-bg));
+	border-bottom: 1px solid var(--border-color);
+	font-weight: 600;
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+table.mtb-table td {
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--border-color);
+	vertical-align: top;
+}
+
+table.mtb-table tbody tr:last-child td {
+	border-bottom: none;
+}
+
+table.mtb-table tbody tr[data-route] {
+	cursor: pointer;
+}
+
+/* Hover highlight semua baris jadual tab (booking/addon/flight/traveller/
+   rooming) — baris data-route kekal pointer, baris biasa hanya highlight
+   untuk memudahkan imbasan melintang. */
+table.mtb-table tbody tr {
+	transition: background-color 0.12s ease;
+}
+
+table.mtb-table tbody tr:hover {
+	background: var(--bg-color, var(--control-bg));
+}
+
+table.mtb-table td.num,
+table.mtb-table th.num {
+	text-align: right;
+	white-space: nowrap;
+}
+
+table.mtb-table tfoot td {
+	font-weight: 600;
+	background: var(--bg-color, var(--control-bg));
+}
+
+/* Footer ringkasan table group — label kekal nampak bila scroll
+   mendatar (sejajar dengan kolum sticky di atasnya) */
+table.mtb-groups-table tfoot td.mtb-tfoot-label {
+	position: sticky;
+	left: 0;
+	z-index: 2;
+}
+
+/* Baris kedua footer: jumlah keseluruhan nilai semasa (default
+   currency) — lebih ringan dari jumlah per currency di atasnya */
+table.mtb-table tfoot tr.mtb-tfoot-approx td {
+	font-weight: 400;
+	color: var(--text-muted);
+	border-top: 1px dashed var(--border-color);
+	background: transparent;
+}
+
+.mtb-cell-main {
+	font-weight: 600;
+	color: var(--text-color);
+}
+
+.mtb-cell-sub {
+	font-size: 11px;
+	color: var(--text-muted);
+	margin-top: 1px;
+}
+
+.mtb-muted {
+	color: var(--text-muted);
+}
+
+.mtb-danger { color: var(--red-600, #e05252); font-weight: 600; }
+.mtb-success { color: var(--green-700, #1a7a1a); }
+
+/* ── Section titles / misc ───────────────────────────── */
+
+.mtb-section-title {
+	font-weight: 700;
+	font-size: var(--text-base);
+	margin: 18px 0 10px 0;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.mtb-section-title .mtb-link {
+	font-size: var(--text-sm);
+	font-weight: 400;
+}
+
+.mtb-booking-toolbar {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	flex-wrap: wrap;
+	margin-bottom: 10px;
+}
+
+.mtb-booking-toolbar select,
+.mtb-booking-toolbar input {
+	height: 30px;
+	padding: 4px 8px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--control-bg);
+	font-size: var(--text-sm);
+}
+
+.mtb-booking-toolbar .mtb-booking-search {
+	min-width: 200px;
+}
+
+/* ── Rooming guest list ──────────────────────────────── */
+
+.mtb-guests .mtb-guest {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 1px 0;
+	font-size: var(--text-sm);
+	flex-wrap: wrap;
+}
+
+.mtb-guests .mtb-guest .mtb-guest-gender {
+	display: inline-block;
+	min-width: 16px;
+	height: 16px;
+	line-height: 16px;
+	text-align: center;
+	font-size: 10px;
+	font-weight: 700;
+	border-radius: 8px;
+	background: var(--control-bg);
+	border: 1px solid var(--border-color);
+	color: var(--text-muted);
+}
+
+.mtb-empty {
+	padding: 30px 16px;
+	text-align: center;
+	color: var(--text-muted);
+}
+
+.mtb-loading {
+	padding: 40px;
+	text-align: center;
+	color: var(--text-muted);
+}
+
+.mtb-count-pill {
+	display: inline-block;
+	min-width: 18px;
+	padding: 0 6px;
+	border-radius: 9px;
+	background: var(--control-bg);
+	border: 1px solid var(--border-color);
+	font-size: 11px;
+	color: var(--text-muted);
+	text-align: center;
+}
+
+/* ── Column Message — icon pesanan customer dalam table booking/traveller ── */
+.mtb-msg-btn {
+	padding: 1px 5px;
+	line-height: 1;
+	vertical-align: middle;
+	color: var(--text-muted);
+	box-shadow: none;
+}
+
+.mtb-msg-btn:hover,
+.mtb-msg-btn:focus {
+	color: var(--text-color);
+	background: var(--control-bg);
+}
+
+.mtb-msg-btn svg {
+	display: block;
+}
+
+/* Body modal pesanan — kekal line break mesej customer */
+.mtb-msg-body {
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+/* ── Page Booking Info (route /booking/<name>) ─────────────────
+   Pautan Booking Number/ID (tab Booking) + halaman khusus satu
+   booking: header meta grid, KPI, reservation/traveller, transaksi,
+   dokumen berkaitan & rooming. */
+
+/* Kolum pertama tab Booking (Booking No) — SELURUH cell boleh diklik
+   ke page Booking Info; nombor booking diberi warna aksen sebagai
+   affordance. Klik cell lain dalam baris kekal buka Form Booking. */
+table.mtb-table td.mtb-col-bkopen {
+	cursor: pointer;
+	user-select: none;
+}
+
+table.mtb-table td.mtb-col-bkopen:hover {
+	background: var(--mtb-warm-soft);
+}
+
+table.mtb-table td.mtb-col-bkopen .mtb-cell-main {
+	color: var(--mtb-warm-solid, var(--orange-500, #e86c13));
+	font-weight: 600;
+}
+
+table.mtb-table td.mtb-col-bkopen:hover .mtb-cell-main {
+	text-decoration: underline;
+}
+
+/* Badai badan halaman booking info — section tersusun menegak;
+   dibingkai dengan padding & jarak bawah besar */
+.mtb-bkg-body {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 20px;
+	border: 1px solid var(--border-color, #eee);
+	margin-bottom: 100px;
+}
+
+.mtb-bkg-body .mtb-section-title {
+	margin: 20px 0 10px 0;
+}
+
+.mtb-bkg-body .mtb-section-title:first-child {
+	margin-top: 0;
+}
+
+
+/* Tab halaman Booking Info — pane memecah kandungan kepada Booking
+   Info (KPI + transaksi + dokumen) dan Traveller & Rooming. Gaya tab
+   guna semula .mtb-tabs / .mtb-tab / .mtb-tab-pane; jarak ditala
+   untuk susun atur halaman booking. */
+.mtb-bkg-body .mtb-tabs {
+	margin-bottom: 6px;
+}
+
+.mtb-bkg-body .mtb-tab-pane .mtb-section-title {
+	margin: 25px 0;
+}
+
+/* ── Tab Travellers — contact card + search ──────────────────────────
+   Setiap reservation satu kad: nama + badge status reservation &
+   dokumen + ringkasan (bilik / jenis / passport / hubungan). Search
+   box menapis kad di pihak klien. Klik kad buka modal gambar dokumen
+   daripada attachment. */
+.mtb-tv-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin: -4px 0 10px;
+}
+
+.mtb-tv-tools {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+	margin-left: auto;
+}
+
+/* Butang tukar paparan Grid ⇄ Table */
+.mtb-tv-views {
+	display: inline-flex;
+	border: 1px solid var(--border-color);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+button.mtb-tv-view {
+	appearance: none;
+	border: none;
+	background: var(--control-bg);
+	color: var(--text-muted);
+	font: inherit;
+	font-size: var(--text-sm);
+	padding: 3px 12px;
+	cursor: pointer;
+}
+
+button.mtb-tv-view + button.mtb-tv-view {
+	border-left: 1px solid var(--border-color);
+}
+
+button.mtb-tv-view:hover {
+	color: var(--text-color);
+}
+
+button.mtb-tv-view.active {
+	background: var(--mtb-warm-solid, var(--orange-500, #e86c13));
+	color: #fff;
+	font-weight: 600;
+}
+
+/* Baris jadual traveller (paparan Table) — boleh diklik → modal,
+   Cancelled dimalapkan */
+tr.mtb-tv-trow {
+	cursor: pointer;
+}
+
+tr.mtb-tv-trow:hover td {
+	background: var(--mtb-warm-soft);
+}
+
+table.mtb-table tr.mtb-tv-trow.mtb-row-cancelled td {
+	opacity: 0.55;
+}
+
+.mtb-tv-toolbar .form-control {
+	max-width: 280px;
+	height: 26px;
+	padding: 2px 10px;
+	font-size: var(--text-sm);
+}
+
+.mtb-tv-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+	gap: 10px;
+}
+
+.mtb-tvcard {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--card-bg);
+	padding: 0;
+	overflow: hidden;
+	cursor: pointer;
+	transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+/* Gambar preview daripada attachment — atas nama, gaya kad kontak */
+.mtb-tvcard-photo {
+	display: block;
+	width: 100%;
+	height: 150px;
+	object-fit: cover;
+	object-position: center top;
+	background: var(--control-bg);
+	border-bottom: 1px solid var(--border-color);
+}
+
+.mtb-tvcard-photo--empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 34px;
+	opacity: 0.3;
+}
+
+.mtb-tvcard-body {
+	padding: 10px 12px;
+}
+
+.mtb-tvcard:hover {
+	border-color: var(--mtb-warm-solid, var(--orange-500, #e86c13));
+	box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+
+.mtb-tvcard--cancelled .mtb-tvcard-name {
+	opacity: 0.55;
+}
+
+.mtb-tvcard-id {
+	min-width: 0;
+}
+
+.mtb-tvcard-name {
+	font-weight: 700;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mtb-tvcard-badges {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	margin-top: 2px;
+}
+
+.mtb-tvcard-badges .mtb-badge {
+	margin: 0;
+}
+
+.mtb-tvcard-sub {
+	margin-top: 8px;
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+	line-height: 1.6;
+	overflow-wrap: anywhere;
+}
+
+/* Modal gambar dokumen traveller (klik kad) */
+.mtb-tvmodal {
+	text-align: center;
+}
+
+/* Foto dalam modal — SENTIASA static (scroll bersama kandungan);
+   position: static secara jelas supaya style sticky global/frappe
+   tidak membuat imej melekat di atas modal semasa scroll */
+.mtb-tvmodal .mtb-tvmodal-photo {
+	position: static;
+	display: block;
+	max-width: 100%;
+	max-height: 70vh;
+	object-fit: contain;
+	margin: 0 auto;
+	border-radius: var(--border-radius);
+}
+
+
+
+
+/* Lampiran Payment Entry (item PE, tab Documents) — butang
+   quick view 👁 (modal penonton fail) + muat turun ⬇ */
+.mtb-doc-file-actions {
+	white-space: nowrap;
+}
+
+.mtb-doc-file-btn {
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	padding: 2px 4px;
+	font-size: var(--text-sm);
+	line-height: 1;
+	color: var(--text-muted);
+	text-decoration: none;
+}
+
+.mtb-doc-file-btn:hover,
+.mtb-doc-file-btn:focus {
+	color: var(--mtb-warm-solid, var(--orange-500, #e86c13));
+	text-decoration: none;
+	background: transparent;
+}
+
+/* Penonton fail modal (quick view lampiran) */
+.mtb-file-viewer {
+	text-align: center;
+}
+
+.mtb-file-viewer-media {
+	max-width: 100%;
+	max-height: 70vh;
+	object-fit: contain;
+	border-radius: var(--border-radius);
+}
+
+.mtb-file-viewer-frame {
+	width: 100%;
+	height: 70vh;
+	border: 0;
+	border-radius: var(--border-radius);
+	background: var(--card-bg);
+}
+
+.mtb-file-viewer-actions {
+	display: flex;
+	justify-content: center;
+	gap: 8px;
+	margin-top: 10px;
+}
+
+/* Paparan detail (group/batch & booking info) — padding mendatar */
+#mtb-detail {
+	padding: 0;
+}
+
+/* Senarai group (paparan utama) — padding mendatar */
+div#mtb-list-wrap {
+	padding: 0 20px;
+}
+
+/* ── Page Booking Info — susun atur RAIL KONTEKS ─────────────────
+   Topbar breadcrumb + shell 2 kolum: rail kiri sticky (identiti +
+   progres payment, customer, sales & channel, trip & stay, audit,
+   mesej customer) dan kolum kandungan (strip wang sticky + 4 tab).
+   Gantikan header meta grid + section Trip Information lama. */
+
+.mtb-bkg-topbar {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+	margin-bottom: 12px;
+}
+
+.mtb-bkg-actions {
+	margin-left: auto;
+	display: flex;
+	gap: 8px;
+}
+
+.mtb-bkg-crumbs {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+}
+
+button.mtb-crumb {
+	appearance: none;
+	border: none;
+	background: transparent;
+	padding: 2px 6px;
+	font: inherit;
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+	cursor: pointer;
+	border-radius: var(--border-radius);
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+button.mtb-crumb:hover {
+	color: var(--mtb-warm-solid);
+	background: var(--mtb-warm-soft);
+}
+
+.mtb-crumb--cur {
+	font-weight: 700;
+	color: var(--text-color);
+	padding: 2px 6px;
+}
+
+.mtb-crumb-sep {
+	color: var(--text-muted);
+	opacity: 0.7;
+}
+
+.mtb-bkg-shell {
+	display: grid;
+	grid-template-columns: 290px minmax(0, 1fr);
+	gap: 14px;
+	align-items: start;
+}
+
+.mtb-bkg-main {
+	min-width: 0;
+}
+
+/* Rail — sticky supaya konteks kekal nampak semasa kandungan discroll */
+.mtb-bkg-rail {
+	position: sticky;
+	top: 8px;
+	z-index: 5;
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	overflow: hidden;
+}
+
+.mtb-bkg-rsec {
+	padding: 12px 14px;
+	border-bottom: 1px solid var(--border-color);
+	font-size: var(--text-sm);
+}
+
+.mtb-bkg-rsec:last-child {
+	border-bottom: none;
+}
+
+/* Pautan konteks dalam rail (Trip / Group / Customer) — bold */
+.mtb-bkg-rsec a:not(.mtb-bkg-quickbtn) {
+	font-weight: 600;
+}
+
+.mtb-bkg-rsec--id {
+	padding-top: 14px;
+}
+
+.mtb-bkg-rlab {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--text-muted);
+	font-weight: 600;
+	margin-bottom: 6px;
+}
+
+.mtb-bkg-rid {
+	font-size: 16px;
+	font-weight: 800;
+	color: var(--text-color);
+	overflow-wrap: anywhere;
+}
+
+/* Kepala section Identiti — nombor booking kiri, badge status booking
+   sentiasa terapung di hujung kanan atas walaupun nombor panjang/wrap */
+.mtb-bkg-idhead {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.mtb-bkg-idhead .mtb-bkg-rid {
+	flex: 1;
+}
+
+.mtb-bkg-idhead .mtb-bkg-rbadges {
+	margin-top: 0;
+	justify-content: flex-end;
+	flex-shrink: 0;
+}
+
+.mtb-bkg-rbadges {
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	margin-top: 6px;
+}
+
+/* Baris badge terbahagi — kiri (Trip Type), kanan (Package Type) */
+.mtb-bkg-rbadges--split {
+	justify-content: space-between;
+	align-items: flex-start;
+}
+
+.mtb-bkg-rbadges-right {
+	display: inline-flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	margin-left: auto;
+}
+
+.mtb-bkg-rrow {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 10px;
+	padding: 2px 0;
+}
+
+.mtb-bkg-rrow .k {
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.mtb-bkg-rrow .v {
+	text-align: right;
+	overflow-wrap: anywhere;
+}
+
+.mtb-bkg-pbar {
+	height: 6px;
+	border-radius: 3px;
+	background: var(--control-bg);
+	overflow: hidden;
+	margin-top: 8px;
+}
+
+.mtb-bkg-pbar > span {
+	display: block;
+	height: 100%;
+	border-radius: 3px;
+	background: var(--green-500, #29cd42);
+}
+
+/* Strip wang — sticky atas kolum kandungan; nilai utama default
+   currency ('≈' bila bercampur), sub = pecahan native per currency. */
+.mtb-bkg-money {
+	position: sticky;
+	top: 8px;
+	z-index: 6;
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	flex-wrap: wrap;
+	padding: 12px 16px;
+	margin-bottom: 30px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	box-shadow: 0 1px 6px rgba(0, 0, 0, 0.07);
+}
+
+.mtb-mitem .mtb-mitem-l {
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.mtb-mitem .mtb-mitem-v {
+	font-size: 16px;
+	font-weight: 700;
+	margin-top: 2px;
+	color: var(--text-color);
+	font-variant-numeric: tabular-nums;
+}
+
+.mtb-mitem .mtb-mitem-s {
+	font-size: 11px;
+	color: var(--text-muted);
+	margin-top: 2px;
+}
+
+.mtb-mitem--warn .mtb-mitem-v {
+	color: var(--orange-600, #f29317);
+}
+
+.mtb-bkg-msep {
+	color: var(--text-muted);
+	flex-shrink: 0;
+}
+
+/* Baris chip operasi (Discount / Travellers / Rooms / Pending Docs) —
+   selepas tajuk section Order Summary, sebelum kad pecahan kabin
+   (tab Overview) */
+.mtb-bkg-mchips {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	margin: 0 0 10px;
+}
+
+/* Payment Status — blok hujung kanan strip wang */
+.mtb-bkg-paystat {
+	margin-left: auto;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 4px;
+	padding-left: 16px;
+	border-left: 1px solid var(--border-color);
+	text-align: right;
+}
+
+/* Chip ringkasan (tab Documents — bayaran; chip operasi tab Overview) */
+.mtb-bkg-chips {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	margin-bottom: 10px;
+}
+
+.mtb-bkg-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 10px;
+	border: 1px solid var(--border-color);
+	border-radius: 999px;
+	background: var(--card-bg);
+	font-size: var(--text-sm);
+	white-space: nowrap;
+}
+
+.mtb-bkg-chip b {
+	font-weight: 600;
+}
+
+.mtb-bkg-chip .mtb-badge {
+	margin: 0;
+}
+
+.mtb-bkg-chip--danger {
+	color: var(--red-600, #e05252);
+	border-color: var(--red-100, #fde8e8);
+}
+
+/* Chip tapisan jenis dokumen (tab Documents) */
+button.mtb-doc-filter {
+	appearance: none;
+	border: 1px solid var(--border-color);
+	border-radius: 999px;
+	background: var(--control-bg);
+	padding: 2px 11px;
+	font: inherit;
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+button.mtb-doc-filter:hover {
+	color: var(--text-color);
+}
+
+button.mtb-doc-filter.active {
+	background: var(--mtb-warm-solid);
+	border-color: var(--mtb-warm-solid);
+	color: #fff;
+	font-weight: 600;
+}
+
+/* ── Tab Documents — kad + senarai item (revamp) ─────────────────────
+   Dua kad (Documents / Payments); setiap item satu baris: chip
+   monogram jenis (SO/SI/PI/PE) + identiti & subline + amaun per
+   currency + badge status + butang lampiran. Klik item (bukan
+   pautan/butang) buka form — delegate data-route. */
+.mtb-doc-card {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	overflow: hidden;
+	margin-bottom: 14px;
+}
+
+.mtb-doc-card-head {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	padding: 8px 14px;
+	background: var(--control-bg);
+	border-bottom: 1px solid var(--border-color);
+}
+
+.mtb-doc-card-head .mtb-section-title {
+	margin: 0;
+	font-size: var(--text-md, var(--text-base));
+}
+
+.mtb-doc-card-head .mtb-bkg-chips {
+	margin: 0 0 0 auto;
+}
+
+.mtb-doc-paysum {
+	margin-left: auto;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-wrap: wrap;
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+}
+
+.mtb-doc-paysum b {
+	color: var(--text-color);
+	font-variant-numeric: tabular-nums;
+}
+
+.mtb-doc-list {
+	display: flex;
+	flex-direction: column;
+}
+
+.mtb-docitem {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto auto;
+	gap: 12px;
+	align-items: center;
+	padding: 8px 14px;
+	cursor: pointer;
+}
+
+.mtb-docitem + .mtb-docitem {
+	border-top: 1px solid var(--border-color);
+}
+
+.mtb-docitem:hover {
+	background: var(--mtb-warm-soft, rgba(232, 108, 19, 0.06));
+}
+
+/* Chip monogram jenis dokumen — warna selari badge jenis sedia ada */
+.mtb-docitem-chip {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 36px;
+	height: 26px;
+	padding: 0 6px;
+	border-radius: 6px;
+	color: #fff;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.02em;
+}
+
+.mtb-docitem-chip--so { background: var(--blue-500, #3187ce); }
+.mtb-docitem-chip--si { background: var(--green-500, #29a352); }
+.mtb-docitem-chip--pi { background: var(--violet-500, #8e60ce); }
+.mtb-docitem-chip--pe { background: var(--orange-500, #e86c13); }
+
+.mtb-docitem-main {
+	min-width: 0;
+}
+
+.mtb-docitem-main > a {
+	font-weight: 600;
+}
+
+.mtb-docitem-main .mtb-badge {
+	margin-left: 4px;
+}
+
+.mtb-docitem-sub {
+	margin-top: 1px;
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.mtb-docitem-side {
+	text-align: right;
+}
+
+.mtb-docitem-amt {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.mtb-docitem-badges {
+	display: flex;
+	gap: 4px;
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	margin-top: 3px;
+}
+
+.mtb-docitem-files {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	white-space: nowrap;
+}
+
+.mtb-doc-empty {
+	padding: 18px 14px;
+}
+
+@media (max-width: 720px) {
+	.mtb-docitem {
+		grid-template-columns: auto minmax(0, 1fr) auto;
+	}
+
+	.mtb-docitem-chip {
+		grid-row: 1 / span 2;
+	}
+
+	.mtb-docitem-side {
+		grid-column: 2 / 4;
+		grid-row: 2;
+		flex-direction: row;
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		text-align: left;
+		margin-top: 2px;
+	}
+}
+
+/* Timeline booking (tab Overview) — titik peristiwa pada garis menegak;
+   varian: pay (hijau pepejal), doc (violet), ok (hijau), future
+   (dashed — item semasa/hadapan). */
+.mtb-bkg-tl {
+	position: relative;
+	margin: 4px 0 4px 7px;
+	padding-left: 18px;
+	border-left: 2px solid var(--border-color);
+}
+
+.mtb-bkg-tli {
+	position: relative;
+	padding: 0 0 12px 8px;
+	font-size: var(--text-sm);
+	color: var(--text-color);
+}
+
+.mtb-bkg-tli:last-child {
+	padding-bottom: 2px;
+}
+
+.mtb-bkg-tli::before {
+	content: "";
+	position: absolute;
+	left: -25px;
+	top: 3px;
+	width: 9px;
+	height: 9px;
+	border-radius: 50%;
+	background: var(--card-bg);
+	border: 2px solid var(--gray-500, #98a1a9);
+}
+
+.mtb-bkg-tli--pay::before {
+	border-color: var(--green-500, #29cd42);
+	background: var(--green-500, #29cd42);
+}
+
+.mtb-bkg-tli--doc::before {
+	border-color: var(--violet-500, #7c6ff0);
+}
+
+.mtb-bkg-tli--ok::before {
+	border-color: var(--green-500, #29cd42);
+}
+
+.mtb-bkg-tli--future::before {
+	border-style: dashed;
+}
+
+.mtb-bkg-tli--future {
+	color: var(--text-muted);
+}
+
+.mtb-bkg-tld {
+	font-size: 11px;
+	color: var(--text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+/* Order Summary — kad kabin daripada field virtual Booking.order_summary
+   (tab Overview). Setiap baris bawa currency SO utama sendiri — tiada
+   jumlah merentas currency. */
+.mtb-bkg-osum {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--card-bg);
+	overflow: hidden;
+}
+
+.mtb-bkg-osum-cabin + .mtb-bkg-osum-cabin {
+	border-top: 1px dashed var(--border-color);
+}
+
+.mtb-bkg-osum-name {
+	padding: 7px 12px;
+	font-weight: 600;
+	font-size: var(--text-sm);
+	background: var(--control-bg);
+	border-bottom: 1px solid var(--border-color);
+}
+
+.mtb-bkg-osum-row {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 3px 12px;
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+}
+
+.mtb-bkg-osum-row.is-fare {
+	margin-top: 3px;
+	color: var(--text-color);
+}
+
+.mtb-bkg-osum-row.is-fare b {
+	font-variant-numeric: tabular-nums;
+}
+
+.mtb-bkg-osum-row:last-child {
+	padding-bottom: 8px;
+}
+
+.mtb-bkg-osum-row.is-dsc {
+	border-top: 1px dashed var(--border-color);
+	margin-top: 3px;
+	padding-top: 7px;
+	padding-bottom: 8px;
+	color: var(--text-color);
+	font-weight: 600;
+}
+
+.mtb-bkg-osum-row.is-dsc span:last-child {
+	color: var(--dark-green-500, #177245);
+}
+
+/* Butang action topbar — kecil dan ringan */
+.mtb-bkg-actions .btn {
+	padding: 2px 9px;
+	font-size: 11px;
+	line-height: 1.4;
+}
+
+/* Butang hubungan pantas (section Customer) — Call & WhatsApp */
+.mtb-bkg-cust-actions {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	margin-top: 8px;
+}
+
+/* Butang Customer Message (section Customer) — kotak kuning, motif
+   sama dengan mesej customer; buka mesej penuh dalam modal */
+.mtb-bkg-msg-btn {
+	appearance: none;
+	display: block;
+	width: 100%;
+	margin-top: 8px;
+	padding: 6px 10px;
+	border: 1px solid var(--border-color);
+	border-left: 3px solid var(--yellow-500, #f5a623);
+	border-radius: var(--border-radius);
+	background: #fbfde8;
+	font: inherit;
+	font-size: var(--text-sm);
+	color: var(--text-color);
+	cursor: pointer;
+	text-align: left;
+	transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.mtb-bkg-msg-btn:hover,
+.mtb-bkg-msg-btn:focus {
+	border-color: var(--yellow-500, #f5a623);
+	border-left-color: var(--yellow-500, #f5a623);
+	background: #fffef4;
+}
+
+.mtb-bkg-quickbtn {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 1px 9px;
+	border: 1px solid var(--border-color);
+	border-radius: 999px;
+	background: var(--card-bg);
+	font-size: 11px;
+	color: var(--text-color);
+	text-decoration: none;
+}
+
+.mtb-bkg-quickbtn:hover {
+	border-color: var(--mtb-warm-solid);
+	color: var(--mtb-warm-solid);
+	text-decoration: none;
+}
+
+.mtb-bkg-quickbtn--wa {
+	color: var(--green-700, #1a7a1a);
+}
+
+.mtb-bkg-quickbtn--wa:hover {
+	border-color: var(--green-500, #29cd42);
+	color: var(--green-700, #1a7a1a);
+}
+
+/* Audit — grid padat, fon kandungan kecil */
+/* Tab Others — kad maklumat (diskaun / affiliate / audit) */
+.mtb-bkg-card {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--card-bg);
+	overflow: hidden;
+}
+
+.mtb-bkg-card-title {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	padding: 7px 12px;
+	font-weight: 600;
+	font-size: var(--text-sm);
+	background: var(--control-bg);
+	border-bottom: 1px solid var(--border-color);
+}
+
+.mtb-bkg-card-row {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 3px 12px;
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+}
+
+.mtb-bkg-card-row:last-child {
+	padding-bottom: 8px;
+}
+
+.mtb-bkg-card-row.is-strong {
+	margin-top: 3px;
+	color: var(--text-color);
+	font-weight: 600;
+}
+
+.mtb-bkg-card-row.is-dsc {
+	border-top: 1px dashed var(--border-color);
+	margin-top: 3px;
+	padding-top: 7px;
+	color: var(--text-color);
+	font-weight: 600;
+}
+
+.mtb-bkg-card-row.is-dsc span:last-child {
+	color: var(--dark-green-500, #177245);
+}
+
+/* Baris butang Call/WhatsApp dalam kad (tab Others — affiliate) */
+.mtb-bkg-card-actions {
+	padding: 4px 12px 10px;
+}
+
+/* Tab Others — kad diskaun & profil affiliate sebaris (½ lebar);
+   setiap sel membalut satu section penuh (tajuk + kad); tumpuk
+   semula pada skrin sempit */
+.mtb-bkg-others-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0 16px;
+	align-items: start;
+}
+
+.mtb-bkg-others-cell {
+	min-width: 0;
+}
+
+.mtb-bkg-others-cell .mtb-section-title {
+	margin-top: 0;
+}
+
+@media (max-width: 920px) {
+	.mtb-bkg-others-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
+/* Rail kekal di atas kandungan pada skrin sempit */
+@media (max-width: 920px) {
+	.mtb-bkg-shell {
+		grid-template-columns: 1fr;
+	}
+
+	.mtb-bkg-rail {
+		position: static;
+	}
+
+	.mtb-bkg-paystat {
+		margin-left: 0;
+		padding-left: 0;
+		border-left: none;
+		align-items: flex-start;
+		text-align: left;
+	}
+}

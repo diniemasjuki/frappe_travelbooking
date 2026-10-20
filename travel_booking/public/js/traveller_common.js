@@ -350,3 +350,77 @@ function statusBadge(status, type = 'booking') {
   const cls = (map[type] || {})[status] || 'neutral';
   return `<span class="tv-badge tv-badge--${cls}">${_esc(status)}</span>`;
 }
+
+/* ── Pagination helpers (kongsen senarai portal — bookings, on-behalf) ──
+   tvVisiblePages — nombor halaman untuk dipapar (maks 7 + ellipsis).
+   tvRenderPager  — render bar kawalan halaman (Prev/Next · nombor halaman ·
+   jump-to) ke dalam `container` dan wire klik; onPage(newPage) dipanggil
+   pada setiap navigasi. Container disembunyikan bila <= 1 halaman. */
+function tvVisiblePages(current, total) {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  var pages = [1];
+  if (current > 3) pages.push('...');
+  var start = Math.max(2, current - 2);
+  var end = Math.min(total - 1, current + 2);
+  for (var i = start; i <= end; i++) pages.push(i);
+  if (current < total - 2) pages.push('...');
+  pages.push(total);
+  return pages;
+}
+
+function tvRenderPager(container, page, totalPages, totalItems, itemLabel, onPage) {
+  if (!container) return;
+  if (!totalPages || totalPages <= 1) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+    return;
+  }
+
+  var html = '';
+  html += '<div class="tv-pager" style="display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 0 2px;border-top:1px solid var(--border-light);flex-wrap:wrap;">';
+  // Kiri: info halaman semasa
+  html += '<div style="font-size:12.5px;color:var(--text-secondary);">';
+  html += 'Page <strong>' + page + '</strong> of <strong>' + totalPages + '</strong> · <strong>' + totalItems + '</strong> ' + _esc(itemLabel || 'items');
+  html += '</div>';
+  // Tengah: Prev + nombor halaman + Next
+  html += '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">';
+  html += '<button type="button" class="tv-btn tv-btn--ghost tv-btn--sm tv-pg-btn" data-tv-pg="prev"' + (page <= 1 ? ' disabled' : '') + '>← Prev</button>';
+  tvVisiblePages(page, totalPages).forEach(function (p) {
+    if (p === '...') {
+      html += '<span style="padding:4px 8px;color:var(--text-muted);">…</span>';
+    } else {
+      html += '<button type="button" class="tv-btn tv-btn--sm tv-pg-num' + (p === page ? ' tv-btn--primary' : ' tv-btn--ghost') + '" data-tv-pg="' + p + '">' + p + '</button>';
+    }
+  });
+  html += '<button type="button" class="tv-btn tv-btn--ghost tv-btn--sm tv-pg-btn" data-tv-pg="next"' + (page >= totalPages ? ' disabled' : '') + '>Next →</button>';
+  html += '</div>';
+  // Kanan: lompat ke halaman
+  html += '<div style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text-secondary);">Go to';
+  html += '<input type="number" class="tv-input tv-pg-jump" min="1" max="' + totalPages + '" value="' + page + '" style="width:64px;padding:6px 10px;text-align:center;font-size:13px;" title="Jump to page"/>';
+  html += 'of ' + totalPages;
+  html += '</div>';
+  html += '</div>';
+
+  container.style.display = 'block';
+  container.innerHTML = html;
+
+  container.querySelectorAll('[data-tv-pg]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var v = this.dataset.tvPg;
+      var target = (v === 'prev') ? page - 1 : (v === 'next' ? page + 1 : parseInt(v, 10));
+      if (target >= 1 && target <= totalPages && target !== page) onPage(target);
+    });
+  });
+  var jump = container.querySelector('.tv-pg-jump');
+  if (jump) {
+    jump.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        var t = parseInt(this.value, 10);
+        if (t >= 1 && t <= totalPages && t !== page) onPage(t);
+      }
+    });
+  }
+}

@@ -15,6 +15,7 @@ from travel_booking.api._helpers import (
     sanitize_portal_return_path,
 )
 from travel_booking.api.constants import PRINT_FORMAT_RECEIPT
+from travel_booking.utils.upload_normalize import _decode_and_normalize_upload
 
 
 # ══════════════════════════════════════════════
@@ -497,7 +498,6 @@ def submit_manual_payment(amount: float, payment_date: str,
     TIDAK set field ni langsung dan berfungsi baik) — jadi field pilihan
     "Payment method" tidak perlu, cuma tambah risiko error tanpa faedah.
     """
-    import base64
     from erpnext.accounts.party import get_party_account
 
     from travel_booking.api.so_helpers import (
@@ -505,12 +505,28 @@ def submit_manual_payment(amount: float, payment_date: str,
         _build_discount_deduction_rows,
         _get_absorbed_order_discount,
         _get_booking_discount_snapshot,
+        _safe_date,
     )
 
     # --- Verify customer DULU (keselamatan) ---
     # ON-BEHALF: manager (booked_by) dibenarkan hantar resit manual untuk
     # SO booking yang diurusnya — rujuk _so_accessible_by().
     _user, customer_name, managed = _portal_access()
+
+    # ── Normalisasi input (selepas semakan akses) ──
+    # Amount: FLOAT currency sahaja (2 titik perpuluhan) — string kosong /
+    # sampah ditolak dengan mesej jelas. payment_date: YYYY-MM-DD (format
+    # internal sistem) — disahkan getdate, fallback hari ini bila kosong/tak
+    # sah. notes: nota/memo customer (pilihan, maks 500 aksara).
+    try:
+        amount = round(float(amount), 2)
+    except (TypeError, ValueError):
+        frappe.throw("Please enter a valid payment amount.")
+    if amount <= 0:
+        frappe.throw("Please enter a valid payment amount.")
+    payment_date = _safe_date(payment_date)
+    reference_no = str(reference_no or "").strip()
+    notes = str(notes or "").strip()[:500]
 
     target_so = sales_order
     if not target_so and booking_number:
@@ -690,9 +706,11 @@ def submit_manual_payment(amount: float, payment_date: str,
         pe.insert(ignore_permissions=True)   # draft
 
         if filedata and filename:
-            if "," in filedata:
-                filedata = filedata.split(",")[1]
-            file_content = base64.b64decode(filedata)
+            # STANDARDISASI UPLOAD (sama seperti passport/visa traveller):
+            # jenis fail disahkan via magic bytes; PDF automatik di-render
+            # halaman 1 ke PNG supaya resit sentiasa tersimpan sebagai
+            # imej (preview <img> & paparan Desk konsisten di merata form).
+            file_content, filename = _decode_and_normalize_upload(filedata, filename, label="receipt")
             frappe.get_doc({
                 "doctype":             "File",
                 "file_name":           filename,

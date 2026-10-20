@@ -21,7 +21,7 @@ import frappe
 from frappe.rate_limiter import rate_limit
 
 from travel_booking.api.voucher import validate_affiliate_code
-from travel_booking.travel_booking_management.doctype.travel_inquiry.travel_inquiry import (
+from travel_booking.module_travel_booking.doctype.travel_inquiry.travel_inquiry import (
     derive_domain,
 )
 from travel_booking.utils.website_config import get_website_config

@@ -88,7 +88,7 @@
         <div class="rc-cruise-info">
           <h3><a href="{{ item.route }}">{{ item.trip_name }}</a></h3>
           {% if item.organizer %}<p><i class="ti ti-user"></i> {{ item.organizer }}</p>{% endif %}
-          <p class="rc-price">From <strong>{{ item.price_formatted }}</strong></p>
+          <p class="rc-price">From {% if item.get("price_formatted_was") %}<s class="rc-price-was">{{ item.get("price_formatted_was") }}</s> {% endif %}<strong>{{ item.price_formatted }}</strong>{% if item.get("promo_label") %} <span class="rc-promo-badge">{{ item.get("promo_label") }}</span>{% endif %}</p>
         </div>
       </article>
       {% endfor %}
@@ -165,7 +165,7 @@
         <div class="rc-tour-info">
           <h3><a href="{{ item.route }}">{{ item.trip_name }}</a></h3>
           {% if item.organizer %}<p><i class="ti ti-user"></i> {{ item.organizer }}</p>{% endif %}
-          <p class="rc-price">From <strong>{{ item.price_formatted }}</strong></p>
+          <p class="rc-price">From {% if item.get("price_formatted_was") %}<s class="rc-price-was">{{ item.get("price_formatted_was") }}</s> {% endif %}<strong>{{ item.price_formatted }}</strong>{% if item.get("promo_label") %} <span class="rc-promo-badge">{{ item.get("promo_label") }}</span>{% endif %}</p>
         </div>
       </article>
       {% endfor %}

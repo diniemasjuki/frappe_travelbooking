@@ -122,7 +122,14 @@ def validate_voucher(code: str, trip_group_date: str, grand_total: float, email:
         if not (package_ok and trip_ok):
             return {"valid": False, "message": "This voucher is not valid for this trip or package."}
 
-        pricing_map = _get_pricing_map(trip_package)
+        # Travel Price Rule: subtotal scope dikira atas HARGA PROMO (harga
+        # jualan berkesan) — sepadan dengan baris SO net & paparan wizard
+        # yang juga guna harga promo. Voucher diskaun ATAS harga promo.
+        from travel_booking.api.price_rule import apply_price_rules, resolve_ctx
+        pricing_map, _rule_info = apply_price_rules(
+            _get_pricing_map(trip_package),
+            resolve_ctx(trip_package, trip_group_date),
+        )
         eligible_amount = 0.0
         for sel in selections:
             room_category = sel.get("room_category")

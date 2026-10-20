@@ -1,0 +1,72 @@
+{% extends "templates/base_travel.html" %}
+
+{% block title %}Booking Terms &amp; Conditions — {{ site_name or 'Rarecation' }}{% endblock %}
+
+{% block head_extra %}
+<style>
+  .btc-wrap { max-width: 860px; margin: 0 auto; padding: 40px 20px 80px; }
+  .btc-card {
+    background: #fff;
+    border: 1px solid #E8E5DF;
+    border-radius: 14px;
+    padding: 36px 40px;
+    box-shadow: 0 2px 10px rgba(30, 28, 24, .05);
+  }
+  .btc-eyebrow {
+    font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+    color: #C9A84C; font-weight: 700; margin: 0 0 8px;
+  }
+  .btc-title { font-size: 26px; font-weight: 800; color: #1E1C18; margin: 0 0 6px; }
+  .btc-meta { font-size: 12px; color: #B0AC9F; margin: 0 0 20px; }
+  .btc-content { font-size: 14px; color: #3B382F; line-height: 1.75; }
+  .btc-content h1, .btc-content h2, .btc-content h3 { color: #1E1C18; margin: 24px 0 8px; }
+  .btc-content p, .btc-content li { margin: 0 0 10px; }
+  .btc-content ul, .btc-content ol { padding-left: 22px; margin: 0 0 14px; }
+  .btc-content a { color: #C9A84C; }
+  .btc-empty {
+    background: #F7F5F0; border: 1px dashed #E8E5DF; border-radius: 12px;
+    padding: 28px; font-size: 14px; color: #6E6A5F; text-align: center;
+  }
+  .btc-actions { margin-top: 24px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .btc-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer;
+    padding: 9px 16px; border-radius: 10px; border: 1px solid #C9A84C;
+    color: #1E1C18; background: #fff;
+  }
+  .btc-btn:hover { background: #F7F1E3; }
+  @media print {
+    .rc-public-nav, .rc-public-footer, .btc-actions { display: none !important; }
+    .btc-card { border: none; box-shadow: none; padding: 0; }
+  }
+</style>
+{% endblock %}
+
+{% block page_content %}
+<div class="btc-wrap">
+  <div class="btc-card">
+    {% if booking_terms %}
+      <p class="btc-eyebrow">Booking Terms &amp; Conditions</p>
+      <h1 class="btc-title">{{ booking_terms.title }}</h1>
+      {% if terms_updated_on %}
+        <p class="btc-meta">Last updated {{ terms_updated_on }}</p>
+      {% endif %}
+      <div class="btc-content">{{ booking_terms.content }}</div>
+      <div class="btc-actions">
+        <button type="button" class="btc-btn" onclick="window.print()">
+          <i class="ti ti-printer"></i> Print / Save as PDF
+        </button>
+        <a class="btc-btn" href="/booknow">
+          <i class="ti ti-arrow-left"></i> Back to Booking
+        </a>
+      </div>
+    {% else %}
+      <p class="btc-eyebrow">Booking Terms &amp; Conditions</p>
+      <div class="btc-empty">
+        Our booking Terms &amp; Conditions are currently being updated.
+        Please check back later or contact us for the latest copy.
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

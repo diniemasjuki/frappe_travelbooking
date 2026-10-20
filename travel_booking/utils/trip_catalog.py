@@ -271,26 +271,99 @@ def _add_starting_price(trips: list, currency: str | None = None) -> None:
 	harga pakej disimpan dalam currency native pakej). None kalau tiada
 	pricing dalam currency itu. Currency None = tiada tapisan currency
 	(behavior lama, merentasi semua currency — JANGAN guna untuk listing
-	yang menapis ikut currency, harga akan bercampur)."""
+	yang menapis ikut currency, harga akan bercampur).
+
+	Travel Price Rule: bila ada rule promosi aktif, "from" dikira atas
+	harga PROMO (berkesan) per pakej × kategori × group date pakej.
+	original_starting_from_price + promo_label disertakan bila harga
+	"from" yang menang betul-betul diskaun (untuk paparan strikethrough).
+	"""
 	if not trips:
 		return
 	cond = ""
 	if currency:
 		cond = "AND tp.currency = %(currency)s"
+
+	from travel_booking.api.price_rule import (
+		effective_unit_price, get_active_price_rules,
+	)
+
+	# Fast path — tiada rule aktif: kekal MIN(price_adult) terus (sedia ada).
+	if not get_active_price_rules():
+		rows = frappe.db.sql(
+			"""
+			SELECT tp.trip_link AS trip, MIN(pr.price_adult) AS min_price
+			FROM `tabTrip Package` tp
+			JOIN `tabTrip Package Price` pr ON pr.parent = tp.name
+			WHERE tp.trip_link IN %(names)s AND tp.status = 'Active' {cond}
+			GROUP BY tp.trip_link
+			""".format(cond=cond),
+			{"names": [t.name for t in trips], "currency": currency},
+			as_dict=True,
+		)
+		price_map = {r.trip: (float(r.min_price) if r.min_price else None) for r in rows}
+		for t in trips:
+			t["starting_from_price"] = price_map.get(t.name)
+			t["original_starting_from_price"] = None
+			t["promo_label"] = None
+		return
+
+	# Dengan rule aktif: nilai berkesan per pakej — kena iterate kategori
+	# harga + group date pakej (rule boleh discoped ke group date tertentu).
 	rows = frappe.db.sql(
 		"""
-		SELECT tp.trip_link AS trip, MIN(pr.price_adult) AS min_price
+		SELECT tp.name AS pkg, tp.trip_link AS trip, tp.currency,
+		       tpp.pricing_for_class AS room_category, tpp.price_adult
 		FROM `tabTrip Package` tp
-		JOIN `tabTrip Package Price` pr ON pr.parent = tp.name
+		JOIN `tabTrip Package Price` tpp ON tpp.parent = tp.name
 		WHERE tp.trip_link IN %(names)s AND tp.status = 'Active' {cond}
-		GROUP BY tp.trip_link
 		""".format(cond=cond),
 		{"names": [t.name for t in trips], "currency": currency},
 		as_dict=True,
 	)
-	price_map = {r.trip: (float(r.min_price) if r.min_price else None) for r in rows}
+	pkg_gd_map: dict = {}
+	if rows:
+		gd_rows = frappe.db.sql(
+			"""
+			SELECT sel.parent AS pkg, sel.trip_group_date, td.departure_date
+			FROM `tabTrip Package Group Date Select` sel
+			JOIN `tabTrip Group Date` td ON td.name = sel.trip_group_date
+			WHERE sel.parent IN %(pkgs)s
+			""",
+			{"pkgs": list({r.pkg for r in rows})},
+			as_dict=True,
+		)
+		for g in gd_rows:
+			pkg_gd_map.setdefault(g.pkg, []).append(g)
+
+	# trip -> (eff_price, original_or_None, label_or_None)
+	best: dict = {}
+	for r in rows:
+		base = float(r.price_adult or 0)
+		if base <= 0:
+			continue
+		gds = pkg_gd_map.get(r.pkg) or [None]
+		for g in gds:
+			ctx = {
+				"trip": r.trip,
+				"trip_group_date": g.trip_group_date if g else None,
+				"trip_package": r.pkg,
+				"currency": r.currency,
+				"departure_date": g.departure_date if g else None,
+			}
+			eff, label = effective_unit_price(base, ctx, r.room_category, "price_adult")
+			if eff is None or eff <= 0:
+				continue
+			cur = best.get(r.trip)
+			if cur is None or eff < cur[0]:
+				original = base if label else None
+				best[r.trip] = (eff, original, label)
+
 	for t in trips:
-		t["starting_from_price"] = price_map.get(t.name)
+		b = best.get(t.name)
+		t["starting_from_price"] = b[0] if b else None
+		t["original_starting_from_price"] = b[1] if b else None
+		t["promo_label"] = b[2] if b else None
 
 
 def _add_next_departure(trips: list, trip_group_dates: dict) -> None:
@@ -842,22 +915,83 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 	# ORDER BY mn supaya nilai MIN + CURRENCY sebenar harga itu kembali
 	# bersama (native_only: MIN merentasi currency bercampur tidak boleh
 	# dipaparkan dengan satu simbol). ---
+	#
+	# Travel Price Rule: bila ada rule aktif, MIN dikira atas harga PROMO
+	# per pakej × kategori × group date; original + label promo dibawa
+	# bersama untuk paparan strikethrough di page detail.
 	sp_cond = "" if currency_native_only else "AND tp.currency = %(cur)s"
-	sp = frappe.db.sql(
-		"""
-		SELECT tp.currency AS cur, MIN(pr.price_adult) AS mn
-		FROM `tabTrip Package` tp
-		JOIN `tabTrip Package Price` pr ON pr.parent = tp.name
-		WHERE tp.trip_link = %(t)s AND tp.status = 'Active' {sp_cond}
-		GROUP BY tp.currency
-		ORDER BY mn
-		LIMIT 1
-		""".format(sp_cond=sp_cond),
-		{"t": trip_name, "cur": currency},
-		as_dict=True,
+	from travel_booking.api.price_rule import (
+		effective_unit_price, get_active_price_rules,
 	)
-	starting_from_price = float(sp[0].mn) if sp and sp[0].mn else None
-	starting_from_currency = (sp[0].cur if sp else None) or currency
+
+	original_starting_from_price = None
+	promo_label = None
+	best = None  # (eff_price, currency, original, label)
+	if not get_active_price_rules():
+		sp = frappe.db.sql(
+			"""
+			SELECT tp.currency AS cur, MIN(pr.price_adult) AS mn
+			FROM `tabTrip Package` tp
+			JOIN `tabTrip Package Price` pr ON pr.parent = tp.name
+			WHERE tp.trip_link = %(t)s AND tp.status = 'Active' {sp_cond}
+			GROUP BY tp.currency
+			ORDER BY mn
+			LIMIT 1
+			""".format(sp_cond=sp_cond),
+			{"t": trip_name, "cur": currency},
+			as_dict=True,
+		)
+		starting_from_price = float(sp[0].mn) if sp and sp[0].mn else None
+		starting_from_currency = (sp[0].cur if sp else None) or currency
+	else:
+		sp_rows = frappe.db.sql(
+			"""
+			SELECT tp.name AS pkg, tp.currency AS cur,
+			       tpp.pricing_for_class AS room_category, tpp.price_adult
+			FROM `tabTrip Package` tp
+			JOIN `tabTrip Package Price` tpp ON tpp.parent = tp.name
+			WHERE tp.trip_link = %(t)s AND tp.status = 'Active' {sp_cond}
+			""".format(sp_cond=sp_cond),
+			{"t": trip_name, "cur": currency},
+			as_dict=True,
+		)
+		pkg_gd_map: dict = {}
+		if sp_rows:
+			gd_rows = frappe.db.sql(
+				"""
+				SELECT sel.parent AS pkg, sel.trip_group_date, td.departure_date
+				FROM `tabTrip Package Group Date Select` sel
+				JOIN `tabTrip Group Date` td ON td.name = sel.trip_group_date
+				WHERE sel.parent IN %(pkgs)s
+				""",
+				{"pkgs": list({r.pkg for r in sp_rows})},
+				as_dict=True,
+			)
+			for g in gd_rows:
+				pkg_gd_map.setdefault(g.pkg, []).append(g)
+		for r in sp_rows:
+			base = float(r.price_adult or 0)
+			if base <= 0:
+				continue
+			gds = pkg_gd_map.get(r.pkg) or [None]
+			for g in gds:
+				ctx = {
+					"trip": trip_name,
+					"trip_group_date": g.trip_group_date if g else None,
+					"trip_package": r.pkg,
+					"currency": r.cur,
+					"departure_date": g.departure_date if g else None,
+				}
+				eff, label = effective_unit_price(base, ctx, r.room_category, "price_adult")
+				if eff is None or eff <= 0:
+					continue
+				if best is None or eff < best[0]:
+					best = (eff, r.cur, base if label else None, label)
+		starting_from_price = best[0] if best else None
+		starting_from_currency = (best[1] if best else None) or currency
+		if best:
+			original_starting_from_price = best[2]
+			promo_label = best[3]
 	starting_from_symbol = (
 		frappe.db.get_value("Currency", starting_from_currency, "symbol")
 		or starting_from_currency
@@ -898,6 +1032,8 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 		"trip_packages": trip_packages,
 		"sailing_tgds": sailing_tgds,
 		"starting_from_price": starting_from_price,
+		"original_starting_from_price": original_starting_from_price,
+		"promo_label": promo_label,
 		"destinations": destinations,
 		"is_cruise": is_cruise,
 		"currency": currency,

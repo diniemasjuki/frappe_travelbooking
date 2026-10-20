@@ -54,12 +54,15 @@ _PROMPT = (
     "'FPX', 'M2U', receipt number). Uppercase alphanumerics.\n"
     "- amount: the transferred amount as a number (currency RM/MYR), "
     "without symbols or commas.\n"
+    "- currency: the ISO 4217 currency code of the amount on the receipt "
+    "(e.g. MYR for RM, SGD for S$, USD for $, IDR, THB, CNY). Empty if "
+    "not determinable.\n"
     "- date: the transaction/transfer date in YYYY-MM-DD format "
     "(look for 'Date', 'Transaction Date', 'Transfer Date'; handle "
     "DD/MM/YYYY, DD-MM-YYYY, DD MMM YYYY formats).\n"
     "Respond with ONLY a JSON object, no other text:\n"
     '{"reference_no": "<string or empty>", "amount": <number or null>, '
-    '"date": "<YYYY-MM-DD or empty>"}\n'
+    '"currency": "<ISO code or empty>", "date": "<YYYY-MM-DD or empty>"}\n'
     "If a field cannot be found, use empty string / null."
 )
 
@@ -101,12 +104,74 @@ def analyze_receipt(filedata: str, filename: str = "") -> dict:
         # Normalisasi di sini (bukan hanya dalam _call_ai) — identik untuk
         # mana-mana sumber dan mudah diuji.
         "reference_no": str(result.get("reference_no") or "").strip().upper(),
-        "amount": result.get("amount"),
+        # Amount ialah FLOAT currency (2 titik perpuluhan, sen) sahaja —
+        # nilai tak sah (bukan nombor / negatif) → None supaya client tak
+        # pernah terima string / integer kasar dari model.
+        "amount": _normalize_amount(result.get("amount")),
+        # Kod currency ISO (cth MYR) untuk pengesahan currency di client
+        # (alert sahaja — rujuk renderReceiptOCRResult / scan popup).
+        "currency": _normalize_currency(result.get("currency")),
         # Tarikh transaksi (YYYY-MM-DD) — untuk auto-fill Transfer Date
         # pada borang manual payment (billing page). Normalisasi format
         # lazim yang mungkin dikembalikan model.
         "date": _normalize_date(result.get("date")),
     }
+
+
+def _normalize_amount(raw) -> "float | None":
+    """Koerk nilai amount kepada FLOAT currency (round 2 titik perpuluhan).
+
+    Terima nombor ATAU string "1,234.50"/"RM1234.50". Pulangkan None untuk
+    apa-apa yang bukan nombor positif — client menganggap None sebagai
+    "amount tidak dikesan" (bukan 0).
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    # Buang hiasan lazim: simbol currency, pemisah ribuan, ruang.
+    s = re.sub(r"(?i)(rm|myr|sgd|usd|idr|thb|cny|aud|eur|gbp|rp|us\$|a\$|s\$|\$)", "", s)
+    s = s.replace(",", "").replace(" ", "")
+    if not s:
+        return None
+    try:
+        value = float(s)
+    except (TypeError, ValueError):
+        return None
+    if value <= 0:
+        return None
+    return round(value, 2)
+
+
+# Simbol/nama biasa → kod ISO. AI selalunya pulangkan kod ISO terus; pemetaan
+# ni melindungi kes model pulangkan simbol ("RM", "S$") atau nama ("Ringgit").
+_CURRENCY_ALIASES = {
+    "RM": "MYR", "RINGGIT": "MYR", "MALAYSIAN RINGGIT": "MYR",
+    "S$": "SGD", "SGD": "SGD", "SINGAPORE DOLLAR": "SGD",
+    "$": "USD", "US$": "USD", "USD": "USD", "US DOLLAR": "USD",
+    "RP": "IDR", "IDR": "IDR", "RUPIAH": "IDR",
+    "฿": "THB", "THB": "THB", "BAHT": "THB",
+    "¥": "CNY", "RMB": "CNY", "CNY": "CNY", "YUAN": "CNY",
+    "€": "EUR", "EUR": "EUR",
+    "£": "GBP", "GBP": "GBP",
+    "AUD": "AUD", "A$": "AUD",
+}
+
+
+def _normalize_currency(raw) -> str:
+    """Koerk currency daripada respons AI kepada kod ISO 4217 (uppercase).
+
+    Pulangkan '' bila tak dikenali — client hanya alert bila kod TAHU dan
+    berbeza dari currency billing (elak false alarm).
+    """
+    s = str(raw or "").strip().upper()
+    if not s:
+        return ""
+    if s in _CURRENCY_ALIASES:
+        return _CURRENCY_ALIASES[s]
+    # Kod ISO 3-huruf yang sah secara bentuk → terima terus (cth "MYR").
+    if re.match(r"^[A-Z]{3}$", s):
+        return s
+    return ""
 
 
 def _get_settings() -> dict:
@@ -202,7 +267,9 @@ def _call_ai(settings: dict, payload: bytes, mime: str) -> dict:
                 "message": "AI response could not be parsed."}
 
     amount = parsed.get("amount")
-    if amount is not None:
+    if amount is not None and not isinstance(amount, (int, float)):
+        # String amount ("1,234.50") — float() kasar di sini; pembersihan
+        # penuh (simbol, round 2dp, positif) oleh _normalize_amount.
         try:
             amount = float(str(amount).replace(",", ""))
         except (TypeError, ValueError):
@@ -212,6 +279,8 @@ def _call_ai(settings: dict, payload: bytes, mime: str) -> dict:
         "ok": True,
         "reference_no": str(parsed.get("reference_no") or "").strip().upper(),
         "amount": amount,
+        # Currency ISO (cth "MYR") — dinormalisasi di analyze_receipt.
+        "currency": str(parsed.get("currency") or "").strip(),
         # Tarikh transaksi — diproses oleh _normalize_date di analyze_receipt.
         "date": str(parsed.get("date") or "").strip(),
     }

@@ -39,11 +39,19 @@ def get_context(context):
     booking_ref = get_query_param('ref')
     context.booking_ref = booking_ref if booking_ref else None
 
+    # Senarai negara untuk dropdown modal "Edit Billing Info" — dibaca
+    # server-side (Guest/user tak boleh list doctype Country melalui API
+    # biasa). Nilai = NAMA canonical dokumen Country (Malaysia didahulukan,
+    # selebihnya A-Z), selari dengan wizard /booknow.
+    _countries = frappe.get_all("Country", pluck="name")
+    countries = sorted(_countries, key=lambda n: (n != "Malaysia", n))
+
     # pageData mesti dict yang boleh JSON-serialize
     context.page_data = {
         "csrf_token": ctx.get("csrf_token", ""),
         "booking_ref": context.booking_ref or "",
         "mode": "onbehalf",
+        "billing_countries": countries,
     }
 
     return context

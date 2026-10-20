@@ -1,0 +1,317 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "naming_series:naming_series",
+ "creation": "2026-09-12 01:15:54.762069",
+ "default_view": "List",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "date_and_port_section",
+  "column_break_ympw",
+  "sail_start",
+  "sail_end",
+  "column_break_dfrr",
+  "port_start",
+  "port_end",
+  "column_break_tgto",
+  "total_days",
+  "total_nights",
+  "status",
+  "trip_information_section",
+  "trip_link",
+  "trip_name",
+  "column_break_uiie",
+  "trip_code",
+  "schedule_code",
+  "operator_section",
+  "cruise_line_company",
+  "column_break_cqkb",
+  "ship_code",
+  "column_break_eeam",
+  "ship_name",
+  "naming_series",
+  "section_break_scdk",
+  "currency",
+  "cabin_rates"
+ ],
+ "fields": [
+  {
+   "allow_in_quick_entry": 1,
+   "default": "Aroya",
+   "fieldname": "ship_name",
+   "fieldtype": "Data",
+   "label": "Ship Name"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "default": "Aroya Cruise",
+   "fieldname": "cruise_line_company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Cruise Line Company",
+   "link_filters": "[[\"Trip Organizer\",\"is_a_cruise_line\",\"=\",1]]",
+   "options": "Trip Organizer",
+   "remember_last_selected_value": 1
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "default": "AC01",
+   "fieldname": "ship_code",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Ship Code",
+   "options": "AC01\nHV01",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "column_break_ympw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "sail_start",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Sailing Start",
+   "reqd": 1
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "sail_end",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Sailing End",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "total_days",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Days",
+   "non_negative": 1
+  },
+  {
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "column_break_dfrr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "port_start",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Start Port",
+   "options": "Trip Destination Point",
+   "remember_last_selected_value": 1,
+   "reqd": 1
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "port_end",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Return Port",
+   "options": "Trip Destination Point",
+   "remember_last_selected_value": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_cqkb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Self-Generated Code for internal used only",
+   "fieldname": "schedule_code",
+   "fieldtype": "Data",
+   "label": "Schedule Code",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "operator_section",
+   "fieldtype": "Section Break",
+   "label": "Cruise Operator"
+  },
+  {
+   "default": "Pending Review",
+   "description": "Active = Open for booking <br>\nFulled = Closed for full booked<br>\nClosed = Closed for final preparation\n<br>\nRunning = Currently Running<br>\nCompleted = Trip has complete <br>\nPending Review = Pending Confirmation<br>\nCancelled = Trip Canceled",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending Review\nActive\nRunning\nSailing\nFull\nClosed\nCompleted\nCancelled"
+  },
+  {
+   "fieldname": "trip_information_section",
+   "fieldtype": "Section Break",
+   "label": "Trip Information"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "trip_link",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trip",
+   "link_filters": "[[\"Trip\",\"is_a_cruise_trip\",\"=\",1]]",
+   "options": "Trip",
+   "search_index": 1
+  },
+  {
+   "fetch_from": "trip_link.trip_name",
+   "fieldname": "trip_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Trip Name"
+  },
+  {
+   "default": ".ship_code.YY.#",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "naming series",
+   "options": ".ship_code.YY.#"
+  },
+  {
+   "fieldname": "section_break_scdk",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cabin_rates",
+   "fieldtype": "Table",
+   "label": "Cabin Rates",
+   "options": "Trip Package Price"
+  },
+  {
+   "description": "Trip Code to be provided by cuise company for every schedule",
+   "fieldname": "trip_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Trip Code by Cruise Company",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_uiie",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "date_and_port_section",
+   "fieldtype": "Section Break",
+   "label": "Date and Port"
+  },
+  {
+   "fieldname": "column_break_tgto",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_eeam",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.ship_code",
+   "fieldname": "total_nights",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Nights",
+   "non_negative": 1
+  },
+  {
+   "default": "MYR",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  }
+ ],
+ "grid_page_length": 50,
+ "is_calendar_and_gantt": 1,
+ "links": [
+  {
+   "link_doctype": "Trip Group Date",
+   "link_fieldname": "cruise_schedule"
+  }
+ ],
+ "modified": "2026-09-12 01:20:37.065737",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Trip Cruise Schedule",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "select": 1,
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "select": 1,
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "trip_link,trip_name",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [
+  {
+   "color": "Blue",
+   "title": "Active"
+  },
+  {
+   "color": "Orange",
+   "title": "Sailing"
+  },
+  {
+   "color": "Green",
+   "title": "Completed"
+  },
+  {
+   "color": "Red",
+   "title": "Canceled"
+  },
+  {
+   "color": "Gray",
+   "title": "Closed"
+  },
+  {
+   "color": "Yellow",
+   "title": "Pending Review"
+  }
+ ],
+ "title_field": "schedule_code"
+}
