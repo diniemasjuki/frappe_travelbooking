@@ -267,9 +267,6 @@ body:not(.full-width) .page-container[data-page-route="manage-booking-app"] .pag
 }
 .mba-card-stats b { color: var(--text-color); }
 
-.mba-group--batch .mba-card,
-tr.mba-group-row td .mba-badge--violet { /* penanda halus batch */ }
-
 /* ── Jadual generik (desktop sahaja) ───────────────────── */
 .mba-table-wrap {
 	display: none;   /* telefon: kad sahaja */
