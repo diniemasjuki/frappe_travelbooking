@@ -49,6 +49,7 @@ from frappe.utils import getdate
 
 from travel_booking.api.constants import DEFAULT_CURRENCY
 from travel_booking.api.currency_axis import get_rate_to_default
+from travel_booking.api.passport_maintenance import _ensure_private_url
 
 # Roles yang dibenarkan akses page ni — selari dengan booking_hub.py
 MANAGE_TRIP_ROLES = ["System Manager", "Tour Manager", "Tour Operator", "Accounts User"]
@@ -1398,7 +1399,9 @@ def _tv_scope(booking: str = None, trip_group: str = None, trip_groups=None):
 def _tv_filter_field(doctype: str, fieldname: str):
 	"""Sahkan medan penapis dinamik wujud pada meta doctype dan jenisnya
 	selamat untuk SQL — nama kolum TIDAK PERNAH diinterpolate terus daripada
-	input tanpa validasi ini. Return (alias, df)."""
+	input tanpa validasi ini. Juga sahkan kolum wujud dalam DB: meta boleh
+	mendahului skema (doctype diedit tanpa migrate) — tanpa semakan ni
+	penapis atas medan tersebut gagal dengan SQL error mentah. Return (alias, df)."""
 	alias = _TV_FILTER_ALIASES.get(doctype or "")
 	if not alias:
 		frappe.throw(_("Filter doctype must be one of: {0}").format(
@@ -1406,23 +1409,63 @@ def _tv_filter_field(doctype: str, fieldname: str):
 	df = frappe.get_meta(doctype).get_field(fieldname or "")
 	if not df or df.fieldtype not in _TV_FILTER_FIELDTYPES:
 		frappe.throw(_("{0}.{1} is not a filterable field").format(doctype, fieldname))
+	if df.fieldname not in frappe.db.get_table_columns(doctype):
+		frappe.throw(_("{0}.{1} does not exist in the database yet — run migrate")
+			.format(doctype, fieldname))
 	return alias, df
 
 
-def _tv_filter_conditions(custom_filters: list, fmt: dict) -> list:
-	"""Tukar penapis dinamik [{doctype, fieldname, value}] kepada syarat SQL.
-	Semantik ikut jenis field: teks → LIKE %v%; Select/Link/tarikh/nombor →
-	padanan tepat; Check → 1/0. Baris tanpa nilai diabaikan."""
+# Jenis medan nombor — penapis dinamik guna julat Min–Max (bukan padanan
+# tepat); selari TV_CF_NUMERIC_TYPES pada klien.
+_TV_FILTER_NUMERIC = ("Int", "Float", "Currency", "Percent")
+
+
+def _num_or_none(v) -> "float | None":
+	"""Float(v) atau None — teks kosong/bukan nombor → None (diabaikan)."""
+	try:
+		if v in (None, ""):
+			return None
+		return float(v)
+	except (TypeError, ValueError):
+		return None
+
+
+def _tv_filter_conditions(custom_filters: list, fmt: dict, match: str = "AND") -> list:
+	"""Tukar penapis dinamik [{doctype, fieldname, value, min?, max?}]
+	kepada syarat SQL. Semantik ikut jenis field:
+	- Nombor (Int/Float/Currency/Percent) + min/max → julat
+	  (col >= min AND col <= max; sempadan tunggal dibenarkan).
+	- Teks → LIKE %v%; Select/Link/tarikh → padanan tepat; Check → 1/0.
+	Baris tanpa nilai DAN tanpa julat diabaikan.
+
+	match='OR' & ≥2 syarat → disatukan sebagai (a OR b OR ...); selain itu
+	setiap syarat digabung AND seperti mana ia berdiri dalam conditions."""
 	out = []
 	for i, f in enumerate(custom_filters or []):
 		if not isinstance(f, dict):
 			continue
 		value = f.get("value")
-		if value in (None, ""):
+		rmin = _num_or_none(f.get("min"))
+		rmax = _num_or_none(f.get("max"))
+		if value in (None, "") and rmin is None and rmax is None:
 			continue
 		alias, df = _tv_filter_field(f.get("doctype"), f.get("fieldname"))
 		col = f"{alias}.`{df.fieldname}`"
 		vk = f"cfv{i}"
+		if df.fieldtype in _TV_FILTER_NUMERIC and (rmin is not None or rmax is not None):
+			parts = []
+			if rmin is not None:
+				fmt[f"cfmin{i}"] = rmin
+				parts.append(f"{col} >= %(cfmin{i})s")
+			if rmax is not None:
+				fmt[f"cfmax{i}"] = rmax
+				parts.append(f"{col} <= %(cfmax{i})s")
+			# Dibungkus kurungan supaya mod OR komposisi betul:
+			# (a >= 5 AND a <= 10) OR <syarat lain>.
+			out.append("(" + " AND ".join(parts) + ")")
+			continue
+		if value in (None, ""):
+			continue
 		if df.fieldtype == "Check":
 			fmt[vk] = 1 if str(value).lower() in ("1", "true", "yes", "y") else 0
 			out.append(f"{col} = %({vk})s")
@@ -1432,13 +1475,16 @@ def _tv_filter_conditions(custom_filters: list, fmt: dict) -> list:
 		else:
 			fmt[vk] = value
 			out.append(f"{col} = %({vk})s")
+	if match == "OR" and len(out) > 1:
+		return ["(" + " OR ".join(out) + ")"]
 	return out
 
 
 @frappe.whitelist()
 def get_group_travellers(trip_group: str = None, trip_groups: list = None, booking: str = None,
 						 search: str = None, doc_status: str = None,
-						 custom_filters: list = None, limit: int = 20,
+						 custom_filters: list = None, custom_match: str = "AND",
+						 limit: int = 20,
 						 with_versions: bool = False) -> dict:
 	"""Senarai traveller — SATU sumber untuk semua peringkat page Manage
 	Booking (L2 group/batch & L3 booking info) serta eksport ZIP/XLSX/CSV.
@@ -1457,13 +1503,16 @@ def get_group_travellers(trip_group: str = None, trip_groups: list = None, booki
 	with_versions: lampirkan log aktiviti doctype Version per traveller
 	(untuk timeline modal L3). Tidak diminta pada mode group — berat.
 
-	custom_filters: penapis dinamik [{doctype, fieldname, value}] atas
-	medan doctype sumber (Booking Reservation / Traveller / Booking /
-	Customer) — teks LIKE, lain-lain padanan tepat.
+	custom_filters: penapis dinamik [{doctype, fieldname, value, min?, max?}]
+	atas medan doctype sumber (Booking Reservation / Traveller / Booking /
+	Customer) — teks LIKE, lain-lain padanan tepat; medan nombor
+	(Int/Float/Currency/Percent) boleh guna julat min/max. custom_match
+	'OR' gabungkan baris sebagai match-ANY (lalai AND = match-ALL).
 	"""
 	_require_access()
 	conditions, fmt, order_by = _tv_scope(booking, trip_group, trip_groups)
-	conditions.extend(_tv_filter_conditions(custom_filters, fmt))
+	conditions.extend(_tv_filter_conditions(custom_filters, fmt,
+		"OR" if str(custom_match).upper() == "OR" else "AND"))
 
 	if doc_status and doc_status != "All":
 		if doc_status == "Incomplete":
@@ -1661,19 +1710,164 @@ def get_group_travellers(trip_group: str = None, trip_groups: list = None, booki
 def get_traveller_filter_fields() -> list:
 	"""Senarai medan yang boleh ditapis untuk penapis dinamik tab
 	Travellers — semua field meta (kecuali jenis layout/attach) bagi 4
-	doctype sumber senarai traveller, dikumpulkan ikut doctype."""
+	doctype sumber senarai traveller, dikumpulkan ikut doctype.
+
+	Hanya medan yang BETUL-BETUL wujud sebagai kolum DB disenaraikan —
+	meta boleh mendahului skema (doctype diedit tanpa migrate); medan
+	tersebut tidak boleh ditapis (SQL error) jadi jangan tawarkan."""
 	_require_access()
 	out = []
 	for dt in _TV_FILTER_ALIASES:
+		try:
+			cols = set(frappe.db.get_table_columns(dt))
+		except Exception:
+			cols = None
 		fields = [{
 			"fieldname": df.fieldname,
 			"label": df.label or df.fieldname,
 			"fieldtype": df.fieldtype,
+			# Select — senarai pilihan penuh dari meta untuk autocomplete
+			# nilai penapis (DISTINCT DB hanya liput nilai pernah digunakan).
+			**({"options": [o.strip() for o in (df.options or "").split("\n")
+				if o.strip()]} if df.fieldtype == "Select" else {}),
 		} for df in frappe.get_meta(dt).fields
-			if df.fieldtype in _TV_FILTER_FIELDTYPES]
+			if df.fieldtype in _TV_FILTER_FIELDTYPES
+			and (cols is None or df.fieldname in cols)]
 		if fields:
 			out.append({"doctype": dt, "fields": fields})
 	return out
+
+
+# Medan imej Traveller yang boleh diganti melalui crop/edit (PII — private).
+TRAVELLER_IMAGE_FIELDS = ("passport_image", "visa_photo")
+
+
+@frappe.whitelist()
+def replace_traveller_file(traveller: str, fieldname: str, new_url: str,
+						   old_url: str = None) -> dict:
+	"""Ganti fail imej Traveller (crop/rotate dari page Manage Booking) —
+	REPLACE, bukan duplikasi:
+
+	1. Set Traveller.<fieldname> = new_url.
+	2. Alih snapshot Booking Reservation.traveller_passportimg yang masih
+	   merujuk URL lama ke URL baharu (fallback paparan bila medan Traveller
+	   kosong — jangan tinggal rujukan mati selepas fail lama dipadam).
+	3. Padam dokumen File lama (URL lama). Padam fizikal disenta oleh
+	   File.on_trash — hanya berlaku bila tiada File lain berkongsi fail itu.
+
+	Fail baharu dimuat naik sebagai private oleh klien (is_private=1)."""
+	_require_access()
+	if fieldname not in TRAVELLER_IMAGE_FIELDS:
+		frappe.throw(_("Invalid field {0}").format(fieldname))
+	if not traveller or not frappe.db.exists("Traveller", traveller):
+		frappe.throw(_("Traveller {0} not found").format(traveller))
+	if not new_url:
+		frappe.throw(_("New file URL is required"))
+
+	old_url = (old_url or "").strip()
+	if old_url and old_url != new_url:
+		frappe.db.sql(
+			"""UPDATE `tabBooking Reservation`
+			   SET traveller_passportimg = %(new)s
+			   WHERE traveller_passportimg = %(old)s AND traveller = %(t)s""",
+			{"new": new_url, "old": old_url, "t": traveller})
+	frappe.db.set_value("Traveller", traveller, fieldname, new_url)
+
+	deleted = 0
+	if old_url and old_url != new_url:
+		# Medan Traveller & snapshot sudah dialih — padam semua File yang
+		# masih membawa URL lama. on_trash menolak bila masih dirujuk medan
+		# Attach (guard) dan mengekalkan fizikal bila ada duplikasi kandungan.
+		for fname in frappe.get_all("File", filters={"file_url": old_url}, pluck="name"):
+			try:
+				frappe.delete_doc("File", fname, ignore_permissions=True)
+				deleted += 1
+			except Exception:
+				# Fail tertinggal (masih dirujuk tempat lain) — bukan fatal;
+				# nilai Traveller tetap telah dikemaskini.
+				frappe.log_error(
+					title="replace_traveller_file: failed to delete old file",
+					message=f"File {fname} ({old_url}) for Traveller {traveller}",
+				)
+	return {"url": new_url, "deleted": deleted}
+
+
+# Medan Traveller yang boleh diedit admin dari modal page Manage Booking —
+# SEMUA melalui doctype Traveller sahaja (satu sumber kebenaran); snapshot
+# Booking Reservation TIDAK disentuh (paparan SQL utamakan nilai Traveller).
+TRAVELLER_EDIT_FIELDS = (
+	"title", "first_name", "last_name", "gender", "date_of_birth",
+	"passport_no", "passport_expiry", "ic_number", "nationality", "visa_photo",
+	"address_line1", "city", "state", "postcode", "country",
+	"emergency_contact_name", "emergency_contact_phone",
+	"emergency_contact_relationship",
+)
+
+
+@frappe.whitelist()
+def update_traveller_info(traveller: str, values: "dict | str" = None) -> dict:
+	"""Kemaskini maklumat peribadi Traveller dari modal page Manage Booking.
+
+	Cara kerja (satu-satunya laluan betul utk kekal konsisten):
+	- frappe.get_doc("Traveller") → set HANYA medan dalam TRAVELLER_EDIT_FIELDS
+	  (kunci lain diabaikan) → doc.save(). before_save doctype menjalankan
+	  peraturan: uppercase nama/IC/passport/alamat, recompute full_name, umur
+	  & kategori umur, title ikut gender, sync status ke reservation.
+	- db.set_value sengaja TIDAK digunakan — ia memintas before_save
+	  (uppercase/full_name tidak akan dikira).
+	- visa_photo pastikan PRIVATE selepas save (upload dialog boleh
+	  tersimpan public) — flip fizikal + URL dikemaskini.
+	Pulangkan nilai terkini (medan edit + alias paparan) utk kemaskini cache
+	klien."""
+	_require_access()
+	if isinstance(values, str):
+		try:
+			values = json.loads(values)
+		except ValueError:
+			frappe.throw(_("Invalid values payload"))
+	if not isinstance(values, dict):
+		values = {}
+	if not traveller or not frappe.db.exists("Traveller", traveller):
+		frappe.throw(_("Traveller {0} not found").format(traveller))
+
+	doc = frappe.get_doc("Traveller", traveller)
+	doc.flags.ignore_mentions = True
+	for f in TRAVELLER_EDIT_FIELDS:
+		if f in values:
+			v = values.get(f)
+			doc.set(f, ("" if v is None else str(v).strip()) if isinstance(v, str) else v)
+	doc.save(ignore_permissions=True)
+
+	# Imej visa ialah PII — pastikan private tidak kira bagaimana ia
+	# dimuat naik (checkbox 'Private' dialog upload tidak dijamin).
+	if doc.visa_photo:
+		new_url = _ensure_private_url(doc.visa_photo)
+		if new_url != doc.visa_photo:
+			doc.reload()
+
+	# Alias ikut kunci baris senarai traveller di klien.
+	return {
+		"traveller": doc.name,
+		"traveller_name": doc.full_name or doc.name,
+		"title": doc.title or "",
+		"first_name": doc.first_name or "",
+		"last_name": doc.last_name or "",
+		"gender": doc.gender or "",
+		"dob": str(doc.date_of_birth or ""),
+		"passport_no": doc.passport_no or "",
+		"passport_expiry": str(doc.passport_expiry or ""),
+		"ic_number": doc.ic_number or "",
+		"nationality": doc.nationality or "",
+		"visa_photo": doc.visa_photo or "",
+		"address_line1": doc.address_line1 or "",
+		"city": doc.city or "",
+		"state": doc.state or "",
+		"postcode": doc.postcode or "",
+		"country": doc.country or "",
+		"emergency_contact_name": doc.emergency_contact_name or "",
+		"emergency_contact_phone": doc.emergency_contact_phone or "",
+		"emergency_contact_relationship": doc.emergency_contact_relationship or "",
+	}
 
 
 @frappe.whitelist()

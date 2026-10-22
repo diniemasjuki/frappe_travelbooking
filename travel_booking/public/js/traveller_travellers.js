@@ -1709,65 +1709,64 @@ function _hidePassportScanProgress() {
     return true;
   }
 
-  /* Simpan SATU section ke server (andaian: validasi lulus).
-     Server wajib section passport dahulu — cipta Traveller + link ke
-     slot sebelum contact/health boleh disimpan. */
-  async function _saveSection(section) {
+  /* Hantar SEMUA section dalam SATU panggilan API + confirm (andaian:
+     validasi lulus). Server terapkan semua medan pada SATU dokumen
+     Traveller dan tulis SEKALI sahaja — menggantikan 3 save berturutan
+     + confirm era wizard (setiap save memicu notification emel → emel
+     berulang untuk satu submission). */
+  async function _submitAllSections() {
     var get = function (id) { return document.getElementById(id); };
     var payload = {
       booking_number: BOOKING_REF,
       slot_name: ACTIVE_SLOT.slot_name,
-      section: section,
+      sections: 'passport,contact,health',
+      confirm: 1,
       pdpa_consent: true
     };
 
-    if (section === 'passport') {
-      var filedata = '', filename = '';
-      if (_passportFile) {
-        var fd = await _readFileAsDataURL(_passportFile);
-        filedata = fd; filename = _passportFile.name;
-      }
-      Object.assign(payload, {
-        first_name: get('tvl-firstname').value.trim(),
-        last_name: get('tvl-lastname').value.trim(),
-        full_name: get('tvl-name').value.trim(),
-        fullname_format: (get('tvl-fullname-format') && get('tvl-fullname-format').value) || 'First Name + Last Name',
-        gender: get('tvl-gender').value,
-        ic_number: get('tvl-ic').value.trim(),
-        date_of_birth: get('tvl-dob').value,
-        nationality: get('tvl-nat').value,
-        passport_no: get('tvl-pp').value.trim(),
-        passport_expiry: get('tvl-ppexp').value,
-        filedata: filedata, filename: filename
-      });
-    } else if (section === 'contact') {
-      var visaFd = '', visaFn = '';
-      if (_visaPhotoFile) {
-        var vfd = await _readFileAsDataURL(_visaPhotoFile);
-        visaFd = vfd; visaFn = _visaPhotoFile.name;
-      }
-      Object.assign(payload, {
-        email: get('tvl-email').value || '',
-        phone: _getFullPhoneNumber(_itiPhone, get('tvl-phone-num')),
-        emergency_contact_name: get('tvl-ec-name').value.trim(),
-        emergency_contact_phone: _getFullPhoneNumber(_itiEcPhone, get('tvl-ec-phone')),
-        emergency_contact_relationship: get('tvl-ec-relationship').value.trim(),
-        address_line1: get('tvl-addr1').value.trim(),
-        city:          get('tvl-city').value.trim(),
-        postcode:      get('tvl-postcode').value.trim(),
-        state:         get('tvl-state').value.trim(),
-        country:       get('tvl-country').value.trim(),
-        visa_filedata: visaFd, visa_filename: visaFn
-      });
-    } else {
-      Object.assign(payload, {
-        dietary_requirements: get('tvl-dietary').value.trim(),
-        medical_conditions: get('tvl-medical').value.trim(),
-        special_needs: get('tvl-special-needs').value.trim(),
-        wheelchair_assistant: get('tvl-wheelchair').value,
-        medicine_treatment: get('tvl-medicine').value.trim()
-      });
+    var filedata = '', filename = '';
+    if (_passportFile) {
+      filedata = await _readFileAsDataURL(_passportFile);
+      filename = _passportFile.name;
     }
+    var visaFd = '', visaFn = '';
+    if (_visaPhotoFile) {
+      visaFd = await _readFileAsDataURL(_visaPhotoFile);
+      visaFn = _visaPhotoFile.name;
+    }
+
+    Object.assign(payload, {
+      // Passport
+      first_name: get('tvl-firstname').value.trim(),
+      last_name: get('tvl-lastname').value.trim(),
+      full_name: get('tvl-name').value.trim(),
+      fullname_format: (get('tvl-fullname-format') && get('tvl-fullname-format').value) || 'First Name + Last Name',
+      gender: get('tvl-gender').value,
+      ic_number: get('tvl-ic').value.trim(),
+      date_of_birth: get('tvl-dob').value,
+      nationality: get('tvl-nat').value,
+      passport_no: get('tvl-pp').value.trim(),
+      passport_expiry: get('tvl-ppexp').value,
+      filedata: filedata, filename: filename,
+      // Contact
+      email: get('tvl-email').value || '',
+      phone: _getFullPhoneNumber(_itiPhone, get('tvl-phone-num')),
+      emergency_contact_name: get('tvl-ec-name').value.trim(),
+      emergency_contact_phone: _getFullPhoneNumber(_itiEcPhone, get('tvl-ec-phone')),
+      emergency_contact_relationship: get('tvl-ec-relationship').value.trim(),
+      address_line1: get('tvl-addr1').value.trim(),
+      city:          get('tvl-city').value.trim(),
+      postcode:      get('tvl-postcode').value.trim(),
+      state:         get('tvl-state').value.trim(),
+      country:       get('tvl-country').value.trim(),
+      visa_filedata: visaFd, visa_filename: visaFn,
+      // Health
+      dietary_requirements: get('tvl-dietary').value.trim(),
+      medical_conditions: get('tvl-medical').value.trim(),
+      special_needs: get('tvl-special-needs').value.trim(),
+      wheelchair_assistant: get('tvl-wheelchair').value,
+      medicine_treatment: get('tvl-medicine').value.trim()
+    });
 
     await API_TV('save_booking_traveller', payload);
   }
@@ -1840,9 +1839,10 @@ function _hidePassportScanProgress() {
     _hideConsentModal();
   }
 
-  /* SUBMIT borang satu page. section disimpan berturutan oleh
-     submitTraveller — passport → contact → health (server wajib passport
-     dahulu untuk cipta Traveller + link ke slot), kemudian confirm. */
+  /* SUBMIT borang satu page. SATU panggilan API menyimpan SEMUA section
+     (passport → contact → health — server wajib passport dahulu untuk
+     cipta Traveller + link ke slot) dan terus confirm dalam request
+     yang sama. */
   window.submitTraveller = async function (btnEl) {
     var get = function (id) { return document.getElementById(id); };
     if (!ACTIVE_SLOT) return;
@@ -1866,13 +1866,13 @@ function _hidePassportScanProgress() {
     if (btn) { btn.textContent = 'Submitting...'; btn.disabled = true; }
 
     try {
-      // Simpan ikut urutan section — server wajib passport dahulu
-      // (cipta Traveller + link ke slot) sebelum contact/health.
-      await _saveSection('passport');
+      // SATU panggilan API untuk SEMUA section + confirm — server tulis
+      // Traveller SEKALI sahaja (legacy wizard: 3 save section + 1
+      // confirm = 4 tulisan berturutan → notification emel berulang
+      // untuk satu submission).
+      await _submitAllSections();
       _afterPassportSaved();
-      await _saveSection('contact');
       _afterContactSaved();
-      await _saveSection('health');
 
       // Refresh data + slot terkini (flag has_passport dll.)
       var fresh = await API_BK('get_booking_data', { booking_number: BOOKING_REF });
@@ -1881,12 +1881,6 @@ function _hidePassportScanProgress() {
         var s = (fresh.slots || []).find(function (x) { return x.slot_name === ACTIVE_SLOT.slot_name; });
         if (s) ACTIVE_SLOT = s;
       }
-
-      // Confirm — sahkan kelengkapan & set status Pending untuk semakan.
-      await API_TV('confirm_traveller_documents', {
-        booking_number: BOOKING_REF,
-        slot_name: ACTIVE_SLOT.slot_name
-      });
 
       // Berjaya — kembali ke senarai traveller.
       window.location.href = slotListUrl();

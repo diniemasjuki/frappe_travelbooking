@@ -15,8 +15,11 @@ class Traveller(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
+		address_line1: DF.SmallText | None
 		age: DF.Int
 		age_category: DF.Literal["Adult", "Child", "Infant"]
+		city: DF.Data | None
+		country: DF.Link | None
 		date_of_birth: DF.Date | None
 		dietary_requirements: DF.Text | None
 		document_verified: DF.Check
@@ -38,7 +41,9 @@ class Traveller(Document):
 		passport_image: DF.AttachImage | None
 		passport_no: DF.Data | None
 		phone: DF.Phone | None
-		status: DF.Literal["Incomplete", "Verified", "Open for Update", "Rejected", "Valid"]
+		postcode: DF.Data | None
+		state: DF.Data | None
+		status: DF.Literal["Incomplete", "Pending Verification", "Verified", "Open for Update", "Rejected", "Valid"]
 		title: DF.Literal["Mr", "Mrs"]
 		visa_photo: DF.Attach | None
 		wheelchair_assistant: DF.Literal["", "Not Required", "Long Walk Only", "All Time"]
@@ -60,9 +65,88 @@ class Traveller(Document):
 		# from_name() supaya gender yang diinferens dari nama (bin/binti)
 		# untuk rekod lama turut menetapkan title.
 		self.set_title_from_gender()
+		# Flow dokumen: borang wajib lengkap (kecuali kesihatan & gambar
+		# visa — tidak wajib) → status auto "Pending Verification".
+		self.evaluate_document_status()
+		# Status masuk Verified → auto-centang kunci dokumen (checkbox
+		# 'Document Verified' — medan maklumat jadi read-only di Desk).
+		self.sync_verified_lock()
+
+	def sync_verified_lock(self):
+		"""Auto-enable checkbox 'Document Verified' apabila status naik ke
+		Verified — kunci verified document (semua medan maklumat peribadi
+		jadi read-only di Desk melalui read_only_depends_on).
+
+		- Transisi sahaja: admin yang uncheck manual TIDAK akan
+		  diterbalikkan pada setiap save semasa status kekal Verified.
+		- Keluar dari Verified (Open for Update / Rejected) TIDAK
+		  auto-uncheck — admin kekal kuasa penuh atas kunci manual.
+		- 'age' mandatory bila kunci aktif (mandatory_depends_on) — jangan
+		  centang bila umur belum terkira (DOB kosong) supaya save tidak
+		  gagal; admin isi DOB dahulu, kunci tercentang pada save
+		  seterusnya apabila status ditetapkan Verified semula."""
+		if self.status != "Verified" or self.document_verified:
+			return
+		if not self.age:
+			return
+		old = self.get_doc_before_save()
+		old_status = (old.status if old else "") or ""
+		if old_status == "Verified":
+			return
+		self.document_verified = 1
 
 	def on_update(self):
 		self.sync_status_to_reservations()
+		# Emel pemakluman "Pending Verification" DIURUS oleh Notification
+		# Desk "Passport Submission" (event Value Change pada field status +
+		# condition doc.status == "Pending Verification") — BUKAN kod di
+		# sini, elak emel berganda. Template/recipient diedit di Desk:
+		# /app/notification/Passport%20Submission
+
+	# ── Flow status dokumen ─────────────────────────────────────────────
+	# Incomplete → (borang wajib lengkap, auto) → Pending Verification →
+	# admin: Verified / Valid / Rejected; expired passport (hook harian) →
+	# Open for Update → traveller isi semula → Pending Verification lagi.
+	PENDING_VERIFICATION = "Pending Verification"
+	# Status yang boleh naik automatik ke Pending Verification bila borang
+	# lengkap: kosong/Incomplete (baru), Open for Update (re-upload lepas
+	# expired) & Rejected (customer betulkan dokumen). Status keputusan
+	# admin — Verified / Valid — TIDAK pernah diketuk automatik.
+	PROMOTABLE_STATUSES = ("", "Incomplete", "Open for Update", "Rejected")
+
+	# Medan borang yang WAJIB terisi untuk lengkap — cermin gerbang portal
+	# _traveller_missing_fields (section Passport + Contact). title/full_name/
+	# umur TIDAK termasuk: diinferens automatik dalam before_save; admin
+	# boleh set di Desk/modal.
+	#
+	# KELUAR DARIPADA REQUIREMENT (status naik "Pending Verification"
+	# TANPA data ini — maklumat kesihatan bukan syarat kelengkapan):
+	# - dietary_requirements   (Dietary Requirements)
+	# - medical_conditions     (Medical Conditions)
+	# - medicine_treatment     (Medicine / Treatment)
+	# (wheelchair_assistant & visa_photo turut tidak wajib sejak asal.)
+	MANDATORY_INFO_FIELDS = (
+		"first_name", "last_name", "ic_number", "nationality",
+		"date_of_birth", "gender", "passport_no", "passport_expiry",
+		"passport_image", "email", "phone",
+		"emergency_contact_name", "emergency_contact_phone",
+		"address_line1", "city", "postcode", "state", "country",
+	)
+
+	def is_info_complete(self) -> bool:
+		"""True bila SEMUA medan borang wajib terisi (bukan NULL/'') —
+		maklumat kesihatan & gambar visa dikecualikan."""
+		return all(str(getattr(self, f, None) or "").strip()
+			for f in self.MANDATORY_INFO_FIELDS)
+
+	def evaluate_document_status(self):
+		"""Auto-promote status ke 'Pending Verification' bila borang wajib
+		lengkap. Hanya dari status 'boleh naik' (kosong/Incomplete/
+		Open for Update/Rejected) — status keputusan admin dihormati."""
+		if self.status not in self.PROMOTABLE_STATUSES:
+			return
+		if self.is_info_complete():
+			self.status = self.PENDING_VERIFICATION
 
 	def sync_status_to_reservations(self):
 		"""Sebar status ni ke rekod Booking Reservation traveller ini.
@@ -90,6 +174,10 @@ class Traveller(Document):
 			"first_name", "last_name", "full_name",
 			"ic_number", "passport_no",
 			"emergency_contact_name", "emergency_contact_relationship",
+			# Alamat — uppercase ikut konvensyen dokumen perjalanan;
+			# dilaksana di doctype supaya SEMUA laluan edit (Desk, portal,
+			# modal admin Manage Booking) dapat perlakuan sama.
+			"address_line1", "city", "state", "postcode",
 		]
 		for field in text_fields:
 			val = getattr(self, field, None)

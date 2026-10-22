@@ -132,8 +132,8 @@ window.ManageBookingApp = (function () {
 	const ADDON_STATUS_COLORS = { 'Pending': 'yellow', 'Confirmed': 'green', 'Cancelled': 'red' };
 	const FLIGHT_STATUS_COLORS = { 'Open': 'blue', 'Full': 'orange', 'Closed': 'gray', 'Completed': 'green' };
 	const DOC_STATUS_COLORS = {
-		'Incomplete': 'orange', 'Pending': 'orange', 'Verified': 'green', 'Valid': 'green',
-		'Open for Update': 'yellow', 'Rejected': 'red',
+		'Incomplete': 'orange', 'Pending': 'orange', 'Open for Update': 'yellow', 'Rejected': 'red',
+		'Pending Verification': 'blue', 'Verified': 'green', 'Valid': 'green',
 	};
 	const RES_STATUS_COLORS = { 'Pending Review': 'yellow', 'Confirmed': 'green', 'Cancelled': 'red' };
 	const AGE_BUCKET_COLORS = { 'Infant': 'violet', 'Child': 'cyan', 'Adult': 'blue', 'Unknown': 'gray' };
@@ -232,10 +232,9 @@ window.ManageBookingApp = (function () {
 	];
 	const ADDON_STATUS_OPTIONS = ['', 'Pending', 'Confirmed', 'Cancelled'];
 	const ADDON_PAYMENT_OPTIONS = ['', 'Pending', 'Partially Paid', 'Paid'];
-	const DOC_STATUS_OPTIONS = ['', 'Incomplete', 'Verified', 'Open for Update', 'Rejected', 'Valid'];
 
 	// Susunan logik Doc Status untuk sort (bukan abjad).
-	const DOC_STATUS_RANK = { 'Incomplete': 0, 'Pending': 0, 'Open for Update': 1, 'Rejected': 2, 'Verified': 3, 'Valid': 4 };
+	const DOC_STATUS_RANK = { 'Incomplete': 0, 'Pending': 0, 'Pending Verification': 1, 'Open for Update': 2, 'Rejected': 3, 'Verified': 4, 'Valid': 5 };
 
 	// Pilihan sort tab Travellers (L2 & L3) — kunci header jadual & dropdown.
 	const TV_SORTS = {
@@ -742,16 +741,17 @@ window.ManageBookingApp = (function () {
 			$pane.data('mba-tv-rerender')?.();
 		});
 
-		// Tapisan client-side pakej traveller (doc status + bilangan baris)
-		// — kemaskini state & re-render melalui callback pakej pada pane.
-		$d.on('change', '.mba-tv-docsel, .mba-tv-limitsel', function () {
+		// Tapisan client-side pakej traveller (bilangan baris) — kemaskini
+		// state & re-render melalui callback pakej pada pane. (Select doc
+		// status telah dibuang — tapisan dokumen kini hanya melalui panel
+		// penapis dinamik / server.)
+		$d.on('change', '.mba-tv-limitsel', function () {
 			const $sel = $(this);
 			const $pane = $sel.closest('.mba-tab-pane');
 			const key = $sel.closest('.mba-group').data('item');
 			const tvst = S.state[key]?.tv;
 			if (!tvst) return;
-			if ($sel.hasClass('mba-tv-docsel')) tvst.doc_status = String($sel.val() || '');
-			else tvst.limit = parseInt($sel.val(), 10) || 0;
+			tvst.limit = parseInt($sel.val(), 10) || 0;
 			$pane.data('mba-tv-rerender')?.();
 		});
 
@@ -763,6 +763,10 @@ window.ManageBookingApp = (function () {
 			? load_bkg_travellers(key, true) : load_tab(key, 'traveller', true));
 		const tv_cf_rerender = (key) => (key.startsWith('bkg:')
 			? render_bkg_travellers(key) : render_travellers_tab(key));
+		// Pane penapis aktif — L3 (bkg:) guna pane 'tv', L2 pane 'traveller'.
+		const tv_cf_pane = (key) => (key.startsWith('bkg:')
+			? $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="tv"]`)
+			: pane_el(key, 'traveller'));
 
 		$d.on('click', '.mba-cf-toggle', function () {
 			const key = $(this).closest('.mba-group').data('item');
@@ -774,12 +778,7 @@ window.ManageBookingApp = (function () {
 			}
 			tv_cf_rerender(key);
 			tv_cf_hydrate(key);
-			if (st.tv.cf_open) {
-				const $p = key.startsWith('bkg:')
-					? $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="tv"]`)
-					: pane_el(key, 'traveller');
-				$p.find('.mba-cf-field').last().trigger('focus');
-			}
+			if (st.tv.cf_open) tv_cf_pane(key).find('.mba-cf-field-input').last().trigger('focus');
 		});
 		$d.on('click', '.mba-cf-add', function () {
 			const key = $(this).closest('.mba-group').data('item');
@@ -787,10 +786,7 @@ window.ManageBookingApp = (function () {
 			if (!st) return;
 			st.tv.custom = [...(st.tv.custom || []), { doctype: '', fieldname: '', value: '' }];
 			tv_cf_rerender(key);
-			const $p = key.startsWith('bkg:')
-				? $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="tv"]`)
-				: pane_el(key, 'traveller');
-			$p.find('.mba-cf-field').last().trigger('focus');
+			tv_cf_pane(key).find('.mba-cf-field-input').last().trigger('focus');
 		});
 		$d.on('click', '.mba-cf-del', function () {
 			const key = $(this).closest('.mba-group').data('item');
@@ -800,20 +796,34 @@ window.ManageBookingApp = (function () {
 			st.tv.custom.splice(idx, 1);
 			tv_cf_rerender(key);
 		});
-		$d.on('change', '.mba-cf-field', function () {
+		$d.on('change', '.mba-cf-field-input', function () {
 			const key = $(this).closest('.mba-group').data('item');
 			const st = S.state[key];
 			const idx = $(this).data('idx');
 			if (!st || idx == null) return;
-			const [dt, fn] = String($(this).val() || '').split('|');
+			const display = String($(this).val() || '').trim();
+			const m = tv_cf_field_choices().find((x) => x.display === display);
 			const r = st.tv.custom[idx] || (st.tv.custom[idx] = {});
-			r.doctype = dt || '';
-			r.fieldname = fn || '';
-			r.value = '';
-			const $row = $(this).closest('.mba-cf-row');
-			$row.find('.mba-cf-value').val('').trigger('focus');
-			if (dt && fn) tv_cf_fill_datalist(key, $row);
-			else $row.find('datalist').empty();
+			if (!m) {
+				// Taapan tak sepadan mana-mana medan — pulih paparan pilihan
+				// semasa (bila ada); kosong bila baris belum dipilih.
+				$(this).val(tv_cf_display(r));
+				return;
+			}
+			if (m.doctype === r.doctype && m.fieldname === r.fieldname) return;
+			r.doctype = m.doctype;
+			r.fieldname = m.fieldname;
+			r.value = ''; r.min = ''; r.max = '';
+			// Re-render — baris tukar bentuk input ikut jenis medan (nilai
+			// tunggal vs julat Min–Max nombor vs pilihan Select). Nilai
+			// baris lain kekal (disimpan dalam state pada setiap keystroke).
+			tv_cf_rerender(key);
+			const $row = tv_cf_pane(key).find(`.mba-cf-row[data-idx="${idx}"]`);
+			if (tv_cf_is_range(r)) $row.find('.mba-cf-min').trigger('focus');
+			else {
+				$row.find('.mba-cf-value').trigger('focus');
+				tv_cf_fill_datalist(key, $row);
+			}
 		});
 		$d.on('input', '.mba-cf-value', function () {
 			const key = $(this).closest('.mba-group').data('item');
@@ -822,10 +832,29 @@ window.ManageBookingApp = (function () {
 			if (!st || idx == null || !st.tv.custom[idx]) return;
 			st.tv.custom[idx].value = $(this).val();
 		});
-		$d.on('keydown', '.mba-cf-value', function (ev) {
+		// Input julat Min–Max (medan nombor/currency) — simpan ikut kelas.
+		$d.on('input', '.mba-cf-min, .mba-cf-max', function () {
+			const $in = $(this);
+			const st = S.state[$in.closest('.mba-group').data('item')];
+			const idx = $in.data('idx');
+			if (!st || idx == null || !st.tv.custom[idx]) return;
+			st.tv.custom[idx][$in.hasClass('mba-cf-min') ? 'min' : 'max'] = $in.val();
+		});
+		$d.on('keydown', '.mba-cf-value, .mba-cf-min, .mba-cf-max', function (ev) {
 			if (ev.key !== 'Enter') return;
 			ev.preventDefault();
 			tv_cf_reload($(this).closest('.mba-group').data('item'));
+		});
+		// Mod gabungan baris AND | OR — kemaskini state + kelas butang terus
+		// (tiada re-render supaya nilai yang sedang ditaip kekal).
+		$d.on('click', '.mba-cf-match-btn', function () {
+			const $b = $(this);
+			const key = $b.closest('.mba-group').data('item');
+			const st = S.state[key];
+			if (!st) return;
+			st.tv.cf_match = $b.data('match') === 'OR' ? 'OR' : 'AND';
+			$b.closest('.mba-cf-match').find('.mba-cf-match-btn').removeClass('active');
+			$b.addClass('active');
 		});
 		$d.on('click', '.mba-cf-apply', function () {
 			tv_cf_reload($(this).closest('.mba-group').data('item'));
@@ -839,13 +868,24 @@ window.ManageBookingApp = (function () {
 		});
 
 		// Klik kad/baris traveller → modal maklumat penuh. Slot TANPA rekod
-		// Traveller tidak membuka modal (tiada maklumat doctype; nama papar
-		// guest_label) — butang aksi dalam kad kekal berfungsi.
+		// Traveller JUGA membuka modal — panel Booking menggantikan Personal
+		// (info traveller belum berlinkung). Butang aksi dalam kad kekal
+		// berfungsi. Baris VISIBLE dalam pane semasa dihantar sebagai konteks
+		// navigasi Prev/Next modal (grid ATAU jadual — hanya satu paparan).
 		$d.on('click', '.mba-tvcard, tr.mba-tv-trow', function (ev) {
 			if ($(ev.target).closest('a, button').length) return;
 			let t = null;
 			try { t = JSON.parse($(this).attr('data-trav')); } catch (e) { /* ignore */ }
-			if (t && t.traveller) show_traveller_dialog(t);
+			if (!t) return;
+			const list = [];
+			$(this).closest('.mba-tab-pane').find('.mba-tvcard, tr.mba-tv-trow').each(function () {
+				if (!$(this).is(':visible')) return;
+				let r = null;
+				try { r = JSON.parse($(this).attr('data-trav') || ''); } catch (e) { /* ignore */ }
+				if (r && r.traveller) list.push(r);
+			});
+			const idx = list.findIndex((r) => r.reservation === t.reservation);
+			show_traveller_dialog(t, { list, index: idx < 0 ? 0 : idx });
 		});
 
 		// Load more — tingkatkan limit, fetch semula.
@@ -899,7 +939,6 @@ window.ManageBookingApp = (function () {
 			else if (kind === 'payment' && st[scope]) st[scope].payment = val;
 			else if (kind === 'currency' && st[scope]) st[scope].currency = val;
 			else if (kind === 'group' && st[scope]) st[scope].group = val;
-			else if (kind === 'doc' && st.tv) st.tv.doc_status = val;
 			else if (kind === 'privacy' && st.rm) st.rm.privacy = val;
 			else if (kind === 'limit' && scope && st[scope]) st[scope].limit = parseInt(val, 10) || 0;
 			if (key.startsWith('bkg:') && scope === 'tv') load_bkg_travellers(key, true);
@@ -1571,8 +1610,9 @@ window.ManageBookingApp = (function () {
 			ad: { status: '', payment: '', search: '', group: '', limit: DEFAULT_LIMIT },
 			tv: { search: '', doc_status: '', group: '', limit: DEFAULT_LIMIT,
 				sort: '', sort_dir: 1, view: 'grid',
-				// Penapis dinamik — baris {doctype, fieldname, value} + togol panel.
-				custom: [], cf_open: false },
+				// Penapis dinamik — baris {doctype, fieldname, value} + togol
+				// panel + mod gabungan baris ('AND' lalai / 'OR').
+				custom: [], cf_open: false, cf_match: 'AND' },
 			rm: { search: '', privacy: '', limit: DEFAULT_LIMIT },
 			fl: { search: '', limit: DEFAULT_LIMIT },
 		};
@@ -1787,6 +1827,7 @@ window.ManageBookingApp = (function () {
 				search: st.tv.search || null,
 				doc_status: st.tv.doc_status || null,
 				custom_filters: tv_cf_active(st.tv.custom),
+				custom_match: st.tv.cf_match === 'OR' ? 'OR' : 'AND',
 				limit: st.tv.limit,
 			});
 			S.cache[key] = { ...(S.cache[key] || {}), travellers: tv };
@@ -2217,14 +2258,10 @@ window.ManageBookingApp = (function () {
 		if (!tv || !it || !st) return;
 		const rows = tv.travellers || [];
 		const pane = pane_el(key, 'traveller');
-		if (!rows.length) {
-			pane.html(`<div class="mba-empty">${__('No travellers found for this filter.')}</div>`
-				+ showing_footer(tv, __('travellers'), 'tv'));
-			return;
-		}
+		// NOTE: rows kosong TIDAK lagi overwrite pane — render_traveller_list
+		// papar mesej kosong DALAM .mba-tv-grid supaya toolbar & panel
+		// penapis kekal boleh diubah/dibuang.
 
-		const docOpts = DOC_STATUS_OPTIONS
-			.map((o) => `<option value="${esc(o)}" ${st.tv.doc_status === o ? 'selected' : ''}>${esc(o || 'All Docs')}</option>`).join('');
 		// Julat tarikh trip group (batch → mula terawal / tamat terakhir)
 		// untuk tanda merah DOB dalam tempoh perjalanan.
 		const starts = it.members
@@ -2247,8 +2284,6 @@ window.ManageBookingApp = (function () {
 				trip_groups: st.tv.group ? [st.tv.group] : item_groups(it),
 			},
 			toolbar_extras: `<span class="mba-tv-extras">
-				${group_filter_options(it.members, st.tv.group, 'tv')}
-				<select data-kind="doc" data-scope="tv">${docOpts}</select>
 				${limit_options('tv', st.tv.limit)}
 				${tv_cf_toggle_html(st.tv)}
 			</span>`,
@@ -2285,42 +2320,101 @@ window.ManageBookingApp = (function () {
 		return S.tvFieldsPromise;
 	}
 
-	const tv_cf_active = (rows) => (rows || [])
-		.filter((r) => r.doctype && r.fieldname && r.value != null && r.value !== '');
+	// Baris aktif = ada nilai tunggal ATAU julat (min/max) — dikira dalam
+	// pill butang Filter dan dihantar ke server sebagai custom_filters.
+	const tv_cf_active = (rows) => (rows || []).filter((r) => r.doctype && r.fieldname
+		&& ((r.value != null && r.value !== '')
+			|| (r.min != null && r.min !== '')
+			|| (r.max != null && r.max !== '')));
+
+	// Jenis medan nombor — input NILAI berupa julat Min–Max (bukan teks
+	// tunggal). Fieldtype datang dari meta cache S.tvFields.
+	const TV_CF_NUMERIC_TYPES = ['Int', 'Float', 'Currency', 'Percent'];
+	const tv_cf_field_meta = (r) => {
+		const g = (S.tvFields || []).find((x) => x.doctype === r?.doctype);
+		return g?.fields.find((f) => f.fieldname === r?.fieldname) || null;
+	};
+	const tv_cf_fieldtype = (r) => tv_cf_field_meta(r)?.fieldtype || '';
+	const tv_cf_is_range = (r) => TV_CF_NUMERIC_TYPES.includes(tv_cf_fieldtype(r));
+	// Medan Select — pilihan penuh dari meta (autocomplete nilai penapis).
+	const tv_cf_select_options = (r) => tv_cf_field_meta(r)?.options || [];
 
 	// Butang togol pada toolbar (kiri, selepas tapisan standard).
+	// Ikon 'funnel' — set ikon Lucide Frappe tiada lagi 'filter'.
 	function tv_cf_toggle_html(tvst) {
 		const n = tv_cf_active(tvst.custom).length;
 		return `<button type="button" class="btn btn-default btn-xs mba-cf-toggle"
 			title="${esc(__('Filter by any field'))}">
-			${frappe.utils.icon('filter', 'sm')} ${__('Filter')}${n ? ` <span class="mba-count-pill">${n}</span>` : ''}</button>`;
+			${frappe.utils.icon('funnel', 'sm')} ${__('Filter')}${n ? ` <span class="mba-count-pill">${n}</span>` : ''}</button>`;
 	}
 
 	// Panel baris penapis — terpapar bila tv.cf_open (kekal merentas render).
+	// ≥2 baris → pilihan mod gabungan AND | OR (cf_match; lalai AND).
+	// PEMILIH MEDAN: input AUTOCOMPLETE (datalist) — senarai medan panjang
+	// (4 doctype) dicari terus dengan menaip; paparan "Doctype — Label",
+	// nilai sebenar diselesaikan melalui tv_cf_field_choices().
+	// Medan nombor/currency (Int/Float/Currency/Percent) → input julat
+	// Min–Max; medan lain → input nilai tunggal + datalist cadangan.
+	function tv_cf_field_choices() {
+		// Flat [{display, doctype, fieldname}] — susun ikut doctype meta.
+		const out = [];
+		(S.tvFields || []).forEach((g) => (g.fields || []).forEach((f) => out.push({
+			display: `${g.doctype} — ${f.label}`,
+			doctype: g.doctype,
+			fieldname: f.fieldname,
+		})));
+		return out;
+	}
+	const tv_cf_display = (r) => {
+		if (!r?.doctype || !r?.fieldname) return '';
+		const m = tv_cf_field_choices().find((x) =>
+			x.doctype === r.doctype && x.fieldname === r.fieldname);
+		return m ? m.display : '';
+	};
 	function tv_cf_panel_html(tvst) {
 		if (!tvst.cf_open) return '';
-		const groups = S.tvFields || [];
 		const rows = tvst.custom || [];
-		const fieldOpts = (sel) => groups.map((g) => `<optgroup label="${esc(__(g.doctype))}">`
-			+ g.fields.map((f) => `<option value="${esc(g.doctype + '|' + f.fieldname)}"
-				${sel === g.doctype + '|' + f.fieldname ? 'selected' : ''}>${esc(f.label)}</option>`).join('')
-			+ '</optgroup>').join('');
+		const match = tvst.cf_match === 'OR' ? 'OR' : 'AND';
+		const matchBtn = (v) => `<button type="button"
+			class="btn btn-default btn-xs mba-cf-match-btn${match === v ? ' active' : ''}"
+			data-match="${v}" title="${esc(v === 'AND'
+				? __('Row must match ALL filters')
+				: __('Row must match ANY filter'))}">${v}</button>`;
+		const fieldChoices = tv_cf_field_choices();
+		const fieldOpts = fieldChoices.map((x) =>
+			`<option value="${esc(x.display)}"></option>`).join('');
 		return `
 		<div class="mba-cf">
 			${rows.map((r, i) => `
 			<div class="mba-cf-row" data-idx="${i}">
-				<select class="mba-cf-field" data-idx="${i}">
-					<option value="">${__('— Select Field —')}</option>
-					${fieldOpts(r.doctype ? r.doctype + '|' + r.fieldname : '')}
-				</select>
+				<span class="mba-cf-pick">
+					<input type="text" class="form-control mba-cf-field-input" data-idx="${i}"
+						list="mba-cf-fdl-${i}" autocomplete="off"
+						placeholder="${esc(__('— Select Field —'))}"
+						value="${esc(tv_cf_display(r))}" />
+					<datalist id="mba-cf-fdl-${i}">${fieldOpts}</datalist>
+				</span>
+				${tv_cf_is_range(r) ? `
+				<span class="mba-cf-range">
+					<input type="number" step="any" class="form-control mba-cf-min" data-idx="${i}"
+						placeholder="${esc(__('Min'))}" value="${esc(r.min ?? '')}" />
+					<span class="mba-cf-sep">–</span>
+					<input type="number" step="any" class="form-control mba-cf-max" data-idx="${i}"
+						placeholder="${esc(__('Max'))}" value="${esc(r.max ?? '')}" />
+				</span>` : `
 				<input type="text" class="form-control mba-cf-value" data-idx="${i}" list="mba-cf-dl-${i}"
 					placeholder="${esc(__('Value'))}" value="${esc(r.value ?? '')}" />
-				<datalist id="mba-cf-dl-${i}"></datalist>
+				<datalist id="mba-cf-dl-${i}">${tv_cf_select_options(r).map((o) =>
+					`<option value="${esc(o)}"></option>`).join('')}</datalist>`}
 				<button type="button" class="btn btn-default btn-xs mba-cf-del" data-idx="${i}"
 					title="${esc(__('Remove this filter'))}">✕</button>
 			</div>`).join('')}
 			<div class="mba-cf-actions">
 				<button type="button" class="btn btn-default btn-xs mba-cf-add">+ ${__('Add Filter')}</button>
+				${rows.length > 1 ? `<span class="mba-cf-match btn-group" role="group"
+					aria-label="${esc(__('Match mode'))}">
+					<span class="mba-cf-match-lbl">${__('Match')}:</span>${matchBtn('AND')}${matchBtn('OR')}
+				</span>` : ''}
 				${rows.length ? `<button type="button" class="btn btn-default btn-xs mba-cf-clear">${__('Clear All')}</button>
 				<button type="button" class="btn btn-primary btn-xs mba-cf-apply">${__('Apply')}</button>` : ''}
 			</div>
@@ -2329,11 +2423,18 @@ window.ManageBookingApp = (function () {
 
 	// Isi datalist cadangan nilai untuk satu baris — skop ikut item
 	// (group/batch L2 atau booking L3). Tidak re-render supaya fokus kekal.
+	// Baris julat nombor tiada datalist (input Min–Max bukan teks); baris
+	// Select guna pilihan meta (sudah diisi semasa render — tiada API).
 	function tv_cf_fill_datalist(key, $row) {
 		const idx = $row.data('idx');
 		const st = S.state[key];
 		const r = st?.tv?.custom?.[idx];
-		if (!st || !r || !r.doctype || !r.fieldname) return;
+		if (!st || !r || !r.doctype || !r.fieldname || tv_cf_is_range(r)) return;
+		if (tv_cf_fieldtype(r) === 'Select') {
+			$row.find('datalist').html(tv_cf_select_options(r)
+				.map((o) => `<option value="${esc(o)}"></option>`).join(''));
+			return;
+		}
 		const args = { doctype: r.doctype, fieldname: r.fieldname, limit: 100 };
 		if (key.startsWith('bkg:')) {
 			args.booking = key.slice(4);
@@ -2356,7 +2457,7 @@ window.ManageBookingApp = (function () {
 			? $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="tv"]`)
 			: pane_el(key, 'traveller');
 		$pane.find('.mba-cf-row').each(function () {
-			if ($(this).find('.mba-cf-field').val()) tv_cf_fill_datalist(key, $(this));
+			if ($(this).find('.mba-cf-field-input').val()) tv_cf_fill_datalist(key, $(this));
 		});
 	}
 
@@ -2970,7 +3071,9 @@ window.ManageBookingApp = (function () {
 	}
 
 	// Modal detail traveller — SEMUA maklumat traveller + reservation.
-	function show_traveller_dialog(t) {
+	// ctx (pilihan): {list, index} — senarai traveller paparan aktif &
+	// posisi semasa, untuk navigasi Prev/Next antara traveller.
+	function show_traveller_dialog(t, ctx) {
 		const crow = (k, v) => (v !== '' && v != null
 			? `<div class="mba-bkg-card-row"><span>${k}</span><span>${v}</span></div>` : '');
 		const card = (title, inner) => (inner ? `
@@ -2980,7 +3083,9 @@ window.ManageBookingApp = (function () {
 		const F = (v) => (v ? esc(v) : '');
 
 		// Kolum kiri — imej passport ATAU preview dokumen (PDF), sticky
-		// pada skrin biasa; tiada fail → modal satu kolum sahaja.
+		// pada skrin biasa; tiada fail → modal satu kolum sahaja. Preview
+		// dibungkus .mba-tvmodal-photo-wrap (overflow auto); bar aksi bawah
+		// menawarkan Crop / Download / Open in new tab.
 		const is_img_url = (u) => /\.(png|jpe?g|gif|webp|svg|bmp|tiff?)($|\?)/i.test(u || '');
 		const is_img = is_img_url(t.passport_image);
 		const preview = !t.passport_image ? ''
@@ -2988,7 +3093,8 @@ window.ManageBookingApp = (function () {
 				? `<img class="mba-tvmodal-photo" src="${esc(t.passport_image)}" alt="${esc(t.traveller_name || '')}">`
 				: `<iframe class="mba-tvmodal-frame" src="${esc(t.passport_image)}"
 					title="${esc(__('Passport preview'))}"></iframe>`);
-		const side = preview ? `<div class="mba-tvmodal-side">${preview}
+		const side = preview ? `<div class="mba-tvmodal-side">
+			<div class="mba-tvmodal-photo-wrap">${preview}</div>
 			<div class="mba-file-actions">
 				${is_img && t.traveller ? `<button type="button" class="btn btn-default btn-sm mba-crop-btn"
 					title="${esc(__('Crop this document'))}">✂ ${__('Crop')}</button>` : ''}
@@ -3096,33 +3202,105 @@ window.ManageBookingApp = (function () {
 				+ crowS(__('Booking Message'), t.booking_message ? esc(t.booking_message) : ''))
 			: '';
 
-		// Sub-heading pengasing seksyen dalam kolum info — Traveller's Info
-		// (maklumat doctype Traveller) & Booking Info (konteks reservation).
-		const sub_head = (label) => `<div class="mba-tvmodal-subhead">${label}</div>`;
-		const bookingInfo = t.reservation
-			? sub_head(__('Booking Info')) + bookingCard + rooming + cruise + reservation
+		// Traveller BELUM berlinkung dengan doctype Traveller (slot guest
+		// dalam booking reservation) — panel Booking menggantikan Personal
+		// sebagai panel pertama modal & dikeluarkan dari section Booking Info.
+		const noTvLink = !t.traveller;
+
+		// Navigasi Prev/Next — senarai traveller paparan aktif dikumpul
+		// saat modal dibuka (ctx). Butang dikunci pada hujung senarai;
+		// posisi semasa dipapar di tengah. Butang Edit (✏) di kanan bar —
+		// buka dialog edit maklumat peribadi (doctype Traveller sahaja).
+		const navInner = (ctx?.list?.length > 1) ? (() => {
+			const i = ctx.index ?? 0;
+			const btn = (dir, label) => `<button type="button"
+				class="btn btn-default btn-xs mba-tvmodal-nav-btn" data-dir="${dir}"
+				${(dir < 0 && i <= 0) || (dir > 0 && i >= ctx.list.length - 1) ? ' disabled' : ''}>${label}</button>`;
+			return `${btn(-1, '‹ ' + __('Prev'))}
+				<span class="mba-tvmodal-navpos">${i + 1} / ${ctx.list.length}</span>
+				${btn(1, __('Next') + ' ›')}`;
+		})() : '';
+		const editBtn = t.traveller
+			? `<button type="button" class="btn btn-default btn-xs mba-tvmodal-edit-btn"
+				title="${esc(__('Edit traveller info (Traveller doctype)'))}">✏ ${__('Edit')}</button>`
+			: '';
+		const topbar = (navInner || editBtn)
+			? `<div class="mba-tvmodal-top">
+				<div class="mba-tvmodal-nav">${navInner}</div>
+				${editBtn}
+			</div>`
+			: '';
+
+		// Section collapsible (details/summary — corak sama dengan
+		// .mba-analytics & .mba-room). COLLAPSED secara default — user buka
+		// sendiri. Badge status doctype pada sub-heading: Traveller's Info ←
+		// status Traveller; Booking Info ← status Booking Reservation.
+		// Panel Personal kekal DI LUAR section (sentiasa terpapar); panel
+		// Booking dimasukkan ke DALAM section Booking Info — kad pertama
+		// (KECUALI traveller belum berlinkung → Booking keluar semula
+		// menggantikan Personal, lihat noTvLink).
+		const tvStatus = t.traveller_status || t.document_status || '';
+		const section = (label, inner, statusBadge) => `
+			<details class="mba-tvsec">
+				<summary>${esc(label)} ${statusBadge || ''}</summary>
+				<div class="mba-tvsec-body">${inner}</div>
+			</details>`;
+		const travellerSec = section(__("Traveller's Info"),
+			[docs, contact, health].filter(Boolean).join(''),
+			badge(tvStatus, DOC_STATUS_COLORS[tvStatus]));
+		const bookingSec = (t.reservation || t.booking || t.booking_number)
+			? section(__('Booking Info'),
+				[noTvLink ? '' : bookingCard, rooming, cruise, reservation].filter(Boolean).join(''),
+				badge(t.reservation_status, RES_STATUS_COLORS[t.reservation_status]))
 			: '';
 
 		// PC (skrin biasa) — modal maksimum, 2 kolum 50/50: preview dokumen
 		// (kiri, sticky) + kad info (kanan, scroll). Telefon & modal tanpa
-		// imej — satu kolum bertindan.
+		// imej — satu kolum bertindan. Bar top (navigasi Prev/Next + Edit)
+		// berada DI ATAS grid .mba-tvmodal — di luar kedua-dua kolum, kekal
+		// kelihatan walaupun kolum info menatal atau borang Edit dibuka.
+		// Susunan kolum info: panel pertama (Personal; ATAU Booking bila
+		// traveller belum berlinkung) → Traveller's Info (collapse) →
+		// Booking Info (collapse — kad Booking anak pertama kecuali noTvLink).
 		frappe.msgprint({
-			title: '👤 ' + (t.traveller_name || t.reservation),
+			title: '👤 ' + (t.traveller_name || t.guest_label || t.reservation),
 			indicator: t.reservation_status === 'Cancelled' ? 'red' : 'blue',
 			wide: true,
-			message: `<div class="mba-tvmodal">
+			message: `${topbar}
+			<div class="mba-tvmodal">
 				${side}
 				<div class="mba-tvmodal-info">
-					${sub_head(__("Traveller's Info"))}
-					${personal}${docs}${contact}${health}
-					${bookingInfo}
+					${noTvLink && bookingCard ? bookingCard : personal}
+					${travellerSec}
+					${bookingSec}
 				</div>
 			</div>`,
 		});
 
+		// frappe core (messages.js) paksa z-index 2000 pada setiap msgprint
+		// supaya sentiasa di atas. Modal info dokumen traveller cukup dengan
+		// z-index piawaian Bootstrap — override semula ke 1050 di sini
+		// (bukan ubah frappe core) supaya tak menutup overlay lain.
+		if (frappe.msg_dialog?.$wrapper) {
+			frappe.msg_dialog.$wrapper.css('z-index', 1050);
+		}
+
 		// Butang dalam msgprint modal berada di luar container page — ikat
 		// terus pada wrapper dialog (bukan delegasi $d).
 		if (frappe.msg_dialog?.$wrapper) {
+			frappe.msg_dialog.$wrapper.find('.mba-tvmodal-edit-btn').on('click', () => {
+				open_traveller_edit_form(t, ctx);
+			});
+			frappe.msg_dialog.$wrapper.find('.mba-tvmodal-nav-btn').on('click', function () {
+				const dir = parseInt($(this).data('dir'), 10) || 0;
+				const ni = (ctx?.index ?? 0) + dir;
+				const nt = ctx?.list?.[ni];
+				if (!nt) return;
+				// msgprint APPEND bila msg_area sudah berisi — kosongkan
+				// dahulu supaya kandungan modal DIGANTI, bukan bertindan.
+				frappe.msg_dialog.clear?.();
+				show_traveller_dialog(nt, { ...ctx, index: ni });
+			});
 			frappe.msg_dialog.$wrapper.find('.mba-crop-btn').on('click', () => {
 				frappe.msg_dialog.hide();
 				show_crop_dialog({
@@ -3160,12 +3338,187 @@ window.ManageBookingApp = (function () {
 		});
 	}
 
-	// Dialog crop dokumen passport — seret untuk pan, slider untuk zum,
-	// bingkai tetap 3:4 (potret). Simpan → potong di kanvas (pilih resolution
+	// Padam beberapa medan sekaligus pada cache baris traveller (edit modal)
+	// + render semula tab aktif — kelainan pelbagai medan refresh_traveller_
+	// caches (satu medan, imej).
+	function patch_traveller_caches(traveller, patch) {
+		Object.entries(S.cache).forEach(([k, c]) => {
+			let hit = false;
+			(c?.profile?.reservations || []).forEach((r) => {
+				if (r.traveller === traveller) { Object.assign(r, patch); hit = true; }
+			});
+			(c?.travellers?.travellers || []).forEach((r) => {
+				if (r.traveller === traveller) { Object.assign(r, patch); hit = true; }
+			});
+			if (!hit) return;
+			const $g = $(`#mba-detail .mba-group[data-item="${k}"]`);
+			const tvPane = $g.find('.mba-tab-pane[data-pane="tv"]');
+			if (tvPane.length && tvPane.hasClass('active')) render_bkg_travellers(k);
+			const trPane = $g.find('.mba-tab-pane[data-pane="traveller"]');
+			if (trPane.length && trPane.hasClass('active')) render_travellers_tab(k);
+		});
+	}
+
+	// ── Borang EDIT maklumat peribadi Traveller — DIRENDER DI DALAM modal
+	// view sedia ada, MENGGANTIKAN kandungan kolum kedua (.mba-tvmodal-info).
+	// Bar top navigasi/Edit berada di luar grid — kekal dipapar di atas
+	// borang. Kolum kiri preview passport tidak disentuh; tiada modal
+	// bertindan. FieldGroup Frappe memberi kontrol penuh (Link Country,
+	// Date picker, Attach upload). Semua disimpan MELALUI DOCTYPE TRAVELLER
+	// sahaja (endpoint update_traveller_info: get_doc → set medan whitelist
+	// → save). Snapshot Booking Reservation tidak disentuh; before_save
+	// doctype urus uppercase nama/alamat, full_name, umur & title↔gender. ──
+	function open_traveller_edit_form(t, ctx) {
+		if (!t.traveller) return;
+		const $dlg = frappe.msg_dialog?.$wrapper;
+		if (!$dlg || !$dlg.find('.mba-tvmodal').length) return;
+
+		const fields = [
+			{ fieldtype: 'Section Break', label: __('Identity') },
+			{ fieldtype: 'Select', fieldname: 'title', label: __('Title'),
+				options: ['', 'Mr', 'Mrs'] },
+			{ fieldtype: 'Select', fieldname: 'gender', label: __('Gender'),
+				options: ['', 'Male', 'Female'] },
+			{ fieldtype: 'Section Break', label: __('Name') },
+			{ fieldtype: 'Data', fieldname: 'first_name', label: __('First Name'), reqd: 1 },
+			{ fieldtype: 'Data', fieldname: 'last_name', label: __('Last Name'), reqd: 1 },
+			{ fieldtype: 'Section Break', label: __('Documents') },
+			{ fieldtype: 'Data', fieldname: 'passport_no', label: __('Passport No') },
+			{ fieldtype: 'Date', fieldname: 'passport_expiry', label: __('Passport Expiry') },
+			{ fieldtype: 'Data', fieldname: 'ic_number', label: __('IC Number') },
+			{ fieldtype: 'Date', fieldname: 'date_of_birth', label: __('Date of Birth') },
+			{ fieldtype: 'Link', fieldname: 'nationality', label: __('Nationality'),
+				options: 'Country' },
+			{ fieldtype: 'Attach', fieldname: 'visa_photo', label: __('Visa Image') },
+			{ fieldtype: 'Section Break', label: __('Address') },
+			{ fieldtype: 'Data', fieldname: 'address_line1', label: __('Address Line 1') },
+			{ fieldtype: 'Data', fieldname: 'city', label: __('City') },
+			{ fieldtype: 'Data', fieldname: 'state', label: __('State') },
+			{ fieldtype: 'Data', fieldname: 'postcode', label: __('Postcode') },
+			{ fieldtype: 'Data', fieldname: 'country', label: __('Country') },
+			{ fieldtype: 'Section Break', label: __('Emergency Contact') },
+			{ fieldtype: 'Data', fieldname: 'emergency_contact_name', label: __('Name') },
+			{ fieldtype: 'Phone', fieldname: 'emergency_contact_phone', label: __('Phone') },
+			{ fieldtype: 'Data', fieldname: 'emergency_contact_relationship',
+				label: __('Relationship') },
+		];
+
+		// Panel pengganti kandungan kolum kanan — kosongkan .mba-tvmodal-info
+		// dan lampirkan borang. Bar top (.mba-tvmodal-top) berada DI LUAR
+		// grid .mba-tvmodal (atas modal) — tak terjejas; navigasi Prev/Next &
+		// butang Edit kekal kelihatan semasa borang terbuka. Kolum kiri
+		// (preview passport) tidak disentuh. Boleh dipanggil semula (klik
+		// Edit berulang) — borang lama dibuang dahulu.
+		const $info = $dlg.find('.mba-tvmodal-info');
+		$info.children().remove();
+		$info.append(`
+			<div class="mba-tvedit">
+				<div class="mba-tvedit-head">
+					<b>${__('Edit Traveller Info')}</b>
+					<span class="mba-muted">${esc(t.traveller_name || t.traveller)}</span>
+				</div>
+				<div class="mba-tvedit-body"></div>
+				<div class="mba-tvedit-foot">
+					<button type="button" class="btn btn-primary btn-sm mba-tvedit-save">
+						${__('Save')}</button>
+					<button type="button" class="btn btn-default btn-sm mba-tvedit-cancel">
+						${__('Cancel')}</button>
+				</div>
+			</div>`);
+
+		const fg = new frappe.ui.FieldGroup({
+			fields,
+			body: $info.find('.mba-tvedit-body').get(0),
+			// Enter TIDAK memicu aksi global Desk (trigger_primary_action)
+			// — FieldGroup ini luar dialog framework.
+			no_submit_on_enter: true,
+			no_focus: false,
+		});
+		fg.make();
+		fg.set_values({
+			title: t.title || '', gender: t.gender || '',
+			first_name: t.first_name || '', last_name: t.last_name || '',
+			passport_no: t.passport_no || '', passport_expiry: t.passport_expiry || '',
+			ic_number: t.ic_number || '', date_of_birth: t.dob || '',
+			nationality: t.nationality || '', visa_photo: t.visa_photo || '',
+			address_line1: t.address_line1 || '', city: t.city || '',
+			state: t.state || '', postcode: t.postcode || '', country: t.country || '',
+			emergency_contact_name: t.emergency_contact_name || '',
+			emergency_contact_phone: t.emergency_contact_phone || '',
+			emergency_contact_relationship: t.emergency_contact_relationship || '',
+		});
+		// Nama & alamat — paparan uppercase semasa menaip (nilai sebenar
+		// di-uppercase oleh before_save doctype Traveller).
+		['first_name', 'last_name', 'address_line1', 'city', 'state',
+			'country', 'postcode'].forEach((f) => {
+			const fld = fg.get_field(f);
+			fld?.$input?.addClass('mba-input-upper');
+		});
+		$info.find('.mba-tvedit-body .frappe-control[data-fieldname="nationality"] input')
+			.trigger('change'); // segar label Link
+
+		const restore = () => {
+			// Kembali ke paparan view — render semula modal (msgprint
+			// append bila area tak kosong; kosongkan dahulu).
+			frappe.msg_dialog.clear();
+			show_traveller_dialog(t, ctx);
+		};
+		$info.find('.mba-tvedit-cancel').on('click', restore);
+
+		const save = async () => {
+			// get_values(true) — TANPA enforcement required FieldGroup yang
+			// memanggil frappe.msgprint global (akan APPEND ke modal view
+			// yang sama). Required disemak manual dengan alert.
+			const v = fg.get_values(true);
+			if (!String(v?.first_name || '').trim() || !String(v?.last_name || '').trim()) {
+				frappe.show_alert({
+					message: __('First Name and Last Name are required'),
+					indicator: 'orange',
+				});
+				return;
+			}
+			const $btn = $info.find('.mba-tvedit-save').prop('disabled', true);
+			try {
+				const out = await api('update_traveller_info', {
+					traveller: t.traveller, values: v,
+				});
+				const { traveller, ...patch } = out || {};
+				if (!traveller) throw new Error(__('No response'));
+				patch_traveller_caches(t.traveller, patch);
+				if (ctx?.list && ctx.list[ctx.index]) {
+					Object.assign(ctx.list[ctx.index], patch);
+				}
+				const t2 = { ...t, ...patch };
+				// Render semula modal view — panel info kembali
+				// menggantikan borang.
+				frappe.msg_dialog.clear();
+				show_traveller_dialog(t2, ctx);
+				frappe.show_alert({ message: __('Traveller info updated'), indicator: 'green' });
+			} catch (e) {
+				// api() sudah papar alert ralat — benarkan cuba semula
+				$btn.prop('disabled', false);
+			}
+		};
+		$info.find('.mba-tvedit-save').on('click', save);
+	}
+
+	// Dialog crop & rotate dokumen passport — seret untuk pan, slider untuk
+	// zum, butang ⟲/⟳ untuk putar 90°. Simpan → potong di kanvas (resolusi
 	// asal) → muat naik → gantikan passport_image traveller.
+	//
+	// EXIF-SAFE: gambar telefon biasanya bawa orientasi EXIF — <img> papar
+	// sudah dirotak browser, tetapi lukisan kanvas lama tidak tentu sama.
+	// Sumber potongan ialah 'working canvas' (createImageBitmap
+	// imageOrientation from-image) yang dijana sekali daripada imej
+	// dipaparkan — display dan output SENTIASA sama orientasi. Putar
+	// dibakar terus ke working canvas (tiada math transform semasa pan/
+	// zum), jadi kiraan crop kekal ringkas dan tepat.
 	function show_crop_dialog(opts) {
 		const dlg = new frappe.ui.Dialog({
-			title: '✂ ' + __('Crop') + ' — ' + (opts.name || __('Passport')),
+			title: __('Crop / Rotate') + ' — ' + (opts.name || __('Passport')),
+			// Large (800px) — bingkai crop ikut LEBAR PENUH modal (rasio
+			// 5:3); modal standard (~500px) menjadikan bingkai terlalu kecil.
+			size: 'large',
 			primary_action_label: __('Save'),
 			primary_action: () => save_crop(),
 		});
@@ -3173,27 +3526,53 @@ window.ManageBookingApp = (function () {
 			<div class="mba-crop">
 				<div class="mba-crop-view">
 					<img class="mba-crop-img" src="${esc(opts.url)}" alt="" draggable="false">
+					<div class="mba-crop-handle" title="${esc(__('Drag corner to resize — free ratio'))}"></div>
 				</div>
-				<div class="mba-crop-zoom">
-					<span>−</span>
-					<input type="range" class="mba-crop-range" min="0" max="100" value="0" />
-					<span>+</span>
+				<div class="mba-crop-tools">
+					<button type="button" class="btn btn-default btn-xs mba-rot" data-dir="-1"
+						title="${esc(__('Rotate left'))}" aria-label="${esc(__('Rotate left'))}">
+						${frappe.utils.icon('rotate-ccw', 'sm')}</button>
+					<div class="mba-crop-zoom">
+						<span>−</span>
+						<input type="range" class="mba-crop-range" min="0" max="100" value="0" />
+						<span>+</span>
+					</div>
+					<button type="button" class="btn btn-default btn-xs mba-rot" data-dir="1"
+						title="${esc(__('Rotate right'))}" aria-label="${esc(__('Rotate right'))}">
+						${frappe.utils.icon('rotate-cw', 'sm')}</button>
 				</div>
+				<div class="mba-crop-hint">${__('Drag the corner grip ⤡ to resize the frame — free ratio')}</div>
 			</div>`);
 
 		const view = dlg.$body.find('.mba-crop-view').get(0);
 		const img = dlg.$body.find('.mba-crop-img').get(0);
 		const range = dlg.$body.find('.mba-crop-range').get(0);
+		let src = null;            // working canvas — display == output
+		let srcUrl = null;         // object URL preview semasa (di-revoke semasa putar)
 		let natW = 0, natH = 0, minScale = 1, scale = 1, tx = 0, ty = 0;
 
 		const apply = () => {
-			const vw = view.clientWidth, vh = view.clientHeight;
+			const vw = view.clientWidth || 600, vh = view.clientHeight || 360;
 			const w = natW * scale, h = natH * scale;
 			tx = Math.min(0, Math.max(vw - w, tx));
 			ty = Math.min(0, Math.max(vh - h, ty));
 			img.style.width = w + 'px';
 			img.style.left = tx + 'px';
 			img.style.top = ty + 'px';
+		};
+		const fit = () => {
+			// Dimensi viewport crop — fallback 600×360 (rasio 5:3, anggaran
+			// .mba-crop-view; lebar sebenar ikut modal). Tanpa fallback, init
+			// yang berjalan sebelum modal selesai di-layout mendapat
+			// clientWidth 0 → scale 0 → img 'width: 0px'.
+			const vw = view.clientWidth || 600;
+			const vh = view.clientHeight || 360;
+			minScale = Math.max(vw / natW, vh / natH);
+			scale = minScale;
+			tx = (vw - natW * scale) / 2;
+			ty = (vh - natH * scale) / 2;
+			range.value = 0;
+			apply();
 		};
 		const set_scale = (s) => {
 			const cx = tx + (natW * scale) / 2, cy = ty + (natH * scale) / 2;
@@ -3203,16 +3582,10 @@ window.ManageBookingApp = (function () {
 			apply();
 		};
 		const init = () => {
-			natW = img.naturalWidth;
-			natH = img.naturalHeight;
+			natW = src ? src.width : img.naturalWidth;
+			natH = src ? src.height : img.naturalHeight;
 			if (!natW || !natH) return;
-			const vw = view.clientWidth, vh = view.clientHeight;
-			minScale = Math.max(vw / natW, vh / natH);
-			scale = minScale;
-			tx = (vw - natW * scale) / 2;
-			ty = (vh - natH * scale) / 2;
-			range.value = 0;
-			apply();
+			fit();
 		};
 		range.addEventListener('input', () => set_scale(minScale * (1 + (+range.value / 100) * 4)));
 
@@ -3232,16 +3605,92 @@ window.ManageBookingApp = (function () {
 		view.addEventListener('pointerup', end_pan);
 		view.addEventListener('pointercancel', end_pan);
 
+		// RASIO BEBAS — seret pemegang penjuru kanan-bawah untuk ubah saiz
+		// bingkai crop (lebar & tinggi bebas, bukan lagi 3:4 tetap).
+		// Bila bingkai membesar, zum minimum dikira semula supaya imej
+		// sentiasa menutup bingkai (invariant cover-fit dikekalkan —
+		// clamping pan dalam apply() bergantung padanya).
+		const handle = dlg.$body.find('.mba-crop-handle').get(0);
+		let rx = null, ry = null, rw0 = 0, rh0 = 0;
+		handle.addEventListener('pointerdown', (e) => {
+			e.stopPropagation();
+			e.preventDefault();
+			rx = e.clientX;
+			ry = e.clientY;
+			rw0 = view.clientWidth;
+			rh0 = view.clientHeight;
+			handle.setPointerCapture(e.pointerId);
+		});
+		handle.addEventListener('pointermove', (e) => {
+			if (rx === null) return;
+			const maxW = (view.parentElement?.clientWidth || 600) - 8;
+			const maxH = Math.min(640, Math.round(window.innerHeight * 0.6));
+			const w = Math.max(120, Math.min(maxW, rw0 + e.clientX - rx));
+			const h = Math.max(120, Math.min(maxH, rh0 + e.clientY - ry));
+			view.style.width = w + 'px';
+			view.style.height = h + 'px';
+			const vw = view.clientWidth, vh = view.clientHeight;
+			minScale = Math.max(vw / natW, vh / natH);
+			if (scale < minScale) set_scale(minScale);
+			else apply();
+		});
+		const end_resize = () => { rx = null; ry = null; };
+		handle.addEventListener('pointerup', end_resize);
+		handle.addEventListener('pointercancel', end_resize);
+
+		// Jana working canvas (orientasi EXIF diterapkan) daripada imej
+		// yang dipaparkan — fallback: lukis elemen img terus.
+		const make_src = async () => {
+			try {
+				const bmp = await createImageBitmap(img, { imageOrientation: 'from-image' });
+				const c = document.createElement('canvas');
+				c.width = bmp.width;
+				c.height = bmp.height;
+				c.getContext('2d').drawImage(bmp, 0, 0);
+				bmp.close?.();
+				return c;
+			} catch (e) {
+				const c = document.createElement('canvas');
+				c.width = img.naturalWidth;
+				c.height = img.naturalHeight;
+				c.getContext('2d').drawImage(img, 0, 0);
+				return c;
+			}
+		};
+
+		// Putar 90° — bakar ke working canvas, ganti preview, fit semula.
+		dlg.$body.find('.mba-rot').on('click', async function () {
+			const dir = parseInt($(this).data('dir'), 10) || 1;
+			if (!src) src = await make_src();
+			const c = document.createElement('canvas');
+			c.width = src.height;
+			c.height = src.width;
+			const ctx = c.getContext('2d');
+			ctx.translate(c.width / 2, c.height / 2);
+			ctx.rotate((dir * Math.PI) / 2);
+			ctx.drawImage(src, -src.width / 2, -src.height / 2);
+			src = c;
+			natW = src.width;
+			natH = src.height;
+			if (srcUrl) URL.revokeObjectURL(srcUrl);
+			srcUrl = URL.createObjectURL(await new Promise((res) => src.toBlob(res, 'image/png')));
+			img.src = srcUrl;
+			fit();
+		});
+
 		const save_crop = async () => {
 			dlg.disable_primary_action && dlg.disable_primary_action();
 			try {
-				const vw = view.clientWidth, vh = view.clientHeight;
+				// Sumber potongan: working canvas (EXIF + putaran terkini
+				// termasuk) — jatuh balik ke elemen img jika janaan gagal.
+				let source = src || (src = await make_src());
+				const vw = view.clientWidth || 600, vh = view.clientHeight || 360;
 				const sx = -tx / scale, sy = -ty / scale;
 				const sw = vw / scale, sh = vh / scale;
 				const canvas = document.createElement('canvas');
 				canvas.width = Math.max(1, Math.round(sw));
 				canvas.height = Math.max(1, Math.round(sh));
-				canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+				canvas.getContext('2d').drawImage(source, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
 				const is_png = /\.png($|\?)/i.test(opts.url || '');
 				const blob = await new Promise((res) =>
 					canvas.toBlob(res, is_png ? 'image/png' : 'image/jpeg', 0.92));
@@ -3251,7 +3700,9 @@ window.ManageBookingApp = (function () {
 				fd.append('doctype', 'Traveller');
 				fd.append('docname', opts.traveller);
 				fd.append('fieldname', opts.field || 'passport_image');
-				fd.append('is_private', '0');
+				// Imej passport ialah PII — sentiasa PRIVATE (selari upload
+				// portal), jangan tinggal salinan public di /files.
+				fd.append('is_private', '1');
 				const resp = await fetch('/api/method/upload_file', {
 					method: 'POST',
 					headers: {
@@ -3269,16 +3720,18 @@ window.ManageBookingApp = (function () {
 					}
 					throw new Error(msg || __('Upload failed'));
 				}
-				await frappe.call({
-					method: 'frappe.client.set_value',
-					args: {
-						doctype: 'Traveller',
-						name: opts.traveller,
-						fieldname: opts.field || 'passport_image',
-						value: url2,
-					},
+				// REPLACE, bukan duplikasi: set nilai baharu pada Traveller,
+				// alih snapshot Booking Reservation yang masih merujuk URL
+				// lama, kemudian padam dokumen File lama (fizikal disenta
+				// oleh Frappe bila tiada duplikasi lain).
+				await api('replace_traveller_file', {
+					traveller: opts.traveller,
+					fieldname: opts.field || 'passport_image',
+					old_url: opts.url || '',
+					new_url: url2,
 				});
 				refresh_traveller_caches(opts.traveller, url2, opts.field || 'passport_image');
+				if (srcUrl) URL.revokeObjectURL(srcUrl);
 				dlg.hide();
 				frappe.show_alert({ message: __('Passport image updated'), indicator: 'green' });
 			} catch (err) {
@@ -3293,6 +3746,13 @@ window.ManageBookingApp = (function () {
 			}
 		};
 
+		// Init DUA lapis: (1) segera jika imej sudah cache — fit guna
+		// fallback dimensi CSS; (2) semula pada 'shown.bs.modal'
+		// (on_page_show) bila modal selesai di-layout — di situlah
+		// clientWidth sebenar tersedia. Lapis (2) yang menentukan ukuran
+		// muktamad; tanpanya init awal berjalan atas modal belum siap
+		// (clientWidth 0) dan imej jadi 'width: 0px'.
+		dlg.on_page_show = () => init();
 		dlg.show();
 		if (img.complete && img.naturalWidth) init();
 		else img.onload = init;
@@ -3383,10 +3843,14 @@ window.ManageBookingApp = (function () {
 	//   footer_html     HTML bawah senarai (load more L2)
 	//   show_search     false → sembunyi carian client (L2 guna carian server)
 	//   show_downloads  false → sembunyi Files/XLSX/CSV (L2 pelbagai booking)
+	//   empty_message   mesej bila rows kosong (lalai 'No travellers found
+	//                   for this filter.') — dipapar DALAM .mba-tv-grid
+	//                   supaya toolbar/panel penapis kekal (bukan overwrite
+	//                   seluruh pane).
 	function render_traveller_list(opts) {
 		const target = opts.target;
 		const rows = opts.rows || [];
-		if (!target?.length || !rows.length) return;
+		if (!target?.length) return;
 		const ctx = opts.context || {};
 		const tvst = opts.state || {};
 		const tvSort = TV_SORTS[tvst.sort] ? tvst.sort : '';
@@ -3443,8 +3907,8 @@ window.ManageBookingApp = (function () {
 
 		const cards = list.map((t) => {
 			const cancelled = t.reservation_status === 'Cancelled';
-			// Tanpa rekod Traveller — nama papar guest_label & modal detail
-			// dimatikan (tiada maklumat doctype untuk dipapar).
+			// Tanpa rekod Traveller — nama papar guest_label; modal tetap
+			// dibuka dengan panel Booking menggantikan Personal.
 			const noTrav = !t.traveller;
 			const displayName = noTrav ? (t.guest_label || t.traveller_name) : t.traveller_name;
 			const photo = t.passport_image
@@ -3456,7 +3920,7 @@ window.ManageBookingApp = (function () {
 				t.phone ? `☎ ${esc(t.phone)} ${contact_icons(t.phone)}` : '',
 			].filter(Boolean).join('<br>') || '<span class="mba-muted">—</span>';
 			return `
-			<div class="mba-tvcard${cancelled ? ' mba-tvcard--cancelled' : ''}${noTrav ? ' mba-tv-nodialog' : ''}"
+			<div class="mba-tvcard${cancelled ? ' mba-tvcard--cancelled' : ''}"
 				data-res="${esc(t.reservation)}" data-hay="${esc(hay(t))}"
 				data-trav="${esc(JSON.stringify(t))}">
 				${photo}
@@ -3487,7 +3951,7 @@ window.ManageBookingApp = (function () {
 			const displayName = t.traveller
 				? t.traveller_name : (t.guest_label || t.traveller_name);
 			return `
-			<tr class="mba-tv-trow${cancelled ? ' mba-row-cancelled' : ''}${t.traveller ? '' : ' mba-tv-nodialog'}"
+			<tr class="mba-tv-trow${cancelled ? ' mba-row-cancelled' : ''}"
 				data-hay="${esc(hay(t))}" data-trav="${esc(JSON.stringify(t))}">
 				<td>
 					<div class="mba-cell-main">${esc(displayName)}${cancelled ? ' ' + badge(__('Cancelled'), 'red') : ''}</div>
@@ -3518,6 +3982,16 @@ window.ManageBookingApp = (function () {
 					<div class="mba-cell-main">${t.nationality ? esc(t.nationality) : '—'}</div>
 					${t.passport_no ? `<div class="mba-cell-sub">PP: ${esc(t.passport_no)}</div>` : ''}
 					${t.ic_number ? `<div class="mba-cell-sub">IC: ${esc(t.ic_number)}</div>` : ''}
+					${(() => {
+						// Status dokumen + aksi (view passport / guest passport
+						// link / edit) — dipindahkan dari kolum Status yang
+						// telah dibuang.
+						const docsExtra = [
+							badge(t.document_status, DOC_STATUS_COLORS[t.document_status]),
+							status_btns(t),
+						].filter(Boolean).join(' ');
+						return docsExtra ? `<div class="mba-cell-sub">${docsExtra}</div>` : '';
+					})()}
 				</td>
 				<td>
 					<div class="mba-cell-main">${[
@@ -3543,12 +4017,6 @@ window.ManageBookingApp = (function () {
 							? `<div class="mba-cell-sub">ID: ${esc(t.room_id)}</div>` : '';
 					})()}
 				</td>
-				<td>
-					${status_btns(t)
-						? `<div class="mba-tv-status-actions">${status_btns(t)}</div>`
-						: '<span class="mba-muted">—</span>'}
-					${badge(t.document_status, DOC_STATUS_COLORS[t.document_status])}
-				</td>
 			</tr>`;
 		}).join('');
 		// Header jadual boleh sort — anak panah arah aktif pada kolum terpilih.
@@ -3560,7 +4028,7 @@ window.ManageBookingApp = (function () {
 				<span class="mba-tv-sort-ico">${arrow}</span></th>`;
 		};
 		const table = `
-			<div class="mba-table-wrap mba-tv-tablewrap"${tvView === 'table' ? '' : ' style="display:none;"'}>
+			<div class="mba-table-wrap mba-tv-tablewrap"${tvView === 'table' && rows.length ? '' : ' style="display:none;"'}">
 				<table class="mba-table">
 					<thead><tr>
 						${sort_th('name', 'Traveller')}
@@ -3568,7 +4036,6 @@ window.ManageBookingApp = (function () {
 						${sort_th('age', 'Age')}
 						${sort_th('nationality', 'Docs')}
 						${sort_th('roomcat', 'Accommodation')}
-						${sort_th('doc', 'Status')}
 					</tr></thead>
 					<tbody>${tRows}</tbody>
 				</table>
@@ -3587,10 +4054,11 @@ window.ManageBookingApp = (function () {
 		const dlTitle = ctx.booking
 			? __('Download all attached traveller files for this booking as a single ZIP')
 			: __('Download all attached traveller files for this group as a single ZIP');
-		// Carian di TENGAH toolbar — selepas section tapisan (kiri) dan
-		// sebelum butang download (kanan). Dua mod: server_search (L2/L3 —
-		// input data-search, reload via loader) atau carian client-side
-		// (.mba-tv-search, tapis DOM sedia ada).
+		// Toolbar 2 baris — Baris 1: kotak carian di tengah; Baris 2 kiri:
+		// toggol paparan + section tapisan, kanan: butang download + Order
+		// By. Dua mod carian: server_search (L2/L3 — input data-search,
+		// reload via loader) atau carian client-side (.mba-tv-search, tapis
+		// DOM sedia ada).
 		const midSearch = opts.server_search
 			? `<input type="text" class="form-control" data-search="tv"
 				placeholder="${esc(opts.search_placeholder || __('Search traveller / passport / contact…'))}"
@@ -3601,37 +4069,36 @@ window.ManageBookingApp = (function () {
 				: '');
 		target.html(`
 			<div class="mba-tv-toolbar">
-				<div class="mba-tv-toolbar-left">
-					<div class="btn-group mba-tv-views" role="group" aria-label="${esc(__('Traveller view'))}">
-						<button type="button" class="btn btn-default btn-xs mba-tv-view${tvView === 'grid' ? ' active' : ''}"
-							data-view="grid" title="${esc(__('Card view'))}"
-							aria-label="${esc(__('Card view'))}">${frappe.utils.icon('layout-grid', 'sm')}</button>
-						<button type="button" class="btn btn-default btn-xs mba-tv-view${tvView === 'table' ? ' active' : ''}"
-							data-view="table" title="${esc(__('Table view'))}"
-							aria-label="${esc(__('Table view'))}">${frappe.utils.icon('table', 'sm')}</button>
+				${midSearch ? `<div class="mba-tv-toolbar-top">${midSearch}</div>` : ''}
+				<div class="mba-tv-toolbar-row">
+					<div class="mba-tv-toolbar-left">
+						<div class="btn-group mba-tv-views" role="group" aria-label="${esc(__('Traveller view'))}">
+							<button type="button" class="btn btn-default btn-xs mba-tv-view${tvView === 'grid' ? ' active' : ''}"
+								data-view="grid" title="${esc(__('Card view'))}"
+								aria-label="${esc(__('Card view'))}">${frappe.utils.icon('layout-grid', 'sm')}</button>
+							<button type="button" class="btn btn-default btn-xs mba-tv-view${tvView === 'table' ? ' active' : ''}"
+								data-view="table" title="${esc(__('Table view'))}"
+								aria-label="${esc(__('Table view'))}">${frappe.utils.icon('table', 'sm')}</button>
+						</div>
+						${useFilters ? `<select class="mba-tv-limitsel" title="${esc(__('Rows to show'))}">${ROW_LIMITS.map((n) => `<option value="${n}" ${n === limitN ? 'selected' : ''}>${n === 0 ? __('All rows') : __('{0} rows', [n])}</option>`).join('')}</select>` : ''}
+						${opts.toolbar_extras || ''}
 					</div>
-					${useFilters ? `<select class="mba-tv-docsel" title="${esc(__('Filter by document status'))}">${DOC_STATUS_OPTIONS.map((o) => `<option value="${esc(o)}" ${filterDoc === o ? 'selected' : ''}>${esc(o || 'All Docs')}</option>`).join('')}</select>
-					<select class="mba-tv-limitsel" title="${esc(__('Rows to show'))}">${ROW_LIMITS.map((n) => `<option value="${n}" ${n === limitN ? 'selected' : ''}>${n === 0 ? __('All rows') : __('{0} rows', [n])}</option>`).join('')}</select>` : ''}
-					${opts.toolbar_extras || ''}
+					<div class="mba-tv-toolbar-right">
+						${showDl ? `<div class="mba-tv-dl">
+							<button type="button" class="btn btn-default btn-xs mba-tv-dl-btn"
+								title="${esc(dlTitle)}" aria-haspopup="menu">
+								${__('Download')} ${frappe.utils.icon('chevron-down', 'sm')}
+							</button>
+						</div>` : ''}
+						<div class="mba-tv-sortby"></div>
+					</div>
 				</div>
-				<div class="mba-tv-toolbar-mid">${midSearch}</div>
-				<div class="mba-tv-toolbar-right">
-					${showDl ? `<span class="mba-tv-dl-label">${__('Download')}</span>
-					<div class="btn-group" role="group" aria-label="${esc(__('Download travellers'))}">
-						<a class="btn btn-default btn-xs" href="${dlBase}download_traveller_images?${dlQuery}"
-							title="${esc(dlTitle)}">${__('Files')}</a>
-						<a class="btn btn-default btn-xs" href="${dlBase}download_travellers_excel?${dlQuery}"
-							title="${esc(__('Download all traveller & reservation details as Excel (XLSX)'))}">${__('XLSX')}</a>
-						<a class="btn btn-default btn-xs" href="${dlBase}download_travellers_csv?${dlQuery}"
-							title="${esc(__('Download all traveller & reservation details as CSV'))}">${__('CSV')}</a>
-					</div>` : ''}
-					<div class="mba-tv-sortby"></div>
-				</div>
+				${opts.custom_filter_html || ''}
 			</div>
-			${opts.custom_filter_html || ''}
 			${(filterDoc || (limitN > 0 && list0.length > list.length))
 				? `<div class="mba-tv-count">${__('Showing')} ${list.length} / ${rows.length} ${__('travellers')}</div>` : ''}
-			<div class="mba-tv-grid"${tvView === 'table' ? ' style="display:none;"' : ''}>${cards}</div>
+			<div class="mba-tv-grid"${tvView === 'table' && rows.length ? ' style="display:none;"' : ''}>${cards
+				|| `<div class="mba-empty">${esc(opts.empty_message || __('No travellers found for this filter.'))}</div>`}</div>
 			${table}
 			${opts.footer_html || ''}`);
 
@@ -3655,6 +4122,34 @@ window.ManageBookingApp = (function () {
 				render_traveller_list(opts);
 			},
 		});
+
+		// Butang Download → dropdown espresso framework (frappe.ui.Dropdown).
+		// Item ialah pautan href native — pelayar memproses muat turun
+		// terus (Content-Disposition), tiada fetch/fail sementara diperlukan.
+		// dlTitle (tooltip lama butang Files) jadi description item pertama.
+		if (showDl) {
+			new frappe.ui.Dropdown({
+				trigger: target.find('.mba-tv-dl-btn'),
+				align: 'end',
+				options: [
+					{
+						label: __('Files (ZIP)'),
+						icon: 'download',
+						href: dlBase + 'download_traveller_images?' + dlQuery,
+					},
+					{
+						label: __('Excel (XLSX)'),
+						icon: 'download',
+						href: dlBase + 'download_travellers_excel?' + dlQuery,
+					},
+					{
+						label: __('CSV'),
+						icon: 'download',
+						href: dlBase + 'download_travellers_csv?' + dlQuery,
+					},
+				],
+			});
+		}
 
 		// Kekalkan carian aktif merentas re-render (sort / tukar paparan).
 		const prevQuery = (tvst.__q || '').trim();
@@ -3680,20 +4175,22 @@ window.ManageBookingApp = (function () {
 		if (!d || !tv || !st) return;
 		const pane = $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="tv"]`);
 		const rows = tv.travellers || [];
-		if (!rows.length) {
-			pane.html(`<div class="mba-empty">${__('No booking reservations for this booking.')}</div>`);
-			return;
-		}
+		// Mesej kosong: tapisan aktif (carian / doc status / penapis dinamik)
+		// → tiada padanan; selain itu booking memang tiada reservation.
+		const hasFilters = !!(st.tv.search || st.tv.doc_status
+			|| tv_cf_active(st.tv.custom).length);
+		const emptyMsg = hasFilters
+			? __('No travellers found for this filter.')
+			: __('No booking reservations for this booking.');
 		const p0 = d.profile || {};
 		const tripStart = String((p0.is_a_cruise_trip
 			? (p0.cruise_start || p0.departure_date) : p0.departure_date) || '').slice(0, 10);
 		const tripEnd = String((p0.is_a_cruise_trip
 			? (p0.cruise_end || p0.return_date) : p0.return_date) || '').slice(0, 10);
-		const docOpts = DOC_STATUS_OPTIONS
-			.map((o) => `<option value="${esc(o)}" ${st.tv.doc_status === o ? 'selected' : ''}>${esc(o || 'All Docs')}</option>`).join('');
 		render_traveller_list({
 			target: pane,
 			rows,
+			empty_message: emptyMsg,
 			state: st.tv,
 			context: {
 				booking: d.booking,
@@ -3701,7 +4198,6 @@ window.ManageBookingApp = (function () {
 				trip_end: tripEnd,
 			},
 			toolbar_extras: `<span class="mba-tv-extras">
-				<select data-kind="doc" data-scope="tv">${docOpts}</select>
 				${limit_options('tv', st.tv.limit)}
 				${tv_cf_toggle_html(st.tv)}
 			</span>`,
@@ -3733,6 +4229,7 @@ window.ManageBookingApp = (function () {
 				search: st.tv.search || null,
 				doc_status: st.tv.doc_status || null,
 				custom_filters: tv_cf_active(st.tv.custom),
+				custom_match: st.tv.cf_match === 'OR' ? 'OR' : 'AND',
 				limit: st.tv.limit,
 				with_versions: true,
 			});

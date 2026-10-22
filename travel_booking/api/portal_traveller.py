@@ -278,9 +278,55 @@ def _customer_traveller_names(customer_name: str) -> set:
     return {r[0] for r in rows if r[0]}
 
 
+def _traveller_missing_fields(tvl, has_passport_image: bool = False) -> list:
+    """Senarai medan traveller yang masih tertinggal (cermin 3 section
+    borang). Digunakan oleh confirm_traveller_documents dan laluan
+    gabungan save_booking_traveller(confirm=1) — kekal SATU senarai
+    supaya mesej kelengkapan konsisten di kedua-dua laluan.
+
+    has_passport_image: salinan passport sedang dimuat naik dalam
+    request yang sama (filedata ada) — Traveller.passport_image hanya
+    ditetapkan SELEPAS dokumen disimpan (File perlu attached_to
+    traveller), jadi kewujudan fail dalam request perlu diambil kira
+    di sini.
+    """
+    missing = []
+    if not (tvl.first_name and tvl.last_name):
+        missing.append("First & last name (Passport section)")
+    if not _normalize_id(tvl.ic_number):
+        missing.append("IC number (Passport section)")
+    if not tvl.nationality:
+        missing.append("Nationality (Passport section)")
+    if not tvl.date_of_birth:
+        missing.append("Date of birth (Passport section)")
+    if not tvl.gender:
+        missing.append("Gender (Passport section)")
+    if not _normalize_id(tvl.passport_no):
+        missing.append("Passport number (Passport section)")
+    if not tvl.passport_expiry:
+        missing.append("Passport expiry (Passport section)")
+    if not (tvl.passport_image or has_passport_image):
+        missing.append("Passport copy upload (Passport section)")
+    if not tvl.phone:
+        missing.append("Phone number (Contact Info section)")
+    if not tvl.email:
+        missing.append("Email (Contact Info section)")
+    if not (tvl.emergency_contact_name and tvl.emergency_contact_phone):
+        missing.append("Emergency contact (Contact Info section)")
+    if not (tvl.address_line1 and tvl.city and tvl.postcode
+            and tvl.state and tvl.country):
+        missing.append("Full address (Contact Info section)")
+    # Kesihatan (wheelchair dll.) TIDAK wajib — borang lengkap = section
+    # Passport + Contact sahaja (flow "Pending Verification" doctype
+    # Traveller guna takrif sama — rujuk Traveller.MANDATORY_INFO_FIELDS).
+    return missing
+
+
 @frappe.whitelist(allow_guest=True)
 def save_booking_traveller(booking_number: str, slot_name: str,
                             section: str = "passport",
+                            sections: str = "",
+                            confirm: bool = False,
                             ic_number: str = "", first_name: str = "",
                             last_name: str = "", full_name: str = "", gender: str = "",
                             date_of_birth: str = "", nationality: str = "",
@@ -301,14 +347,22 @@ def save_booking_traveller(booking_number: str, slot_name: str,
                             postcode: str = "", state: str = "", country: str = "",
                             pdpa_consent: bool = False,
                             guest_token: str = ""):
-    """Simpan maklumat traveller SECARA BERTAHAP IKUT SECTION.
+    """Simpan maklumat traveller — SATU section ATAU semua sekaligus.
 
-    section = "passport" | "contact" | "health". Hanya medan milik
-    section berkenanan dikemas kini — medan section lain tidak
-    disentuh, jadi simpan Contact tidak memadam data Passport dsb.
-    Section passport wajib didahulukan (cipta Traveller + link ke
-    Booking Reservation); contact/health perlukan traveller yang
-    sudah linked pada slot.
+    Dua mod hantaran:
+
+    - `section` (warisan wizard bertab): satu section per panggilan —
+      hanya medan milik section itu dikemas kini; medan section lain
+      tidak disentuh. Section passport mesti didahulukan (cipta
+      Traveller + link ke Booking Reservation).
+    - `sections` (borang SATU page): senarai comma-separated cth.
+      "passport,contact,health" — SEMUA medan diterapkan pada SATU
+      dokumen Traveller dan disimpan SEKALI sahaja. Ini menggantikan
+      3 panggilan berturutan era wizard (setiap save memicu
+      notification event "Save" → emel berulang untuk satu
+      submission). `confirm=1` turut menjalankan semakan kelengkapan +
+      set status "Incomplete" + Comment audit dalam request yang sama
+      (menggantikan panggilan confirm_traveller_documents berasingan).
     """
     frappe.flags.ignore_permissions = True
     import base64
@@ -360,7 +414,16 @@ def save_booking_traveller(booking_number: str, slot_name: str,
             "for trip arrangements."
         )
 
-    if section not in ("passport", "contact", "health"):
+    # Section yang akan disimpan dalam panggilan ini. "sections"
+    # (senarai) diutamakan; kekal urutan canonical passport → contact →
+    # health (server wajib passport dahulu untuk cipta Traveller).
+    if sections:
+        _requested = [s.strip() for s in sections.split(",") if s.strip()]
+    else:
+        _requested = [section or ""]
+    _ORDER = ("passport", "contact", "health")
+    section_list = [s for s in _ORDER if s in _requested]
+    if not section_list or len(section_list) != len(_requested):
         frappe.throw("Invalid section.")
 
     ic_number = _normalize_id(ic_number)
@@ -383,7 +446,7 @@ def save_booking_traveller(booking_number: str, slot_name: str,
     import re
     # Contact section: email & phone WAJIB (bukan optional) — diperlukan
     # untuk menghubungi traveller sepanjang trip & pengesahan tempahan.
-    if section == "contact":
+    if "contact" in section_list:
         if not phone:
             frappe.throw("Phone number is required.")
         if not email:
@@ -407,7 +470,7 @@ def save_booking_traveller(booking_number: str, slot_name: str,
             )
     # Wheelchair Assistance WAJIB dipilih (bukan optional) — perlu persiapan
     # bantuan ketibaan/berlepas oleh kru trip.
-    if section == "health":
+    if "health" in section_list:
         if not (wheelchair_assistant or "").strip():
             frappe.throw("Wheelchair Assistance is required — please select an option.")
         if wheelchair_assistant not in ("Not Required", "Long Walk Only", "All Time"):
@@ -421,7 +484,9 @@ def save_booking_traveller(booking_number: str, slot_name: str,
     if emergency_contact_name and not emergency_contact_phone:
         frappe.throw("Please fill in the emergency contact phone number as well.")
 
-    if section == "passport":
+    existing = None
+    tvl = None
+    if "passport" in section_list:
         # SEMUA maklumat Identity & Passport WAJIB (cermin validasi
         # frontend) — perlu untuk cipta dokumen Traveller lengkap &
         # pengesahan dokumen. full_name auto-dikira oleh controller
@@ -454,67 +519,95 @@ def save_booking_traveller(booking_number: str, slot_name: str,
                     "(" + conflict + "). Please check again \u2014 each traveller must have a different IC."
                 )
 
+        # Guna doc.save()/insert() (BUKAN db.set_value()) — supaya
+        # controller Traveller punya before_save() jalan (auto-kira
+        # full_name, age, age_category dari date_of_birth; auto-detect
+        # title/gender dari nama Melayu). Simpan DITANGGUHKAN ke bawah
+        # supaya gabungan section dalam satu panggilan hanya menulis
+        # SEKALI.
         if existing:
-            # doc.save() (BUKAN db.set_value()) — supaya controller Traveller
-            # punya before_save() jalan (auto-kira full_name, age, age_category
-            # dari date_of_birth; auto-detect title/gender dari nama Melayu).
             tvl = frappe.get_doc("Traveller", existing)
-            tvl.first_name      = first_name
-            tvl.last_name       = last_name
-            tvl.fullname_format = fullname_format
-            tvl.nationality     = nationality
-            tvl.ic_number       = ic_number
-            tvl.passport_no     = passport_no
-            tvl.passport_expiry = passport_expiry or None
-            tvl.date_of_birth   = date_of_birth   or None
-            if gender:
-                tvl.gender = gender
-            tvl.save(ignore_permissions=True)
-            traveller_name = existing
         else:
             tvl = frappe.new_doc("Traveller")
-            tvl.first_name      = first_name
-            tvl.last_name       = last_name
-            tvl.fullname_format = fullname_format
-            tvl.gender          = gender
-            tvl.ic_number       = ic_number
-            tvl.date_of_birth   = date_of_birth   or None
-            tvl.nationality     = nationality
-            tvl.passport_no     = passport_no
-            tvl.passport_expiry = passport_expiry or None
-            tvl.insert(ignore_permissions=True, ignore_mandatory=True)
-            traveller_name = tvl.name
+        tvl.first_name      = first_name
+        tvl.last_name       = last_name
+        tvl.fullname_format = fullname_format
+        tvl.nationality     = nationality
+        tvl.ic_number       = ic_number
+        tvl.passport_no     = passport_no
+        tvl.passport_expiry = passport_expiry or None
+        tvl.date_of_birth   = date_of_birth   or None
+        if gender:
+            tvl.gender = gender
+        # Email/phone turut diisi semasa CIPTA bila diberikan (laluan
+        # gabungan selalu membawanya) supaya notification event "New"
+        # (Passport Registration) mempunyai recipient pada saat insert —
+        # dahulu email hanya ditetapkan pada save contact KEDUA selepas
+        # insert, menyebabkan emel registration tidak pernah terhantar
+        # (recipient kosong → notification dilangkau senyap).
+        if email:
+            tvl.email = email
+        if phone:
+            tvl.phone = _format_phone(phone)
     else:
-        # contact / health — traveller mesti sudah wujud & linked pada slot
-        # (dicipta oleh save section passport).
+        # contact / health sahaja — traveller mesti sudah wujud & linked
+        # pada slot (dicipta oleh save section passport).
         if not slot.traveller:
             _throw_expected(
                 "Please complete and save the Passport section first."
             )
-        traveller_name = slot.traveller
-        tvl = frappe.get_doc("Traveller", traveller_name)
-        if section == "contact":
-            tvl.email           = email
-            tvl.phone           = _format_phone(phone)
-            tvl.emergency_contact_name         = emergency_contact_name
-            tvl.emergency_contact_phone        = _format_phone(emergency_contact_phone)
-            tvl.emergency_contact_relationship = emergency_contact_relationship
-            # Alamat traveller (WAJIB lengkap — divalidasikan di atas) —
-            # disimpan pada doctype Traveller; alamat slot pada Booking
-            # Reservation TIDAK disentuh di sini (snapshot manifest kekal
-            # diurus admin di Desk).
-            tvl.address_line1 = (address_line1 or "").strip()
-            tvl.city          = (city or "").strip()
-            tvl.postcode      = (postcode or "").strip()
-            tvl.state         = (state or "").strip()
-            tvl.country       = (country or "").strip()
-        else:  # health
-            tvl.dietary_requirements = dietary_requirements
-            tvl.medical_conditions   = medical_conditions
-            tvl.special_needs        = special_needs
-            tvl.wheelchair_assistant = wheelchair_assistant
-            tvl.medicine_treatment  = medicine_treatment
+        tvl = frappe.get_doc("Traveller", slot.traveller)
+
+    if "contact" in section_list:
+        tvl.email           = email
+        tvl.phone           = _format_phone(phone)
+        tvl.emergency_contact_name         = emergency_contact_name
+        tvl.emergency_contact_phone        = _format_phone(emergency_contact_phone)
+        tvl.emergency_contact_relationship = emergency_contact_relationship
+        # Alamat traveller (WAJIB lengkap — divalidasikan di atas) —
+        # disimpan pada doctype Traveller; alamat slot pada Booking
+        # Reservation TIDAK disentuh di sini (snapshot manifest kekal
+        # diurus admin di Desk).
+        tvl.address_line1 = (address_line1 or "").strip()
+        tvl.city          = (city or "").strip()
+        tvl.postcode      = (postcode or "").strip()
+        tvl.state         = (state or "").strip()
+        tvl.country       = (country or "").strip()
+    if "health" in section_list:
+        tvl.dietary_requirements = dietary_requirements
+        tvl.medical_conditions   = medical_conditions
+        tvl.special_needs        = special_needs
+        tvl.wheelchair_assistant = wheelchair_assistant
+        tvl.medicine_treatment  = medicine_treatment
+
+    # Confirm DALAM request yang sama (laluan gabungan): kelengkapan
+    # disemak SEBELUM save supaya submission tak lengkap gagal bersih
+    # tanpa menulis apa-apa; status "Incomplete" = sedia disemak admin.
+    # Salinan passport yang sedang dimuat naik (filedata) dikira lengkap
+    # — Traveller.passport_image hanya ditetapkan SELEPAS dokumen
+    # disimpan (File perlu attached_to traveller).
+    if confirm:
+        _missing = _traveller_missing_fields(
+            tvl, has_passport_image=bool(filedata and filename)
+        )
+        if _missing:
+            frappe.throw(
+                "Some details are still incomplete:\n\u2022 " + "\n\u2022 ".join(_missing)
+            )
+        # Kekalkan status sedia ada (cth. Rejected / Open for Update);
+        # kosong → Incomplete. Naik ke "Pending Verification" bila borang
+        # wajib lengkap DILAKUKAN oleh before_save doctype Traveller
+        # (evaluate_document_status) — bukan di sini.
+        tvl.status = tvl.status or "Incomplete"
+
+    # SATU tulisan untuk SEMUA section — insert bila traveller baharu,
+    # save bila kemas kini. Setiap save boleh memicu notification
+    # (event "New"/"Save"), jaga jumlah tulisan Traveller minimum.
+    if "passport" in section_list and not existing:
+        tvl.insert(ignore_permissions=True, ignore_mandatory=True)
+    else:
         tvl.save(ignore_permissions=True)
+    traveller_name = tvl.name
 
     # PDPA — rekod persetujuan (audit trail) SEKALI sahaja per Traveller.
     # Disimpan sebagai Comment (doctype core Frappe — TIADA perubahan schema
@@ -544,14 +637,17 @@ def save_booking_traveller(booking_number: str, slot_name: str,
     # penuh (bukan db.set_value()).
     res_doc = frappe.get_doc("Booking Reservation", slot_name)
     res_doc.traveller       = traveller_name
-    res_doc.document_status = "Incomplete"
+    # Cermin status Traveller TERKINI (bukan hardcoded "Incomplete") —
+    # sekarang status boleh jadi "Pending Verification" automatik bila
+    # borang wajib lengkap (before_save doctype Traveller).
+    res_doc.document_status = tvl.status or "Incomplete"
     res_doc.save(ignore_permissions=True)
 
     # Upload passport — hanya untuk section passport, simpan dalam
     # Traveller.passport_image. Jenis fail disahkan (JPG/PNG/PDF — magic
     # bytes); PDF disimpan sebagai imej render halaman 1 supaya preview
     # borang (<img>), matching dhash/sha dan paparan Desk berfungsi.
-    if section == "passport" and filedata and filename:
+    if "passport" in section_list and filedata and filename:
         file_content, filename = _decode_and_normalize_upload(filedata, filename)
 
         file_doc = frappe.get_doc({
@@ -569,7 +665,7 @@ def save_booking_traveller(booking_number: str, slot_name: str,
     # Upload visa photo — hanya untuk section contact, simpan dalam
     # Traveller.visa_photo. Rawatan PDF sama dengan passport (disimpan
     # sebagai imej render).
-    if section == "contact" and visa_filedata and visa_filename:
+    if "contact" in section_list and visa_filedata and visa_filename:
         visa_file_content, visa_filename = _decode_and_normalize_upload(visa_filedata, visa_filename)
 
         visa_file_doc = frappe.get_doc({
@@ -583,6 +679,22 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         })
         visa_file_doc.insert(ignore_permissions=True)
         frappe.db.set_value("Traveller", traveller_name, "visa_photo", visa_file_doc.file_url)
+
+    # Comment audit confirm (laluan gabungan confirm=1 — menggantikan
+    # panggilan confirm_traveller_documents berasingan). Direkod
+    # selepas SEMUA tulisan berjaya; guna actor (session user atau
+    # email guest) supaya jejak menunjukkan siapa sebenar yang hantar.
+    if confirm:
+        frappe.get_doc({
+            "doctype":           "Comment",
+            "comment_type":      "Info",
+            "reference_doctype": "Traveller",
+            "reference_name":    traveller_name,
+            "content": (
+                "Documents confirmed complete by customer via portal — "
+                + frappe.utils.now() + " by " + actor
+            ),
+        }).insert(ignore_permissions=True)
 
     frappe.db.commit()
 
@@ -599,7 +711,9 @@ def save_booking_traveller(booking_number: str, slot_name: str,
 
     return {
         "status":       "ok",
-        "section":      section,
+        "section":      ",".join(section_list),
+        "sections":     section_list,
+        "confirmed":    bool(confirm),
         "slot_name":    slot_name,
         "traveller_id": traveller_name,
         "doc_status":   "Incomplete",
@@ -1872,45 +1986,23 @@ def confirm_traveller_documents(booking_number: str, slot_name: str,
 
     tvl = frappe.get_doc("Traveller", slot.traveller)
 
-    # Kelengkapan — cermin 3 section form. Medan Identity & Passport
-    # kini WAJIB kesemuanya.
-    missing = []
-    if not (tvl.first_name and tvl.last_name):
-        missing.append("First & last name (Passport section)")
-    if not _normalize_id(tvl.ic_number):
-        missing.append("IC number (Passport section)")
-    if not tvl.nationality:
-        missing.append("Nationality (Passport section)")
-    if not tvl.date_of_birth:
-        missing.append("Date of birth (Passport section)")
-    if not tvl.gender:
-        missing.append("Gender (Passport section)")
-    if not _normalize_id(tvl.passport_no):
-        missing.append("Passport number (Passport section)")
-    if not tvl.passport_expiry:
-        missing.append("Passport expiry (Passport section)")
-    if not tvl.passport_image:
-        missing.append("Passport copy upload (Passport section)")
-    if not tvl.phone:
-        missing.append("Phone number (Contact Info section)")
-    if not tvl.email:
-        missing.append("Email (Contact Info section)")
-    if not (tvl.emergency_contact_name and tvl.emergency_contact_phone):
-        missing.append("Emergency contact (Contact Info section)")
-    if not (tvl.address_line1 and tvl.city and tvl.postcode
-            and tvl.state and tvl.country):
-        missing.append("Full address (Contact Info section)")
-    if not tvl.wheelchair_assistant:
-        missing.append("Wheelchair assistance (Health section)")
+    # Kelengkapan — cermin 3 section form (satu senarai dikongsi dengan
+    # laluan gabungan save_booking_traveller(confirm=1) — rujuk
+    # _traveller_missing_fields).
+    missing = _traveller_missing_fields(tvl)
     if missing:
         frappe.throw(
             "Some details are still incomplete:\n\u2022 " + "\n\u2022 ".join(missing)
         )
 
-    tvl.status = "Incomplete"
+    # Kekalkan status sedia ada (Rejected / Open for Update); kosong →
+    # Incomplete. Naik ke "Pending Verification" bila wajib lengkap
+    # DILAKUKAN oleh before_save doctype (evaluate_document_status).
+    tvl.status = tvl.status or "Incomplete"
     tvl.save(ignore_permissions=True)
 
-    frappe.db.set_value("Booking Reservation", slot_name, "document_status", "Incomplete")
+    frappe.db.set_value("Booking Reservation", slot_name,
+        "document_status", tvl.status or "Incomplete")
 
     frappe.get_doc({
         "doctype":           "Comment",
@@ -1934,7 +2026,7 @@ def confirm_traveller_documents(booking_number: str, slot_name: str,
     return {
         "status":     "ok",
         "slot_name":  slot_name,
-        "doc_status": "Incomplete",
+        "doc_status": tvl.status or "Incomplete",
         "all_filled": filled_count >= total_slots and total_slots > 0,
     }
 

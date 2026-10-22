@@ -34,6 +34,13 @@ use_json_request_body = True
 app_include_js = ["/assets/travel_booking/js/booking_list.js"]
 app_include_css = ["/assets/travel_booking/css/booking_list.css"]
 
+# Fix realtime has_permission untuk dokumen belum disimpan (room
+# `new-<doctype>-...`) — dipindahkan daripada modifikasi frappe core
+# (frappe/realtime/__init__.py, telah direvert; lihat api/realtime.py).
+override_whitelisted_methods = {
+	"frappe.realtime.has_permission": "travel_booking.api.realtime.has_permission",
+}
+
 # Patches (run once at app init, before any request handling)
 app_init = "travel_booking.patches.patch_create_contact.apply"
 
@@ -138,6 +145,10 @@ scheduler_events = {
 		# invois hook Payment Entry hanya dicuba SEKALI semasa submit — tanpa
 		# jaringan ni satu kegagalan = invois hilang selamanya).
 		"travel_booking.api.booking_engine.reconcile_missing_invoices",
+		# Passport <6 bulan dari tamat tempoh (peraturan 6-bulan) → padam
+		# imej/attachment passport & status Traveller 'Open for Update'
+		# supaya customer hantar dokumen baharu (PII lama tidak disimpan).
+		"travel_booking.api.passport_maintenance.cleanup_expired_passport_images",
 	],
 	"cron": {
 		# Setiap hari jam 12:00 malam (site time) — semak & update status

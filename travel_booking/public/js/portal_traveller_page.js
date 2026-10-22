@@ -3,7 +3,8 @@
    Page: /guest_passport?token=... (borang SATU PAGE — Passport,
    Contact Info & Health dalam borang yang sama; user isi semuanya
    sehingga lengkap, tick consent PDPA dan tekan butang Submit —
-   submitTraveller() simpan ketiga-tiga section berturutan & confirm).
+   submitTraveller() hantar SEMUA section dalam SATU panggilan API &
+   confirm sekali).
 
    Gabungan logic portal_wizard.js + portal_traveller.js (SPA lama),
    diadaptasikan untuk page berasingan + PENAMBAHAN:
@@ -877,9 +878,10 @@ function toggleVisaCard() {
 
 /* ══════════════════════════════════════════════
    SUBMIT — satu page form: sahkan SEMUA medan (Passport + Contact Info +
-   Health), kemudian simpan ketiga-tiga section berturutan (passport →
-   contact → health — server wajib passport dahulu untuk cipta Traveller
-   + link ke slot) dan terus confirm (status Pending untuk semakan admin).
+   Health), kemudian SATU panggilan API save_booking_traveller
+   (sections=passport,contact,health + confirm=1 — server cipta/kemas
+   kini Traveller & tulis SEKALI sahaja; status Incomplete untuk semakan
+   admin).
    ══════════════════════════════════════════════ */
 
 async function submitTraveller(btnEl) {
@@ -1000,11 +1002,17 @@ async function submitTraveller(btnEl) {
     };
     if (_GUEST_MODE) base.guest_token = _GUEST_TOKEN;
 
-    // 1) PASSPORT — cipta/link Traveller + upload passport copy.
+    // SATU panggilan API untuk SEMUA section + confirm — server terapkan
+    // semua medan pada SATU dokumen Traveller dan tulis SEKALI sahaja.
+    // (Legacy wizard: 3 panggilan section + 1 confirm = 4 save
+    // berturutan → notification emel berulang untuk satu submission.)
     let filedata = '', filename = '';
     if (_passportFile) { filedata = await readFile(_passportFile); filename = _passportFile.name; }
+    let visaFiledata = '', visaFilename = '';
+    if (_visaPhotoFile) { visaFiledata = await readFile(_visaPhotoFile); visaFilename = _visaPhotoFile.name; }
     await API_TV('save_booking_traveller', Object.assign({}, base, {
-      section: 'passport',
+      sections: 'passport,contact,health',
+      confirm: 1,
       first_name: firstName, last_name: lastName,
       full_name: get('tvl-name').value.trim(),
       fullname_format: get('tvl-fullname-format').value,
@@ -1012,13 +1020,6 @@ async function submitTraveller(btnEl) {
       date_of_birth: dob, nationality: nat,
       passport_no: pp, passport_expiry: ppexp,
       filedata, filename,
-    }));
-
-    // 2) CONTACT — email/phone/emergency/address + visa photo.
-    let visaFiledata = '', visaFilename = '';
-    if (_visaPhotoFile) { visaFiledata = await readFile(_visaPhotoFile); visaFilename = _visaPhotoFile.name; }
-    await API_TV('save_booking_traveller', Object.assign({}, base, {
-      section: 'contact',
       email: get('tvl-email').value || '',
       phone: phoneNum,
       emergency_contact_name: ecName,
@@ -1027,11 +1028,6 @@ async function submitTraveller(btnEl) {
       address_line1: addr1,
       city: city, postcode: postcode, state: state, country: country,
       visa_filedata: visaFiledata, visa_filename: visaFilename,
-    }));
-
-    // 3) HEALTH — deklarasi kesihatan + wheelchair.
-    await API_TV('save_booking_traveller', Object.assign({}, base, {
-      section: 'health',
       dietary_requirements: get('tvl-dietary').value.trim(),
       medical_conditions: get('tvl-medical').value.trim(),
       special_needs: get('tvl-special-needs').value.trim(),
@@ -1051,14 +1047,6 @@ async function submitTraveller(btnEl) {
         if (s) ACTIVE_SLOT = s;
       }
     }
-
-    // 4) CONFIRM — sahkan kelengkapan & set status Pending untuk semakan.
-    const confirmPayload = {
-      booking_number: BOOKING,
-      slot_name: ACTIVE_SLOT.slot_name,
-    };
-    if (_GUEST_MODE) confirmPayload.guest_token = _GUEST_TOKEN;
-    await API_TV('confirm_traveller_documents', confirmPayload);
 
     if (_GUEST_MODE) {
       // Guest tiada senarai untuk kembali — tunjuk pengesahan berjaya &

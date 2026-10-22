@@ -73,7 +73,7 @@ def update_phone(phone: str):
         from phonenumbers import parse as phonenumbers_parse, is_valid_number
         if not is_valid_number(phonenumbers_parse(phone)):
             frappe.throw("The phone number is not valid. Please check and try again.")
-    except frappe.throw:
+    except frappe.exceptions.ValidationError:
         raise
     except Exception:
         frappe.throw("The phone number is not valid. Please check and try again.")

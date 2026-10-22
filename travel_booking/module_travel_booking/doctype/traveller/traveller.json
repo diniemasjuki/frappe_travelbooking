@@ -70,7 +70,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Incomplete\nVerified\nOpen for Update\nRejected\nValid"
+   "options": "Incomplete\nPending Verification\nVerified\nOpen for Update\nRejected\nValid"
   },
   {
    "fieldname": "column_break_ghkn",
@@ -269,9 +269,9 @@
    "label": "Address"
   },
   {
-   "description": "Alamat traveller ini — diisi dari portal (section Contact) atau Desk. Prefill borang portal menggunakan alamat slot (salinan alamat billing Booking) sebagai fallback.",
+   "description": "Alamat traveller ini \u2014 diisi dari portal (section Contact) atau Desk. Prefill borang portal menggunakan alamat slot (salinan alamat billing Booking) sebagai fallback.",
    "fieldname": "address_line1",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "label": "Street Address"
   },
   {
@@ -291,8 +291,9 @@
   },
   {
    "fieldname": "country",
-   "fieldtype": "Data",
-   "label": "Country"
+   "fieldtype": "Link",
+   "label": "Country",
+   "options": "Country"
   },
   {
    "fieldname": "health_tab",
@@ -396,7 +397,7 @@
    "link_fieldname": "traveller"
   }
  ],
- "modified": "2026-10-15 02:02:35.660176",
+ "modified": "2026-10-21 15:18:39.617305",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Traveller",
