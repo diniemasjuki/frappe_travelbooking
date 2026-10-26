@@ -101,14 +101,17 @@ select option { background: var(--bg-primary); }
   display: block;
 }
 .f { margin-bottom: 16px; }
-/* Semua field dalam panel borang traveller (Passport/Contact/Health) isi
-   penuh lebar cell grid/baris. Rule global input portal sengaja TANPA
-   width 100% (komen) supaya input lain di luar borang tak terjejas —
-   jadi skopkan di sini sahaja. */
-.tvl-panel .f input,
-.tvl-panel .f select,
-.tvl-panel .f textarea { width: 100%; box-sizing: border-box; }
-.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+/* Semua field dalam borang portal (sc-page — cth. guest passport)
+   isi penuh lebar cell grid/baris. Rule global input portal sengaja
+   TANPA width 100% (komen) supaya input lain di luar borang tak
+   terjejas — jadi skopkan di sini sahaja. */
+.sc-page .f input,
+.sc-page .f select,
+.sc-page .f textarea { width: 100%; box-sizing: border-box; }
+/* Row-gap 0 — jarak menegak antara baris grid dibekalkan oleh
+   margin-bottom .f (16px), sama dgn medan bertindan; gap asal 14px
+   atas+16px margin menjadikan baris grid 30px (tak konsisten). */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
 .g2f .l { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
 .g2f .v { font-size: 14px; font-weight: 500; }
 

@@ -20,7 +20,13 @@ import frappe
 def has_permission(doctype: str, name: str, ptype: str = "read") -> bool:
 	if name.startswith("new-"):
 		# Dokumen belum pernah disimpan — gunakan semakan aras doctype.
-		frappe.has_permission(doctype, ptype=ptype, throw=True)
+		allowed = bool(frappe.has_permission(doctype, ptype=ptype))
 	else:
-		frappe.has_permission(doctype, doc=name, ptype=ptype, throw=True)
-	return True
+		# throw=False: tolakan (cth Guest cuba langganan room dokumen)
+		# pulangkan False tanpa menaikkan PermissionError — tanpa ni
+		# SETIAP tolakan melangganan realtime menulis traceback penuh
+		# ke Error Log walaupun ia kelakhan normal socketio (server
+		# mentafsir HTTP bukan-200 sebagai False, rujuk
+		# frappe/realtime/auth.py Session.has_permission).
+		allowed = bool(frappe.has_permission(doctype, doc=name, ptype=ptype))
+	return allowed

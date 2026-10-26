@@ -42,8 +42,8 @@ masa aktivasi slot.
 Slot Booking Reservation untuk traveller baharu dicipta SELEPAS SO
 dibayar penuh — melalui _recompute_booking_status() (hook Payment Entry
 submit), corak yang sama dengan aktivasi booking utama. Idempotensi
-aktivasi melalui junction Share Slot Reservation (sales_order ↔
-booking_reservation) — dipaut oleh _activate_share_traveller_reservation
+aktivasi melalui stamp Booking Reservation.sales_order (SO sumber
+slot) — di-stamp oleh _activate_share_traveller_reservation
 (satu booking boleh ada beberapa SO, semuanya dipaut ke
 Booking melalui Sales Order.custom_booking sahaja). Rekod traveller
 (Passport/dokumen) diisi selepas itu melalui flow sedia ada di
@@ -225,16 +225,16 @@ def _share_so_lines(booking_name):
     TANPA marker: berkaitan booking melalui Sales Order.custom_booking,
     BUKAN SO utama (primary = SO pertama booking), dan menjual item
     TRAVEL-PKG (SO addon menjual item berbeza). SO Cancelled (docstatus=2)
-    dikecualikan. Status aktivasi setiap SO dibaca dari junction
-    Share Slot Reservation (dipaut oleh
+    dikecualikan. Status aktivasi setiap SO dibaca dari stamp
+    Booking Reservation.sales_order (di-stamp oleh
     _activate_share_traveller_reservation).
     """
     primary_so = _get_primary_so(booking_name)
     return frappe.db.sql("""
         SELECT so.name AS so_name, soi.description AS description,
                soi.qty AS qty, soi.rate AS rate,
-               EXISTS(SELECT 1 FROM `tabShare Slot Reservation` ssr
-                      WHERE ssr.sales_order = so.name) AS activated
+               EXISTS(SELECT 1 FROM `tabBooking Reservation` br
+                      WHERE br.sales_order = so.name) AS activated
         FROM `tabSales Order` so
         JOIN `tabSales Order Item` soi
              ON soi.parent = so.name AND soi.parenttype = 'Sales Order'
@@ -250,11 +250,11 @@ def _activated_extras_for(booking_name, cabin_no=None):
     penuh → slot reservation dicipta) untuk satu booking — optional
     ditapis per cabin.
 
-    Dikenalpasti dari SISI SO: SO traveller tambahan yang ada rekod
-    junction Share Slot Reservation (sales_order = SO itu, dipaut masa
-    slot dicipta). Label guest_label TIDAK digunakan — label slot seragam
-    "Traveller N" untuk semua pax. Cabin dibaca dari description item SO,
-    corak sama dengan _pending_share_lines().
+    Dikenalpasti dari SISI SO: SO traveller tambahan yang ada slot
+    Booking Reservation di-stamp dengannya (sales_order = SO itu,
+    di-stamp masa slot dicipta). Label guest_label TIDAK digunakan —
+    label slot seragam "Traveller N" untuk semua pax. Cabin dibaca dari
+    description item SO, corak sama dengan _pending_share_lines().
     """
     total = 0
     for line in _share_so_lines(booking_name):
@@ -271,8 +271,8 @@ def _pending_share_lines(booking_name):
     reservation belum dicipta) untuk satu booking.
 
     SO traveller tambahan dikenalpasti TANPA custom field pada SO
-    (rujuk _share_so_lines). Pending = belum ada rekod junction
-    Share Slot Reservation yang membawa sales_order SO tersebut —
+    (rujuk _share_so_lines). Pending = belum ada slot Booking
+    Reservation yang di-stamp dengan sales_order SO tersebut —
     slot belum pernah diaktifkan.
     """
     lines = []
@@ -461,15 +461,15 @@ def _trip_seats_left(booking):
         pluck="name")]
     extra = 0
     if trip_booking_names:
-        # Slot tambahan yang dah aktif — junction Share Slot Reservation
-        # pada SO tambahan setiap booking (label guest_label TIDAK
+        # Slot tambahan yang dah aktif — stamp sales_order pada slot
+        # Booking Reservation setiap booking (label guest_label TIDAK
         # digunakan; slot seragam "Traveller N") …
         for booking_name in trip_booking_names:
             extra += _activated_extras_for(booking_name)
         # … plus SO tambahan yang masih pending — dikenalpasti tanpa
         # custom field marker: bukan SO primary booking tersebut, menjual
-        # item TRAVEL-PKG, dan belum ada rekod junction Share Slot
-        # Reservation yang membawa sales_order SO tersebut.
+        # item TRAVEL-PKG, dan belum ada slot Booking Reservation yang
+        # di-stamp dengan sales_order SO tersebut.
         extra += frappe.db.sql("""
             SELECT COALESCE(SUM(soi.qty), 0)
             FROM `tabSales Order` so
@@ -482,8 +482,8 @@ def _trip_seats_left(booking):
                   SELECT so2.name FROM `tabSales Order` so2
                   WHERE so2.custom_booking = so.custom_booking
                   ORDER BY so2.creation ASC LIMIT 1)
-              AND NOT EXISTS(SELECT 1 FROM `tabShare Slot Reservation` ssr
-                             WHERE ssr.sales_order = so.name)
+              AND NOT EXISTS(SELECT 1 FROM `tabBooking Reservation` br
+                             WHERE br.sales_order = so.name)
         """, (tuple(trip_booking_names), TRAVEL_ITEM_CODE))[0][0] or 0
 
     return int(td.max_participants) - int(existing_pax) - int(extra)
@@ -887,9 +887,10 @@ def _activate_share_traveller_reservation(so_name, force=False):
 
     SO traveller tambahan dikenalpasti TANPA custom field: berkaitan
     booking (custom_booking), BUKAN SO primary booking tu, dan menjual
-    item TRAVEL-PKG. Idempoten melalui junction Share Slot Reservation —
-    slot yang dicipta dipaut dengan SO sumbernya, jadi panggilan semula
-    (recompute berulang) tidak mendua slot. Cabin +
+    item TRAVEL-PKG. Idempoten melalui stamp Booking
+    Reservation.sales_order — slot yang dicipta di-stamp dengan SO
+    sumbernya, jadi panggilan semula (recompute berulang) tidak mendua
+    slot. Cabin +
     room_category diparse dari description item. Client
     controller BookingReservation.validate() (validate_cabin_capacity)
     jadi penghad terakhir — kalau cabin penuh, insert throw dan CALLER
@@ -920,7 +921,7 @@ def _activate_share_traveller_reservation(so_name, force=False):
         fields=["description", "qty"], order_by="idx")
     if not items:
         return None
-    if frappe.db.exists("Share Slot Reservation", {"sales_order": so.name}):
+    if not frappe.db.exists("Booking Reservation", {"sales_order": so.name}):
         return None  # dah diaktifkan
     if float(so.advance_paid or 0) < float(so.grand_total or 0) - _EPS:
         return None  # belum dibayar penuh
@@ -982,6 +983,8 @@ def _activate_share_traveller_reservation(so_name, force=False):
                 # pax lain) + Guest Sequence dalam cabin oleh set_guest_sequence.
                 "room_privacy":    "Private",
                 "is_a_cruise":     1,
+                # Status auto dikira validate() ikut aliran status
+                # reservation — nilai awal ini diabaikan.
                 "status":          "Confirmed",
                 # 'Incomplete' — 'Pending' dihapus dari options (patch
                 # v30_traveller_status_incomplete); nilai lama throw
@@ -994,18 +997,14 @@ def _activate_share_traveller_reservation(so_name, force=False):
             res.insert(ignore_permissions=True)
             created.append(res.name)
 
-    # Pautkan setiap slot ke SO sumbernya melalui junction Share Slot
-    # Reservation — idempotensi aktivasi + jejak audit slot. Insert
-    # berlaku dalam transaksi yang sama (tiada commit di antara): kalau
-    # mana-mana insert throw, request rollback keseluruhan (slot +
-    # junction) dan aktivasi boleh diulang lepas data dibetulkan.
+    # Stamp setiap slot dengan SO sumbernya (Booking Reservation.sales_order)
+    # — idempotensi aktivasi + jejak audit slot. Stamp berlaku dalam
+    # transaksi yang sama (tiada commit di antara): kalau mana-mana
+    # insert throw, request rollback keseluruhan (slot + stamp) dan
+    # aktivasi boleh diulang lepas data dibetulkan.
     for res_name in created:
-        frappe.get_doc({
-            "doctype":             "Share Slot Reservation",
-            "sales_order":         so.name,
-            "booking_reservation": res_name,
-            "booking":             so.custom_booking,
-        }).insert(ignore_permissions=True)
+        frappe.db.set_value("Booking Reservation", res_name, "sales_order",
+                            so.name, update_modified=False)
 
     # Cabin yang dah diisi traveller tambahan ialah kumpulan sendiri —
     # tukar room privacy KESELURUHAN penghuni cabin ni kepada "Private"

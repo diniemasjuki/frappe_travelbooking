@@ -170,7 +170,7 @@ function slotCardHtml(slot) {
     const badge = isVerified
       ? { bg: '#EBF7F1', fg: '#0F6E56', txt: 'Verified' }
       : isOpenForUpd
-        ? { bg: '#EDE9FE', fg: '#5B21B6', txt: 'Edit Requested' }
+        ? { bg: '#EDE9FE', fg: '#5B21B6', txt: 'Update Needed' }
         : { bg: '#FEF3C7', fg: '#92400E', txt: 'Pending' };
 
     const requestLink = isVerified
@@ -220,24 +220,23 @@ function slotCardHtml(slot) {
   return '<div style="background:#fff;">' + mainRow + guestRow + '</div>';
 }
 
-/* FIX AUDIT (dead click): slot Verified/Open-for-Update klik → mesej jelas,
-   bukan return senyap. */
+/* FIX AUDIT (dead click): slot Verified klik → mesej jelas, bukan return
+   senyap. Slot "Open for Update" KEKAL BOLEH DIEDIT — selari workflow
+   doctype Traveller (Open for Update → traveller isi semula → Pending
+   Verification) dan laluan borang docs/guest link/API yang hanya
+   mengunci "Verified". */
 function openTravellerForm(slotName) {
   if (!PORTAL_DATA) return;
   const slot = (PORTAL_DATA.slots || []).find(s => s.slot_name === slotName);
   if (!slot) return;
 
-  const isVerified   = slot.is_verified || slot.document_status === 'Verified';
-  const isOpenForUpd = slot.document_status === 'Open for Update';
+  const isVerified = slot.is_verified || slot.document_status === 'Verified';
 
-  if (isVerified || isOpenForUpd) {
+  if (isVerified) {
     const notice = document.getElementById('tvl-locked-notice');
     document.getElementById('tvl-locked-notice-text').innerHTML =
-      isVerified
-        ? '<strong>' + _esc(slot.full_name || slot.slot_label) + '</strong> has been verified by our team and is locked. ' +
-          'Need a correction? Use the "Request to edit" link on the card.'
-        : '<strong>' + _esc(slot.full_name || slot.slot_label) + '</strong> has an edit request pending review by our team. ' +
-          'You will be able to edit once it is approved.';
+      '<strong>' + _esc(slot.full_name || slot.slot_label) + '</strong> has been verified by our team and is locked. ' +
+      'Need a correction? Use the "Request to edit" link on the card.';
     notice.style.display = 'block';
     notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setTimeout(() => { notice.style.display = 'none'; }, 6000);
@@ -254,7 +253,7 @@ function openTravellerForm(slotName) {
 }
 
 async function requestDocumentUpdate(slotName) {
-  const ok = confirm('Request an update for this traveller slot?\n\nAdmin will review and unlock it for editing.');
+  const ok = confirm('Request to edit this traveller\'s details?\n\nThe slot will be unlocked for editing. Please resubmit after making changes — our team will re-verify your documents.');
   if (!ok) return;
   const linkBtns = document.querySelectorAll('button');
   // Double-submit guard ringan — butang request manapun yang sedang aktif.
@@ -282,15 +281,15 @@ let _wizardFile     = null;   // File passport yang dipilih untuk imbasan
 function renderEngineBadge() {
   const badge = document.getElementById('pp-engine-badge');
   if (!badge) return;
+  // Statement pengiklanan enjin AI dibuang dari UI — bila enjin AI aktif
+  // badge TIDAK dipapar terus (tak melabel enjin sebagai OCR yang salah).
   if (typeof _pageData !== 'undefined' && _pageData && _pageData.ai_scan_enabled) {
-    badge.textContent = '🤖 AI-powered scanning';
-    badge.style.color = '#0F6E56';
-    badge.style.background = '#EBF7F1';
-  } else {
-    badge.textContent = 'OCR (Image + MRZ) scanning';
-    badge.style.color = '#633806';
-    badge.style.background = '#FAEEDA';
+    badge.style.display = 'none';
+    return;
   }
+  badge.textContent = 'OCR (Image + MRZ) scanning';
+  badge.style.color = '#633806';
+  badge.style.background = '#FAEEDA';
   badge.style.display = 'inline-block';
   badge.style.padding = '4px 12px';
   badge.style.borderRadius = '12px';
@@ -545,8 +544,9 @@ function _isPhoneValid(iti, num) {
    NATIONALITY SELECT
    ══════════════════════════════════════════════ */
 
-/* Nationality: autocomplete native (datalist). _countries disimpan untuk
-   normalisasi input semasa save (padanan tak kisah huruf besar/kecil). */
+/* Nationality + Country: autocomplete native (datalist). _countries
+   disimpan untuk normalisasi input semasa save (padanan tak kisah huruf
+   besar/kecil). */
 let _countriesLoaded = false;
 let _countries = [];
 
@@ -554,11 +554,15 @@ async function loadCountries() {
   if (_countriesLoaded) return;
   try {
     const countries = await API_TV('get_countries', {});
-    const list = document.getElementById('tvl-nat-list');
-    if (list && countries && countries.length) {
+    if (countries && countries.length) {
       _countries = countries;
-      list.innerHTML = countries.map(c =>
+      const opts = countries.map(c =>
         '<option value="' + _esc(c.name) + '">' + _esc(c.country_name || c.name) + '</option>').join('');
+      const natList = document.getElementById('tvl-nat-list');
+      if (natList) natList.innerHTML = opts;
+      // Country (alamat) — datalist sama, sumber dokumen Country yang sama.
+      const ctryList = document.getElementById('tvl-country-list');
+      if (ctryList) ctryList.innerHTML = opts;
     }
     _countriesLoaded = true;
   } catch (e) {
@@ -570,6 +574,18 @@ async function loadCountries() {
    docname) atau '' jika kosong. Pulangkan null jika tiada padanan —
    caller papar ralat field. */
 function _canonicalNationality(value) {
+  const needle = (value || '').trim().toLowerCase();
+  if (!needle) return '';
+  const hit = _countries.find(c =>
+    (c.name || '').toLowerCase() === needle ||
+    (c.country_name || '').toLowerCase() === needle);
+  return hit ? hit.name : null;
+}
+
+/* Input country alamat → nama Country canonical — corak sama
+   _canonicalNationality (padanan tak kisah huruf besar/kecil supaya
+   rekod lama "MALAYSIA" ter-normalisasi ke "Malaysia"). */
+function _canonicalCountry(value) {
   const needle = (value || '').trim().toLowerCase();
   if (!needle) return '';
   const hit = _countries.find(c =>
@@ -629,8 +645,7 @@ async function _loadTravellerForm(slot, passportReset = false) {
 
   const isVerified      = slot && (slot.is_verified || slot.document_status === 'Verified');
   const isOpenForUpdate = slot && slot.document_status === 'Open for Update';
-  const isRejected      = slot && slot.document_status === 'Rejected';
-  const canEdit         = !isVerified || isOpenForUpdate || isRejected;
+  const canEdit         = !isVerified || isOpenForUpdate;
 
   document.getElementById('tvl-ic').value        = slot?.ic_number      || '';
   document.getElementById('tvl-firstname').value = slot?.first_name     || '';
@@ -903,7 +918,7 @@ async function submitTraveller(btnEl) {
   const city      = get('tvl-city').value.trim();
   const postcode  = get('tvl-postcode').value.trim();
   const state     = get('tvl-state').value.trim();
-  const country   = get('tvl-country').value.trim();
+  let   country   = get('tvl-country').value.trim();
   const wheelchair = get('tvl-wheelchair').value;
   // Consent — SATU checkbox di bar hantar.
   const consent   = !!document.querySelector('.tvl-pdpa-consent:checked');
@@ -961,6 +976,15 @@ async function submitTraveller(btnEl) {
   ];
   for (const [el, val, label] of addrFields) {
     if (!val) return fail(el, label + ' is required.');
+  }
+  // Country autocomplete: normalisasi input ke nama Country canonical
+  // (padanan tak kisah huruf besar/kecil) — selari perlakuan nationality.
+  // Langkau bila senarai negara gagal dimuatkan — server tetap terima.
+  if (country && _countries.length) {
+    const canonicalCountry = _canonicalCountry(country);
+    if (canonicalCountry === null)
+      return fail(get('tvl-country'), 'Please pick a country from the suggestion list.');
+    country = canonicalCountry;
   }
   // Emergency contact: kalau satu diisi, pasangannya mesti lengkap
   // (cermin check server-side). Mandatory penuh hanya di /traveller

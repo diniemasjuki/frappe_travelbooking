@@ -1,0 +1,62 @@
+/* ══════════════════════════════════════════════════════════════════
+   TravelBookingSearchBox — GAYA STANDARD (global)
+   ══════════════════════════════════════════════════════════════════
+   Dilengkapkan dengan pakej public/js/search_box.js (hooks
+   app_include_css/js). Struktur markup:
+
+       <span class="mba-searchwrap">          ← wrap (position relative)
+           <input type="text" … />            ← padding kanan untuk ✕
+           <button class="mba-search-clear">✕</button>
+       </span>
+
+   Varian mba-searchwrap--ac — untuk CONTROL sedia ada (cth. select
+   Autocomplete frappe): kelas ditambah pada $wrapper control oleh
+   TravelBookingSearchBox.attach(); butang ✕ same positioning.
+   Saiz/tinggi input KEKAL milik konteks tempatan (page css) — fail ini
+   hanya letak-asas wrap + butang ✕ supaya konsisten merentas tempat.
+   ══════════════════════════════════════════════════════════════════ */
+
+.mba-searchwrap {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	flex: 1 1 auto;
+	min-width: 120px;
+}
+
+.mba-searchwrap > input {
+	width: 100%;
+	min-width: 0;
+	padding-right: 26px;
+}
+
+.mba-search-clear {
+	position: absolute;
+	right: 5px;
+	top: 50%;
+	transform: translateY(-50%);
+	border: 0;
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 0 3px;
+	font-size: 11px;
+	line-height: 1;
+	z-index: 2;
+}
+.mba-search-clear:hover { color: var(--text-color); }
+.mba-search-clear[hidden] { display: none; }
+
+/* Varian control (Autocomplete dsb.) — $wrapper control dijadikan
+   wrap; butang ✕ melekat kanan atas input control. !important mengatasi
+   gaya input tempatan yang lebih spesifik (cth. .mba-rb-fcat-wrap
+   .awesomplete > input). */
+.mba-searchwrap--ac {
+	position: relative;
+	display: block;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.mba-searchwrap--ac input {
+	padding-right: 22px !important;
+}

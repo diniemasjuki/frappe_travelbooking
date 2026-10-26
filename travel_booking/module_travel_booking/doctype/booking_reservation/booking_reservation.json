@@ -41,10 +41,39 @@
   "cruise_end",
   "customer_message_section",
   "customer_message",
+  "booking_info_section",
+  "booking_status",
+  "booking_payment_status",
+  "booking_prog_payment",
+  "company",
+  "checkout_method",
+  "booking_channel",
+  "booking_info_column1",
+  "customer_phone",
+  "booked_by",
+  "end_customer",
+  "b2b_partner",
+  "affiliate",
+  "referral_code_used",
+  "booking_info_column2",
+  "booking_currency",
+  "booking_total_amount",
+  "booking_balance_amount",
+  "booking_paid_amount",
+  "booking_pre_discount_total",
+  "booking_voucher_discount",
+  "booking_price_rule_discount",
+  "booking_referral_discount",
+  "booking_info_column3",
+  "voucher",
+  "booking_trip_name",
+  "total_days",
+  "total_nights",
   "traveller_information_tab",
   "traveller",
   "column_break_tsvs",
   "traveller_email",
+  "traveller_phone",
   "traveller_details_section",
   "column_break_cedq",
   "traveller_full_name",
@@ -59,14 +88,29 @@
   "html_gwqb",
   "traveller_passportimg",
   "image_zvys",
-  "guest_address_section",
-  "address_source",
-  "column_break_gaddr",
-  "guest_address_line1",
-  "guest_city",
-  "guest_postcode",
-  "guest_state",
-  "guest_country",
+  "traveller_extra_section",
+  "traveller_status",
+  "traveller_visa_photo",
+  "column_break_sddi",
+  "traveller_title",
+  "traveller_first_name",
+  "traveller_last_name",
+  "traveller_age_category",
+  "column_break_rrtd",
+  "traveller_address_line1",
+  "traveller_city",
+  "traveller_postcode",
+  "traveller_state",
+  "traveller_country",
+  "column_break_velk",
+  "traveller_emergency_contact_name",
+  "traveller_emergency_contact_relationship",
+  "traveller_emergency_contact_phone",
+  "column_break_uoyb",
+  "traveller_wheelchair_assistant",
+  "traveller_medicine_treatment",
+  "traveller_dietary_requirements",
+  "traveller_medical_conditions",
   "rooming_and_flight_tab",
   "flight_announcement_section",
   "flight_announcement",
@@ -110,35 +154,7 @@
   "passport_link_token",
   "column_break_gplt",
   "passport_link_email",
-  "passport_link_expires_on",
-  "booking_info_section",
-  "booking_status",
-  "booking_payment_status",
-  "booking_prog_payment",
-  "company",
-  "checkout_method",
-  "booking_channel",
-  "booking_info_column1",
-  "customer_phone",
-  "booked_by",
-  "end_customer",
-  "b2b_partner",
-  "affiliate",
-  "referral_code_used",
-  "booking_info_column2",
-  "booking_currency",
-  "booking_total_amount",
-  "booking_balance_amount",
-  "booking_paid_amount",
-  "booking_pre_discount_total",
-  "booking_voucher_discount",
-  "booking_price_rule_discount",
-  "booking_referral_discount",
-  "booking_info_column3",
-  "voucher",
-  "booking_trip_name",
-  "total_days",
-  "total_nights"
+  "passport_link_expires_on"
  ],
  "fields": [
   {
@@ -167,12 +183,11 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "Confirmed",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Pending Review\nConfirmed\nCancelled"
+   "options": "Waiting Document\nDocument Completed\nDocument Expired\nPreparation Completed\nTrip On Progress\nCompleted\nCancelled"
   },
   {
    "fieldname": "traveller_details_section",
@@ -197,21 +212,18 @@
   {
    "fieldname": "stateroom_no",
    "fieldtype": "Data",
-   "label": "Stateroom No",
-   "read_only_depends_on": "eval:doc.cabin_is_confirmed"
+   "label": "Stateroom No"
   },
   {
    "fieldname": "aroya_guest_no",
    "fieldtype": "Int",
    "in_list_view": 1,
-   "label": "Aroya Guest No",
-   "read_only_depends_on": "eval:doc.cabin_is_confirmed"
+   "label": "Aroya Guest No"
   },
   {
    "fieldname": "delegate_no",
    "fieldtype": "Data",
-   "label": "Delegate No",
-   "read_only_depends_on": "eval:doc.cabin_is_confirmed"
+   "label": "Delegate No"
   },
   {
    "depends_on": "eval:!doc.is_cruise_only",
@@ -260,40 +272,40 @@
   {
    "fetch_from": "trip_package.trip_name",
    "fieldname": "trip_name",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "hidden": 1,
    "label": "Trip Name"
   },
   {
    "fetch_from": "trip_package.organizer_link",
    "fieldname": "trip_organizer",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "label": "Trip Organizer"
   },
   {
    "fetch_from": "trip_package.airport_form",
    "fieldname": "departure_point",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Departure Point"
   },
   {
    "fetch_from": "trip_package.package_code",
    "fieldname": "trip_package_code",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "label": "Trip Package Code"
   },
   {
    "fetch_from": "trip_package.package_title",
    "fieldname": "package_title",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "hidden": 1,
    "label": "Package TItle"
   },
   {
    "fetch_from": "trip_package.package_type",
    "fieldname": "package_type",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "label": "Package Type"
   },
   {
@@ -313,14 +325,14 @@
   {
    "fetch_from": "date_selection.departure_date",
    "fieldname": "departure_date",
-   "fieldtype": "Date",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Departure Date"
   },
   {
    "fetch_from": "date_selection.return_date",
    "fieldname": "arrival_date",
-   "fieldtype": "Date",
+   "fieldtype": "Read Only",
    "label": "Arrival Date"
   },
   {
@@ -328,7 +340,7 @@
    "depends_on": "eval:doc.is_a_cruise",
    "fetch_from": "booking.is_a_cruise_trip",
    "fieldname": "is_a_cruise",
-   "fieldtype": "Check",
+   "fieldtype": "Read Only",
    "label": "is a cruise",
    "mandatory_depends_on": "eval:doc.is_a_cruise"
   },
@@ -336,7 +348,7 @@
    "depends_on": "eval:doc.is_a_cruise",
    "fetch_from": "date_selection.sailing_start",
    "fieldname": "cruise_start",
-   "fieldtype": "Date",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Cruise Start"
   },
@@ -344,7 +356,7 @@
    "depends_on": "eval:doc.is_a_cruise",
    "fetch_from": "date_selection.sailing_end",
    "fieldname": "cruise_end",
-   "fieldtype": "Date",
+   "fieldtype": "Read Only",
    "label": "Cruise End"
   },
   {
@@ -371,10 +383,10 @@
    "label": "Notes"
   },
   {
-   "description": "Pesanan customer untuk slot reservation ini \u2014 diisi admin di Desk (padanan Booking.customer_message). Nota Booking dipapar di portal traveller; nota slot ini kekal dalaman.",
+   "description": "Pesanan customer untuk slot reservation ini — diisi admin di Desk (padanan Booking.customer_message). Nota Booking dipapar di portal traveller;",
    "fieldname": "customer_message",
    "fieldtype": "Small Text",
-   "label": "Customer Message"
+   "label": "Reservation Message"
   },
   {
    "fieldname": "traveller_information_tab",
@@ -386,21 +398,22 @@
    "depends_on": "eval:doc.is_cruise_only",
    "fetch_from": "booking.is_cruise_only",
    "fieldname": "is_cruise_only",
-   "fieldtype": "Check",
+   "fieldtype": "Read Only",
    "label": "is cruise only"
   },
   {
    "fetch_from": "booking.customer",
    "fieldname": "customer",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Customer"
   },
   {
    "fetch_from": "booking.booking_number",
    "fieldname": "booking_number",
-   "fieldtype": "Data",
-   "hidden": 1,
+   "fieldtype": "Read Only",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Booking No"
   },
   {
@@ -429,7 +442,7 @@
   {
    "fetch_from": "booking.cust_email",
    "fieldname": "customer_email",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Customer Email",
    "options": "Email"
@@ -567,7 +580,7 @@
   {
    "fetch_from": "traveller.full_name",
    "fieldname": "traveller_full_name",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Full Name",
    "options": "Name",
@@ -576,7 +589,7 @@
   {
    "fetch_from": "traveller.nationality",
    "fieldname": "traveller_nationality",
-   "fieldtype": "Link",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Nationality",
    "options": "Country",
@@ -585,7 +598,7 @@
   {
    "fetch_from": "traveller.ic_number",
    "fieldname": "traveller_ic",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "ID / IC / Mykad",
    "read_only": 1
@@ -594,83 +607,41 @@
    "fetch_from": "traveller.passport_no",
    "fetch_if_empty": 1,
    "fieldname": "traveller_passportno",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Passport No"
   },
   {
    "fetch_from": "traveller.gender",
    "fieldname": "traveller_gender",
-   "fieldtype": "Select",
+   "fieldtype": "Read Only",
    "label": "Gender",
    "read_only": 1
   },
   {
    "fetch_from": "traveller.date_of_birth",
    "fieldname": "traveller_datebirth",
-   "fieldtype": "Date",
+   "fieldtype": "Read Only",
    "label": "Date of Birth",
    "read_only": 1
   },
   {
    "fetch_from": "traveller.passport_expiry",
    "fieldname": "traveller_passportexpiry",
-   "fieldtype": "Date",
+   "fieldtype": "Read Only",
    "label": "Passport Expiry",
    "read_only": 1
   },
   {
    "fetch_from": "traveller.passport_image",
    "fieldname": "traveller_passportimg",
-   "fieldtype": "Attach Image",
+   "fieldtype": "Read Only",
    "label": "Passport Attachment"
   },
   {
    "fieldname": "image_zvys",
    "fieldtype": "Image",
    "options": "traveller_passportimg"
-  },
-  {
-   "description": "Alamat tetamu untuk slot reservation ini \u2014 secara lalai disalin dari alamat billing Booking semasa slot diaktifkan (address_source = 'From Booking'), ATAU diisi berasingan oleh admin ('Custom'). Tidak sync automatik dengan Booking \u2014 copy adalah tindakan tersurat (butang 'Copy Address from Booking' di Desk).",
-   "fieldname": "guest_address_section",
-   "fieldtype": "Section Break",
-   "label": "Address"
-  },
-  {
-   "fieldname": "address_source",
-   "fieldtype": "Select",
-   "label": "Address Source",
-   "options": "\nFrom Booking\nCustom",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_gaddr",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "guest_address_line1",
-   "fieldtype": "Data",
-   "label": "Street Address"
-  },
-  {
-   "fieldname": "guest_city",
-   "fieldtype": "Data",
-   "label": "City"
-  },
-  {
-   "fieldname": "guest_postcode",
-   "fieldtype": "Data",
-   "label": "Postcode"
-  },
-  {
-   "fieldname": "guest_state",
-   "fieldtype": "Data",
-   "label": "State"
-  },
-  {
-   "fieldname": "guest_country",
-   "fieldtype": "Data",
-   "label": "Country"
   },
   {
    "fieldname": "html_gwqb",
@@ -752,7 +723,7 @@
   {
    "fetch_from": "traveller.email",
    "fieldname": "traveller_email",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "label": "Traveller Email",
    "options": "Email"
   },
@@ -762,146 +733,141 @@
    "label": "Traveller Extra Info (Auto from Traveller)"
   },
   {
-   "fieldname": "traveller_title",
-   "fieldtype": "Data",
-   "label": "Title",
    "fetch_from": "traveller.title",
+   "fieldname": "traveller_title",
+   "fieldtype": "Read Only",
+   "label": "Title",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_first_name",
-   "fieldtype": "Data",
-   "label": "First Name",
    "fetch_from": "traveller.first_name",
+   "fieldname": "traveller_first_name",
+   "fieldtype": "Read Only",
+   "label": "First Name",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_last_name",
-   "fieldtype": "Data",
-   "label": "Last Name",
    "fetch_from": "traveller.last_name",
+   "fieldname": "traveller_last_name",
+   "fieldtype": "Read Only",
+   "label": "Last Name",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_age_category",
-   "fieldtype": "Data",
-   "label": "Age Category",
    "fetch_from": "traveller.age_category",
+   "fieldname": "traveller_age_category",
+   "fieldtype": "Read Only",
+   "label": "Age Category",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_status",
-   "fieldtype": "Data",
-   "label": "Traveller Status",
    "fetch_from": "traveller.status",
+   "fieldname": "traveller_status",
+   "fieldtype": "Read Only",
+   "label": "Traveller Status",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_document_verified",
-   "fieldtype": "Check",
-   "label": "Document Verified (Lock)",
-   "fetch_from": "traveller.document_verified",
-   "read_only": 1
-  },
-  {
-   "fieldname": "traveller_phone",
-   "fieldtype": "Data",
-   "label": "Phone",
    "fetch_from": "traveller.phone",
-   "read_only": 1,
-   "options": "Phone"
+   "fieldname": "traveller_phone",
+   "fieldtype": "Read Only",
+   "label": "Phone",
+   "options": "Phone",
+   "read_only": 1
   },
   {
-   "fieldname": "traveller_emergency_contact_name",
-   "fieldtype": "Data",
-   "label": "Emergency Contact Name",
    "fetch_from": "traveller.emergency_contact_name",
+   "fieldname": "traveller_emergency_contact_name",
+   "fieldtype": "Read Only",
+   "label": "Emergency Contact Name",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_emergency_contact_phone",
-   "fieldtype": "Data",
-   "label": "Emergency Phone",
    "fetch_from": "traveller.emergency_contact_phone",
-   "read_only": 1,
-   "options": "Phone"
+   "fieldname": "traveller_emergency_contact_phone",
+   "fieldtype": "Read Only",
+   "label": "Emergency Phone",
+   "options": "Phone",
+   "read_only": 1
   },
   {
-   "fieldname": "traveller_emergency_contact_relationship",
-   "fieldtype": "Data",
-   "label": "Emergency Relationship",
    "fetch_from": "traveller.emergency_contact_relationship",
+   "fieldname": "traveller_emergency_contact_relationship",
+   "fieldtype": "Read Only",
+   "label": "Emergency Relationship",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_address_line1",
-   "fieldtype": "Data",
-   "label": "Street Address",
    "fetch_from": "traveller.address_line1",
+   "fieldname": "traveller_address_line1",
+   "fieldtype": "Read Only",
+   "label": "Street Address",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_city",
-   "fieldtype": "Data",
-   "label": "City",
    "fetch_from": "traveller.city",
+   "fieldname": "traveller_city",
+   "fieldtype": "Read Only",
+   "label": "City",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_postcode",
-   "fieldtype": "Data",
-   "label": "Postcode",
    "fetch_from": "traveller.postcode",
+   "fieldname": "traveller_postcode",
+   "fieldtype": "Read Only",
+   "label": "Postcode",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_state",
-   "fieldtype": "Data",
-   "label": "State",
    "fetch_from": "traveller.state",
+   "fieldname": "traveller_state",
+   "fieldtype": "Read Only",
+   "label": "State",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_country",
-   "fieldtype": "Data",
-   "label": "Country",
    "fetch_from": "traveller.country",
-   "read_only": 1,
-   "options": "Country"
+   "fieldname": "traveller_country",
+   "fieldtype": "Read Only",
+   "label": "Country",
+   "read_only": 1
   },
   {
-   "fieldname": "traveller_wheelchair_assistant",
-   "fieldtype": "Data",
-   "label": "Wheelchair Assistant",
    "fetch_from": "traveller.wheelchair_assistant",
+   "fieldname": "traveller_wheelchair_assistant",
+   "fieldtype": "Read Only",
+   "label": "Wheelchair Assistant",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_dietary_requirements",
-   "fieldtype": "Text",
-   "label": "Dietary Requirements",
    "fetch_from": "traveller.dietary_requirements",
+   "fieldname": "traveller_dietary_requirements",
+   "fieldtype": "Read Only",
+   "is_virtual": 1,
+   "label": "Dietary Requirements",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_medical_conditions",
-   "fieldtype": "Text",
-   "label": "Medical Conditions / Allergic",
    "fetch_from": "traveller.medical_conditions",
+   "fieldname": "traveller_medical_conditions",
+   "fieldtype": "Read Only",
+   "is_virtual": 1,
+   "label": "Medical Conditions / Allergic",
    "read_only": 1
   },
   {
-   "fieldname": "traveller_medicine_treatment",
-   "fieldtype": "Text",
-   "label": "Medicine / Treatment",
    "fetch_from": "traveller.medicine_treatment",
+   "fieldname": "traveller_medicine_treatment",
+   "fieldtype": "Read Only",
+   "is_virtual": 1,
+   "label": "Medicine / Treatment",
    "read_only": 1
   },
   {
+   "fetch_from": "traveller.visa_photo",
    "fieldname": "traveller_visa_photo",
-   "fieldtype": "Attach",
-   "label": "Visa Attachment",
-   "fetch_from": "traveller.visa_photo"
+   "fieldtype": "Read Only",
+   "label": "Visa Attachment"
   },
   {
    "fieldname": "column_break_oyik",
@@ -920,13 +886,11 @@
    "options": "No"
   },
   {
-   "default": "Incomplete",
    "fetch_from": "traveller.status",
    "fieldname": "document_status",
-   "fieldtype": "Select",
+   "fieldtype": "Read Only",
    "in_list_view": 1,
    "label": "Document Status",
-   "options": "Incomplete\nVerified\nOpen for Update\nRejected\nValid",
    "read_only": 1
   },
   {
@@ -934,7 +898,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Snapshot konteks Booking induk slot ni \u2014 rujukan sahaja (read-only). Nilai live sentiasa di dokumen Booking.",
+   "description": "Snapshot konteks Booking induk slot ni — rujukan sahaja (read-only). Nilai live sentiasa di dokumen Booking.",
    "fieldname": "booking_info_section",
    "fieldtype": "Section Break",
    "label": "Booking Info (Snapshot)"
@@ -942,7 +906,7 @@
   {
    "fetch_from": "booking.status",
    "fieldname": "booking_status",
-   "fieldtype": "Select",
+   "fieldtype": "Read Only",
    "label": "Booking Status",
    "options": "Pending\nAccepted\nProcessing\nConfirmed\nCompleted\nAbandoned\nCancelled",
    "read_only": 1
@@ -950,7 +914,7 @@
   {
    "fetch_from": "booking.payment_status",
    "fieldname": "booking_payment_status",
-   "fieldtype": "Select",
+   "fieldtype": "Read Only",
    "label": "Booking Payment Status",
    "options": "Pending\nPartially Paid\nPaid\nRequest Refund\nPending Refund\nRefunded",
    "read_only": 1
@@ -958,14 +922,14 @@
   {
    "fetch_from": "booking.prog_payment",
    "fieldname": "booking_prog_payment",
-   "fieldtype": "Percent",
+   "fieldtype": "Read Only",
    "label": "Booking Payment Progress (%)",
    "read_only": 1
   },
   {
    "fetch_from": "booking.company",
    "fieldname": "company",
-   "fieldtype": "Link",
+   "fieldtype": "Read Only",
    "label": "Company",
    "options": "Company",
    "read_only": 1
@@ -973,7 +937,7 @@
   {
    "fetch_from": "booking.checkout_method",
    "fieldname": "checkout_method",
-   "fieldtype": "Select",
+   "fieldtype": "Read Only",
    "label": "Checkout Method",
    "options": "\nOnline Payment Gateway\nManual Transfer\nHeld Booking",
    "read_only": 1
@@ -981,7 +945,7 @@
   {
    "fetch_from": "booking.booking_channel",
    "fieldname": "booking_channel",
-   "fieldtype": "Select",
+   "fieldtype": "Read Only",
    "label": "Booking Channel",
    "options": "Direct\nStaff\nAffiliate\nB2B",
    "read_only": 1
@@ -993,14 +957,14 @@
   {
    "fetch_from": "booking.get_cust_booking_phone",
    "fieldname": "customer_phone",
-   "fieldtype": "Phone",
+   "fieldtype": "Read Only",
    "label": "Customer Phone",
    "read_only": 1
   },
   {
    "fetch_from": "booking.booked_by",
    "fieldname": "booked_by",
-   "fieldtype": "Link",
+   "fieldtype": "Read Only",
    "label": "Booked By",
    "options": "User",
    "read_only": 1
@@ -1008,7 +972,7 @@
   {
    "fetch_from": "booking.end_customer",
    "fieldname": "end_customer",
-   "fieldtype": "Link",
+   "fieldtype": "Read Only",
    "label": "End Customer",
    "options": "Customer",
    "read_only": 1
@@ -1016,7 +980,7 @@
   {
    "fetch_from": "booking.b2b_partner",
    "fieldname": "b2b_partner",
-   "fieldtype": "Link",
+   "fieldtype": "Read Only",
    "label": "B2B Partner",
    "options": "Travel B2B Partner",
    "read_only": 1
@@ -1024,7 +988,7 @@
   {
    "fetch_from": "booking.affiliate",
    "fieldname": "affiliate",
-   "fieldtype": "Link",
+   "fieldtype": "Read Only",
    "label": "Affiliate",
    "options": "Sales Partner",
    "read_only": 1
@@ -1032,7 +996,7 @@
   {
    "fetch_from": "booking.referral_code_used",
    "fieldname": "referral_code_used",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "label": "Referral Code Used",
    "read_only": 1
   },
@@ -1041,32 +1005,32 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Snapshot masa slot diisi/di-backfill (sumber virtual Booking, dikira dari Sales Order) \u2014 nilai live di Booking.",
+   "description": "Snapshot masa slot diisi/di-backfill (sumber virtual Booking, dikira dari Sales Order) — nilai live di Booking.",
    "fieldname": "booking_currency",
-   "fieldtype": "Data",
+   "fieldtype": "Read Only",
    "label": "Booking Currency",
    "read_only": 1
   },
   {
-   "description": "Snapshot masa slot diisi/di-backfill \u2014 nilai live di Booking.",
+   "description": "Snapshot masa slot diisi/di-backfill — nilai live di Booking.",
    "fieldname": "booking_total_amount",
-   "fieldtype": "Currency",
+   "fieldtype": "Read Only",
    "label": "Booking Total Amount",
    "options": "currency",
    "read_only": 1
   },
   {
-   "description": "Snapshot masa slot diisi/di-backfill \u2014 nilai live di Booking.",
+   "description": "Snapshot masa slot diisi/di-backfill — nilai live di Booking.",
    "fieldname": "booking_balance_amount",
-   "fieldtype": "Currency",
+   "fieldtype": "Read Only",
    "label": "Booking Balance Amount",
    "options": "currency",
    "read_only": 1
   },
   {
-   "description": "Snapshot masa slot diisi/di-backfill \u2014 nilai live di Booking.",
+   "description": "Snapshot masa slot diisi/di-backfill — nilai live di Booking.",
    "fieldname": "booking_paid_amount",
-   "fieldtype": "Currency",
+   "fieldtype": "Read Only",
    "label": "Booking Paid Amount",
    "options": "currency",
    "read_only": 1
@@ -1074,7 +1038,7 @@
   {
    "fetch_from": "booking.pre_discount_total",
    "fieldname": "booking_pre_discount_total",
-   "fieldtype": "Currency",
+   "fieldtype": "Read Only",
    "label": "Booking Pre-Discount Total",
    "options": "currency",
    "read_only": 1
@@ -1082,7 +1046,7 @@
   {
    "fetch_from": "booking.voucher_discount",
    "fieldname": "booking_voucher_discount",
-   "fieldtype": "Currency",
+   "fieldtype": "Read Only",
    "label": "Booking Voucher Discount",
    "options": "currency",
    "read_only": 1
@@ -1090,7 +1054,7 @@
   {
    "fetch_from": "booking.price_rule_discount",
    "fieldname": "booking_price_rule_discount",
-   "fieldtype": "Currency",
+   "fieldtype": "Read Only",
    "label": "Booking Price Rule Discount",
    "options": "currency",
    "read_only": 1
@@ -1098,7 +1062,7 @@
   {
    "fetch_from": "booking.referral_discount",
    "fieldname": "booking_referral_discount",
-   "fieldtype": "Currency",
+   "fieldtype": "Read Only",
    "label": "Booking Referral Discount",
    "options": "currency",
    "read_only": 1
@@ -1110,7 +1074,7 @@
   {
    "fetch_from": "booking.voucher",
    "fieldname": "voucher",
-   "fieldtype": "Link",
+   "fieldtype": "Read Only",
    "label": "Voucher",
    "options": "Voucher",
    "read_only": 1
@@ -1118,7 +1082,7 @@
   {
    "fetch_from": "booking.trip_name",
    "fieldname": "booking_trip_name",
-   "fieldtype": "Link",
+   "fieldtype": "Read Only",
    "label": "Booking Trip",
    "options": "Trip",
    "read_only": 1
@@ -1134,11 +1098,27 @@
    "fieldname": "total_nights",
    "fieldtype": "Read Only",
    "label": "Total Nights"
+  },
+  {
+   "fieldname": "column_break_sddi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_rrtd",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_velk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_uoyb",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "links": [],
- "modified": "2026-10-18 05:24:20.261193",
+ "modified": "2026-10-24 21:32:22.749247",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Booking Reservation",

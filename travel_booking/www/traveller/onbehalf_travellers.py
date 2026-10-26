@@ -16,8 +16,7 @@
 #     route/back-link yang betul dan papar mod manager.
 
 import frappe
-from travel_booking.api._helpers import has_on_behalf_role
-from travel_booking.www.traveller._guard import guard_context, get_query_param
+from travel_booking.www.traveller._guard import guard_context, get_query_param, require_on_behalf_manager
 
 
 def get_context(context):
@@ -28,9 +27,7 @@ def get_context(context):
     # Khusus manager on-behalf — customer biasa yang tersasar ke URL ni
     # dibawa balik ke My Bookings. (Routing halaman sahaja; endpoint data
     # tetap menolak akses bukan-manager secara independen.)
-    if not has_on_behalf_role(frappe.session.user):
-        frappe.local.flags.redirect_location = "/traveller/bookings"
-        raise frappe.Redirect
+    require_on_behalf_manager()
 
     context.site_name = frappe.get_cached_value(
         "Travel Settings", None, "site_name"

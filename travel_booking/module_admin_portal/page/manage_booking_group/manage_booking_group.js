@@ -160,8 +160,8 @@ window.ManageTripBooking = (function () {
 		'Open': 'blue', 'Full': 'orange', 'Closed': 'gray', 'Completed': 'green',
 	};
 	const DOC_STATUS_COLORS = {
-		'Pending': 'orange', 'Verified': 'green', 'Valid': 'green',
-		'Open for Update': 'yellow', 'Rejected': 'red',
+		'Pending': 'orange', 'Verified': 'green', 'Expired': 'red',
+		'Open for Update': 'yellow', 'Expired': 'red',
 	};
 	const AGE_BUCKET_COLORS = {
 		'Infant': 'violet', 'Child': 'cyan', 'Adult': 'blue', 'Unknown': 'gray',
@@ -228,7 +228,7 @@ window.ManageTripBooking = (function () {
 	];
 	const ADDON_STATUS_OPTIONS = ['', 'Pending', 'Confirmed', 'Cancelled'];
 	const ADDON_PAYMENT_OPTIONS = ['', 'Pending', 'Partially Paid', 'Paid'];
-	const DOC_STATUS_OPTIONS = ['', 'Incomplete', 'Verified', 'Open for Update', 'Rejected', 'Valid'];
+	const DOC_STATUS_OPTIONS = ['', 'Incomplete', 'Verified', 'Open for Update', 'Expired'];
 
 	// Row limit untuk quick preview (0 = semua)
 	const ROW_LIMITS = [10, 25, 50, 100, 0];
@@ -2260,7 +2260,9 @@ function item_groups(it) {
 	// Invoice) dan rooming. Backend: get_booking_profile().
 
 	const RES_STATUS_COLORS = {
-		'Pending Review': 'yellow', 'Confirmed': 'green', 'Cancelled': 'red',
+		'Waiting Document': 'yellow', 'Document Completed': 'green',
+		'Document Expired': 'red', 'Preparation Complete': 'blue',
+		'Trip OnProgress': 'orange', 'Completed': 'gray', 'Cancelled': 'red',
 	};
 	// docstatus dokumen ERPNext — submitted (1) tiada badge tambahan
 	// (status dokumen sendiri dipapar), Draft/Cancelled berbadge.
@@ -2278,7 +2280,7 @@ function item_groups(it) {
 		'To Pay': 'orange', 'Completed': 'green', 'Closed': 'gray',
 		'Cancelled': 'red', 'On Hold': 'yellow', 'Draft': 'orange',
 	};
-	const DOC_STATUS_OK = ['Verified', 'Valid'];
+	const DOC_STATUS_OK = ['Verified'];
 
 	const docstatus_badge = (docstatus) => {
 		const m = DOCSTATUS_META[docstatus];
@@ -2985,7 +2987,6 @@ function item_groups(it) {
 			+ crow(__('Passport Expiry'), t.passport_expiry ? esc(fmtDate(t.passport_expiry)) : '')
 			+ crow(__('IC Number'), F(t.ic_number))
 			+ crow(__('Document Status'), badge(t.document_status, DOC_STATUS_COLORS[t.document_status]))
-			+ crow(__('Verified Locked'), t.document_verified ? badge(__('Yes'), 'green') : '')
 			+ (t.passport_image ? crow(__('Passport Image'), `<a href="${esc(t.passport_image)}" target="_blank" rel="noopener">${__('Open image')}</a>`) : '')
 			+ (t.visa_photo ? crow(__('Visa Image'), `<a href="${esc(t.visa_photo)}" target="_blank" rel="noopener">${__('Open image')}</a>`) : ''));
 		const health = card('🩺 ' + __('Health & Special Needs'),

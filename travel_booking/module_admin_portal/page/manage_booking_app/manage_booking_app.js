@@ -23,13 +23,15 @@
 //      Tab Bookings  — kad (telefon) / jadual 8 kolum (desktop); klik → L3.
 //      Tab Travellers — kad / jadual + carian + tapisan dokumen.
 //      Tab Rooms     — senarai lipat per bilik (details/summary).
-//      Tab More      — Booking Addon + Flight (dimuatkan lazily).
+//      Tab Flights   — flight rujukan group (dimuatkan lazily).
+//      Tab Addons    — Booking Addon (dimuatkan lazily).
 // 3. L3 BOOKING INFO — /app/manage-booking-app/booking/<name>. Topbar
-//    breadcrumb; telefon = satu lajur (kad identiti + strip wang + 4 tab);
+//    breadcrumb; telefon = satu lajur (kad identiti + strip wang + tab);
 //    desktop = rail sticky kiri. Tab: Overview (Order Summary + timeline
-//    dipendekkan), Travellers (kad/jadual + ZIP/XLSX/CSV), Documents
-//    (SO/SI/PI + Payment Entries + resit), Others (diskaun, affiliate,
-//    komisen, audit).
+//    dipendekkan), Travellers (kad/jadual + ZIP/XLSX/CSV), Rooms (pakej
+//    rooming list get_group_rooming skop booking), Documents (SO/SI/PI +
+//    Payment Entries + resit), Add-ons & Flights, Others (diskaun,
+//    affiliate, komisen, audit).
 //
 // CURRENCY-SENSITIVE: disiplin sama dengan page lama — semua nilai wang
 // dipapar PER CURRENCY (pecahan *_by_currency daripada backend); nilai
@@ -106,13 +108,27 @@ window.ManageBookingApp = (function () {
 	const hasBalance = (rows) => (rows || []).some((r) => (r.balance || 0) > 0.009);
 	const hasAltCur = (rows) => (rows || []).some((r) => r.currency && r.currency !== S.currency);
 
-	// "≈ RM 82,010.00" — jumlah bersamaan default currency; '+' bila ada
-	// currency tanpa kadar tukaran (jumlah tidak lengkap).
-	const fmtDefaultTotal = (tot, field) => {
-		if (!tot || tot[field] == null) return '';
-		return '≈ ' + fmtMoney(tot[field], tot.currency || S.currency)
-			+ (tot.rates_complete === false ? '+' : '');
-	};
+// "≈ RM 82,010.00" — jumlah bersamaan default currency; '+' bila ada
+// currency tanpa kadar tukaran (jumlah tidak lengkap).
+const fmtDefaultTotal = (tot, field) => {
+	if (!tot || tot[field] == null) return '';
+	return '≈ ' + fmtMoney(tot[field], tot.currency || S.currency)
+		+ (tot.rates_complete === false ? '+' : '');
+};
+
+// Sub-line berlabel "MYR: RM 1,000.00" — pecahan native satu currency
+// (kolum Revenue/Collection). TIDAK dipapar bila baris itu TUNGGAL dan
+// sama dengan default currency (nilai utama sel sudah memaparkannya)
+// atau nilainya sifar.
+const cur_sub_line = (a, cur, field) => {
+	const rows = a.by_cur || [];
+	const row = rows.find((r) => r.currency === cur);
+	if (!row) return '';
+	if (rows.length === 1 && cur === S.currency) return '';
+	const v = row[field] || 0;
+	if (v <= 0.009) return '';
+	return cur + ': ' + fmtMoney(v, cur);
+};
 
 	// Warna badge mengikut states doctype
 	const GROUP_STATUS_COLORS = {
@@ -132,10 +148,27 @@ window.ManageBookingApp = (function () {
 	const ADDON_STATUS_COLORS = { 'Pending': 'yellow', 'Confirmed': 'green', 'Cancelled': 'red' };
 	const FLIGHT_STATUS_COLORS = { 'Open': 'blue', 'Full': 'orange', 'Closed': 'gray', 'Completed': 'green' };
 	const DOC_STATUS_COLORS = {
-		'Incomplete': 'orange', 'Pending': 'orange', 'Open for Update': 'yellow', 'Rejected': 'red',
-		'Pending Verification': 'blue', 'Verified': 'green', 'Valid': 'green',
+		'Incomplete': 'orange', 'Pending': 'orange', 'Open for Update': 'yellow', 'Expired': 'red',
+		'Pending Verification': 'blue', 'Verified': 'green', 'Expired': 'red',
 	};
-	const RES_STATUS_COLORS = { 'Pending Review': 'yellow', 'Confirmed': 'green', 'Cancelled': 'red' };
+	const RES_STATUS_COLORS = {
+		'Waiting Document': 'yellow', 'Document Completed': 'green',
+		'Document Expired': 'red', 'Preparation Complete': 'blue',
+		'Trip OnProgress': 'orange', 'Completed': 'gray', 'Cancelled': 'red',
+	};
+	// Status doctype Booking (panel Booking modal) — cermin DF.Literal
+	// booking.json; warna badge paparan butang status.
+	const BOOK_STATUS_COLORS = {
+		'Pending': 'yellow', 'Accepted': 'green', 'Processing': 'blue',
+		'Confirmed': 'cyan', 'Completed': 'gray', 'Abandoned': 'orange',
+		'Cancelled': 'red',
+	};
+	// Opsyen status butang tukar status panel — cermin doctype Booking &
+	// Booking Reservation (senarai endpoint server). BOOKING_STATUS_OPTIONS
+	// sedia ada (atas, filter) — dialog status langkau opsyen kosong.
+	const RESERVATION_STATUS_OPTIONS = ['Waiting Document', 'Document Completed',
+		'Document Expired', 'Preparation Completed', 'Trip On Progress',
+		'Completed', 'Cancelled'];
 	const AGE_BUCKET_COLORS = { 'Infant': 'violet', 'Child': 'cyan', 'Adult': 'blue', 'Unknown': 'gray' };
 	const COMMISSION_STATUS_COLORS = {
 		'Pending': 'yellow', 'Invoiced': 'blue', 'Approved': 'cyan',
@@ -148,7 +181,7 @@ window.ManageBookingApp = (function () {
 	};
 	const DOCSTATUS_META = { 0: { label: 'Draft', color: 'orange' }, 2: { label: 'Cancelled', color: 'red' } };
 	const PE_STATUS_META = { 0: { label: 'Pending', color: 'orange' }, 1: { label: 'Verified', color: 'green' }, 2: { label: 'Cancelled', color: 'red' } };
-	const DOC_STATUS_OK = ['Verified', 'Valid'];
+	const DOC_STATUS_OK = ['Verified'];
 
 	const badge = (label, color) =>
 		label ? `<span class="mba-badge mba-badge--${color || 'gray'}">${esc(label)}</span>` : '';
@@ -193,29 +226,32 @@ window.ManageBookingApp = (function () {
 		d.show();
 	};
 
-	// Butang Call & WhatsApp (wa.me) untuk satu nombor telefon.
+	// Butang Call & WhatsApp (wa.me) untuk satu nombor telefon — piawai
+	// seluruh page: ikon + teks kecil (11px), jajar kanan pada kontena
+	// aksi (.mba-bkg-cust-actions / .mba-bkg-card-*-actions).
 	const call_wa_btns = (phone) => {
 		const telRaw = String(phone || '').replace(/[^\d+]/g, '');
 		const digits = telRaw.replace(/\D/g, '');
 		const callLink = telRaw
-			? `<a class="mba-quickbtn" href="tel:${esc(telRaw)}" title="${esc(__('Call customer'))}">${__('Call')}</a>` : '';
+			? `<a class="mba-quickbtn" href="tel:${esc(telRaw)}" title="${esc(__('Call customer'))}">${frappe.utils.icon('phone', 'xs')}<span>${__('Call')}</span></a>` : '';
 		const waLink = digits
 			? `<a class="mba-quickbtn mba-quickbtn--wa" href="https://wa.me/${esc(digits.startsWith('0') ? '6' + digits : digits)}"
-					target="_blank" rel="noopener" title="${esc(__('Open WhatsApp message in a new tab'))}">WhatsApp</a>` : '';
+					target="_blank" rel="noopener" title="${esc(__('Open WhatsApp message in a new tab'))}">${frappe.utils.icon('message-circle', 'xs')}<span>${__('WhatsApp')}</span></a>` : '';
 		return callLink + waLink;
 	};
 
 	// Ikon padat sebelah no. telefon (jadual) — panggilan (tel:) & chat
-	// WhatsApp (wa.me, tab baharu). Same normalisasi nombor dengan di atas.
+	// WhatsApp (wa.me, tab baharu). Normalisasi nombor sama dengan di atas.
+	// Wrapper .mba-contact-acts mendorong ikon ke kanan baris telefon
+	// (.mba-contact-line) — piawai di semua jadual page ini.
 	const contact_icons = (phone) => {
 		const telRaw = String(phone || '').replace(/[^\d+]/g, '');
 		const digits = telRaw.replace(/\D/g, '');
 		if (!digits) return '';
-		return `
-			<a class="mba-contact-icon" href="tel:${esc(telRaw)}" target="_blank" rel="noopener"
-				title="${esc(__('Phone call'))}" aria-label="${esc(__('Phone call'))}">${frappe.utils.icon('phone', 'sm')}</a><a
+		return `<span class="mba-contact-acts"><a class="mba-contact-icon" href="tel:${esc(telRaw)}" target="_blank" rel="noopener"
+				title="${esc(__('Phone call'))}" aria-label="${esc(__('Phone call'))}">${frappe.utils.icon('phone', 'xs')}</a><a
 				class="mba-contact-icon mba-contact-icon--wa" href="https://wa.me/${esc(digits.startsWith('0') ? '6' + digits : digits)}"
-				target="_blank" rel="noopener" title="${esc(__('WhatsApp chat'))}" aria-label="${esc(__('WhatsApp chat'))}">${frappe.utils.icon('message-circle', 'sm')}</a>`;
+				target="_blank" rel="noopener" title="${esc(__('WhatsApp chat'))}" aria-label="${esc(__('WhatsApp chat'))}">${frappe.utils.icon('message-circle', 'xs')}</a></span>`;
 	};
 
 	const GROUP_STATUS_OPTIONS = [
@@ -234,11 +270,22 @@ window.ManageBookingApp = (function () {
 	const ADDON_PAYMENT_OPTIONS = ['', 'Pending', 'Partially Paid', 'Paid'];
 
 	// Susunan logik Doc Status untuk sort (bukan abjad).
-	const DOC_STATUS_RANK = { 'Incomplete': 0, 'Pending': 0, 'Pending Verification': 1, 'Open for Update': 2, 'Rejected': 3, 'Verified': 4, 'Valid': 5 };
+	const DOC_STATUS_RANK = { 'Incomplete': 0, 'Pending': 0, 'Pending Verification': 1, 'Open for Update': 2, 'Expired': 3, 'Verified': 4 };
 
 	// Pilihan sort tab Travellers (L2 & L3) — kunci header jadual & dropdown.
 	const TV_SORTS = {
-		name: { label: 'Traveller Name', val: (t) => (t.traveller_name || '').toLowerCase() },
+		// name — slot TANPA rekod Traveller dipapar guna guest_label
+		// ("Traveller 1") & traveller_name "-" (placeholder) — nilai "-"
+		// DINORMALISASI kosong, kalau tidak semua slot guest mendapat nilai
+		// sort sama & kekal kedudukan asal (nampak macam sort tak berfungsi).
+		name: {
+			label: 'Traveller Name',
+			val: (t) => {
+				const n = t.traveller ? t.traveller_name
+					: (t.guest_label || t.traveller_name);
+				return (n && n !== '-' ? n : '').toLowerCase();
+			},
+		},
 		booking: { label: 'Booking', val: (t) => (t.booking_number || t.booking || '').toLowerCase() },
 		age: { label: 'Age', val: (t) => (t.age == null ? -1 : t.age) },
 		dob: { label: 'Date of Birth', val: (t) => (t.dob || '') },
@@ -254,6 +301,9 @@ window.ManageBookingApp = (function () {
 		roomcat: { label: 'Room Category', val: (t) => (t.room_category || '').toLowerCase() },
 	};
 
+	const TRAVELLER_STATUS_OPTIONS = ['Incomplete', 'Pending Verification',
+		'Verified', 'Open for Update', 'Expired'];
+
 	const ROW_LIMITS = [10, 25, 50, 100, 0];
 	const DEFAULT_LIMIT = 10;
 
@@ -263,24 +313,30 @@ window.ManageBookingApp = (function () {
 		{ id: 'booking', label: __('Bookings') },
 		{ id: 'traveller', label: __('Travellers') },
 		{ id: 'rooming', label: __('Rooms') },
-		{ id: 'more', label: __('More') },
+		{ id: 'flights', label: __('Flights') },
+		{ id: 'addons', label: __('Addons') },
 	];
 	// Tab L3 (booking info)
 	const BKG_TABS = [
 		{ id: 'ov', label: __('Overview') },
 		{ id: 'tv', label: __('Travellers') },
+		{ id: 'rm', label: __('Rooms') },
 		{ id: 'doc', label: __('Documents') },
+		{ id: 'af', label: __('Add-ons & Flights') },
 		{ id: 'other', label: __('Others') },
 	];
 
 	// Peta tab → kekunci state (bk/ad/tv/rm/fl)
-	const TAB_STATE_KEY = { booking: 'bk', more: 'ad', traveller: 'tv', rooming: 'rm' };
-	const SCOPE_TAB = { bk: 'booking', ad: 'more', tv: 'traveller', rm: 'rooming', fl: 'more' };
+	const TAB_STATE_KEY = { booking: 'bk', addons: 'ad', traveller: 'tv', rooming: 'rm', flights: 'fl' };
+	const SCOPE_TAB = { bk: 'booking', ad: 'addons', tv: 'traveller', rm: 'rooming', fl: 'flights' };
 
 	const S = {
 		page: null,
 		wrapper: null,
-		filters: { search: '', view: 'all', status: '', year: '', month: '', gtype: 'all', hidePassive: false, panelOpen: false },
+		filters: { search: '', view: 'all', status: '', mFrom: '', mTo: '', collMin: 0, collMax: 100, gtype: 'all', hidePassive: true, panelOpen: false },
+		archived: false,       // paparan arkib penuh (permintaan user)
+		monthDomain: [],       // bulan (YYYY-MM) unik group termuat — domain slider
+		sort: { key: '', dir: 1 },  // susunan jadual L1 ('' = susunan server)
 		groups: [],
 		items: [],
 		currency: 'MYR',
@@ -290,6 +346,7 @@ window.ManageBookingApp = (function () {
 		state: {},             // { itemKey: { tab, bk{}, ad{}, tv{}, rm{}, fl{} } }
 		tvFields: null,        // medan penapis dinamik tab Travellers (cache sekali)
 		tvFieldsPromise: null,
+		tvAllJobs: {},         // { itemKey: Promise } — muat traveller penuh pecahan DOB
 		batchSel: new Set(),
 		loading: false,
 		tl: { ...TL_DEFAULTS },
@@ -352,9 +409,37 @@ window.ManageBookingApp = (function () {
 			show_booking(r[2]);
 		} else if ((r[1] === 'group' || r[1] === 'batch') && r[2]) {
 			show_detail(r[1], r[2]);
+		} else if (r[1] === 'rooming' && r[2] && r[3]) {
+			show_rooming(r[2], r[3]);   // /rooming/<group|batch>/<id>
 		} else {
 			show_list();
 		}
+	}
+
+	// Rooming Board sebagai VIEW PENUH (bukan modal) — route
+	// /app/manage-booking-app/rooming/<kind>/<id>. Corak sama show_detail:
+	// resolve item (deep-link disokong), muat data rooming, render board.
+	async function show_rooming(kind, id) {
+		const key = (kind === 'batch' ? 'batch:' : 'grp:') + id;
+		S.mode = 'rooming';
+		S.detail = { kind, id, key, loading: true, rendered: false };
+		$('#mba-list-wrap').hide();
+		$('#mba-detail').show().html(`<div class="mba-loading">${__('Loading...')}</div>`);
+
+		const it = await resolve_item(kind, id, key);
+		if (!S.detail || S.detail.key !== key || S.mode !== 'rooming') return;
+		if (!it) {
+			$('#mba-detail').html(`
+				<div class="mba-empty">
+					<p>${__('Trip Group Date {0} not found.', [esc(id)])}</p>
+					<button class="btn btn-default btn-sm mba-back-btn">${__('← All Groups')}</button>
+				</div>`);
+			return;
+		}
+		S.detail.loading = false;
+		S.detail.rendered = true;
+		S.detail.item = it;
+		open_rooming_board(key);
 	}
 
 	function show_list() {
@@ -404,11 +489,13 @@ window.ManageBookingApp = (function () {
 			? groups.filter((g) => (g.group_batch || '').trim() === id)
 			: groups.filter((g) => g.name === id));
 		try {
-			const data = await api('get_trip_groups', { search: id });
+			// Deep-link — muat TANPA pengecualian arkib supaya group
+			// terarkib lama pun boleh dibuka terus dari URL.
+			const data = await api('get_trip_groups', { search: id, archived: 1 });
 			S.currency = data?.currency || S.currency;
 			let groups = pick(data?.groups || []);
 			if (!groups.length) {
-				const all = await api('get_trip_groups', {});
+				const all = await api('get_trip_groups', { archived: 1 });
 				S.currency = all?.currency || S.currency;
 				groups = pick(all?.groups || []);
 			}
@@ -470,8 +557,11 @@ window.ManageBookingApp = (function () {
 					<div class="mba-toolbar">
 						<div class="mba-search-row">
 							<div class="mba-search-box">
-								<input type="text" id="mba-search" class="mba-search-input"
-									placeholder="${__('Search group / trip / booking / customer / traveller...')}" />
+								${TravelBookingSearchBox.html({
+									cls: 'mba-search-input',
+									attrs: { id: 'mba-search' },
+									placeholder: __('Search group / trip / booking / customer / traveller...'),
+								})}
 							</div>
 							<button type="button" class="btn btn-default btn-sm mba-filter-btn" id="mba-filter-btn">
 								${__('Filters')} <span class="mba-filter-count" id="mba-filter-count"></span>
@@ -481,6 +571,8 @@ window.ManageBookingApp = (function () {
 							<button type="button" class="mba-chip active" data-view="all">${__('All')}</button>
 							<button type="button" class="mba-chip" data-view="upcoming">${__('Upcoming')}</button>
 							<button type="button" class="mba-chip" data-view="past">${__('Past')}</button>
+							<button type="button" class="mba-arch-link" id="mba-arch-link"
+								title="${__('Archived = Completed & Cancelled trips')}">${__('View Archived')}</button>
 						</div>
 						<div class="mba-filter-panel" id="mba-filter-panel">
 						<div class="mba-filter-grid">
@@ -492,17 +584,36 @@ window.ManageBookingApp = (function () {
 								</select></label>
 							<label class="mba-field"><span>${__('Status')}</span>
 								<select id="mba-status">${statusOpts}</select></label>
-							<label class="mba-field"><span>${__('Time')}</span>
-								<select id="mba-year" title="${__('Filter by departure / sailing time')}">
-									<option value="">${__('All Time')}</option>
-								</select></label>
-							<label class="mba-field"><span>${__('Month')}</span>
-								<select id="mba-month" title="${__('Filter by month of departure / sailing')}" disabled>
-									<option value="">${__('All Months')}</option>
-									${MONTHS.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('')}
-								</select></label>
+							<div class="mba-field mba-field--range">
+								<span>${__('Time Range')}</span>
+								<div class="mba-range" id="mba-range">
+									<div class="mba-range-track"><div class="mba-range-fill" id="mba-range-fill"></div></div>
+									<input type="range" class="mba-range-input" id="mba-range-start" min="0" max="0" value="0" step="1"
+										aria-label="${__('From month')}" title="${__('Departure / sailing month — from')}"/>
+									<input type="range" class="mba-range-input" id="mba-range-end" min="0" max="0" value="0" step="1"
+										aria-label="${__('To month')}" title="${__('Departure / sailing month — to')}"/>
+								</div>
+								<div class="mba-range-labels">
+									<span id="mba-range-from">${__('All Time')}</span>
+									<span id="mba-range-to"></span>
+								</div>
+							</div>
+							<div class="mba-field mba-field--range">
+								<span>${__('Collection Progress')}</span>
+								<div class="mba-range" id="mba-coll-range">
+									<div class="mba-range-track"><div class="mba-range-fill" id="mba-coll-fill"></div></div>
+									<input type="range" class="mba-range-input" id="mba-coll-start" min="0" max="100" value="0" step="1"
+										aria-label="${__('Minimum collected')}" title="${__('% of revenue collected — from')}"/>
+									<input type="range" class="mba-range-input" id="mba-coll-end" min="0" max="100" value="100" step="1"
+										aria-label="${__('Maximum collected')}" title="${__('% of revenue collected — to')}"/>
+								</div>
+								<div class="mba-range-labels">
+									<span id="mba-coll-from">${__('All')}</span>
+									<span id="mba-coll-to"></span>
+								</div>
+							</div>
 							<label class="mba-field mba-field--check">
-								<input type="checkbox" id="mba-hide-passive"/>
+								<input type="checkbox" id="mba-hide-passive" ${S.filters.hidePassive ? 'checked' : ''}/>
 								<span>${__('Hide Passive Group')}</span></label>
 							<button type="button" class="btn btn-default btn-sm" id="mba-filter-reset">${__('Reset')}</button>
 						</div>
@@ -534,6 +645,15 @@ window.ManageBookingApp = (function () {
 			load();
 		});
 
+		// Paparan arkib — atas permintaan user sahaja; senarai default
+		// tidak memuatkan group Completed/Cancelled (kecuali arkib baru
+		// tahun semasa) demi mengurangkan beban DB.
+		$w.find('#mba-arch-link').on('click', () => {
+			S.archived = !S.archived;
+			update_arch_link();
+			load(true);
+		});
+
 		// Panel penapis — buka/tutup; bilangan penapis aktif pada butang.
 		$w.find('#mba-filter-btn').on('click', () => {
 			S.filters.panelOpen = !S.filters.panelOpen;
@@ -546,20 +666,60 @@ window.ManageBookingApp = (function () {
 			load();
 		});
 
-		$w.find('#mba-year').on('change', function () {
-			S.filters.year = $(this).val();
-			if (!S.filters.year) {
-				S.filters.month = '';
-				$w.find('#mba-month').val('');
-			}
-			$w.find('#mba-month').prop('disabled', !S.filters.year);
-			refresh_client_filters();
-		});
+		// Slider julat masa (bulan pergi) — 'input' kemaskini fill/label
+		// serta-merta; penapisan & render semula pada 'change' (handle
+		// dilepaskan), supaya drag tak memecat render berulang kali.
+		$w.find('#mba-range-start')
+			.on('input', function () {
+				const $e = $w.find('#mba-range-end');
+				if (parseInt(this.value, 10) > parseInt($e.val(), 10)) this.value = $e.val();
+				sync_range_ui();
+			})
+			.on('change', function () {
+				const dom = S.monthDomain;
+				const v = parseInt(this.value, 10) || 0;
+				S.filters.mFrom = (dom.length && v > 0) ? dom[v] : '';
+				refresh_client_filters();
+			});
+		$w.find('#mba-range-end')
+			.on('input', function () {
+				const $s = $w.find('#mba-range-start');
+				if (parseInt(this.value, 10) < parseInt($s.val(), 10)) this.value = $s.val();
+				sync_range_ui();
+			})
+			.on('change', function () {
+				const dom = S.monthDomain;
+				const v = parseInt(this.value, 10) || 0;
+				S.filters.mTo = (dom.length && v < dom.length - 1) ? dom[v] : '';
+				refresh_client_filters();
+			});
 
-		$w.find('#mba-month').on('change', function () {
-			S.filters.month = $(this).val();
+		// Slider Collection Progress — % terkutuk (0–100). 'input' live,
+		// penapisan pada 'change'. Baca KEDUA-dua handle pada setiap change
+		// (satu tarikan mengemas kini satu input sahaja).
+		const coll_apply = () => {
+			let a = parseInt($w.find('#mba-coll-start').val(), 10) || 0;
+			let b = parseInt($w.find('#mba-coll-end').val(), 10);
+			if (Number.isNaN(b)) b = 100;
+			if (b < a) b = a;
+			S.filters.collMin = a;
+			S.filters.collMax = b;
 			refresh_client_filters();
-		});
+		};
+		$w.find('#mba-coll-start')
+			.on('input', function () {
+				const $e = $w.find('#mba-coll-end');
+				if (parseInt(this.value, 10) > parseInt($e.val(), 10)) this.value = $e.val();
+				sync_coll_ui();
+			})
+			.on('change', coll_apply);
+		$w.find('#mba-coll-end')
+			.on('input', function () {
+				const $s = $w.find('#mba-coll-start');
+				if (parseInt(this.value, 10) < parseInt($s.val(), 10)) this.value = $s.val();
+				sync_coll_ui();
+			})
+			.on('change', coll_apply);
 
 		$w.find('#mba-gtype').on('change', function () {
 			S.filters.gtype = $(this).val();
@@ -573,13 +733,19 @@ window.ManageBookingApp = (function () {
 
 		$w.find('#mba-filter-reset').on('click', () => {
 			S.filters.status = '';
-			S.filters.year = '';
-			S.filters.month = '';
+			S.filters.mFrom = '';
+			S.filters.mTo = '';
+			S.filters.collMin = 0;
+			S.filters.collMax = 100;
 			S.filters.gtype = 'all';
 			S.filters.hidePassive = false;
 			$w.find('#mba-status').val('');
-			$w.find('#mba-year').val('');
-			$w.find('#mba-month').val('').prop('disabled', true);
+			$w.find('#mba-range-start').val(0);
+			$w.find('#mba-range-end').val(String(Math.max(0, S.monthDomain.length - 1)));
+			sync_range_ui();
+			$w.find('#mba-coll-start').val(0);
+			$w.find('#mba-coll-end').val(100);
+			sync_coll_ui();
 			$w.find('#mba-gtype').val('all');
 			$w.find('#mba-hide-passive').prop('checked', false);
 			sync_filter_count();
@@ -600,8 +766,8 @@ window.ManageBookingApp = (function () {
 	function sync_filter_count() {
 		let n = 0;
 		if (S.filters.status) n++;
-		if (S.filters.year) n++;
-		if (S.filters.month) n++;
+		if (S.filters.mFrom || S.filters.mTo) n++;
+		if (S.filters.collMin > 0 || S.filters.collMax < 100) n++;
 		if (S.filters.gtype !== 'all') n++;
 		if (S.filters.hidePassive) n++;
 		$('#mba-filter-count').text(n ? '(' + n + ')' : '');
@@ -615,6 +781,16 @@ window.ManageBookingApp = (function () {
 		$w.find('#mba-list').on('click', '.mba-card-click, tr.mba-group-row', function (ev) {
 			if ($(ev.target).closest('a, button, input, select, .mba-msg-btn').length) return;
 			open_item($(this).closest('.mba-group').data('item'));
+		});
+
+		// Sort jadual L1 — klik header tukar kunci/arah (asc dulu, klik
+		// lagi turun); render semula terus daripada S.items sedia ada.
+		$w.find('#mba-list').on('click', '.mba-groups-table thead th.mba-sortable', function () {
+			const key = $(this).data('sort');
+			if (!key) return;
+			if (S.sort.key === key) S.sort.dir = -S.sort.dir;
+			else { S.sort.key = key; S.sort.dir = 1; }
+			render_items();
 		});
 
 		$w.find('#mba-list').on('change', '.mba-sel-group', function () {
@@ -641,13 +817,29 @@ window.ManageBookingApp = (function () {
 			if (b) frappe.set_route('manage-booking-app', 'batch', b);
 			else frappe.set_route('manage-booking-app');
 		});
-		$d.on('click', '.mba-open-booking', function () {
+		$d.on('click', '.mba-paylink-btn', function (ev) {
+			ev.preventDefault();
 			const b = $(this).data('booking');
-			if (b) frappe.set_route('Form', 'Booking', b);
+			if (b) open_payment_link_dialog(b);
 		});
 		$d.on('click', '.mba-open-form', function () {
 			const g = $(this).data('group');
 			if (g) frappe.set_route('Form', 'Trip Group Date', g);
+		});
+		// Pintasan Rooming Board dari tab Rooms L3 (booking) — route
+		// penuh papan susun atur group/batch booking itu.
+		$d.on('click', '.mba-rb-open-bkg', function () {
+			const kind = $(this).data('kind') === 'batch' ? 'batch' : 'group';
+			const id = $(this).data('group');
+			if (id) frappe.set_route('manage-booking-app', 'rooming', kind, id);
+		});
+		// Prev/Next — ke group sebelum/sesudah; sentiasa peringkat group
+		// (detail group), bukan batch.
+		$d.on('click', '.mba-nav-prev, .mba-nav-next', function () {
+			const g = $(this).data('group');
+			if (!g || this.disabled) return;
+			window.scrollTo(0, 0);
+			frappe.set_route('manage-booking-app', 'group', g);
 		});
 		$d.on('click', '.mba-rename-batch', function () {
 			rename_batch_dialog($(this).closest('.mba-group').data('item'));
@@ -676,14 +868,9 @@ window.ManageBookingApp = (function () {
 			if (d && $chart.length) render_tl_chart($chart, d.revenue_timeline || {});
 		});
 
-		// Analytics — donut dilukis bila <details> dibuka (pada telefon ia
-		// mula tertutup; clientWidth 0 → SVG lebar salah).
-		$d.on('toggle', '.mba-analytics', function () {
-			if (!this.open) return;
-			const key = $(this).closest('.mba-group').data('item');
-			render_donuts($(this), S.cache[key]?.dashboard || {});
-		});
-
+		// Analytics/Timeline — redraw bila <details> dibuka dikendalikan
+		// listener native dalam render_overview() (toggle tak bubble, jadi
+		// delegation jQuery tak dipakai).
 		// L3 timeline — tunjuk semua / ringkas.
 		$d.on('click', '.mba-tl-toggle', function () {
 			S.tlAll = !S.tlAll;
@@ -712,6 +899,12 @@ window.ManageBookingApp = (function () {
 				$(this).toggle(!q || String($(this).data('hay') || '').includes(q));
 			});
 		}, 200));
+
+		// Butang ✕ kotak carian — DIURUSKAN oleh pakej standard
+		// TravelBookingSearchBox (auto-bind document): taip → tampak,
+		// klik ✕ → kosongkan + trigger 'input' + fokus. Kotak carian
+		// client-side (.mba-tv-search) & server (data-search) sama-sama
+		// menerima 'input' melalui mekanisme yang sama.
 
 		// Grid ⇄ Table (L3 Travellers) — pilihan paparan dikekalkan.
 		$d.on('click', '.mba-tv-view', function () {
@@ -745,6 +938,34 @@ window.ManageBookingApp = (function () {
 		// state & re-render melalui callback pakej pada pane. (Select doc
 		// status telah dibuang — tapisan dokumen kini hanya melalui panel
 		// penapis dinamik / server.)
+		// Bulk edit (table view) — checkbox baris + select-all; butang
+		// Bulk Edit aktif bila ≥1 baris dipilih.
+		$d.on('change', '.mba-tv-checkrow, .mba-tv-checkall', function () {
+			const $pane = $(this).closest('.mba-tab-pane');
+			const $checkall = $pane.find('.mba-tv-checkall');
+			const $rows = $pane.find('.mba-tv-checkrow');
+			if ($(this).is($checkall)) {
+				$rows.prop('checked', $checkall.prop('checked'));
+			}
+			const checked = $rows.filter(':checked').length;
+			$checkall.prop('checked', checked > 0 && checked === $rows.length)
+				.prop('indeterminate', checked > 0 && checked < $rows.length);
+			$pane.find('.mba-tv-bulk-btn').prop('disabled', checked === 0)
+				.text(checked ? `${__('Bulk Edit')} (${checked})` : __('Bulk Edit'));
+		});
+		$d.on('click', '.mba-tv-bulk-btn', function () {
+			const $pane = $(this).closest('.mba-tab-pane');
+			const rows = [];
+			$pane.find('.mba-tv-checkrow:checked').each(function () {
+				rows.push({
+					traveller: String($(this).data('traveller') || ''),
+					reservation: String($(this).data('reservation') || ''),
+				});
+			});
+			if (!rows.length) return;
+			open_traveller_bulk_dialog($pane, rows);
+		});
+
 		$d.on('change', '.mba-tv-limitsel', function () {
 			const $sel = $(this);
 			const $pane = $sel.closest('.mba-tab-pane');
@@ -873,13 +1094,49 @@ window.ManageBookingApp = (function () {
 		// berfungsi. Baris VISIBLE dalam pane semasa dihantar sebagai konteks
 		// navigasi Prev/Next modal (grid ATAU jadual — hanya satu paparan).
 		$d.on('click', '.mba-tvcard, tr.mba-tv-trow', function (ev) {
-			if ($(ev.target).closest('a, button').length) return;
+			if ($(ev.target).closest('a, button, input').length) return;
 			let t = null;
 			try { t = JSON.parse($(this).attr('data-trav')); } catch (e) { /* ignore */ }
 			if (!t) return;
+			// Reservation TANPA link traveller — modal detail dinyahaktif;
+			// papar popup amaran sebagai ganti.
+			if (!t.traveller) {
+				frappe.msgprint({
+					title: __('No Traveller Document'),
+					indicator: 'orange',
+					message: __("No Traveller's Document Registered To This Reservation"),
+				});
+				return;
+			}
 			const list = [];
 			$(this).closest('.mba-tab-pane').find('.mba-tvcard, tr.mba-tv-trow').each(function () {
 				if (!$(this).is(':visible')) return;
+				let r = null;
+				try { r = JSON.parse($(this).attr('data-trav') || ''); } catch (e) { /* ignore */ }
+				if (r && r.traveller) list.push(r);
+			});
+			const idx = list.findIndex((r) => r.reservation === t.reservation);
+			show_traveller_dialog(t, { list, index: idx < 0 ? 0 : idx });
+		});
+
+		// Klik nama dalam pecahan DOB (tab Overview — Breakdowns) → modal
+		// maklumat traveller penuh. Prev/Next modal terhad kepada senarai
+		// DOB dalam blok yang sama.
+		$d.on('click', '.mba-dob-link', function (ev) {
+			ev.preventDefault();
+			let t = null;
+			try { t = JSON.parse($(this).attr('data-trav')); } catch (e) { /* ignore */ }
+			if (!t) return;
+			if (!t.traveller) {
+				frappe.msgprint({
+					title: __('No Traveller Document'),
+					indicator: 'orange',
+					message: __("No Traveller's Document Registered To This Reservation"),
+				});
+				return;
+			}
+			const list = [];
+			$(this).closest('[data-dob-block]').find('.mba-dob-link').each(function () {
 				let r = null;
 				try { r = JSON.parse($(this).attr('data-trav') || ''); } catch (e) { /* ignore */ }
 				if (r && r.traveller) list.push(r);
@@ -940,13 +1197,29 @@ window.ManageBookingApp = (function () {
 			else if (kind === 'currency' && st[scope]) st[scope].currency = val;
 			else if (kind === 'group' && st[scope]) st[scope].group = val;
 			else if (kind === 'privacy' && st.rm) st.rm.privacy = val;
+			else if (kind === 'doc' && st.tv) st.tv.doc_status = val;
 			else if (kind === 'limit' && scope && st[scope]) st[scope].limit = parseInt(val, 10) || 0;
 			if (key.startsWith('bkg:') && scope === 'tv') load_bkg_travellers(key, true);
 			else load_tab(key, tab, true);
 		});
 
+		// Checkbox "Unlinked Traveller Only" (toolbar-left pakej senarai
+		// traveller) — tapis HANYA reservation tanpa link doctype
+		// Traveller. State dikongsi dengan tv.doc_status ('No Traveller').
+		$d.on('change', '.mba-tv-unlinked-chk', function () {
+			const key = $(this).closest('.mba-group').data('item');
+			const st = S.state[key];
+			if (!st || !st.tv) return;
+			st.tv.doc_status = $(this).is(':checked') ? 'No Traveller' : '';
+			if (key.startsWith('bkg:')) load_bkg_travellers(key, true);
+			else load_tab(key, 'traveller', true);
+		});
+
 		// Link dalaman → navigasi SPA (bukan full reload)
 		$d.on('click', 'a[href^="/app/"], .mba-card-click a[href^="/app/"]', function (ev) {
+			// Pautan tab baharu (cth. Open Booking Form) — biar browser yang
+			// buka; jangan cegah default / navigasi SPA tab semasa.
+			if (this.target === '_blank') return;
 			ev.preventDefault();
 			const href = $(this).attr('href');
 			const parts = href.split('?')[0].replace(/^\/app\//, '').split('/').filter(Boolean);
@@ -1024,27 +1297,87 @@ window.ManageBookingApp = (function () {
 
 	/* ========== LOAD GROUP LIST ========== */
 
-	// Pilihan tahun — derived daripada tarikh group yang dimuatkan.
-	function sync_year_options() {
-		const $y = $('#mba-year');
-		if (!$y.length) return;
-		const years = new Set([String(new Date().getFullYear())]);
+	// Domain slider julat masa — bulan-bulan (YYYY-MM) unik daripada tarikh
+	// pergi group yang dimuatkan, terisih. Julat terpilih dikekalkan bila
+	// masih sah dalam domain baharu; selain itu reset ke julat penuh.
+	function sync_month_range() {
+		const set = new Set();
 		S.groups.forEach((g) => {
-			const d = (g.departure_date || g.sailing_start || '');
-			if (d) years.add(d.slice(0, 4));
+			const d = group_depart_date(g);
+			if (d) set.add(d.slice(0, 7));
 		});
-		const opts = [`<option value="">${__('All Time')}</option>`]
-			.concat([...years].sort().reverse()
-				.map((y) => `<option value="${y}">${y}</option>`));
-		$y.html(opts.join(''));
-		if (S.filters.year && years.has(S.filters.year)) {
-			$y.val(S.filters.year);
-		} else {
-			S.filters.year = '';
-			S.filters.month = '';
-			$y.val('');
-			$('#mba-month').val('').prop('disabled', true);
+		S.monthDomain = [...set].sort();
+		const n = S.monthDomain.length;
+		const $s = $('#mba-range-start');
+		const $e = $('#mba-range-end');
+		if (!$s.length) return;
+		[$s, $e].forEach(($i) => {
+			$i.attr({ min: 0, max: Math.max(0, n - 1) }).prop('disabled', n < 2);
+		});
+		if (!n || !S.monthDomain.includes(S.filters.mFrom)
+			|| !S.monthDomain.includes(S.filters.mTo)
+			|| S.filters.mFrom > S.filters.mTo) {
+			S.filters.mFrom = '';
+			S.filters.mTo = '';
 		}
+		$s.val(String(S.filters.mFrom ? S.monthDomain.indexOf(S.filters.mFrom) : 0));
+		$e.val(String(S.filters.mTo ? S.monthDomain.indexOf(S.filters.mTo) : Math.max(0, n - 1)));
+		sync_range_ui();
+	}
+
+	// Isi fill track + label paparan slider daripada nilai input semasa.
+	function sync_range_ui() {
+		const dom = S.monthDomain;
+		const n = dom.length;
+		const $s = $('#mba-range-start');
+		const $e = $('#mba-range-end');
+		if (!$s.length || !n) {
+			$('#mba-range-fill').css({ left: '0%', width: '100%' });
+			return;
+		}
+		let a = parseInt($s.val(), 10) || 0;
+		let b = parseInt($e.val(), 10) || 0;
+		if (b < a) b = a;
+		if ($e.val() !== String(b)) $e.val(String(b));
+		const full = a === 0 && b >= n - 1;
+		const fmt = (i) => {
+			const [y, m] = dom[i].split('-');
+			return MONTHS[parseInt(m, 10) - 1] + ' ' + y;
+		};
+		$('#mba-range-from').text(full ? __('All Time') : fmt(a));
+		$('#mba-range-to').text(full ? '' : fmt(b));
+		const pctA = n > 1 ? (a / (n - 1)) * 100 : 0;
+		const pctB = n > 1 ? (b / (n - 1)) * 100 : 100;
+		$('#mba-range-fill').css({ left: pctA + '%', width: (pctB - pctA) + '%' });
+		// Handle mula ke atas bila kedua-duanya terletak di hujung kanan —
+		// kalau tidak handle akhir melitupi dan mula tak boleh digarak.
+		$s.css('z-index', a >= n - 1 ? 5 : 3);
+		$e.css('z-index', 4);
+	}
+
+	// Isi fill + label slider Collection Progress (0–100%, domain statik).
+	function sync_coll_ui() {
+		const $s = $('#mba-coll-start');
+		const $e = $('#mba-coll-end');
+		if (!$s.length) return;
+		let a = parseInt($s.val(), 10) || 0;
+		let b = parseInt($e.val(), 10);
+		if (Number.isNaN(b)) b = 100;
+		if (b < a) b = a;
+		if ($e.val() !== String(b)) $e.val(String(b));
+		const full = a === 0 && b >= 100;
+		$('#mba-coll-from').text(full ? __('All') : a + '%');
+		$('#mba-coll-to').text(full ? '' : b + '%');
+		$('#mba-coll-fill').css({ left: a + '%', width: (b - a) + '%' });
+		$s.css('z-index', a >= 100 ? 5 : 3);
+		$e.css('z-index', 4);
+	}
+
+	// Label link arkib ikut mod semasa — View Archived ⇄ Back to Active.
+	function update_arch_link() {
+		$('#mba-arch-link')
+			.toggleClass('active', S.archived)
+			.text(S.archived ? __('← Back to Active') : __('View Archived'));
 	}
 
 	async function load(force = false) {
@@ -1062,10 +1395,11 @@ window.ManageBookingApp = (function () {
 				search: S.filters.search || null,
 				status: S.filters.status || null,
 				view: S.filters.view,
+				archived: S.archived ? 1 : 0,
 			});
 			S.groups = data?.groups || [];
 			S.currency = data?.currency || 'MYR';
-			sync_year_options();
+			sync_month_range();
 			S.items = build_items(S.groups);
 		} finally {
 			S.loading = false;
@@ -1085,13 +1419,24 @@ window.ManageBookingApp = (function () {
 			list = list.filter((g) => !g.is_a_cruise_trip);
 		}
 
-		if (S.filters.year) {
-			const y = String(S.filters.year);
-			const m = S.filters.month ? parseInt(S.filters.month, 10) : 0;
+		if (S.filters.mFrom || S.filters.mTo) {
 			list = list.filter((g) => {
-				const d = (g.departure_date || g.sailing_start || '').slice(0, 7);
+				const d = (group_depart_date(g) || '').slice(0, 7);
 				if (!d) return false;
-				return d.slice(0, 4) === y && (!m || parseInt(d.slice(5, 7), 10) === m);
+				return (!S.filters.mFrom || d >= S.filters.mFrom)
+					&& (!S.filters.mTo || d <= S.filters.mTo);
+			});
+		}
+
+		// Collection Progress — % terkutuk dalam julat slider. Diikut
+		// nilai yang DIPAPAR (bulat); group tanpa revenue tiada progress
+		// dan terkeluar bila julat dikecilkan.
+		if (S.filters.collMin > 0 || S.filters.collMax < 100) {
+			list = list.filter((g) => {
+				const dt = g.default_totals;
+				if (!dt || !(dt.revenue > 0.009)) return false;
+				const pct = Math.round(dt.collected / dt.revenue * 100);
+				return pct >= S.filters.collMin && pct <= S.filters.collMax;
 			});
 		}
 
@@ -1113,8 +1458,10 @@ window.ManageBookingApp = (function () {
 		items.forEach((it) => { it.agg = item_agg(it); });
 
 		if (S.filters.hidePassive) {
+			// Mod arkib — "passive" bermakna tiada booking sahaja; status
+			// Completed/Cancelled memang peri paparan arkib, jangan ditapis.
 			const isActive = (g) => (g.booking_count || 0) > 0
-				&& g.status !== 'Completed' && g.status !== 'Cancelled';
+				&& (S.archived || (g.status !== 'Completed' && g.status !== 'Cancelled'));
 			return items.filter((it) => it.members.some(isActive));
 		}
 		return items;
@@ -1122,7 +1469,7 @@ window.ManageBookingApp = (function () {
 
 	function item_agg(it) {
 		const a = {
-			booking_count: 0, cancelled_count: 0, pax: 0, rooms: 0,
+			booking_count: 0, cancelled_count: 0, addon_count: 0, pax: 0, rooms: 0,
 			docs_submitted: 0, docs_verified: 0, pending_docs: 0,
 		};
 		const byCur = {};
@@ -1132,6 +1479,7 @@ window.ManageBookingApp = (function () {
 		it.members.forEach((g) => {
 			a.booking_count += g.booking_count || 0;
 			a.cancelled_count += g.cancelled_count || 0;
+			a.addon_count += g.addon_count || 0;
 			a.pax += g.pax || 0;
 			a.rooms += g.rooms || 0;
 			a.docs_submitted += g.docs_submitted || 0;
@@ -1193,6 +1541,24 @@ window.ManageBookingApp = (function () {
 
 	/* ========== RENDER L1: SENARAI ========== */
 
+	// Tarikh mula julat paparan — cermin keutamaan group_dates_label:
+	// cruise → sailing_start, lain → departure_date (fallback sailing_start).
+	function group_depart_date(g) {
+		if (g.is_a_cruise_trip && g.sailing_start) return g.sailing_start;
+		return g.departure_date || g.sailing_start || '';
+	}
+
+	// "X days left" — kiraan hari ke tarikh pergi; kosong bila tarikh
+	// telah lepas atau tiada.
+	function days_left_label(iso) {
+		if (!iso) return '';
+		const diff = frappe.datetime.get_diff(iso, frappe.datetime.get_today());
+		if (diff > 1) return diff + ' ' + __('days left');
+		if (diff === 1) return __('1 day left');
+		if (diff === 0) return __('Departs today');
+		return '';
+	}
+
 	// Tarikh paparan ikut jenis trip: cruise → sailing date, lain → departure
 	function group_dates_label(g) {
 		if (g.is_a_cruise_trip) {
@@ -1212,65 +1578,125 @@ window.ManageBookingApp = (function () {
 		return '';
 	}
 
-	// Angka ringkasan item — revenue/balance default currency bila
-	// bercampur currency; sub = pecahan native per currency.
-	const item_money = (a) => {
-		const dt = a.default_totals;
-		const useDefault = hasAltCur(a.by_cur) && dt;
-		const revCell = useDefault
-			? fmtDefaultTotal(dt, 'revenue')
-			: fmtMoney((dt && dt.revenue) || 0, S.currency);
-		const balCell = useDefault
-			? fmtDefaultTotal(dt, 'balance')
-			: fmtMoney((dt && dt.balance) || 0, S.currency);
-		const curTitle = (field) => (a.by_cur.length
-			? a.by_cur.map((r) => fmtMoney(r[field], r.currency)).join(' · ')
-			: '');
-		const collPct = dt && dt.revenue
-			? Math.round(dt.collected / dt.revenue * 100) + '%'
-				+ (dt.rates_complete === false ? '+' : '')
-			: '—';
-		return { revCell, revTitle: curTitle('revenue'), balCell, balTitle: curTitle('balance'), collPct };
+// Angka ringkasan item — revenue/balance default currency bila
+// bercampur currency; sub = pecahan native per currency.
+const item_money = (a) => {
+	const dt = a.default_totals;
+	const useDefault = hasAltCur(a.by_cur) && dt;
+	const revCell = useDefault
+		? fmtDefaultTotal(dt, 'revenue')
+		: fmtMoney((dt && dt.revenue) || 0, S.currency);
+	const curTitle = (field) => (a.by_cur.length
+		? a.by_cur.map((r) => fmtMoney(r[field], r.currency)).join(' · ')
+		: '');
+	const incomplete = dt && dt.rates_complete === false ? '+' : '';
+	const collPct = dt && dt.revenue
+		? Math.round(dt.collected / dt.revenue * 100) + '%' + incomplete
+		: '—';
+	return {
+		revCell, revTitle: curTitle('revenue'),
+		myrRev: cur_sub_line(a, 'MYR', 'revenue'),
+		sgdRev: cur_sub_line(a, 'SGD', 'revenue'),
+		collPct,
+		collDefault: dt ? fmtMoney(dt.collected, dt.currency || S.currency) + incomplete
+			: fmtMoney(0, S.currency),
+		sgdColl: cur_sub_line(a, 'SGD', 'collected'),
 	};
+};
 
-	// Jumlah ke atas item yang DIPAPARKAN (default currency — selamat
-	// dijumlah kerana semuanya sudah ditukar).
-	function footer_agg(items) {
-		const f = {
-			count: items.length,
-			booking_count: 0, rooms: 0, pax: 0,
-			docs_verified: 0, docs_submitted: 0, pending_docs: 0,
-			dt: null,
-		};
-		items.forEach((it) => {
-			const a = it.agg;
-			f.booking_count += a.booking_count || 0;
-			f.rooms += a.rooms || 0;
-			f.pax += a.pax || 0;
-			f.docs_verified += a.docs_verified || 0;
-			f.docs_submitted += a.docs_submitted || 0;
-			f.pending_docs += a.pending_docs || 0;
-			const m = a.default_totals;
-			if (m) {
-				f.dt = f.dt
-					|| { currency: m.currency || S.currency, revenue: 0, collected: 0, balance: 0, rates_complete: true };
-				f.dt.revenue += m.revenue || 0;
-				f.dt.collected += m.collected || 0;
-				f.dt.balance += m.balance || 0;
-				if (m.rates_complete === false) f.dt.rates_complete = false;
-			}
+// Tarikh mula/julat akhir item (single ATAU batch) — ikut semantik
+// group_depart_date: cruise → sailing_start, lain → departure_date;
+// pulangan = return_date / sailing_end yang terakhir.
+function item_depart(it) {
+	if (it.members.length === 1) return group_depart_date(it.members[0]);
+	return it.members.reduce((min, m) => {
+		const d = group_depart_date(m);
+		return d && (!min || d < min) ? d : min;
+	}, '');
+}
+
+function item_return(it) {
+	const eff = (m) => m.return_date || m.sailing_end || '';
+	if (it.members.length === 1) return eff(it.members[0]);
+	return it.members.reduce((max, m) => {
+		const d = eff(m);
+		return d && (!max || d > max) ? d : max;
+	}, '');
+}
+
+// Badge kiraan hari ke tarikh pergi — kosong bila tarikh lepas/tiada.
+const days_left_badge = (iso) => {
+	const label = days_left_label(iso);
+	return label ? `<span class="mba-days-left">${esc(label)}</span>` : '';
+};
+
+// col1 sub-line dikongsi kad & baris jadual — nama group (bukan ID)
+// untuk group tunggal; senarai ID group anggota untuk batch.
+const group_names_sub = (it) => {
+	if (it.batch) return it.members.map((m) => m.name).join(', ');
+	const g0 = it.members[0];
+	return (g0.trip_group_name && g0.trip_group_name !== g0.name)
+		? g0.trip_group_name : '';
+};
+
+// col1 sub-line nama trip — unik merentas anggota batch.
+const trip_names_sub = (it) => [...new Set(it.members
+	.map((m) => m.trip_name || m.trip_group_name || m.name)
+	.filter(Boolean))].join(', ');
+
+// Jumlah ke atas item yang DIPAPARKAN (default currency — selamat
+// dijumlah kerana semuanya sudah ditukar). by_cur = pecahan native
+// per-currency (jumlah DALAM currency yang sama — selamat dijumlah)
+// untuk sub-line MYR/SGD footer.
+function footer_agg(items) {
+	const f = {
+		count: items.length,
+		booking_count: 0, addon_count: 0, rooms: 0, pax: 0,
+		docs_verified: 0, docs_submitted: 0, pending_docs: 0,
+		dt: null,
+	};
+	const byCur = {};
+	items.forEach((it) => {
+		const a = it.agg;
+		f.booking_count += a.booking_count || 0;
+		f.addon_count += a.addon_count || 0;
+		f.rooms += a.rooms || 0;
+		f.pax += a.pax || 0;
+		f.docs_verified += a.docs_verified || 0;
+		f.docs_submitted += a.docs_submitted || 0;
+		f.pending_docs += a.pending_docs || 0;
+		(a.by_cur || []).forEach((r) => {
+			const e = byCur[r.currency] || (byCur[r.currency] = { currency: r.currency, revenue: 0, collected: 0 });
+			e.revenue += r.revenue || 0;
+			e.collected += r.collected || 0;
 		});
-		return f;
-	}
+		const m = a.default_totals;
+		if (m) {
+			f.dt = f.dt
+				|| { currency: m.currency || S.currency, revenue: 0, collected: 0, balance: 0, rates_complete: true };
+			f.dt.revenue += m.revenue || 0;
+			f.dt.collected += m.collected || 0;
+			f.dt.balance += m.balance || 0;
+			if (m.rates_complete === false) f.dt.rates_complete = false;
+		}
+	});
+	f.by_cur = Object.values(byCur)
+		.sort((x, y) => (x.currency === S.currency ? -1 : y.currency === S.currency ? 1 : 0));
+	return f;
+}
 
 	function render_items() {
 		const $list = $('#mba-list');
 
 		if (!S.items.length) {
-			$list.html(`<div class="mba-empty">${__('No Trip Group Date found for this filter.')}</div>`);
+			$list.html(`<div class="mba-empty">${S.archived
+				? __('No archived trips found for this filter.')
+				: __('No Trip Group Date found for this filter.')}</div>`);
 			$('#mba-summary').empty();
 			return;
 		}
+
+		sort_items();
 
 		// Strip jumlah — menggantikan tfoot jadual pada telefon.
 		const f = footer_agg(S.items);
@@ -1289,20 +1715,50 @@ window.ManageBookingApp = (function () {
 				<table class="mba-table mba-groups-table">
 					<thead><tr>
 						<th class="mba-col-sel"><input type="checkbox" id="mba-sel-all" title="${__('Select all groups')}"/></th>
-						<th>${__('Trip Group / Batch')}</th>
-						<th>${__('Trip')}</th>
-						<th class="num">${__('Departure')}</th>
-						<th class="num" title="${__('Active bookings only (excludes Cancelled & Abandoned)')}">${__('Bookings')}</th>
-						<th class="num" title="${__('In default display currency')}">${__('Revenue')}</th>
-						<th class="num" title="${__('Outstanding amount (revenue minus collected), in default currency')}">${__('Balance')}</th>
+						<th class="mba-sortable" data-sort="group" title="${__('Sort by group / batch name')}">${__('Trip Group / Batch')}<span class="mba-sort-ind"></span></th>
+						<th class="num mba-sortable" data-sort="depart" title="${__('Sort by departure date')}">${__('Departure')}<span class="mba-sort-ind"></span></th>
+						<th class="num mba-sortable" data-sort="pax" title="${__('Pax of active bookings (excludes Cancelled & Abandoned)')}">${__('Reservations')}<span class="mba-sort-ind"></span></th>
+						<th class="num mba-sortable" data-sort="revenue" title="${__('In default display currency')}">${__('Revenue')}<span class="mba-sort-ind"></span></th>
+						<th class="num mba-sortable" data-sort="collection" title="${__('% of revenue collected; SGD line = collection in SG company')}">${__('Collection')}<span class="mba-sort-ind"></span></th>
 					</tr></thead>
 					${S.items.map(render_group_row).join('')}
 					${render_groups_footer(S.items)}
 				</table>
 			</div>`);
+
+		// Penanda arah susunan pada header aktif.
+		const $th = $list.find(`.mba-groups-table thead th[data-sort="${S.sort.key}"]`);
+		if ($th.length) {
+			$th.addClass('is-sorted').find('.mba-sort-ind').text(S.sort.dir === 1 ? '▲' : '▼');
+		}
+
 		sync_row_checks();
 		update_batch_button();
 		bind_sel_all();
+	}
+
+	// Susunan jadual L1 — klik header (.mba-sortable) set S.sort; tiada
+	// sort aktif = susunan server (upcoming terhampir dulu). Batch disusun
+	// atas nama batch; collection tanpa revenue dihujung (-1).
+	const SORT_KEYS = {
+		group: (it) => (it.batch || it.members[0].name || '').toLowerCase(),
+		depart: (it) => item_depart(it) || '9999-99-99',
+		pax: (it) => it.agg.pax || 0,
+		revenue: (it) => (it.agg.default_totals ? it.agg.default_totals.revenue : 0),
+		collection: (it) => {
+			const dt = it.agg.default_totals;
+			return dt && dt.revenue ? dt.collected / dt.revenue : -1;
+		},
+	};
+
+	function sort_items() {
+		const fn = SORT_KEYS[S.sort.key];
+		if (!fn) return;
+		S.items.sort((x, y) => {
+			const a = fn(x);
+			const b = fn(y);
+			return (a < b ? -1 : a > b ? 1 : 0) * S.sort.dir;
+		});
 	}
 
 	function bind_sel_all() {
@@ -1465,24 +1921,30 @@ window.ManageBookingApp = (function () {
 		});
 	}
 
-	// Kad group (telefon) — 4 baris: nama+badge, trip, tarikh, stat mini.
+	// Kad group (telefon) — main nama+badge, sub1 nama group, sub2 trip,
+	// tarikh (+badge kiraan hari), stat mini (bookings+addon, pax·rooms,
+	// docs, collection %).
 	function render_group_card(it) {
 		const a = it.agg;
 		const titleLine = it.batch ? esc(it.batch) : esc(it.members[0].name);
 		const batchBadge = it.batch ? badge(it.members.length + ' ' + __('groups'), 'violet') : '';
 		const status = it.members.length === 1 ? it.members[0].status : null;
-		const tripNames = [...new Set(it.members
-			.map((g) => g.trip_name || g.trip_group_name || g.name)
-			.filter(Boolean))];
-		const dateLabel = a.depart
-			? fmtDate(a.depart) + (a.ret && a.ret !== a.depart ? ' → ' + fmtDate(a.ret) : '')
+		const sub1 = group_names_sub(it);
+		const sub2 = trip_names_sub(it);
+
+		const depart = item_depart(it);
+		const ret = item_return(it);
+		const dateLabel = depart
+			? fmtDate(depart) + (ret && ret !== depart ? ' → ' + fmtDate(ret) : '')
 			: (it.members.length === 1 ? group_dates_label(it.members[0]) : '');
+		const daysBadge = days_left_badge(depart);
+
 		const dt = a.default_totals;
-		const balCell = hasAltCur(a.by_cur) && dt
-			? fmtDefaultTotal(dt, 'balance')
-			: fmtMoney((dt && dt.balance) || 0, S.currency);
-		const balTitle = a.by_cur.length
-			? a.by_cur.map((r) => fmtMoney(r.balance, r.currency)).join(' · ') : '';
+		const incomplete = dt && dt.rates_complete === false ? '+' : '';
+		const collPct = dt && dt.revenue
+			? Math.round(dt.collected / dt.revenue * 100) + '%' + incomplete : '—';
+		const collTitle = a.by_cur.length
+			? a.by_cur.map((r) => fmtMoney(r.collected, r.currency)).join(' · ') : '';
 
 		return `
 			<div class="mba-card mba-group ${it.batch ? 'mba-group--batch' : ''}" data-item="${esc(it.key)}">
@@ -1492,43 +1954,47 @@ window.ManageBookingApp = (function () {
 						<span class="mba-card-title">${titleLine}</span>
 						<span class="mba-card-badges">${batchBadge}${status ? badge(status, GROUP_STATUS_COLORS[status]) : ''}</span>
 					</div>
-					${tripNames.length ? `<div class="mba-card-sub" title="${esc(tripNames.join(', '))}">${esc(tripNames.join(', '))}</div>` : ''}
-					${dateLabel ? `<div class="mba-card-date">${esc(dateLabel)}</div>` : ''}
+					${sub1 ? `<div class="mba-card-sub" title="${esc(sub1)}">${esc(sub1)}</div>` : ''}
+					${sub2 ? `<div class="mba-card-sub" title="${esc(sub2)}">${esc(sub2)}</div>` : ''}
+					${dateLabel ? `<div class="mba-card-date">${esc(dateLabel)}${daysBadge ? ' ' + daysBadge : ''}</div>` : ''}
 					<div class="mba-card-stats">
-						<span><b>${a.booking_count}</b> ${__('bookings')}</span>
-						<span><b>${a.pax}</b> ${__('pax')}</span>
-						<span class="${dt && dt.balance > 0.009 ? 'is-danger' : ''}" title="${esc(balTitle)}"><b>${balCell}</b> ${__('due')}</span>
+						<span><b>${a.booking_count}</b> ${__('bookings')}${a.addon_count > 0 ? ` <span class="mba-card-addon">+${a.addon_count} ${__('add-ons')}</span>` : ''}</span>
+						<span><b>${a.pax}</b> ${__('pax')} · ${a.rooms} ${__('rooms')}</span>
+						<span title="${esc(__('Verified / submitted traveller documents'))}"><b>${a.docs_verified || 0}/${a.docs_submitted || 0}</b> ${__('docs')}</span>
+						<span title="${esc(collTitle ? __('Collected per currency') + ': ' + collTitle : '')}"><b>${collPct}</b> ${__('collected')}</span>
 					</div>
 				</div>
 			</div>`;
 	}
 
-	// Baris jadual group (desktop) — 8 kolum; butiran sekunder sebagai
-	// sub-line dalam sel supaya jadual kekal padat.
+	// Baris jadual group (desktop) — 5 kolum data (+ kolum pilihan):
+	//   1. Trip Group / Batch — main ID/batch + badge status, sub1 nama
+	//      group, sub2 nama trip.
+	//   2. Departure — main tarikh pergi, sub1 tarikh pulang, sub2 badge
+	//      kiraan hari ke tarikh pergi.
+	//   3. Reservations — main pax, sub1 order / rooms, sub2 verified /
+	//      submit (dokumen traveller berpaut).
+	//   4. Revenue — main jumlah default currency, sub1 MYR, sub2 SGD.
+	//   5. Collection — main % terkutip, sub1 jumlah default currency,
+	//      sub2 kutipan company SG (currency SGD).
 	function render_group_row(it) {
 		const a = it.agg;
 		const titleLine = it.batch ? esc(it.batch) : esc(it.members[0].name);
 		const batchBadge = it.batch ? badge(it.members.length + ' ' + __('groups'), 'violet') : '';
-		const subLine = it.batch
-			? esc(it.members.map((m) => m.name).join(', '))
-			: (it.members[0].trip_group_name && it.members[0].trip_group_name !== it.members[0].name
-				? esc(it.members[0].trip_group_name) : '');
 
-		const tripNames = [...new Set(it.members
-			.map((g) => g.trip_name || g.trip_group_name || g.name)
-			.filter(Boolean))];
-		const tripCell = tripNames.length
-			? `<div class="mba-trip-cell" title="${esc(tripNames.join(', '))}">${esc(tripNames.join(', '))}</div>`
-			: '—';
+		const sub1 = group_names_sub(it);
+		const sub2 = trip_names_sub(it);
 
 		const statuses = [...new Set(it.members.map((m) => m.status))];
 		const statusCell = statuses.length === 1
 			? badge(statuses[0], GROUP_STATUS_COLORS[statuses[0]])
 			: statuses.map((s) => badge(s, GROUP_STATUS_COLORS[s])).join(' ');
 
-		const { revCell, revTitle, balCell, balTitle, collPct } = item_money(a);
-		const dtt = a.default_totals;
-		const balCls = dtt && dtt.balance > 0.009 ? 'is-danger' : '';
+		const depart = item_depart(it);
+		const ret = item_return(it);
+		const daysBadge = days_left_badge(depart);
+
+		const { revCell, revTitle, myrRev, sgdRev, collPct, collDefault, sgdColl } = item_money(a);
 
 		return `
 			<tbody class="mba-group ${it.batch ? 'mba-group--batch' : ''}" data-item="${esc(it.key)}">
@@ -1536,24 +2002,28 @@ window.ManageBookingApp = (function () {
 					<td class="mba-col-sel"><input type="checkbox" class="mba-sel-group" title="${__('Select for Assign Group Batch')}"/></td>
 					<td>
 						<div class="mba-cell-main ${it.batch ? 'is-batch' : ''}">${titleLine} ${batchBadge} ${statusCell}</div>
-						${subLine ? `<div class="mba-cell-sub">${subLine}</div>` : ''}
-					</td>
-					<td>${tripCell}</td>
-					<td class="num">
-						${a.depart ? fmtDate(a.depart) : '—'}
-						${a.ret && a.ret !== a.depart ? `<div class="mba-cell-sub">→ ${esc(fmtDate(a.ret))}</div>` : ''}
+						${sub1 ? `<div class="mba-cell-sub" title="${esc(sub1)}">${esc(sub1)}</div>` : ''}
+						${sub2 ? `<div class="mba-cell-sub" title="${esc(sub2)}">${esc(sub2)}</div>` : ''}
 					</td>
 					<td class="num">
-						${a.booking_count}
-						<div class="mba-cell-sub">${a.pax} ${__('pax')} · ${a.rooms} ${__('rooms')}</div>
+						<div class="mba-cell-main">${depart ? fmtDate(depart) : '—'}</div>
+						${ret && ret !== depart ? `<div class="mba-cell-sub">→ ${esc(fmtDate(ret))}</div>` : ''}
+						${daysBadge ? `<div>${daysBadge}</div>` : ''}
+					</td>
+					<td class="num">
+						<div class="mba-cell-main">${a.pax} ${__('pax')}</div>
+						<div class="mba-cell-sub">${a.booking_count} ${__('order')} / ${a.rooms} ${__('rooms')}</div>
+						<div class="mba-cell-sub" title="${esc(__('Verified / submitted traveller documents'))}">${a.docs_verified || 0} ${__('verified')} / ${a.docs_submitted || 0} ${__('submit')}</div>
 					</td>
 					<td class="num" title="${revTitle ? esc(__('Revenue per currency') + ': ' + revTitle) : ''}">
-						${revCell}
-						<div class="mba-cell-sub">${collPct} ${__('collected')}</div>
+						<div class="mba-cell-main">${revCell}</div>
+						${myrRev ? `<div class="mba-cell-sub">${esc(myrRev)}</div>` : ''}
+						${sgdRev ? `<div class="mba-cell-sub">${esc(sgdRev)}</div>` : ''}
 					</td>
-					<td class="num ${balCls}" title="${balTitle ? esc(__('Balance per currency') + ': ' + balTitle) : ''}">
-						${balCell}
-						<div class="mba-cell-sub ${a.pending_docs > 0 ? 'is-danger' : ''}">${__('Docs')} ${a.docs_verified || 0}/${a.docs_submitted || 0}</div>
+					<td class="num" title="${sgdColl ? esc(__('Collection in SG company') + ': ' + sgdColl) : ''}">
+						<div class="mba-cell-main">${collPct}</div>
+						<div class="mba-cell-sub">${esc(collDefault)}</div>
+						${sgdColl ? `<div class="mba-cell-sub">${esc(sgdColl)}</div>` : ''}
 					</td>
 				</tr>
 			</tbody>`;
@@ -1567,17 +2037,28 @@ window.ManageBookingApp = (function () {
 		const collPct = dt && dt.revenue
 			? Math.round(dt.collected / dt.revenue * 100) + '%' + incomplete
 			: '—';
-		const collCls = dt && dt.revenue && dt.collected >= dt.revenue ? 'is-success' : '';
+		// Sub-line MYR/SGD — nilai footer dalam currency sama dijumlah
+		// dahulu; baris tunggal default currency tidak diulang.
+		const curLines = (field, curs) => f.by_cur
+			.filter((r) => curs.includes(r.currency)
+				&& (r[field] || 0) > 0.009
+				&& (r.currency !== S.currency || f.by_cur.length > 1))
+			.map((r) => r.currency + ': ' + fmtMoney(r[field], r.currency))
+			.join(' · ');
+		const revSub = curLines('revenue', ['MYR', 'SGD']);
+		const sgdCollSub = curLines('collected', ['SGD']);
 
 		return `
 			<tfoot>
 				<tr>
-					<td class="mba-tfoot-label" colspan="4">${__('Total')} (${f.count} ${__('rows')})</td>
-					<td class="num">${f.booking_count}<div class="mba-cell-sub">${f.pax} ${__('pax')} · ${f.rooms} ${__('rooms')}</div></td>
+					<td class="mba-tfoot-label" colspan="3">${__('Total')} (${f.count} ${__('rows')})</td>
+					<td class="num">${f.pax} ${__('pax')}
+						<div class="mba-cell-sub">${f.booking_count} ${__('order')} · ${f.rooms} ${__('rooms')}</div></td>
 					<td class="num">${dt ? fmtMoney(dt.revenue, dt.currency) + incomplete : fmtMoney(0, S.currency)}
-						<div class="mba-cell-sub">${collPct} ${__('collected')}</div></td>
-					<td class="num ${dt && dt.balance > 0.009 ? 'is-danger' : ''}">${dt ? fmtMoney(dt.balance, dt.currency) + incomplete : fmtMoney(0, S.currency)}
-						<div class="mba-cell-sub ${f.pending_docs > 0 ? 'is-danger' : ''}">${__('Docs')} ${f.docs_verified}/${f.docs_submitted}</div></td>
+						${revSub ? `<div class="mba-cell-sub">${esc(revSub)}</div>` : ''}</td>
+					<td class="num">${collPct}
+						<div class="mba-cell-sub">${dt ? fmtMoney(dt.collected, dt.currency) + incomplete : fmtMoney(0, S.currency)}</div>
+						${sgdCollSub ? `<div class="mba-cell-sub">${esc(sgdCollSub)}</div>` : ''}</td>
 				</tr>
 			</tfoot>`;
 	}
@@ -1616,6 +2097,35 @@ window.ManageBookingApp = (function () {
 			rm: { search: '', privacy: '', limit: DEFAULT_LIMIT },
 			fl: { search: '', limit: DEFAULT_LIMIT },
 		};
+	}
+
+	// Konteks navigasi detail — turutan GROUP (bukan item senarai L1).
+	// Ahli batch dipecah mengikut kedudukan batch dalam senarai, jadi
+	// Prev/Next sentiasa bergerak group-ke-group dan laluan kekal
+	// /group/<name> — tidak pernah /batch/. first < 0 bila deep-link /
+	// di luar senarai — butang tidak dipapar.
+	function detail_nav(it) {
+		const flat = [];
+		S.items.forEach((x) => x.members.forEach((m) => flat.push(m)));
+		const names = it.members.map((m) => m.name);
+		const first = flat.findIndex((m) => m.name === names[0]);
+		const last = it.batch
+			? flat.findIndex((m) => m.name === names[names.length - 1])
+			: first;
+		return {
+			first,
+			total: flat.length,
+			pos: it.batch && last > first ? (first + 1) + '–' + (last + 1) : String(first + 1),
+			prev: first > 0 ? flat[first - 1] : null,
+			next: last >= 0 && last < flat.length - 1 ? flat[last + 1] : null,
+		};
+	}
+
+	// Tooltip butang Prev/Next — nama group + trip.
+	function nav_label(m) {
+		if (!m) return '';
+		const trip = m.trip_name || m.trip_group_name || '';
+		return (m.name || '') + (trip ? ' — ' + trip : '');
 	}
 
 	function render_detail(it) {
@@ -1662,27 +2172,46 @@ window.ManageBookingApp = (function () {
 		const dateLabel = single ? group_dates_label(g0)
 			: (a.depart ? fmtDate(a.depart) + (a.ret && a.ret !== a.depart ? ' → ' + fmtDate(a.ret) : '') : '');
 
+		// Kiraan hari ke tarikh pergi — hanya bila status item Active
+		// (semua group anggota Active) dan tarikh masih akan datang.
+		// Sasaran = tarikh mula julat yang dipaparkan (single → tarikh
+		// group itu, batch → tarikh pergi terawal anggota).
+		const isActive = statuses.length === 1 && statuses[0] === 'Active';
+		const daysLeft = isActive
+			? days_left_label(single ? group_depart_date(g0) : a.depart) : '';
+
 		const infoBits = [
 			tripNames.length ? `<span title="${esc(tripNames.join(', '))}">${esc(tripNames.join(', '))}</span>` : '',
-			dateLabel ? `<span>${esc(dateLabel)}</span>` : '',
+			dateLabel ? `<span>${esc(dateLabel)}${daysLeft
+				? ` <span class="mba-days-left">${esc(daysLeft)}</span>` : ''}</span>` : '',
 			ships.length ? `<span>${esc(__('Ship'))}: ${esc(ships.join(', '))}</span>` : '',
 			single && (g0.total_days || g0.total_nights)
 				? `<span>${esc((g0.total_days || '—') + ' ' + __('days') + ' / ' + (g0.total_nights || '—') + ' ' + __('nights'))}</span>` : '',
 		].filter(Boolean).join('');
 
-		const dt = a.default_totals;
-		const revCell = hasAltCur(a.by_cur) && dt
-			? fmtDefaultTotal(dt, 'revenue')
-			: fmtMoney((dt && dt.revenue) || 0, S.currency);
-		const balCell = hasAltCur(a.by_cur) && dt
-			? fmtDefaultTotal(dt, 'balance')
-			: fmtMoney((dt && dt.balance) || 0, S.currency);
+		// Prev/Next — group sebelum/sesudah dalam turutan senarai L1 yang
+		// sama (filter semasa). Sentiasa ke /group/<name>. Tertungging bila
+		// item tiada dalam senarai (deep-link) atau senarai hanya satu group.
+		const nav = detail_nav(it);
+		const navBtns = (nav.first >= 0 && nav.total > 1) ? `
+			<div class="mba-nav-btns">
+				<button type="button" class="btn btn-default btn-sm mba-nav-prev"
+					data-group="${esc(nav.prev ? nav.prev.name : '')}"
+					title="${esc(nav_label(nav.prev))}"
+					${nav.prev ? '' : 'disabled'}>‹ ${__('Prev')}</button>
+				<span class="mba-nav-pos">${esc(nav.pos)}/${nav.total}</span>
+				<button type="button" class="btn btn-default btn-sm mba-nav-next"
+					data-group="${esc(nav.next ? nav.next.name : '')}"
+					title="${esc(nav_label(nav.next))}"
+					${nav.next ? '' : 'disabled'}>${__('Next')} ›</button>
+			</div>` : '';
 
 		return `
 			<div class="mba-detail-head">
 				<div class="mba-detail-actions">
 					<button type="button" class="btn btn-default btn-sm mba-back-btn">${__('← All Groups')}</button>
 					${single ? `<button type="button" class="btn btn-default btn-sm mba-open-form" data-group="${esc(g0.name)}">${__('Open Trip Group Date')}</button>` : ''}
+					${navBtns}
 				</div>
 				<div class="mba-detail-title">
 					<span class="mba-detail-name">${esc(titleLine)}</span>
@@ -1695,14 +2224,6 @@ window.ManageBookingApp = (function () {
 				</div>
 				${infoBits ? `<div class="mba-detail-sub">${infoBits}</div>` : ''}
 				${memberChips}
-				<div class="mba-stat-row">
-					<span><b>${a.booking_count}</b> ${__('Bookings')}</span>
-					<span><b>${a.pax}</b> ${__('Pax')}</span>
-					<span><b>${a.rooms}</b> ${__('Rooms')}</span>
-					<span><b>${revCell}</b> ${__('Revenue')}</span>
-					<span class="${dt && dt.balance > 0.009 ? 'is-danger' : ''}"><b>${balCell}</b> ${__('Due')}</span>
-					<span class="${a.pending_docs > 0 ? 'is-danger' : ''}"><b>${a.docs_verified || 0}/${a.docs_submitted || 0}</b> ${__('Docs')}</span>
-				</div>
 			</div>`;
 	}
 
@@ -1722,9 +2243,8 @@ window.ManageBookingApp = (function () {
 			booking: c.bookings?.count ?? it.agg.booking_count,
 			traveller: c.travellers?.count ?? it.agg.pax,
 			rooming: c.rooming?.count ?? it.agg.rooms,
-			more: (c.addons?.count ?? null) != null || (c.flights?.count ?? null) != null
-				? (c.addons?.count ?? 0) + (c.flights?.count ?? 0)
-				: null,
+			flights: c.flights?.count ?? null,
+			addons: c.addons?.count ?? null,
 		};
 	}
 
@@ -1746,12 +2266,14 @@ window.ManageBookingApp = (function () {
 
 	function switch_tab(key, tab) {
 		if (!key || key.startsWith('bkg:')) {
-			// L3 — tab paparan sahaja, KECUALI Travellers yang dimuatkan
-			// lazily daripada API disatukan (get_group_travellers).
+			// L3 — tab paparan sahaja, KECUALI Travellers, Rooms dan
+			// Add-ons & Flights yang dimuatkan lazily daripada API.
 			const $g = $('#mba-detail').find('.mba-group').filter(function () { return $(this).data('item') === key; });
 			$g.find('.mba-tab').removeClass('active').filter(`[data-tab="${tab}"]`).addClass('active');
 			$g.find('.mba-tab-pane').removeClass('active').filter(`[data-pane="${tab}"]`).addClass('active');
 			if (tab === 'tv') load_bkg_travellers(key);
+			if (tab === 'rm') load_bkg_rooms(key);
+			if (tab === 'af') load_bkg_af(key);
 			return;
 		}
 		const st = S.state[key] || (S.state[key] = default_state());
@@ -1852,28 +2374,38 @@ window.ManageBookingApp = (function () {
 			return;
 		}
 
-		if (tab === 'more') {
-			// Tab More — Addon + Flight dimuatkan serentak (lazily).
-			const needAd = force || !S.cache[key]?.addons;
+		if (tab === 'flights') {
+			// Tab Flights — flight rujukan group (dimuatkan lazily).
 			const needFl = force || !S.cache[key]?.flights;
-			if ($pane.length && (needAd || needFl)) $pane.html(`<div class="mba-loading">${__('Loading...')}</div>`);
-			const jobs = [];
-			if (needAd) jobs.push(
-				api('get_group_addons', {
+			if ($pane.length && needFl) $pane.html(`<div class="mba-loading">${__('Loading...')}</div>`);
+			if (needFl) {
+				const fl = await api('get_group_flights', {
+					trip_groups: groups,
+					search: st.fl.search || null,
+					limit: st.fl.limit,
+				});
+				S.cache[key] = { ...(S.cache[key] || {}), flights: fl };
+			}
+			if (is_active()) { render_flights_tab(key); update_tab_counts(key); }
+			return;
+		}
+
+		if (tab === 'addons') {
+			// Tab Addons — Booking Addon (dimuatkan lazily).
+			const needAd = force || !S.cache[key]?.addons;
+			if ($pane.length && needAd) $pane.html(`<div class="mba-loading">${__('Loading...')}</div>`);
+			if (needAd) {
+				const ad = await api('get_group_addons', {
 					trip_groups: st.ad.group ? [st.ad.group] : groups,
 					status: st.ad.status || null,
 					payment_status: st.ad.payment || null,
 					search: st.ad.search || null,
 					limit: st.ad.limit,
-				}).then((ad) => { S.cache[key] = { ...(S.cache[key] || {}), addons: ad }; }));
-			if (needFl) jobs.push(
-				api('get_group_flights', {
-					trip_groups: groups,
-					search: st.fl.search || null,
-					limit: st.fl.limit,
-				}).then((fl) => { S.cache[key] = { ...(S.cache[key] || {}), flights: fl }; }));
-			await Promise.all(jobs);
-			if (is_active()) { render_more_tab(key); update_tab_counts(key); }
+				});
+				S.cache[key] = { ...(S.cache[key] || {}), addons: ad };
+			}
+			if (is_active()) { render_addons_tab(key); update_tab_counts(key); }
+			return;
 		}
 	}
 
@@ -2001,6 +2533,10 @@ window.ManageBookingApp = (function () {
 				sub: (bkg.addon_orders ?? 0) + ' ' + __('addon orders'),
 			},
 			{
+				cls: 'is-danger', label: __('Pending Docs'), value: trv.pending_docs ?? 0,
+				sub: `${__('Submitted')} ${trv.docs_submitted ?? 0}/${trv.pax || 0} · ${trv.docs_ok ?? 0} ${__('verified')}`,
+			},
+			{
 				cls: 'is-success', label: __('Revenue'), value: defaultTotalValue('revenue'),
 				sub: revRows.map((r) => fmtMoney(r.revenue, r.currency)).join('<br>') || fmtMoney(0, S.currency),
 				title: __('Per currency — amounts in different currencies are never summed'),
@@ -2009,10 +2545,6 @@ window.ManageBookingApp = (function () {
 				cls: 'is-warn', label: __('Unpaid Balance'), value: defaultTotalValue('balance'),
 				sub: revRows.map((r) => fmtMoney(r.balance, r.currency)).join('<br>') || fmtMoney(0, S.currency),
 				title: __('Per currency — amounts in different currencies are never summed'),
-			},
-			{
-				cls: 'is-danger', label: __('Pending Docs'), value: trv.pending_docs ?? 0,
-				sub: `${__('Submitted')} ${trv.docs_submitted ?? 0}/${trv.pax || 0} · ${trv.docs_ok ?? 0} ${__('verified')}`,
 			},
 		];
 		const kpiHtml = kpis.map((k) => `
@@ -2061,43 +2593,50 @@ window.ManageBookingApp = (function () {
 			? breakdown_rows(aff.map((r) => ({ label: r.affiliate, value: r.count })))
 			: '';
 
-		// Analytics — dipecah 3 section; setiap section = kumpulan panel
-		// donut (Bookings / Travellers) atau senarai pecahan (Breakdowns).
-		// Panel kosong dilangkau; section tanpa panel tak dipaparkan.
-		const anSection = (title, bodyHtml) => (bodyHtml
-			? `<div class="mba-an-sec"><div class="mba-an-sec-title">${esc(title)}</div>
-				<div class="mba-an-grid">${bodyHtml}</div></div>` : '');
+		// Pecahan DOB dalam julat tarikh trip — senarai traveller dimuat
+		// lazy, jadi blok dipasang dengan placeholder dahulu dan dikemaskini
+		// load_dob_breakdown() bila senarai tiba.
+		const dobRows = dob_breakdown_rows(key);
+		const dobInner = dob_block_html(dobRows, !!S.cache[key]?.tvAll);
+		const dobBlockHtml = dobInner ? `<div data-dob-block>${dobInner}</div>` : '';
 
-		const analytics = `
-			<details class="mba-analytics" ${isDesktop() ? 'open' : ''}>
-				<summary>${__('Analytics')}</summary>
-				${anSection(__('Bookings'), [
-					anDonut(__('Booking Status'), statusPairs(d.booking_status, 'status', 'count'), 'bkstatus'),
-					anDonut(__('Payment Status'), statusPairs(d.payment_status, 'status', 'count'), 'paystatus'),
-					anDonut(__('Booking Channel'), statusPairs(d.booking_channel, 'channel', 'count'), 'channel'),
-					anDonut(__('Checkout Method'), statusPairs(d.checkout_method, 'method', 'count'), 'checkout'),
-				].join(''))}
-				${anSection(__('Travellers'), [
-					anDonut(__('Departure Point'), dep_pairs(d), 'dep'),
-					anDonut(__('Document Status'), doc_pairs(d), 'docstat'),
-					anDonut(__('Traveller Age'), age_pairs(d), 'age'),
-					anDonut(__('Gender'), gender_pairs(d), 'gender'),
-					anDonut(__('Company'), company_pairs(d), 'company'),
-					anDonut(__('Package Type'), package_pairs(d), 'pkgtype'),
-					anDonut(__('Rooms by Category'), room_pairs(d), 'roomcat'),
-					anDonut(__('Room Privacy'), privacy_pairs(d), 'privacy'),
-				].join(''))}
-				${anSection(__('Breakdowns'), [
-					anBlock(__('Discount by Type'), dscHtml),
-					anBlock(__('Affiliate'), affHtml),
-				].join(''))}
-			</details>`;
+		// Analytics — tiga panel berasingan, setiap satu <details> boleh
+		// lipat. Panel kosong tak dipaparkan.
+		const anPanel = (title, bodyHtml) => (bodyHtml
+			? `<details class="mba-analytics" ${isDesktop() ? 'open' : ''}>
+				<summary>${esc(title)}</summary>
+				<div class="mba-an-grid">${bodyHtml}</div></details>` : '');
 
-		pane_el(key, 'overview').html(`
+		const analytics = [
+			anPanel(__('Booking Analytics'), [
+				anDonut(__('Booking Status'), statusPairs(d.booking_status, 'status', 'count'), 'bkstatus'),
+				anDonut(__('Payment Status'), statusPairs(d.payment_status, 'status', 'count'), 'paystatus'),
+				anDonut(__('Booking Channel'), statusPairs(d.booking_channel, 'channel', 'count'), 'channel'),
+				anDonut(__('Checkout Method'), statusPairs(d.checkout_method, 'method', 'count'), 'checkout'),
+			].join('')),
+			anPanel(__('Travellers Analytics'), [
+				anDonut(__('Package Type'), package_pairs(d), 'pkgtype'),
+				anDonut(__('Departure Point'), dep_pairs(d), 'dep'),
+				anDonut(__('Rooms by Category'), room_pairs(d), 'roomcat'),
+				anDonut(__('Room Privacy'), privacy_pairs(d), 'privacy'),
+				anDonut(__('Document Status'), doc_pairs(d), 'docstat'),
+				anDonut(__('Traveller Age'), age_pairs(d), 'age'),
+				anDonut(__('Gender'), gender_pairs(d), 'gender'),
+				anDonut(__('Company'), company_pairs(d), 'company'),
+			].join('')),
+			anPanel(__('Breakdown Analytics'), [
+				dobBlockHtml,
+				anBlock(__('Discount by Type'), dscHtml),
+				anBlock(__('Affiliate'), affHtml),
+			].join('')),
+		].join('');
+
+		const $pane = pane_el(key, 'overview');
+		$pane.html(`
 			<div class="mba-kpi-grid">${kpiHtml}</div>
 			${secLine ? `<div class="mba-sec-line">${secLine}</div>` : ''}
-			<div class="mba-panel">
-				<div class="mba-panel-head">${__('Revenue Timeline')}
+			<details class="mba-panel mba-tl-sec" ${isDesktop() ? 'open' : ''}>
+				<summary class="mba-panel-head">${__('Revenue Timeline')}
 					<span class="mba-panel-tools">
 						<span class="mba-panel-sub">${__('Bar = sales · Line = cumulative, current rates')} · ≈ ${esc(tl.currency || S.currency)}${tl.rates_complete === false ? ' +' : ''}</span>
 						<select class="mba-tl-select" name="tl_gran" title="${__('Time scale of the chart — full range from first to last booking order')}">
@@ -2106,19 +2645,109 @@ window.ManageBookingApp = (function () {
 							<option value="month" ${S.tl.gran === 'month' ? 'selected' : ''}>${__('Monthly')}</option>
 						</select>
 					</span>
-				</div>
+				</summary>
 				<div class="mba-panel-body mba-chart" data-chart="rev-tl"></div>
-			</div>
+			</details>
 			${analytics}`);
 
-		render_tl_chart(pane_el(key, 'overview').find('[data-chart="rev-tl"]'), tl);
-		render_donuts(pane_el(key, 'overview'), d);
+		// Carta dilukis hanya bila bekas kelihatan — details tertutup bermakna
+		// clientWidth 0 (SVG lebar salah). Bila mana-mana details dibuka,
+		// listener toggle di bawah lukis semula kandungan scope tersebut.
+		const $tlChart = $pane.find('[data-chart="rev-tl"]');
+		if (!$tlChart.parents('details:not([open])').length) render_tl_chart($tlChart, tl);
+		render_donuts($pane, d);
+		load_dob_breakdown(key);
+
+		// Native listener (toggle tak bubble — delegation jQuery tak boleh
+		// dipakai). Buka semula → lukis semula donut/chart dalam panel itu;
+		// paksa redraw supaya SVG lapuk berlebar salah turut dibaiki.
+		$pane.find('.mba-tl-sec, .mba-analytics').each(function () {
+			this.addEventListener('toggle', () => {
+				if (!this.open) return;
+				if (this.classList.contains('mba-tl-sec')) {
+					render_tl_chart($(this).find('[data-chart="rev-tl"]'), tl);
+				} else {
+					render_donuts($(this), d, true);
+				}
+			});
+		});
+	}
+
+	/* ---------- Pecahan DOB dalam julat trip (tab Overview) ---------- */
+
+	// Traveller yang tarikh lahir penuhnya jatuh dalam julat tarikh trip —
+	// semantik sama dengan badge DOB merah tab Travellers (semakan
+	// kemasukan data). Batch = mula terawal / tamat terakhir ahli.
+	// Susunan ikut DOB menaik. [] bila senarai traveller belum dimuatkan.
+	function dob_breakdown_rows(key) {
+		const it = find_item(key);
+		const tvAll = S.cache[key]?.tvAll;
+		if (!it || !tvAll) return [];
+		const starts = it.members
+			.map((m) => String(m.sailing_start || m.departure_date || '').slice(0, 10))
+			.filter(Boolean).sort();
+		const ends = it.members
+			.map((m) => String(m.sailing_end || m.return_date || '').slice(0, 10))
+			.filter(Boolean).sort();
+		const tripStart = starts[0] || '';
+		const tripEnd = ends[ends.length - 1] || '';
+		if (!tripStart || !tripEnd) return [];
+		return (tvAll.travellers || [])
+			.filter((t) => {
+				const dd = String(t.dob || '').slice(0, 10);
+				return dd >= tripStart && dd <= tripEnd;
+			})
+			.sort((a, b) => String(a.dob || '').localeCompare(String(b.dob || '')));
+	}
+
+	// Baris pecahan — nama boleh klik (data-trav JSON penuh, corak kad tab
+	// Travellers supaya modal maklumat penuh terus boleh dibuka) + DOB.
+	const dob_breakdown_html = (rows) => rows.map((t) => `
+		<div class="mba-bd-row">
+			<a class="mba-bd-label mba-dob-link" role="button"
+				data-trav="${esc(JSON.stringify(t))}"
+				title="${esc(__('Open traveller details'))}">${esc(t.traveller_name || t.guest_label || '-')}</a>
+			<span class="mba-bd-value">${esc(fmtDate(String(t.dob || '').slice(0, 10)))}</span>
+		</div>`).join('');
+
+	// Kandungan blok pecahan — baris nama+DOB. Tiada padanan → '' (blok
+	// dilangkau, sama macam blok pecahan lain); 'Loading...' hanya
+	// dipapar sebelum senarai traveller selesai dimuat.
+	const dob_block_html = (rows, loaded) => (loaded && !rows.length
+		? ''
+		: `<div class="mba-an-block"><div class="mba-an-title">${esc(__('DOB on Trip'))}</div>
+		${loaded ? dob_breakdown_html(rows)
+			: `<div class="mba-bd-row"><span class="mba-muted">${__('Loading...')}</span></div>`}</div>`);
+
+	// Muat senarai traveller penuh (tanpa tapisan/limit tab) untuk pecahan
+	// DOB — cache tvAll berasingan daripada cache tab Travellers yang
+	// dipandu state tab. Selesai → kemaskini blok pane Overview terbuka.
+	function load_dob_breakdown(key) {
+		const it = find_item(key);
+		if (!it || S.cache[key]?.tvAll || S.tvAllJobs[key]) return;
+		S.tvAllJobs[key] = api('get_group_travellers', { trip_groups: item_groups(it), limit: 0 })
+			.then((tv) => {
+				S.cache[key] = { ...(S.cache[key] || {}), tvAll: tv || { travellers: [], count: 0 } };
+				update_dob_block(key);
+			})
+			.catch(() => { /* placeholder kekal — render overview semula mencuba lagi */ })
+			.finally(() => { delete S.tvAllJobs[key]; });
+	}
+
+	// Kemaskini blok pecahan DOB dalam pane Overview sedia ada. Pane sudah
+	// tiada (user pindah tab/detail) → biarkan; render berikutnya baca cache.
+	function update_dob_block(key) {
+		const $blk = pane_el(key, 'overview').find('[data-dob-block]');
+		if (!$blk.length) return;
+		const html = dob_block_html(dob_breakdown_rows(key), true);
+		if (html) $blk.html(html);
+		else $blk.remove();   // senarai kosong — buang blok terus
 	}
 
 	// Lukis semua donut Analytics dalam pane yang diberi. Placeholder
 	// [data-donut] tanpa SVG sahaja yang dilukis — dipanggil semula oleh
 	// handler toggle <details> bila panel dibuka pada telefon (lebar 0).
-	function render_donuts($pane, d) {
+	function render_donuts($pane, d, force) {
 		if (!$pane || !$pane.length) return;
 		const defs = [
 			{ name: 'bkstatus', pairs: pairs_from(d.booking_status, 'status', 'count'), ds: __('Bookings'), center: __('Bookings') },
@@ -2136,7 +2765,8 @@ window.ManageBookingApp = (function () {
 		];
 		$pane.find('[data-donut]').each(function () {
 			const $el = $(this);
-			if ($el.find('svg').length) return;   // sudah dilukis
+			if ($el.parents('details:not([open])').length) return;  // tersembunyi — lukis bila dibuka
+			if (!force && $el.find('svg').length) return;   // sudah dilukis
 			const def = defs.find((x) => x.name === $el.data('donut'));
 			if (def) render_donut($el, def.pairs, def.ds, def.center);
 		});
@@ -2171,7 +2801,7 @@ window.ManageBookingApp = (function () {
 					{ name: __('Cumulative'), chartType: 'line', values: pts.map((p) => p.cumulative) },
 				],
 			},
-			height: 180,
+			height: 270,   // +50% dari 180 — panel timeline kini boleh lipat
 			lineOptions: { regionFill: 1, heatline: false },
 			colors: [frappe.utils.get_chart_palette()[0], frappe.utils.get_chart_palette()[3]],
 			showLegend: true,
@@ -2251,286 +2881,107 @@ window.ManageBookingApp = (function () {
 	   toolbar: carian, tapisan group, doc status & limit (reload via
 	   load_tab). Kolum Booking aktif — baris merentas pelbagai booking. ---------- */
 
-	function render_travellers_tab(key) {
-		const tv = S.cache[key]?.travellers;
-		const it = find_item(key);
-		const st = S.state[key];
-		if (!tv || !it || !st) return;
-		const rows = tv.travellers || [];
-		const pane = pane_el(key, 'traveller');
-		// NOTE: rows kosong TIDAK lagi overwrite pane — render_traveller_list
-		// papar mesej kosong DALAM .mba-tv-grid supaya toolbar & panel
-		// penapis kekal boleh diubah/dibuang.
+	// ══ SUB-PACKAGE SENARAI TRAVELLER ══
+	// Keseluruhan komponen senarai traveller (penapis, ringkasan, grid/
+	// jadual, modal, dialog, cache) dipindahkan ke traveller_list.js dan
+	// di-include di sini — concatenation server-side oleh render_include,
+	// scope IIFE page kekal sama (semua rujukan silang berfungsi).
+	{% include "travel_booking/module_admin_portal/page/manage_booking_app/traveller_list.js" %}
+	/* ---------- PAKEJ SENARAI BILIK ----------
+	   Grid kad bilik read-only (rooms_list.js) — komponen mandiri dengan
+	   API rooms_list_html(rm) / mount_rooms_list($el, rm, opts); boleh
+	   digunakan oleh mana-mana tab/page yang ada payload
+	   get_group_rooming. Di-include di sini — concatenation server-side
+	   oleh render_include, scope IIFE page kekal sama. ---------- */
+	{% include "travel_booking/module_admin_portal/page/manage_booking_app/rooms_list.js" %}
 
-		// Julat tarikh trip group (batch → mula terawal / tamat terakhir)
-		// untuk tanda merah DOB dalam tempoh perjalanan.
-		const starts = it.members
-			.map((m) => String(m.sailing_start || m.departure_date || '').slice(0, 10))
-			.filter(Boolean).sort();
-		const ends = it.members
-			.map((m) => String(m.sailing_end || m.return_date || '').slice(0, 10))
-			.filter(Boolean).sort();
+	/* ---------- L2 Tab Rooms (rooming) ----------
+	   Senarai bilik (pakej rooms_list.js di atas) + papan susun atur
+	   Kanban Rooming Board (rooming_board.js) — di-include di sini,
+	   concatenation server-side oleh render_include, scope IIFE page
+	   kekal sama (corak traveller_list.js). ---------- */
 
-		render_traveller_list({
-			target: pane,
-			rows,
-			state: st.tv,
-			context: {
-				show_booking_col: true,
-				trip_start: starts[0] || '',
-				trip_end: ends[ends.length - 1] || '',
-				// Skop muat turun ikut tapisan group aktif — manifest
-				// penuh batch, atau group tunggal bila ditapis.
-				trip_groups: st.tv.group ? [st.tv.group] : item_groups(it),
-			},
-			toolbar_extras: `<span class="mba-tv-extras">
-				${limit_options('tv', st.tv.limit)}
-				${tv_cf_toggle_html(st.tv)}
-			</span>`,
-			server_search: true,
-			search_placeholder: __('Search traveller / passport / contact / booking...'),
-			custom_filter_html: tv_cf_panel_html(st.tv),
-			footer_html: showing_footer(tv, __('travellers'), 'tv'),
-			show_search: false,
-		});
-		tv_cf_hydrate(key);
-	}
+	{% include "travel_booking/module_admin_portal/page/manage_booking_app/rooming_board.js" %}
 
-	const tv_hay = (t) => [
-		t.traveller_name, t.passport_no, t.nationality, t.email, t.phone,
-		t.room_id, t.room_category, t.stateroom_no, t.pax_type, t.room_privacy,
-		t.cabin_no, t.delegate_no, t.aroya_guest_no, t.reservation, t.traveller,
-		t.ic_number, t.dob, t.age_category, t.guest_label,
-	].map((x) => String(x || '').toLowerCase()).join(' \u0001 ');
+	/* ---------- L2 Tab Flights (dipisah dari bekas Tab More) ---------- */
 
-	/* ---------- Penapis dinamik tab Travellers (L2 & L3) ----------
-	   Baris [{doctype, fieldname, value}] disimpan dalam state tv.custom.
-	   Medan pilihan datang daripada get_traveller_filter_fields (meta 4
-	   doctype sumber); cadangan nilai (datalist) daripada
-	   get_traveller_filter_values ikut skop item semasa. Tapisan dijalankan
-	   server-side bersama carian/doc status/limit. */
-
-	async function ensure_tv_filter_fields() {
-		if (S.tvFields) return S.tvFields;
-		if (!S.tvFieldsPromise) {
-			S.tvFieldsPromise = api('get_traveller_filter_fields')
-				.then((f) => { S.tvFields = f || []; return S.tvFields; })
-				.catch(() => null);
-		}
-		return S.tvFieldsPromise;
-	}
-
-	// Baris aktif = ada nilai tunggal ATAU julat (min/max) — dikira dalam
-	// pill butang Filter dan dihantar ke server sebagai custom_filters.
-	const tv_cf_active = (rows) => (rows || []).filter((r) => r.doctype && r.fieldname
-		&& ((r.value != null && r.value !== '')
-			|| (r.min != null && r.min !== '')
-			|| (r.max != null && r.max !== '')));
-
-	// Jenis medan nombor — input NILAI berupa julat Min–Max (bukan teks
-	// tunggal). Fieldtype datang dari meta cache S.tvFields.
-	const TV_CF_NUMERIC_TYPES = ['Int', 'Float', 'Currency', 'Percent'];
-	const tv_cf_field_meta = (r) => {
-		const g = (S.tvFields || []).find((x) => x.doctype === r?.doctype);
-		return g?.fields.find((f) => f.fieldname === r?.fieldname) || null;
-	};
-	const tv_cf_fieldtype = (r) => tv_cf_field_meta(r)?.fieldtype || '';
-	const tv_cf_is_range = (r) => TV_CF_NUMERIC_TYPES.includes(tv_cf_fieldtype(r));
-	// Medan Select — pilihan penuh dari meta (autocomplete nilai penapis).
-	const tv_cf_select_options = (r) => tv_cf_field_meta(r)?.options || [];
-
-	// Butang togol pada toolbar (kiri, selepas tapisan standard).
-	// Ikon 'funnel' — set ikon Lucide Frappe tiada lagi 'filter'.
-	function tv_cf_toggle_html(tvst) {
-		const n = tv_cf_active(tvst.custom).length;
-		return `<button type="button" class="btn btn-default btn-xs mba-cf-toggle"
-			title="${esc(__('Filter by any field'))}">
-			${frappe.utils.icon('funnel', 'sm')} ${__('Filter')}${n ? ` <span class="mba-count-pill">${n}</span>` : ''}</button>`;
-	}
-
-	// Panel baris penapis — terpapar bila tv.cf_open (kekal merentas render).
-	// ≥2 baris → pilihan mod gabungan AND | OR (cf_match; lalai AND).
-	// PEMILIH MEDAN: input AUTOCOMPLETE (datalist) — senarai medan panjang
-	// (4 doctype) dicari terus dengan menaip; paparan "Doctype — Label",
-	// nilai sebenar diselesaikan melalui tv_cf_field_choices().
-	// Medan nombor/currency (Int/Float/Currency/Percent) → input julat
-	// Min–Max; medan lain → input nilai tunggal + datalist cadangan.
-	function tv_cf_field_choices() {
-		// Flat [{display, doctype, fieldname}] — susun ikut doctype meta.
-		const out = [];
-		(S.tvFields || []).forEach((g) => (g.fields || []).forEach((f) => out.push({
-			display: `${g.doctype} — ${f.label}`,
-			doctype: g.doctype,
-			fieldname: f.fieldname,
-		})));
-		return out;
-	}
-	const tv_cf_display = (r) => {
-		if (!r?.doctype || !r?.fieldname) return '';
-		const m = tv_cf_field_choices().find((x) =>
-			x.doctype === r.doctype && x.fieldname === r.fieldname);
-		return m ? m.display : '';
-	};
-	function tv_cf_panel_html(tvst) {
-		if (!tvst.cf_open) return '';
-		const rows = tvst.custom || [];
-		const match = tvst.cf_match === 'OR' ? 'OR' : 'AND';
-		const matchBtn = (v) => `<button type="button"
-			class="btn btn-default btn-xs mba-cf-match-btn${match === v ? ' active' : ''}"
-			data-match="${v}" title="${esc(v === 'AND'
-				? __('Row must match ALL filters')
-				: __('Row must match ANY filter'))}">${v}</button>`;
-		const fieldChoices = tv_cf_field_choices();
-		const fieldOpts = fieldChoices.map((x) =>
-			`<option value="${esc(x.display)}"></option>`).join('');
-		return `
-		<div class="mba-cf">
-			${rows.map((r, i) => `
-			<div class="mba-cf-row" data-idx="${i}">
-				<span class="mba-cf-pick">
-					<input type="text" class="form-control mba-cf-field-input" data-idx="${i}"
-						list="mba-cf-fdl-${i}" autocomplete="off"
-						placeholder="${esc(__('— Select Field —'))}"
-						value="${esc(tv_cf_display(r))}" />
-					<datalist id="mba-cf-fdl-${i}">${fieldOpts}</datalist>
-				</span>
-				${tv_cf_is_range(r) ? `
-				<span class="mba-cf-range">
-					<input type="number" step="any" class="form-control mba-cf-min" data-idx="${i}"
-						placeholder="${esc(__('Min'))}" value="${esc(r.min ?? '')}" />
-					<span class="mba-cf-sep">–</span>
-					<input type="number" step="any" class="form-control mba-cf-max" data-idx="${i}"
-						placeholder="${esc(__('Max'))}" value="${esc(r.max ?? '')}" />
-				</span>` : `
-				<input type="text" class="form-control mba-cf-value" data-idx="${i}" list="mba-cf-dl-${i}"
-					placeholder="${esc(__('Value'))}" value="${esc(r.value ?? '')}" />
-				<datalist id="mba-cf-dl-${i}">${tv_cf_select_options(r).map((o) =>
-					`<option value="${esc(o)}"></option>`).join('')}</datalist>`}
-				<button type="button" class="btn btn-default btn-xs mba-cf-del" data-idx="${i}"
-					title="${esc(__('Remove this filter'))}">✕</button>
-			</div>`).join('')}
-			<div class="mba-cf-actions">
-				<button type="button" class="btn btn-default btn-xs mba-cf-add">+ ${__('Add Filter')}</button>
-				${rows.length > 1 ? `<span class="mba-cf-match btn-group" role="group"
-					aria-label="${esc(__('Match mode'))}">
-					<span class="mba-cf-match-lbl">${__('Match')}:</span>${matchBtn('AND')}${matchBtn('OR')}
-				</span>` : ''}
-				${rows.length ? `<button type="button" class="btn btn-default btn-xs mba-cf-clear">${__('Clear All')}</button>
-				<button type="button" class="btn btn-primary btn-xs mba-cf-apply">${__('Apply')}</button>` : ''}
-			</div>
-		</div>`;
-	}
-
-	// Isi datalist cadangan nilai untuk satu baris — skop ikut item
-	// (group/batch L2 atau booking L3). Tidak re-render supaya fokus kekal.
-	// Baris julat nombor tiada datalist (input Min–Max bukan teks); baris
-	// Select guna pilihan meta (sudah diisi semasa render — tiada API).
-	function tv_cf_fill_datalist(key, $row) {
-		const idx = $row.data('idx');
-		const st = S.state[key];
-		const r = st?.tv?.custom?.[idx];
-		if (!st || !r || !r.doctype || !r.fieldname || tv_cf_is_range(r)) return;
-		if (tv_cf_fieldtype(r) === 'Select') {
-			$row.find('datalist').html(tv_cf_select_options(r)
-				.map((o) => `<option value="${esc(o)}"></option>`).join(''));
-			return;
-		}
-		const args = { doctype: r.doctype, fieldname: r.fieldname, limit: 100 };
-		if (key.startsWith('bkg:')) {
-			args.booking = key.slice(4);
-		} else {
-			const it = find_item(key);
-			if (!it) return;
-			args.trip_groups = st.tv.group ? [st.tv.group] : item_groups(it);
-		}
-		api('get_traveller_filter_values', args).then((d) => {
-			const cur = S.state[key]?.tv?.custom?.[idx];
-			if (!cur || cur.doctype !== r.doctype || cur.fieldname !== r.fieldname) return;
-			$row.find('datalist').html((d?.values || [])
-				.map((v) => `<option value="${esc(v)}"></option>`).join(''));
-		}).catch(() => { /* cadangan gagal — input teks masih berfungsi */ });
-	}
-
-	// Selepas render semula, isi semula datalist baris yang ada medan.
-	function tv_cf_hydrate(key) {
-		const $pane = key.startsWith('bkg:')
-			? $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="tv"]`)
-			: pane_el(key, 'traveller');
-		$pane.find('.mba-cf-row').each(function () {
-			if ($(this).find('.mba-cf-field-input').val()) tv_cf_fill_datalist(key, $(this));
-		});
-	}
-
-	/* ---------- L2 Tab Rooms (rooming) ---------- */
-
-	function render_rooming_tab(key) {
-		const rm = S.cache[key]?.rooming;
-		const it = find_item(key);
-		const st = S.state[key];
-		if (!rm || !it || !st) return;
-
-		const multi = it.members.length > 1;
-		const rows = rm.rooms || [];
-
-		// Senarai lipat per bilik — kepala 1 baris; kandungan senarai tetamu.
-		const roomsHtml = rows.map((r) => {
-			const guests = (r.guests || []).map((gst) => `
-				<div class="mba-guest">
-					<span class="mba-muted">${gst.guest_sequence || '·'}.</span>
-					<span class="mba-cell-main">${esc(gst.name)}</span>
-					${gst.gender ? `<span class="mba-guest-gender">${esc(__(gst.gender)).slice(0, 1)}</span>` : ''}
-					${badge(gst.document_status, DOC_STATUS_COLORS[gst.document_status])}
-				</div>`).join('');
-			return `
-			<details class="mba-room">
-				<summary>
-					<span class="mba-room-id">${esc(r.room_id)}</span>
-					<span class="mba-room-cat">${esc(r.room_category)}${multi && r.trip_group ? ' · ' + esc(r.trip_group) : ''}</span>
-					<span class="mba-room-right">
-						<span class="${r.pending_docs > 0 ? 'is-danger' : 'is-success'}">${r.docs_ok}/${r.pax}</span>
-						${r.cabin_confirmed ? badge(__('Confirmed'), 'green') : badge(__('Pending'), 'orange')}
-					</span>
-				</summary>
-				<div class="mba-room-body">
-					${r.stateroom_no || r.room_privacy
-						? `<div class="mba-cell-sub">${r.stateroom_no ? __('Stateroom') + ': ' + esc(r.stateroom_no) : ''}${r.stateroom_no && r.room_privacy ? ' · ' : ''}${r.room_privacy ? esc(r.room_privacy) : ''}</div>` : ''}
-					${(r.bookings || []).length ? `<div class="mba-room-bookings">${(r.bookings || []).map((b) => `<a href="/app/booking/${esc(b)}">${esc(b)}</a>`).join(' · ')}</div>` : ''}
-					<div class="mba-guests">${guests || `<span class="mba-muted">—</span>`}</div>
-				</div>
-			</details>`;
-		}).join('');
-
-		const privacyOpts = [
-			['', __('All Privacy')],
-			['Private', __('Private')],
-			['Open Sharing', __('Open Sharing')],
-			['__blank__', __('Unspecified')],
-		].map(([v, l]) => `<option value="${esc(v)}" ${st.rm.privacy === v ? 'selected' : ''}>${esc(l)}</option>`).join('');
-
-		pane_el(key, 'rooming').html(`
-			<div class="mba-tab-toolbar">
-				<input type="text" data-search="rm" placeholder="${__('Search room / category / traveller...')}"
-					value="${esc(st.rm.search)}" />
-				<select data-kind="privacy" data-scope="rm">${privacyOpts}</select>
-				${limit_options('rm', st.rm.limit)}
-			</div>
-			${rows.length ? `<div class="mba-rooms">${roomsHtml}</div>`
-				: `<div class="mba-empty">${__('No rooms found for this filter.')}</div>`}
-			${showing_footer(rm, __('rooms'), 'rm')}`);
-	}
-
-	/* ---------- L2 Tab More (Addon + Flight) ---------- */
-
-	function render_more_tab(key) {
-		const ad = S.cache[key]?.addons;
+	function render_flights_tab(key) {
 		const fl = S.cache[key]?.flights;
+		const st = S.state[key];
+		if (!fl || !st) return;
+
+		const flRows = fl.flights || [];
+		const route = (f) => [f.home_airport, f.destination_airport].filter(Boolean).join(' → ');
+
+		const flCards = flRows.map((f) => `
+			<div class="mba-bkcard" data-route="Flight/${esc(f.name)}">
+				<div class="mba-bkcard-top">
+					<span class="mba-bkcard-no">${esc(f.pnr)}</span>
+					${badge(f.status, FLIGHT_STATUS_COLORS[f.status])}
+				</div>
+				<div class="mba-bkcard-cust">${f.airline ? esc(f.airline_name || f.airline) : '—'}</div>
+				<div class="mba-bkcard-meta">${route(f) ? esc(route(f)) : ''}${f.departure_date ? ' · ' + fmtDate(f.departure_date) : ''}</div>
+				<div class="mba-bkcard-foot">
+					<span>${f.seats_occupied}/${f.max_seat || '—'} ${__('seats')} · ${f.booking_count} ${__('bookings')} · ${f.pax} ${__('pax')}</span>
+				</div>
+			</div>`).join('');
+
+		const flTable = `
+			<div class="mba-table-wrap">
+				<table class="mba-table">
+					<thead><tr>
+						<th>${__('PNR')}</th>
+						<th>${__('Airline')}</th>
+						<th>${__('Route')}</th>
+						<th class="num">${__('Departure')}</th>
+						<th class="num">${__('Arrival')}</th>
+						<th class="num" title="${__('Seats occupied / max seats')}">${__('Seats')}</th>
+						<th class="num">${__('Bookings')}</th>
+						<th class="num">${__('Pax')}</th>
+						<th>${__('Status')}</th>
+					</tr></thead>
+					<tbody>${flRows.map((f) => `
+						<tr data-route="Flight/${esc(f.name)}">
+							<td><div class="mba-cell-main">${esc(f.pnr)}</div></td>
+							<td>${f.airline ? esc(f.airline_name || f.airline) : '—'}</td>
+							<td>${route(f) ? esc(route(f)) : '—'}</td>
+							<td class="num">${f.departure_date ? fmtDate(f.departure_date) : '—'}</td>
+							<td class="num">${f.arrival_date ? fmtDate(f.arrival_date) : '—'}</td>
+							<td class="num">${f.seats_occupied}/${f.max_seat || '—'}</td>
+							<td class="num">${f.booking_count}</td>
+							<td class="num">${f.pax}</td>
+							<td>${badge(f.status, FLIGHT_STATUS_COLORS[f.status])}</td>
+						</tr>`).join('')}
+					</tbody>
+				</table>
+			</div>`;
+
+		pane_el(key, 'flights').html(`
+			<div class="mba-section-title">${__('Flights')}
+				<span class="mba-count-pill">${fl.count ?? 0}</span></div>
+			<div class="mba-tab-toolbar">
+				${TravelBookingSearchBox.html({
+					attrs: { 'data-search': 'fl' },
+					placeholder: __('Search PNR / title / airline / airport...'),
+					value: st.fl.search,
+				})}
+				${limit_options('fl', st.fl.limit)}
+			</div>
+			${flRows.length ? `<div class="mba-cards">${flCards}</div>${flTable}`
+				: `<div class="mba-empty">${__('No flights referenced by this group yet.')}</div>`}
+			${showing_footer(fl, __('flights'), 'fl')}`);
+	}
+
+	/* ---------- L2 Tab Addons (dipisah dari bekas Tab More) ---------- */
+
+	function render_addons_tab(key) {
+		const ad = S.cache[key]?.addons;
 		const it = find_item(key);
 		const st = S.state[key];
-		if (!ad || !fl || !it || !st) return;
+		if (!ad || !it || !st) return;
 
 		const multi = it.members.length > 1;
 
-		// ----- Addons -----
 		const adRows = ad.addons || [];
 		const adTot = ad.totals || {};
 		const adDt = adTot.default_totals || { currency: S.currency, amount: 0, rates_complete: true };
@@ -2584,64 +3035,20 @@ window.ManageBookingApp = (function () {
 				</table>
 			</div>`;
 
-		// ----- Flights -----
-		const flRows = fl.flights || [];
-		const route = (f) => [f.home_airport, f.destination_airport].filter(Boolean).join(' → ');
-
-		const flCards = flRows.map((f) => `
-			<div class="mba-bkcard" data-route="Flight/${esc(f.name)}">
-				<div class="mba-bkcard-top">
-					<span class="mba-bkcard-no">${esc(f.pnr)}</span>
-					${badge(f.status, FLIGHT_STATUS_COLORS[f.status])}
-				</div>
-				<div class="mba-bkcard-cust">${f.airline ? esc(f.airline_name || f.airline) : '—'}</div>
-				<div class="mba-bkcard-meta">${route(f) ? esc(route(f)) : ''}${f.departure_date ? ' · ' + fmtDate(f.departure_date) : ''}</div>
-				<div class="mba-bkcard-foot">
-					<span>${f.seats_occupied}/${f.max_seat || '—'} ${__('seats')} · ${f.booking_count} ${__('bookings')} · ${f.pax} ${__('pax')}</span>
-				</div>
-			</div>`).join('');
-
-		const flTable = `
-			<div class="mba-table-wrap">
-				<table class="mba-table">
-					<thead><tr>
-						<th>${__('PNR')}</th>
-						<th>${__('Airline')}</th>
-						<th>${__('Route')}</th>
-						<th class="num">${__('Departure')}</th>
-						<th class="num">${__('Arrival')}</th>
-						<th class="num" title="${__('Seats occupied / max seats')}">${__('Seats')}</th>
-						<th class="num">${__('Bookings')}</th>
-						<th class="num">${__('Pax')}</th>
-						<th>${__('Status')}</th>
-					</tr></thead>
-					<tbody>${flRows.map((f) => `
-						<tr data-route="Flight/${esc(f.name)}">
-							<td><div class="mba-cell-main">${esc(f.pnr)}</div></td>
-							<td>${f.airline ? esc(f.airline_name || f.airline) : '—'}</td>
-							<td>${route(f) ? esc(route(f)) : '—'}</td>
-							<td class="num">${f.departure_date ? fmtDate(f.departure_date) : '—'}</td>
-							<td class="num">${f.arrival_date ? fmtDate(f.arrival_date) : '—'}</td>
-							<td class="num">${f.seats_occupied}/${f.max_seat || '—'}</td>
-							<td class="num">${f.booking_count}</td>
-							<td class="num">${f.pax}</td>
-							<td>${badge(f.status, FLIGHT_STATUS_COLORS[f.status])}</td>
-						</tr>`).join('')}
-					</tbody>
-				</table>
-			</div>`;
-
 		const adStatusOpts = ADDON_STATUS_OPTIONS
 			.map((o) => `<option value="${esc(o)}" ${st.ad.status === o ? 'selected' : ''}>${esc(o || 'All Status')}</option>`).join('');
 		const adPayOpts = ADDON_PAYMENT_OPTIONS
 			.map((o) => `<option value="${esc(o)}" ${st.ad.payment === o ? 'selected' : ''}>${esc(o || 'All Payments')}</option>`).join('');
 
-		pane_el(key, 'more').html(`
+		pane_el(key, 'addons').html(`
 			<div class="mba-section-title">${__('Booking Addons')}
 				<span class="mba-count-pill">${ad.count ?? 0}</span></div>
 			<div class="mba-tab-toolbar">
-				<input type="text" data-search="ad" placeholder="${__('Search addon / booking / customer...')}"
-					value="${esc(st.ad.search)}" />
+				${TravelBookingSearchBox.html({
+					attrs: { 'data-search': 'ad' },
+					placeholder: __('Search addon / booking / customer...'),
+					value: st.ad.search,
+				})}
 				${multi ? group_filter_options(it.members, st.ad.group, 'ad') : ''}
 				<select data-kind="status" data-scope="ad">${adStatusOpts}</select>
 				<select data-kind="payment" data-scope="ad">${adPayOpts}</select>
@@ -2649,18 +3056,7 @@ window.ManageBookingApp = (function () {
 			</div>
 			${adRows.length ? `<div class="mba-cards">${adCards}</div>${adTable}`
 				: `<div class="mba-empty">${__('No addon orders found for this filter.')}</div>`}
-			${showing_footer(ad, __('addon orders'), 'ad')}
-
-			<div class="mba-section-title">${__('Flights')}
-				<span class="mba-count-pill">${fl.count ?? 0}</span></div>
-			<div class="mba-tab-toolbar">
-				<input type="text" data-search="fl" placeholder="${__('Search PNR / title / airline / airport...')}"
-					value="${esc(st.fl.search)}" />
-				${limit_options('fl', st.fl.limit)}
-			</div>
-			${flRows.length ? `<div class="mba-cards">${flCards}</div>${flTable}`
-				: `<div class="mba-empty">${__('No flights referenced by this group yet.')}</div>`}
-			${showing_footer(fl, __('flights'), 'fl')}`);
+			${showing_footer(ad, __('addon orders'), 'ad')}`);
 	}
 
 	/* ========== L3: BOOKING INFO (route /booking/<name>) ========== */
@@ -2725,36 +3121,51 @@ window.ManageBookingApp = (function () {
 						<span class="mba-crumb mba-crumb--cur">${esc(p.booking_number || p.name)}</span>
 					</nav>
 					<div class="mba-bkg-actions">
-						<button type="button" class="btn btn-primary btn-xs mba-open-booking"
-							data-booking="${esc(p.name)}">${__('Open Booking Form')}</button>
+						<a class="mba-bkg-form-link" href="/app/booking/${esc(p.name)}"
+							target="_blank" rel="noopener"
+							title="${esc(__('Open the Booking form in a new tab'))}">
+							${__('Open Booking Form')} ${frappe.utils.icon('external-link', 'xs')}</a>
 					</div>
 				</div>
 				<div class="mba-bkg-shell">
 					<aside class="mba-bkg-rail">${bkg_rail(p, d)}</aside>
 					<div class="mba-bkg-main">
-						${bkg_money_strip(p)}
 						<div class="mba-tabs">
 							${BKG_TABS.map((t) => `
 								<button class="mba-tab ${st.tab === t.id ? 'active' : ''}" data-tab="${t.id}">${t.label}
 									${t.id === 'tv' && resCount ? `<span class="mba-count-pill">${resCount}</span>` : ''}
+									${t.id === 'rm' ? `<span class="mba-count-pill" data-rm-pill style="display:none"></span>` : ''}
 									${t.id === 'doc' && (docCount + peCount) ? `<span class="mba-count-pill">${docCount + peCount}</span>` : ''}
+									${t.id === 'af' ? `<span class="mba-count-pill" data-af-pill style="display:none"></span>` : ''}
 								</button>`).join('')}
 						</div>
 						<div class="mba-tab-panes">
 							<div class="mba-tab-pane ${st.tab === 'ov' ? 'active' : ''}" data-pane="ov"></div>
 							<div class="mba-tab-pane ${st.tab === 'tv' ? 'active' : ''}" data-pane="tv"></div>
+							<div class="mba-tab-pane ${st.tab === 'rm' ? 'active' : ''}" data-pane="rm"></div>
 							<div class="mba-tab-pane ${st.tab === 'doc' ? 'active' : ''}" data-pane="doc"></div>
+							<div class="mba-tab-pane ${st.tab === 'af' ? 'active' : ''}" data-pane="af"></div>
 							<div class="mba-tab-pane ${st.tab === 'other' ? 'active' : ''}" data-pane="other"></div>
 						</div>
 					</div>
 				</div>
 			</div>`);
 
+		// Profail di-fetch semula setiap lawatan — kosongkan cache bilik
+		// supaya tab Rooms L3 tidak kekal lapuk (cth. selepas susun atur
+		// di Rooming Board dalam sesi SPA yang sama).
+		delete (S.cache[key] || {}).bkgrooms;
 		S.cache[key] = { ...(S.cache[key] || {}), profile: d };
 		render_bkg_overview(key);
 		// Tab Travellers L3 — sumber disatukan, dimuatkan lazily (bukan
 		// lagi daripada profile.reservations).
 		if (st.tab === 'tv') load_bkg_travellers(key);
+		// Tab Rooms L3 — pakej rooming list (get_group_rooming skop
+		// booking), dimuatkan lazily.
+		if (st.tab === 'rm') load_bkg_rooms(key);
+		// Tab Add-ons & Flights L3 — dimuatkan lazily (get_booking_addons_
+		// flights), pill kiraan diisi selepas muat.
+		if (st.tab === 'af') load_bkg_af(key);
 		render_bkg_documents(key);
 		render_bkg_others(key);
 	}
@@ -2859,7 +3270,10 @@ window.ManageBookingApp = (function () {
 	}
 
 	// Strip wang — Order → Paid(%) → Balance + Payment Status. Nilai utama
-	// default currency; sub = pecahan native per currency.
+	// default currency; sub = pecahan native per currency. Baki tertunggak
+	// memaparkan butang ikon kecil Payment Link selepas label BALANCE
+	// (modal urus pautan bayaran — boleh gabungkan beberapa Sales Order
+	// dalam satu pembayaran).
 	function bkg_money_strip(p) {
 		const rows = p.money_by_currency || [];
 		const dt = p.default_totals;
@@ -2868,6 +3282,11 @@ window.ManageBookingApp = (function () {
 		const sub = (f) => rows.map((r) => fmtMoney(r[f], r.currency)).join('<br>') || fmtMoney(0, S.currency);
 		const prog = Math.max(0, Math.min(100, Math.round(p.prog_payment || 0)));
 		const title = esc(__('Per currency — amounts in different currencies are never summed'));
+		const payBtn = hasBalance(rows)
+			? `<button type="button" class="mba-paylink-btn" data-booking="${esc(p.name)}"
+					title="${esc(__('Generate and share a payment link for the outstanding balance'))}"
+					aria-label="${esc(__('Payment Link'))}">${frappe.utils.icon('credit-card', 'xs')}<span>${__('Pay')}</span></button>`
+			: '';
 
 		return `
 			<div class="mba-bkg-money">
@@ -2884,7 +3303,7 @@ window.ManageBookingApp = (function () {
 				</div>
 				<span class="mba-bkg-msep">→</span>
 				<div class="mba-mitem mba-mitem--warn" title="${title}">
-					<div class="mba-mitem-l">${__('Balance')}</div>
+					<div class="mba-mitem-l mba-mitem-l--pay">${__('Balance')}${payBtn}</div>
 					<div class="mba-mitem-v">${val('balance')}</div>
 					<div class="mba-mitem-s">${sub('balance')}</div>
 				</div>
@@ -2893,6 +3312,232 @@ window.ManageBookingApp = (function () {
 					${badge(p.payment_status, PAYMENT_STATUS_COLORS[p.payment_status]) || '<span class="mba-muted">—</span>'}
 				</div>
 			</div>`;
+	}
+
+	// ── Modal Payment Link — butang ikon kecil selepas label BALANCE (strip
+	// wang). Urus pautan bayaran baki tertunggak: pilih SATU atau LEBIH
+	// Sales Order (digabungkan dalam SATU pembayaran Stripe), jana pautan
+	// + QR, kemudian hantar ke customer melalui WhatsApp (wa.me) / emel. ──
+	const paylink_totals = (rows, amtKey, curKey) => {
+		// Jumlah per currency — JANGAN jumlah merentas currency (disiplin
+		// sama dengan strip wang).
+		const totals = {};
+		(rows || []).forEach((r) => {
+			const c = r[curKey];
+			totals[c] = round2((totals[c] || 0) + r[amtKey]);
+		});
+		return totals;
+	};
+
+	const paylink_wa_message = (d, links) => {
+		const prof = ((S.cache[d.booking] || {}).profile || {}).profile || {};
+		const trip = prof.trip_title || '';
+		const totals = paylink_totals(links, 'amount', 'currency');
+		const totalStr = Object.keys(totals).map((c) => fmtMoney(totals[c], c)).join(' + ');
+		const linksBlock = links.length === 1
+			? links[0].checkout_url
+			: links.map((l) => l.sales_order + ' — ' + l.checkout_url).join('\n');
+		return 'Hello ' + (d.customer_name || '') + ', here is the payment link for booking '
+			+ (d.booking_number || d.booking) + (trip ? ' (' + trip + ')' : '') + ':\n\n'
+			+ linksBlock + '\n\n'
+			+ 'Amount due: ' + totalStr + '\n'
+			+ links.map((l) => '- ' + l.sales_order + ': ' + fmtMoney(l.amount, l.currency)).join('\n')
+			+ '\n\nYou can pay securely by card using the link above, or scan the QR code. Thank you.';
+	};
+
+	const paylink_result_html = (d) => {
+		const links = d.links || [];
+		if (!links.length) {
+			return `<div class="mba-paylink-empty">${__('No active payment link — generate one above.')}</div>`;
+		}
+		const primary = links[0];
+		const totals = paylink_totals(links, 'amount', 'currency');
+		const totalStr = Object.keys(totals).map((c) => fmtMoney(totals[c], c)).join(' + ');
+		const digits = String(d.cust_phone || '').replace(/\D/g, '');
+		const waHref = digits
+			? 'https://wa.me/' + (digits.startsWith('0') ? '6' + digits : digits)
+				+ '?text=' + encodeURIComponent(paylink_wa_message(d, links))
+			: '';
+		return `
+			<div class="mba-paylink-card">
+				${primary.qr ? `<div class="mba-paylink-qr"><img src="${primary.qr}" alt="QR"/></div>` : ''}
+				<div class="mba-paylink-info">
+					<div class="mba-paylink-amt">${totalStr}</div>
+					<div class="mba-mitem-s">${links.length} ${__('order(s) in this link')}</div>
+					<div class="mba-paylink-urlrow">
+						<input class="form-control input-sm" readonly
+							value="${esc(primary.checkout_url)}"/>
+						<button type="button" class="btn btn-default btn-sm mba-paylink-copy">${__('Copy')}</button>
+					</div>
+					<div class="mba-paylink-rows">
+						${links.map((l) => `
+						<div class="mba-paylink-row">
+							<a href="/app/sales-order/${esc(l.sales_order)}">${esc(l.sales_order)}</a>
+							<span>${fmtMoney(l.amount, l.currency)}</span>
+						</div>`).join('')}
+					</div>
+					<div class="mba-bkg-cust-actions">
+						${waHref ? `<a class="mba-quickbtn mba-quickbtn--wa" href="${esc(waHref)}"
+								target="_blank" rel="noopener">${__('WhatsApp')}</a>` : ''}
+						<button type="button" class="mba-quickbtn mba-paylink-email"
+							${d.cust_email ? '' : 'disabled title="' + esc(__('This booking has no customer email address')) + '"'}>${__('Email')}</button>
+						<a class="mba-quickbtn" href="${esc(primary.checkout_url)}"
+							target="_blank" rel="noopener">${__('Open')}</a>
+					</div>
+					${d.cust_email ? `<div class="mba-mitem-s">${__('Email will be sent to')} ${esc(d.cust_email)}</div>` : ''}
+				</div>
+			</div>`;
+	};
+
+	function open_payment_link_dialog(booking) {
+		api('get_booking_payment_links', { booking }).then((payload) => {
+			if (!payload) return;
+			let data = payload;   // diganti semula selepas generate (re-fetch)
+
+			const dlg = new frappe.ui.Dialog({
+				title: __('Payment Link') + ' — ' + (payload.booking_number || booking),
+				size: 'large',
+			});
+			const sel = new Set((payload.sos || []).map((s) => s.name));
+			// Baris dokumen — pilihan (label boleh klik) + input JUMLAH
+			// ALOKASI boleh sunting (lalai = baki penuh; 0 < jumlah ≤ baki
+			// SO itu — validasi ERPNext Payment Request).
+			const soRows = (payload.sos || []).map((so) => `
+				<div class="mba-paylink-so">
+					<label class="mba-paylink-sel">
+						<input type="checkbox" class="mba-paylink-check" data-so="${esc(so.name)}"
+							${sel.has(so.name) ? 'checked' : ''}/>
+						<span class="mba-paylink-soname">${esc(so.name)}
+							${so.is_addon ? badge(__('Addon Order'), 'gray') : badge(__('Sales Order'), 'blue')}</span>
+					</label>
+					<span class="mba-paylink-amtwrap"
+						title="${esc(__('Amount to charge for this order — edit for a partial payment'))}">
+						<input type="number" class="mba-paylink-amt" inputmode="decimal"
+							min="0.01" max="${so.balance}" step="0.01" value="${so.balance}"
+							${sel.has(so.name) ? '' : 'disabled'}/>
+						<span class="mba-paylink-cur">${esc(so.currency)}</span>
+					</span>
+				</div>`).join('');
+
+			dlg.$body.html(`
+				<div class="mba-paylink">
+					<div class="mba-paylink-sec">
+						<div class="mba-paylink-head">${__('Outstanding Orders')}</div>
+						${soRows || `<div class="mba-paylink-empty">${__('No outstanding balance on this booking.')}</div>`}
+						<div class="mba-paylink-total">
+							<span>${__('Selected Total')}</span>
+							<b data-pl-total>—</b>
+							<span class="mba-mitem-s" data-pl-count></span>
+						</div>
+						<div class="mba-paylink-warn" data-pl-warn style="display:none">
+							${__('Mixed currencies cannot share one payment — generate a separate link per currency.')}
+						</div>
+						<div class="mba-paylink-genrow">
+							<button type="button" class="btn btn-primary btn-sm mba-paylink-gen">${__('Generate Payment Link')}</button>
+							<span class="mba-mitem-s">${__('Amounts are editable for partial payment. Generating a new link cancels previous unpaid links for the same orders.')}</span>
+						</div>
+					</div>
+					<div class="mba-paylink-sec" data-pl-result>
+						${paylink_result_html(data)}
+					</div>
+				</div>`);
+
+			const $body = dlg.$body;
+			const $gen = $body.find('.mba-paylink-gen');
+
+			// Jumlah ikut pilihan + nilai input alokasi semasa (bukan baki
+			// penuh). Input tak sah (kosong / ≤0 / melebihi baki SO) → baris
+			// ditanda merah & butang jana dikunci. Currency bercampur turut
+			// dikunci — satu pembayaran gabungan wajib satu currency.
+			const recompute = () => {
+				const chosen = [];
+				let invalid = false;
+				$body.find('.mba-paylink-so').each(function () {
+					const $row = $(this);
+					const $chk = $row.find('.mba-paylink-check');
+					const so = (data.sos || []).find((x) => x.name === $chk.data('so'));
+					const $amt = $row.find('.mba-paylink-amt');
+					const on = $chk.prop('checked');
+					$amt.prop('disabled', !on);
+					if (!so || !on) { $row.removeClass('is-invalid'); return; }
+					const v = parseFloat($amt.val());
+					const bad = !(v > 0) || v > so.balance + 0.009;
+					$row.toggleClass('is-invalid', bad);
+					if (bad) { invalid = true; return; }
+					chosen.push({ amount: round2(v), currency: so.currency });
+				});
+				const totals = paylink_totals(chosen, 'amount', 'currency');
+				$body.find('[data-pl-total]').text(
+					Object.keys(totals).map((c) => fmtMoney(totals[c], c)).join(' + ') || '—');
+				$body.find('[data-pl-count]').text(
+					chosen.length ? chosen.length + ' ' + __('selected') : '');
+				const mixed = Object.keys(totals).length > 1;
+				$body.find('[data-pl-warn]').toggle(mixed);
+				$gen.prop('disabled', !chosen.length || mixed || invalid);
+			};
+
+			const refresh_result = () => $body.find('[data-pl-result]').html(paylink_result_html(data));
+
+			const do_generate = () => {
+				const sales_orders = [];
+				const amounts = {};
+				let valid = true;
+				$body.find('.mba-paylink-so').each(function () {
+					const $row = $(this);
+					const $chk = $row.find('.mba-paylink-check');
+					if (!$chk.prop('checked')) return;
+					const so = (data.sos || []).find((x) => x.name === $chk.data('so'));
+					const name = String($chk.data('so'));
+					const v = parseFloat($row.find('.mba-paylink-amt').val());
+					if (!so || !(v > 0) || v > so.balance + 0.009) { valid = false; return; }
+					sales_orders.push(name);
+					amounts[name] = round2(v);
+				});
+				if (!valid || !sales_orders.length) return;
+				$gen.prop('disabled', true).text(__('Generating…'));
+				api('create_booking_payment_link', { booking, sales_orders, amounts })
+					.then(() => api('get_booking_payment_links', { booking }))
+					.then((fresh) => {
+						if (fresh) data = fresh;
+						refresh_result();
+						frappe.show_alert({ message: __('Payment link generated'), indicator: 'green' }, 5);
+					})
+					.finally(() => {
+						$gen.prop('disabled', false).text(__('Generate Payment Link'));
+						recompute();
+					});
+			};
+
+			const do_copy = () => {
+				const url = ((data.links || [])[0] || {}).checkout_url || '';
+				if (url) frappe.utils.copy_to_clipboard(url);
+			};
+
+			const do_email = () => {
+				const prs = (data.links || []).map((l) => l.payment_request);
+				if (!prs.length) return;
+				const $btn = $body.find('.mba-paylink-email').prop('disabled', true);
+				api('send_booking_payment_email', { booking, payment_requests: prs })
+					.then((r) => {
+						frappe.show_alert({
+							message: __('Email sent to {0}', [r?.sent_to || 'customer']),
+							indicator: 'green',
+						}, 5);
+					})
+					.finally(() => $btn.prop('disabled', false));
+			};
+
+			$body
+				.on('change', '.mba-paylink-check', recompute)
+				.on('input change', '.mba-paylink-amt', recompute)
+				.on('focus', '.mba-paylink-urlrow input', function () { this.select(); })
+				.on('click', '.mba-paylink-gen', do_generate)
+				.on('click', '.mba-paylink-copy', do_copy)
+				.on('click', '.mba-paylink-email', do_email);
+
+			recompute();
+			dlg.show();
+		});
 	}
 
 	const bkg_section = (title, count, inner) => `
@@ -3059,1189 +3704,236 @@ window.ManageBookingApp = (function () {
 				<div class="mba-bkg-tld">${e.date ? fmtDate(e.date) : ''}</div>
 				<div>${e.html}</div>
 			</div>`).join('');
-		return bkg_section(__('Booking Timeline'), ev.length + tail.length,
-			`${moreBtn}<div class="mba-bkg-tl">${items}${tail.join('')}</div>`);
+		// Wrapper .mba-bkg-tlwrap — skop gaya "sangat kecil & muted" pada
+		// seksyen timeline sahaja (tajuk + kandungan), tanpa sentuh gaya
+		// section lain (Order Summary dsb.).
+		return `<div class="mba-bkg-tlwrap">${bkg_section(__('Booking Timeline'), ev.length + tail.length,
+			`${moreBtn}<div class="mba-bkg-tl">${items}${tail.join('')}</div>`)}</div>`;
 	}
 
 	function render_bkg_overview(key) {
 		const d = S.cache[key]?.profile;
 		if (!d) return;
+		// Strip wang (Order → Paid → Balance + Payment Status) berada dalam
+		// kandungan tab Overview — bahagian atas, sebelum Order Summary.
 		$('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="ov"]`)
-			.html(`${bkg_order_summary(d)}${bkg_timeline(d)}`);
+			.html(`${bkg_money_strip(d.profile)}${bkg_order_summary(d)}${bkg_timeline(d)}`);
 	}
 
-	// Modal detail traveller — SEMUA maklumat traveller + reservation.
-	// ctx (pilihan): {list, index} — senarai traveller paparan aktif &
-	// posisi semasa, untuk navigasi Prev/Next antara traveller.
-	function show_traveller_dialog(t, ctx) {
-		const crow = (k, v) => (v !== '' && v != null
-			? `<div class="mba-bkg-card-row"><span>${k}</span><span>${v}</span></div>` : '');
-		const card = (title, inner) => (inner ? `
-			<div class="mba-bkg-card">
-				<div class="mba-bkg-card-title">${title}</div>${inner}
-			</div>` : '');
-		const F = (v) => (v ? esc(v) : '');
-
-		// Kolum kiri — imej passport ATAU preview dokumen (PDF), sticky
-		// pada skrin biasa; tiada fail → modal satu kolum sahaja. Preview
-		// dibungkus .mba-tvmodal-photo-wrap (overflow auto); bar aksi bawah
-		// menawarkan Crop / Download / Open in new tab.
-		const is_img_url = (u) => /\.(png|jpe?g|gif|webp|svg|bmp|tiff?)($|\?)/i.test(u || '');
-		const is_img = is_img_url(t.passport_image);
-		const preview = !t.passport_image ? ''
-			: (is_img
-				? `<img class="mba-tvmodal-photo" src="${esc(t.passport_image)}" alt="${esc(t.traveller_name || '')}">`
-				: `<iframe class="mba-tvmodal-frame" src="${esc(t.passport_image)}"
-					title="${esc(__('Passport preview'))}"></iframe>`);
-		const side = preview ? `<div class="mba-tvmodal-side">
-			<div class="mba-tvmodal-photo-wrap">${preview}</div>
-			<div class="mba-file-actions">
-				${is_img && t.traveller ? `<button type="button" class="btn btn-default btn-sm mba-crop-btn"
-					title="${esc(__('Crop this document'))}">✂ ${__('Crop')}</button>` : ''}
-				<a class="btn btn-default btn-sm" href="${esc(t.passport_image)}" download>⬇ ${__('Download')}</a>
-				<a class="btn btn-default btn-sm" href="${esc(t.passport_image)}" target="_blank" rel="noopener">${__('Open in new tab')}</a>
-			</div>
-		</div>` : '';
-
-		// Baris kad SENTIASA dipapar ('-' bila kosong) — keperluan paparan
-		// penuh panel Personal / Documents / Contact / Health.
-		const crowS = (k, v) => `
-			<div class="mba-bkg-card-row"><span>${k}</span><span>${(v !== '' && v != null) ? v : esc('-')}</span></div>`;
-		// Butang call/WA di bawah no. telefon (baris baharu dalam kolum nilai
-		// sama) — hanya bila no. telefon wujud.
-		const phone_actions = (phone) => (phone
-			? `<div class="mba-bkg-card-row-actions mba-bkg-card-row-actions--stack">${call_wa_btns(phone)}</div>`
-			: '');
-		// Baris fail dokumen — butang quick view (modal viewer); '-' tiada fail.
-		const file_row = (label, url) => crowS(label, url ? `
-			<button type="button" class="btn btn-default btn-xs mba-file-view-btn"
-				data-name="${esc(label + ' — ' + (t.traveller_name || t.reservation))}"
-				data-url="${esc(url)}" data-image="${is_img_url(url) ? 1 : 0}"
-				title="${esc(__('Quick view'))}">👁 ${__('View')}</button>` : '');
-		const catBadge = (() => {
-			const cat = t.age_category
-				|| (t.age_bucket && t.age_bucket !== 'Unknown' ? t.age_bucket : '');
-			return cat ? badge(cat, AGE_BUCKET_COLORS[cat] || 'gray') : '';
-		})();
-
-		const personal = card('👤 ' + __('Personal'),
-			crowS(__('Title'), F(t.title))
-			+ crowS(__('Full Name'), F(t.traveller_name))
-			+ crowS(__('First Name'), F(t.first_name))
-			+ crowS(__('Last Name'), F(t.last_name))
-			+ crowS(__('Gender'), t.gender ? esc(__(t.gender)) : '')
-			+ crowS(__('Date of Birth'), t.dob ? esc(fmtDate(t.dob)) : '')
-			+ crowS(__('Age'), (t.age != null ? esc(String(t.age)) : '')
-				+ (catBadge ? (t.age != null ? ' ' : '') + catBadge : '')));
-		const docs = card('🛂 ' + __('Documents'),
-			crowS(__('Passport No'), F(t.passport_no))
-			+ crowS(__('Passport Expiry'), t.passport_expiry ? esc(fmtDate(t.passport_expiry)) : '')
-			+ crowS(__('IC Number'), F(t.ic_number))
-			+ crowS(__('Nationality'), F(t.nationality))
-			+ file_row(__('Visa Image'), t.visa_photo));
-		const addressParts = [t.address_line1, t.postcode, t.city, t.state, t.country].filter(Boolean);
-		const emergencyVal = [
-			t.emergency_contact_name ? esc(t.emergency_contact_name) : '',
-			t.emergency_contact_relationship ? '(' + esc(t.emergency_contact_relationship) + ')' : '',
-			t.emergency_contact_phone ? '<br>☎ ' + esc(t.emergency_contact_phone) : '',
-		].filter(Boolean).join(' ');
-		const contact = card('📞 ' + __('Contact Info'),
-			crowS(__('Email'), t.email ? '✉ ' + esc(t.email) : '')
-			+ crowS(__('Phone'), (t.phone ? '☎ ' + esc(t.phone) : '') + phone_actions(t.phone))
-			+ crowS(__('Address'), addressParts.map(esc).join('<br>'))
-			+ crowS(__('Emergency Contact'), emergencyVal + phone_actions(t.emergency_contact_phone)));
-		const health = card('🩺 ' + __('Health & Special Needs'),
-			crowS(__('Wheelchair Assistant'), F(t.wheelchair_assistant))
-			+ crowS(__('Dietary Requirements'), F(t.dietary_requirements))
-			+ crowS(__('Medical Conditions'), F(t.medical_conditions))
-			+ crowS(__('Medicine / Treatment'), F(t.medicine_treatment)));
-
-		// Konteks booking — Rooming, Cruise Cabin (jika ada nilai) & Reservation.
-		const yesNo = (b) => (b ? badge(__('Confirmed'), 'green') : badge(__('Pending'), 'orange'));
-		const rooming = card('🛏 ' + __('Rooming'),
-			crow(__('Room ID'), F(t.room_id))
-			+ crow(__('Room Category'), F(t.room_category))
-			+ crow(__('Room Privacy'), F(t.room_privacy))
-			+ crow(__('Guest Sequence'), t.guest_sequence ? esc(String(t.guest_sequence)) : '')
-			+ crow(__('Guest Rooming Type'), F(t.pax_type))
-			+ (t.cabin_confirmed != null ? crow(__('Room Arrangement'), yesNo(t.cabin_confirmed)) : ''));
-		const cruise = (t.stateroom_no || t.delegate_no || (t.aroya_guest_no !== '' && t.aroya_guest_no != null)
-			? card('🚢 ' + __('Cruise Cabin'),
-				crow(__('Stateroom No'), F(t.stateroom_no))
-				+ crow(__('Delegate No'), F(t.delegate_no))
-				+ crow(__('Aroya Guest No'), t.aroya_guest_no !== '' && t.aroya_guest_no != null
-					? esc(String(t.aroya_guest_no)) : ''))
-			: '');
-		const reservation = card('🧾 ' + __('Booking Reservation'),
-			crow(__('Customer Message'), F(t.reservation_note) || esc('-'))
-			+ crow(__('Reservation'), `<a href="/app/booking-reservation/${esc(t.reservation)}"
-				target="_blank" rel="noopener">${esc(t.reservation)} ↗</a>`)
-			+ crow(__('Status'), badge(t.reservation_status, RES_STATUS_COLORS[t.reservation_status]))
-			+ crow(__('Registered'), t.traveller_created ? esc(fmtDateTime(t.traveller_created)) : '')
-			+ crow(__('Last Updated'), t.traveller_modified ? esc(fmtDateTime(t.traveller_modified)) : ''));
-
-		// Panel booking (aras booking) — No/ID, contact customer + aksi
-		// call/WA, dan mesej booking; tangga pertama seksyen Booking Info.
-		const bkNo = t.booking_number || t.booking || '';
-		const bkIdDiffers = t.booking && t.booking !== t.booking_number;
-		const bkContactVal = [
-			t.customer_name ? esc(t.customer_name) : '',
-			t.cust_email ? '✉ ' + esc(t.cust_email) : '',
-			t.cust_phone ? '☎ ' + esc(t.cust_phone) : '',
-		].filter(Boolean).join('<br>');
-		// Booking Contact — nilai & butang call/WA dalam kolum nilai yang
-		// sama, butang diletak pada baris baharu di bawah nilai.
-		const bkContactActions = t.cust_phone
-			? `<div class="mba-bkg-card-row-actions mba-bkg-card-row-actions--stack">${call_wa_btns(t.cust_phone)}</div>`
-			: '';
-		const bookingCard = t.booking || t.booking_number
-			? card('📋 ' + __('Booking'),
-				crowS(__('Booking No'), esc(bkNo)
-					+ (bkIdDiffers ? ` <span class="mba-muted">(${esc(t.booking)})</span>` : ''))
-				+ crowS(__('Booking Contact'), bkContactVal + bkContactActions)
-				+ crowS(__('Booking Message'), t.booking_message ? esc(t.booking_message) : ''))
-			: '';
-
-		// Traveller BELUM berlinkung dengan doctype Traveller (slot guest
-		// dalam booking reservation) — panel Booking menggantikan Personal
-		// sebagai panel pertama modal & dikeluarkan dari section Booking Info.
-		const noTvLink = !t.traveller;
-
-		// Navigasi Prev/Next — senarai traveller paparan aktif dikumpul
-		// saat modal dibuka (ctx). Butang dikunci pada hujung senarai;
-		// posisi semasa dipapar di tengah. Butang Edit (✏) di kanan bar —
-		// buka dialog edit maklumat peribadi (doctype Traveller sahaja).
-		const navInner = (ctx?.list?.length > 1) ? (() => {
-			const i = ctx.index ?? 0;
-			const btn = (dir, label) => `<button type="button"
-				class="btn btn-default btn-xs mba-tvmodal-nav-btn" data-dir="${dir}"
-				${(dir < 0 && i <= 0) || (dir > 0 && i >= ctx.list.length - 1) ? ' disabled' : ''}>${label}</button>`;
-			return `${btn(-1, '‹ ' + __('Prev'))}
-				<span class="mba-tvmodal-navpos">${i + 1} / ${ctx.list.length}</span>
-				${btn(1, __('Next') + ' ›')}`;
-		})() : '';
-		const editBtn = t.traveller
-			? `<button type="button" class="btn btn-default btn-xs mba-tvmodal-edit-btn"
-				title="${esc(__('Edit traveller info (Traveller doctype)'))}">✏ ${__('Edit')}</button>`
-			: '';
-		const topbar = (navInner || editBtn)
-			? `<div class="mba-tvmodal-top">
-				<div class="mba-tvmodal-nav">${navInner}</div>
-				${editBtn}
-			</div>`
-			: '';
-
-		// Section collapsible (details/summary — corak sama dengan
-		// .mba-analytics & .mba-room). COLLAPSED secara default — user buka
-		// sendiri. Badge status doctype pada sub-heading: Traveller's Info ←
-		// status Traveller; Booking Info ← status Booking Reservation.
-		// Panel Personal kekal DI LUAR section (sentiasa terpapar); panel
-		// Booking dimasukkan ke DALAM section Booking Info — kad pertama
-		// (KECUALI traveller belum berlinkung → Booking keluar semula
-		// menggantikan Personal, lihat noTvLink).
-		const tvStatus = t.traveller_status || t.document_status || '';
-		const section = (label, inner, statusBadge) => `
-			<details class="mba-tvsec">
-				<summary>${esc(label)} ${statusBadge || ''}</summary>
-				<div class="mba-tvsec-body">${inner}</div>
-			</details>`;
-		const travellerSec = section(__("Traveller's Info"),
-			[docs, contact, health].filter(Boolean).join(''),
-			badge(tvStatus, DOC_STATUS_COLORS[tvStatus]));
-		const bookingSec = (t.reservation || t.booking || t.booking_number)
-			? section(__('Booking Info'),
-				[noTvLink ? '' : bookingCard, rooming, cruise, reservation].filter(Boolean).join(''),
-				badge(t.reservation_status, RES_STATUS_COLORS[t.reservation_status]))
-			: '';
-
-		// PC (skrin biasa) — modal maksimum, 2 kolum 50/50: preview dokumen
-		// (kiri, sticky) + kad info (kanan, scroll). Telefon & modal tanpa
-		// imej — satu kolum bertindan. Bar top (navigasi Prev/Next + Edit)
-		// berada DI ATAS grid .mba-tvmodal — di luar kedua-dua kolum, kekal
-		// kelihatan walaupun kolum info menatal atau borang Edit dibuka.
-		// Susunan kolum info: panel pertama (Personal; ATAU Booking bila
-		// traveller belum berlinkung) → Traveller's Info (collapse) →
-		// Booking Info (collapse — kad Booking anak pertama kecuali noTvLink).
-		frappe.msgprint({
-			title: '👤 ' + (t.traveller_name || t.guest_label || t.reservation),
-			indicator: t.reservation_status === 'Cancelled' ? 'red' : 'blue',
-			wide: true,
-			message: `${topbar}
-			<div class="mba-tvmodal">
-				${side}
-				<div class="mba-tvmodal-info">
-					${noTvLink && bookingCard ? bookingCard : personal}
-					${travellerSec}
-					${bookingSec}
-				</div>
-			</div>`,
-		});
-
-		// frappe core (messages.js) paksa z-index 2000 pada setiap msgprint
-		// supaya sentiasa di atas. Modal info dokumen traveller cukup dengan
-		// z-index piawaian Bootstrap — override semula ke 1050 di sini
-		// (bukan ubah frappe core) supaya tak menutup overlay lain.
-		if (frappe.msg_dialog?.$wrapper) {
-			frappe.msg_dialog.$wrapper.css('z-index', 1050);
-		}
-
-		// Butang dalam msgprint modal berada di luar container page — ikat
-		// terus pada wrapper dialog (bukan delegasi $d).
-		if (frappe.msg_dialog?.$wrapper) {
-			frappe.msg_dialog.$wrapper.find('.mba-tvmodal-edit-btn').on('click', () => {
-				open_traveller_edit_form(t, ctx);
-			});
-			frappe.msg_dialog.$wrapper.find('.mba-tvmodal-nav-btn').on('click', function () {
-				const dir = parseInt($(this).data('dir'), 10) || 0;
-				const ni = (ctx?.index ?? 0) + dir;
-				const nt = ctx?.list?.[ni];
-				if (!nt) return;
-				// msgprint APPEND bila msg_area sudah berisi — kosongkan
-				// dahulu supaya kandungan modal DIGANTI, bukan bertindan.
-				frappe.msg_dialog.clear?.();
-				show_traveller_dialog(nt, { ...ctx, index: ni });
-			});
-			frappe.msg_dialog.$wrapper.find('.mba-crop-btn').on('click', () => {
-				frappe.msg_dialog.hide();
-				show_crop_dialog({
-					traveller: t.traveller,
-					field: 'passport_image',
-					url: t.passport_image,
-					name: t.traveller_name || '',
-				});
-			});
-			frappe.msg_dialog.$wrapper.find('.mba-file-view-btn').on('click', function () {
-				const $b = $(this);
-				show_file_viewer($b.data('name'), $b.data('url'), !!$b.data('image'));
-			});
-		}
-	}
-
-	// Kemaskini cache dalaman + paparan tab selepas tukar imej passport.
-	// Kemaskini cache dalaman (L3 profile.reservations & L2 travellers)
-	// + paparan tab aktif selepas tukar imej passport.
-	function refresh_traveller_caches(traveller, url, field) {
-		Object.entries(S.cache).forEach(([k, c]) => {
-			let hit = false;
-			(c?.profile?.reservations || []).forEach((r) => {
-				if (r.traveller === traveller) { r[field || 'passport_image'] = url; hit = true; }
-			});
-			(c?.travellers?.travellers || []).forEach((r) => {
-				if (r.traveller === traveller) { r[field || 'passport_image'] = url; hit = true; }
-			});
-			if (!hit) return;
-			const $g = $(`#mba-detail .mba-group[data-item="${k}"]`);
-			const tvPane = $g.find('.mba-tab-pane[data-pane="tv"]');
-			if (tvPane.length && tvPane.hasClass('active')) render_bkg_travellers(k);
-			const trPane = $g.find('.mba-tab-pane[data-pane="traveller"]');
-			if (trPane.length && trPane.hasClass('active')) render_travellers_tab(k);
-		});
-	}
-
-	// Padam beberapa medan sekaligus pada cache baris traveller (edit modal)
-	// + render semula tab aktif — kelainan pelbagai medan refresh_traveller_
-	// caches (satu medan, imej).
-	function patch_traveller_caches(traveller, patch) {
-		Object.entries(S.cache).forEach(([k, c]) => {
-			let hit = false;
-			(c?.profile?.reservations || []).forEach((r) => {
-				if (r.traveller === traveller) { Object.assign(r, patch); hit = true; }
-			});
-			(c?.travellers?.travellers || []).forEach((r) => {
-				if (r.traveller === traveller) { Object.assign(r, patch); hit = true; }
-			});
-			if (!hit) return;
-			const $g = $(`#mba-detail .mba-group[data-item="${k}"]`);
-			const tvPane = $g.find('.mba-tab-pane[data-pane="tv"]');
-			if (tvPane.length && tvPane.hasClass('active')) render_bkg_travellers(k);
-			const trPane = $g.find('.mba-tab-pane[data-pane="traveller"]');
-			if (trPane.length && trPane.hasClass('active')) render_travellers_tab(k);
-		});
-	}
-
-	// ── Borang EDIT maklumat peribadi Traveller — DIRENDER DI DALAM modal
-	// view sedia ada, MENGGANTIKAN kandungan kolum kedua (.mba-tvmodal-info).
-	// Bar top navigasi/Edit berada di luar grid — kekal dipapar di atas
-	// borang. Kolum kiri preview passport tidak disentuh; tiada modal
-	// bertindan. FieldGroup Frappe memberi kontrol penuh (Link Country,
-	// Date picker, Attach upload). Semua disimpan MELALUI DOCTYPE TRAVELLER
-	// sahaja (endpoint update_traveller_info: get_doc → set medan whitelist
-	// → save). Snapshot Booking Reservation tidak disentuh; before_save
-	// doctype urus uppercase nama/alamat, full_name, umur & title↔gender. ──
-	function open_traveller_edit_form(t, ctx) {
-		if (!t.traveller) return;
-		const $dlg = frappe.msg_dialog?.$wrapper;
-		if (!$dlg || !$dlg.find('.mba-tvmodal').length) return;
-
-		const fields = [
-			{ fieldtype: 'Section Break', label: __('Identity') },
-			{ fieldtype: 'Select', fieldname: 'title', label: __('Title'),
-				options: ['', 'Mr', 'Mrs'] },
-			{ fieldtype: 'Select', fieldname: 'gender', label: __('Gender'),
-				options: ['', 'Male', 'Female'] },
-			{ fieldtype: 'Section Break', label: __('Name') },
-			{ fieldtype: 'Data', fieldname: 'first_name', label: __('First Name'), reqd: 1 },
-			{ fieldtype: 'Data', fieldname: 'last_name', label: __('Last Name'), reqd: 1 },
-			{ fieldtype: 'Section Break', label: __('Documents') },
-			{ fieldtype: 'Data', fieldname: 'passport_no', label: __('Passport No') },
-			{ fieldtype: 'Date', fieldname: 'passport_expiry', label: __('Passport Expiry') },
-			{ fieldtype: 'Data', fieldname: 'ic_number', label: __('IC Number') },
-			{ fieldtype: 'Date', fieldname: 'date_of_birth', label: __('Date of Birth') },
-			{ fieldtype: 'Link', fieldname: 'nationality', label: __('Nationality'),
-				options: 'Country' },
-			{ fieldtype: 'Attach', fieldname: 'visa_photo', label: __('Visa Image') },
-			{ fieldtype: 'Section Break', label: __('Address') },
-			{ fieldtype: 'Data', fieldname: 'address_line1', label: __('Address Line 1') },
-			{ fieldtype: 'Data', fieldname: 'city', label: __('City') },
-			{ fieldtype: 'Data', fieldname: 'state', label: __('State') },
-			{ fieldtype: 'Data', fieldname: 'postcode', label: __('Postcode') },
-			{ fieldtype: 'Data', fieldname: 'country', label: __('Country') },
-			{ fieldtype: 'Section Break', label: __('Emergency Contact') },
-			{ fieldtype: 'Data', fieldname: 'emergency_contact_name', label: __('Name') },
-			{ fieldtype: 'Phone', fieldname: 'emergency_contact_phone', label: __('Phone') },
-			{ fieldtype: 'Data', fieldname: 'emergency_contact_relationship',
-				label: __('Relationship') },
-		];
-
-		// Panel pengganti kandungan kolum kanan — kosongkan .mba-tvmodal-info
-		// dan lampirkan borang. Bar top (.mba-tvmodal-top) berada DI LUAR
-		// grid .mba-tvmodal (atas modal) — tak terjejas; navigasi Prev/Next &
-		// butang Edit kekal kelihatan semasa borang terbuka. Kolum kiri
-		// (preview passport) tidak disentuh. Boleh dipanggil semula (klik
-		// Edit berulang) — borang lama dibuang dahulu.
-		const $info = $dlg.find('.mba-tvmodal-info');
-		$info.children().remove();
-		$info.append(`
-			<div class="mba-tvedit">
-				<div class="mba-tvedit-head">
-					<b>${__('Edit Traveller Info')}</b>
-					<span class="mba-muted">${esc(t.traveller_name || t.traveller)}</span>
-				</div>
-				<div class="mba-tvedit-body"></div>
-				<div class="mba-tvedit-foot">
-					<button type="button" class="btn btn-primary btn-sm mba-tvedit-save">
-						${__('Save')}</button>
-					<button type="button" class="btn btn-default btn-sm mba-tvedit-cancel">
-						${__('Cancel')}</button>
-				</div>
-			</div>`);
-
-		const fg = new frappe.ui.FieldGroup({
-			fields,
-			body: $info.find('.mba-tvedit-body').get(0),
-			// Enter TIDAK memicu aksi global Desk (trigger_primary_action)
-			// — FieldGroup ini luar dialog framework.
-			no_submit_on_enter: true,
-			no_focus: false,
-		});
-		fg.make();
-		fg.set_values({
-			title: t.title || '', gender: t.gender || '',
-			first_name: t.first_name || '', last_name: t.last_name || '',
-			passport_no: t.passport_no || '', passport_expiry: t.passport_expiry || '',
-			ic_number: t.ic_number || '', date_of_birth: t.dob || '',
-			nationality: t.nationality || '', visa_photo: t.visa_photo || '',
-			address_line1: t.address_line1 || '', city: t.city || '',
-			state: t.state || '', postcode: t.postcode || '', country: t.country || '',
-			emergency_contact_name: t.emergency_contact_name || '',
-			emergency_contact_phone: t.emergency_contact_phone || '',
-			emergency_contact_relationship: t.emergency_contact_relationship || '',
-		});
-		// Nama & alamat — paparan uppercase semasa menaip (nilai sebenar
-		// di-uppercase oleh before_save doctype Traveller).
-		['first_name', 'last_name', 'address_line1', 'city', 'state',
-			'country', 'postcode'].forEach((f) => {
-			const fld = fg.get_field(f);
-			fld?.$input?.addClass('mba-input-upper');
-		});
-		$info.find('.mba-tvedit-body .frappe-control[data-fieldname="nationality"] input')
-			.trigger('change'); // segar label Link
-
-		const restore = () => {
-			// Kembali ke paparan view — render semula modal (msgprint
-			// append bila area tak kosong; kosongkan dahulu).
-			frappe.msg_dialog.clear();
-			show_traveller_dialog(t, ctx);
-		};
-		$info.find('.mba-tvedit-cancel').on('click', restore);
-
-		const save = async () => {
-			// get_values(true) — TANPA enforcement required FieldGroup yang
-			// memanggil frappe.msgprint global (akan APPEND ke modal view
-			// yang sama). Required disemak manual dengan alert.
-			const v = fg.get_values(true);
-			if (!String(v?.first_name || '').trim() || !String(v?.last_name || '').trim()) {
-				frappe.show_alert({
-					message: __('First Name and Last Name are required'),
-					indicator: 'orange',
-				});
-				return;
-			}
-			const $btn = $info.find('.mba-tvedit-save').prop('disabled', true);
-			try {
-				const out = await api('update_traveller_info', {
-					traveller: t.traveller, values: v,
-				});
-				const { traveller, ...patch } = out || {};
-				if (!traveller) throw new Error(__('No response'));
-				patch_traveller_caches(t.traveller, patch);
-				if (ctx?.list && ctx.list[ctx.index]) {
-					Object.assign(ctx.list[ctx.index], patch);
-				}
-				const t2 = { ...t, ...patch };
-				// Render semula modal view — panel info kembali
-				// menggantikan borang.
-				frappe.msg_dialog.clear();
-				show_traveller_dialog(t2, ctx);
-				frappe.show_alert({ message: __('Traveller info updated'), indicator: 'green' });
-			} catch (e) {
-				// api() sudah papar alert ralat — benarkan cuba semula
-				$btn.prop('disabled', false);
-			}
-		};
-		$info.find('.mba-tvedit-save').on('click', save);
-	}
-
-	// Dialog crop & rotate dokumen passport — seret untuk pan, slider untuk
-	// zum, butang ⟲/⟳ untuk putar 90°. Simpan → potong di kanvas (resolusi
-	// asal) → muat naik → gantikan passport_image traveller.
-	//
-	// EXIF-SAFE: gambar telefon biasanya bawa orientasi EXIF — <img> papar
-	// sudah dirotak browser, tetapi lukisan kanvas lama tidak tentu sama.
-	// Sumber potongan ialah 'working canvas' (createImageBitmap
-	// imageOrientation from-image) yang dijana sekali daripada imej
-	// dipaparkan — display dan output SENTIASA sama orientasi. Putar
-	// dibakar terus ke working canvas (tiada math transform semasa pan/
-	// zum), jadi kiraan crop kekal ringkas dan tepat.
-	function show_crop_dialog(opts) {
-		const dlg = new frappe.ui.Dialog({
-			title: __('Crop / Rotate') + ' — ' + (opts.name || __('Passport')),
-			// Large (800px) — bingkai crop ikut LEBAR PENUH modal (rasio
-			// 5:3); modal standard (~500px) menjadikan bingkai terlalu kecil.
-			size: 'large',
-			primary_action_label: __('Save'),
-			primary_action: () => save_crop(),
-		});
-		dlg.$body.html(`
-			<div class="mba-crop">
-				<div class="mba-crop-view">
-					<img class="mba-crop-img" src="${esc(opts.url)}" alt="" draggable="false">
-					<div class="mba-crop-handle" title="${esc(__('Drag corner to resize — free ratio'))}"></div>
-				</div>
-				<div class="mba-crop-tools">
-					<button type="button" class="btn btn-default btn-xs mba-rot" data-dir="-1"
-						title="${esc(__('Rotate left'))}" aria-label="${esc(__('Rotate left'))}">
-						${frappe.utils.icon('rotate-ccw', 'sm')}</button>
-					<div class="mba-crop-zoom">
-						<span>−</span>
-						<input type="range" class="mba-crop-range" min="0" max="100" value="0" />
-						<span>+</span>
-					</div>
-					<button type="button" class="btn btn-default btn-xs mba-rot" data-dir="1"
-						title="${esc(__('Rotate right'))}" aria-label="${esc(__('Rotate right'))}">
-						${frappe.utils.icon('rotate-cw', 'sm')}</button>
-				</div>
-				<div class="mba-crop-hint">${__('Drag the corner grip ⤡ to resize the frame — free ratio')}</div>
-			</div>`);
-
-		const view = dlg.$body.find('.mba-crop-view').get(0);
-		const img = dlg.$body.find('.mba-crop-img').get(0);
-		const range = dlg.$body.find('.mba-crop-range').get(0);
-		let src = null;            // working canvas — display == output
-		let srcUrl = null;         // object URL preview semasa (di-revoke semasa putar)
-		let natW = 0, natH = 0, minScale = 1, scale = 1, tx = 0, ty = 0;
-
-		const apply = () => {
-			const vw = view.clientWidth || 600, vh = view.clientHeight || 360;
-			const w = natW * scale, h = natH * scale;
-			tx = Math.min(0, Math.max(vw - w, tx));
-			ty = Math.min(0, Math.max(vh - h, ty));
-			img.style.width = w + 'px';
-			img.style.left = tx + 'px';
-			img.style.top = ty + 'px';
-		};
-		const fit = () => {
-			// Dimensi viewport crop — fallback 600×360 (rasio 5:3, anggaran
-			// .mba-crop-view; lebar sebenar ikut modal). Tanpa fallback, init
-			// yang berjalan sebelum modal selesai di-layout mendapat
-			// clientWidth 0 → scale 0 → img 'width: 0px'.
-			const vw = view.clientWidth || 600;
-			const vh = view.clientHeight || 360;
-			minScale = Math.max(vw / natW, vh / natH);
-			scale = minScale;
-			tx = (vw - natW * scale) / 2;
-			ty = (vh - natH * scale) / 2;
-			range.value = 0;
-			apply();
-		};
-		const set_scale = (s) => {
-			const cx = tx + (natW * scale) / 2, cy = ty + (natH * scale) / 2;
-			scale = s;
-			tx = cx - (natW * scale) / 2;
-			ty = cy - (natH * scale) / 2;
-			apply();
-		};
-		const init = () => {
-			natW = src ? src.width : img.naturalWidth;
-			natH = src ? src.height : img.naturalHeight;
-			if (!natW || !natH) return;
-			fit();
-		};
-		range.addEventListener('input', () => set_scale(minScale * (1 + (+range.value / 100) * 4)));
-
-		let px = null, py = null;
-		view.addEventListener('pointerdown', (e) => {
-			px = e.clientX - tx;
-			py = e.clientY - ty;
-			view.setPointerCapture(e.pointerId);
-		});
-		view.addEventListener('pointermove', (e) => {
-			if (px === null) return;
-			tx = e.clientX - px;
-			ty = e.clientY - py;
-			apply();
-		});
-		const end_pan = () => { px = null; py = null; };
-		view.addEventListener('pointerup', end_pan);
-		view.addEventListener('pointercancel', end_pan);
-
-		// RASIO BEBAS — seret pemegang penjuru kanan-bawah untuk ubah saiz
-		// bingkai crop (lebar & tinggi bebas, bukan lagi 3:4 tetap).
-		// Bila bingkai membesar, zum minimum dikira semula supaya imej
-		// sentiasa menutup bingkai (invariant cover-fit dikekalkan —
-		// clamping pan dalam apply() bergantung padanya).
-		const handle = dlg.$body.find('.mba-crop-handle').get(0);
-		let rx = null, ry = null, rw0 = 0, rh0 = 0;
-		handle.addEventListener('pointerdown', (e) => {
-			e.stopPropagation();
-			e.preventDefault();
-			rx = e.clientX;
-			ry = e.clientY;
-			rw0 = view.clientWidth;
-			rh0 = view.clientHeight;
-			handle.setPointerCapture(e.pointerId);
-		});
-		handle.addEventListener('pointermove', (e) => {
-			if (rx === null) return;
-			const maxW = (view.parentElement?.clientWidth || 600) - 8;
-			const maxH = Math.min(640, Math.round(window.innerHeight * 0.6));
-			const w = Math.max(120, Math.min(maxW, rw0 + e.clientX - rx));
-			const h = Math.max(120, Math.min(maxH, rh0 + e.clientY - ry));
-			view.style.width = w + 'px';
-			view.style.height = h + 'px';
-			const vw = view.clientWidth, vh = view.clientHeight;
-			minScale = Math.max(vw / natW, vh / natH);
-			if (scale < minScale) set_scale(minScale);
-			else apply();
-		});
-		const end_resize = () => { rx = null; ry = null; };
-		handle.addEventListener('pointerup', end_resize);
-		handle.addEventListener('pointercancel', end_resize);
-
-		// Jana working canvas (orientasi EXIF diterapkan) daripada imej
-		// yang dipaparkan — fallback: lukis elemen img terus.
-		const make_src = async () => {
-			try {
-				const bmp = await createImageBitmap(img, { imageOrientation: 'from-image' });
-				const c = document.createElement('canvas');
-				c.width = bmp.width;
-				c.height = bmp.height;
-				c.getContext('2d').drawImage(bmp, 0, 0);
-				bmp.close?.();
-				return c;
-			} catch (e) {
-				const c = document.createElement('canvas');
-				c.width = img.naturalWidth;
-				c.height = img.naturalHeight;
-				c.getContext('2d').drawImage(img, 0, 0);
-				return c;
-			}
-		};
-
-		// Putar 90° — bakar ke working canvas, ganti preview, fit semula.
-		dlg.$body.find('.mba-rot').on('click', async function () {
-			const dir = parseInt($(this).data('dir'), 10) || 1;
-			if (!src) src = await make_src();
-			const c = document.createElement('canvas');
-			c.width = src.height;
-			c.height = src.width;
-			const ctx = c.getContext('2d');
-			ctx.translate(c.width / 2, c.height / 2);
-			ctx.rotate((dir * Math.PI) / 2);
-			ctx.drawImage(src, -src.width / 2, -src.height / 2);
-			src = c;
-			natW = src.width;
-			natH = src.height;
-			if (srcUrl) URL.revokeObjectURL(srcUrl);
-			srcUrl = URL.createObjectURL(await new Promise((res) => src.toBlob(res, 'image/png')));
-			img.src = srcUrl;
-			fit();
-		});
-
-		const save_crop = async () => {
-			dlg.disable_primary_action && dlg.disable_primary_action();
-			try {
-				// Sumber potongan: working canvas (EXIF + putaran terkini
-				// termasuk) — jatuh balik ke elemen img jika janaan gagal.
-				let source = src || (src = await make_src());
-				const vw = view.clientWidth || 600, vh = view.clientHeight || 360;
-				const sx = -tx / scale, sy = -ty / scale;
-				const sw = vw / scale, sh = vh / scale;
-				const canvas = document.createElement('canvas');
-				canvas.width = Math.max(1, Math.round(sw));
-				canvas.height = Math.max(1, Math.round(sh));
-				canvas.getContext('2d').drawImage(source, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-				const is_png = /\.png($|\?)/i.test(opts.url || '');
-				const blob = await new Promise((res) =>
-					canvas.toBlob(res, is_png ? 'image/png' : 'image/jpeg', 0.92));
-				const fname = `passport-${opts.traveller}-${Date.now()}.${is_png ? 'png' : 'jpg'}`;
-				const fd = new FormData();
-				fd.append('file', blob, fname);
-				fd.append('doctype', 'Traveller');
-				fd.append('docname', opts.traveller);
-				fd.append('fieldname', opts.field || 'passport_image');
-				// Imej passport ialah PII — sentiasa PRIVATE (selari upload
-				// portal), jangan tinggal salinan public di /files.
-				fd.append('is_private', '1');
-				const resp = await fetch('/api/method/upload_file', {
-					method: 'POST',
-					headers: {
-						'Accept': 'application/json',
-						'X-Frappe-CSRF-Token': (frappe.csrf_token || ''),
-					},
-					body: fd,
-				});
-				const out = await resp.json().catch(() => ({}));
-				const url2 = out.message && out.message.file_url;
-				if (!resp.ok || !url2) {
-					let msg = out.exc_type || out.exception || '';
-					if (!msg && out._server_messages) {
-						try { msg = JSON.parse(out._server_messages).join(' '); } catch (e) { /* ignore */ }
-					}
-					throw new Error(msg || __('Upload failed'));
-				}
-				// REPLACE, bukan duplikasi: set nilai baharu pada Traveller,
-				// alih snapshot Booking Reservation yang masih merujuk URL
-				// lama, kemudian padam dokumen File lama (fizikal disenta
-				// oleh Frappe bila tiada duplikasi lain).
-				await api('replace_traveller_file', {
-					traveller: opts.traveller,
-					fieldname: opts.field || 'passport_image',
-					old_url: opts.url || '',
-					new_url: url2,
-				});
-				refresh_traveller_caches(opts.traveller, url2, opts.field || 'passport_image');
-				if (srcUrl) URL.revokeObjectURL(srcUrl);
-				dlg.hide();
-				frappe.show_alert({ message: __('Passport image updated'), indicator: 'green' });
-			} catch (err) {
-				console.error('crop upload failed:', err);
-				frappe.msgprint({
-					title: __('Crop failed'),
-					indicator: 'red',
-					message: esc(String(err.message || err)),
-				});
-			} finally {
-				dlg.enable_primary_action && dlg.enable_primary_action();
-			}
-		};
-
-		// Init DUA lapis: (1) segera jika imej sudah cache — fit guna
-		// fallback dimensi CSS; (2) semula pada 'shown.bs.modal'
-		// (on_page_show) bila modal selesai di-layout — di situlah
-		// clientWidth sebenar tersedia. Lapis (2) yang menentukan ukuran
-		// muktamad; tanpanya init awal berjalan atas modal belum siap
-		// (clientWidth 0) dan imej jadi 'width: 0px'.
-		dlg.on_page_show = () => init();
-		dlg.show();
-		if (img.complete && img.naturalWidth) init();
-		else img.onload = init;
-	}
-
-	// ── Guest passport link — jana link selamat utk slot reservation
-	// (endpoint portal request_guest_passport_link; token disimpan pada
-	// Booking Reservation), papar link + QR + butang WhatsApp (no. telefon
-	// traveller, fallback no. telefon customer booking). ──
-	function show_guest_link_dialog(t) {
-		if (!t.reservation) return;
-		frappe.call({
-			method: 'travel_booking.api.portal_traveller.request_guest_passport_link',
-			args: { slot_name: t.reservation },
-			freeze: true,
-			freeze_message: __('Generating secure link…'),
-		}).then((r) => {
-			const d = r?.message;
-			if (!d?.link) return;
-			// No. WhatsApp — telefon traveller, fallback telefon customer
-			// booking (cust_phone); normalisasi sama seperti call_wa_btns.
-			const waPhone = String(t.phone || t.cust_phone || '').replace(/\D/g, '');
-			const waDigits = waPhone.startsWith('0') ? '6' + waPhone : waPhone;
-			const expires = String(d.expires_on || '').slice(0, 16).replace('T', ' ');
-			// Mesej WhatsApp — ikut no. telefon yang digunakan: traveller ada
-			// no. sendiri → pelawaan terus; tiada → guna no. customer booking,
-			// minta customer lengkapkan dokumen ATAS NAMA traveller/guest
-			// (nama traveller, fallback guest_label bila tiada nama).
-			const onBehalfOf = (t.traveller_name && t.traveller_name !== '-')
-				? t.traveller_name : (t.guest_label || 'the guest');
-			const waMsg = t.phone
-				? 'Hello ' + (t.traveller_name || '')
-					+ ', please complete your submission of your passport & travel details for your trip via this secure link: '
-					+ d.link + ' (valid until ' + expires + ')'
-				: 'Hello ' + (t.customer_name || '')
-					+ ', please complete your travel document on behalf of ' + onBehalfOf
-					+ ' via this secure link: ' + d.link + ' (valid until ' + expires + ')';
-
-			const dlg = new frappe.ui.Dialog({
-				title: '🔗 ' + __('Guest Passport Link') + ' — ' + (t.traveller_name || t.reservation),
-			});
-			dlg.$body.html(`
-				<div class="mba-glink">
-					<div class="mba-glink-qr"><img src="${esc(d.qr_data_uri)}" alt="${esc(__('Guest passport link QR code'))}"></div>
-					<div class="mba-glink-url">${esc(d.link)}</div>
-					<div class="mba-glink-meta">${__('Valid until')} <b>${esc(expires)}</b></div>
-					<div class="mba-file-actions">
-						${waDigits ? `<a class="btn btn-default btn-sm mba-quickbtn mba-quickbtn--wa"
-							href="https://wa.me/${esc(waDigits)}?text=${encodeURIComponent(waMsg)}"
-							target="_blank" rel="noopener"
-							title="${esc(__('Open WhatsApp message in a new tab'))}">💬 ${__('WhatsApp')}</a>` : ''}
-						<button type="button" class="btn btn-default btn-sm mba-glink-copy">${__('Copy Link')}</button>
-						<a class="btn btn-default btn-sm" href="${esc(d.link)}" target="_blank" rel="noopener">${__('Open')}</a>
-					</div>
-					${waDigits ? '' : `<div class="mba-glink-meta mba-muted">${__('No phone number on traveller or booking — share the link manually.')}</div>`}
-				</div>`);
-			dlg.show();
-			dlg.$body.find('.mba-glink-copy').on('click', function () {
-				const $btn = $(this);
-				const done = () => {
-					$btn.text(__('Copied!'));
-					setTimeout(() => $btn.text(__('Copy Link')), 1500);
-				};
-				if (navigator.clipboard?.writeText) {
-					navigator.clipboard.writeText(d.link).then(done).catch(() => {
-						frappe.utils.copy_to_clipboard(d.link); done();
-					});
-				} else {
-					frappe.utils.copy_to_clipboard(d.link); done();
-				}
-			});
-		});
-	}
-
-	// ── PAKET SENARAI TRAVELLER — komponen boleh guna semula: toolbar
-	// (togol paparan ikon, carian client, muat turun pukal, Order By) +
-	// kad grid menegak + jadual 5 kolum boleh sort + aksi per-baris (view
-	// passport, guest link, edit). Dipanggil dari mana-mana senarai
-	// traveller — kini: L3 tab Travellers (satu booking) & L2 tab
-	// Travellers (group/batch, pelbagai booking).
-	//
-	// opts:
-	//   target          jQuery element pane tujuan
-	//   rows            senarai baris traveller/reservation
-	//   state           { sort, sort_dir, view, __q } — kekal antara render
-	//   context         { booking, trip_start, trip_end, show_booking_col }
-	//   toolbar_extras  HTML tambahan dalam toolbar (tapisan server L2)
-	//   footer_html     HTML bawah senarai (load more L2)
-	//   show_search     false → sembunyi carian client (L2 guna carian server)
-	//   show_downloads  false → sembunyi Files/XLSX/CSV (L2 pelbagai booking)
-	//   empty_message   mesej bila rows kosong (lalai 'No travellers found
-	//                   for this filter.') — dipapar DALAM .mba-tv-grid
-	//                   supaya toolbar/panel penapis kekal (bukan overwrite
-	//                   seluruh pane).
-	function render_traveller_list(opts) {
-		const target = opts.target;
-		const rows = opts.rows || [];
-		if (!target?.length) return;
-		const ctx = opts.context || {};
-		const tvst = opts.state || {};
-		const tvSort = TV_SORTS[tvst.sort] ? tvst.sort : '';
-		const tvDir = tvst.sort_dir === -1 ? -1 : 1;
-		const tvView = tvst.view === 'table' ? 'table' : 'grid';
-		const showBk = !!ctx.show_booking_col;
-		const res = tvSort ? rows.slice().sort((a, b) => {
-			const va = TV_SORTS[tvSort].val(a);
-			const vb = TV_SORTS[tvSort].val(b);
-			const c = typeof va === 'number' && typeof vb === 'number'
-				? va - vb : String(va).localeCompare(String(vb));
-			return c * tvDir;
-		}) : rows;
-		// Tapisan client-side (show_filters — L3): doc status & bilangan
-		// baris. L2 guna tapisan server (extras toolbar).
-		const useFilters = opts.show_filters === true;
-		const filterDoc = useFilters ? String(tvst.doc_status || '') : '';
-		const docMatch = (t) => !filterDoc ? true
-			: (filterDoc === 'Incomplete'
-				? ['', 'Incomplete'].includes(t.document_status || '')
-				: t.document_status === filterDoc);
-		const limitN = useFilters ? (parseInt(tvst.limit, 10) || 0) : 0;
-		const list0 = filterDoc ? res.filter(docMatch) : res;
-		const list = limitN > 0 ? list0.slice(0, limitN) : list0;
-		const hay = tv_hay;
-		// Julat tarikh perjalanan — DOB dalam julat ini ditanda merah.
-		const tripStart = String(ctx.trip_start || '').slice(0, 10);
-		const tripEnd = String(ctx.trip_end || '').slice(0, 10);
-
-		// Kumpulan butang kecil kolum Status — lihat fail passport (jika
-		// ada), jana link passport guest (perlu konteks reservation), edit
-		// maklumat traveller (ikon); dikongsi kad & jadual.
-		const is_img_url = (u) => /\.(png|jpe?g|gif|webp|svg|bmp|tiff?)($|\?)/i.test(u || '');
-		const status_btns = (t) => {
-			const inner = [
-				t.passport_image
-					? `<button type="button" class="btn btn-default btn-xs mba-file-view-btn"
-						data-name="${esc(__('Passport') + ' — ' + (t.traveller_name || t.reservation))}"
-						data-url="${esc(t.passport_image)}" data-image="${is_img_url(t.passport_image) ? 1 : 0}"
-						title="${esc(__('View passport file'))}">${frappe.utils.icon('eye', 'sm')}</button>`
-					: '',
-				t.reservation
-					? `<button type="button" class="btn btn-default btn-xs mba-tv-link-btn"
-						title="${esc(__('Create guest passport link'))}">${frappe.utils.icon('share-2', 'sm')}</button>`
-					: '',
-				t.traveller
-					? `<a class="btn btn-default btn-xs" href="/app/traveller/${encodeURIComponent(t.traveller)}"
-						title="${esc(__('Edit Traveller Info'))}">${frappe.utils.icon('pencil', 'sm')}</a>`
-					: '',
-			].filter(Boolean).join('');
-			return inner ? `<div class="btn-group" role="group"
-				aria-label="${esc(__('Traveller file actions'))}">${inner}</div>` : '';
-		};
-
-		const cards = list.map((t) => {
-			const cancelled = t.reservation_status === 'Cancelled';
-			// Tanpa rekod Traveller — nama papar guest_label; modal tetap
-			// dibuka dengan panel Booking menggantikan Personal.
-			const noTrav = !t.traveller;
-			const displayName = noTrav ? (t.guest_label || t.traveller_name) : t.traveller_name;
-			const photo = t.passport_image
-				? `<img class="mba-tv-photo" src="${esc(t.passport_image)}" alt="${esc(displayName || '')}" loading="lazy">`
-				: `<div class="mba-tv-photo mba-tv-photo--empty">👤</div>`;
-			const sub = [
-				[t.gender ? esc(__(t.gender)) : '', t.age != null ? esc(String(t.age)) : ''].filter(Boolean).join(' · '),
-				t.email ? `✉ ${esc(t.email)}` : '',
-				t.phone ? `☎ ${esc(t.phone)} ${contact_icons(t.phone)}` : '',
-			].filter(Boolean).join('<br>') || '<span class="mba-muted">—</span>';
-			return `
-			<div class="mba-tvcard${cancelled ? ' mba-tvcard--cancelled' : ''}"
-				data-res="${esc(t.reservation)}" data-hay="${esc(hay(t))}"
-				data-trav="${esc(JSON.stringify(t))}">
-				${photo}
-				<div class="mba-tvcard-body">
-					<div class="mba-tvcard-name">${esc(displayName)}</div>
-					<div class="mba-tvcard-badges">
-						${badge(t.reservation_status, RES_STATUS_COLORS[t.reservation_status])}
-						${badge(t.document_status, DOC_STATUS_COLORS[t.document_status])}
-					</div>
-					<div class="mba-tvcard-sub">${sub}</div>
-					${showBk ? `<div class="mba-tvcard-sub">${esc(t.booking_number || t.booking || '')}${t.customer_name ? ' · ' + esc(t.customer_name) : ''}</div>` : ''}
-					<div class="mba-tv-status-actions">${status_btns(t)}</div>
-				</div>
-			</div>`;
-		}).join('');
-
-		const dob_badge = (dob) => {
-			const dd = String(dob || '').slice(0, 10);
-			if (!dd) return '';
-			const label = esc(fmtDate(dd));
-			return (tripStart && tripEnd && dd >= tripStart && dd <= tripEnd)
-				? `<span title="${esc(__('Date of birth falls within the trip dates — please verify'))}">${badge(label, 'red')}</span>`
-				: label;
-		};
-
-		const tRows = list.map((t) => {
-			const cancelled = t.reservation_status === 'Cancelled';
-			const displayName = t.traveller
-				? t.traveller_name : (t.guest_label || t.traveller_name);
-			return `
-			<tr class="mba-tv-trow${cancelled ? ' mba-row-cancelled' : ''}"
-				data-hay="${esc(hay(t))}" data-trav="${esc(JSON.stringify(t))}">
-				<td>
-					<div class="mba-cell-main">${esc(displayName)}${cancelled ? ' ' + badge(__('Cancelled'), 'red') : ''}</div>
-					${t.email ? `<div class="mba-cell-sub">✉ ${esc(t.email)}</div>` : ''}
-					${t.phone ? `<div class="mba-cell-sub">☎ ${esc(t.phone)} ${contact_icons(t.phone)}</div>` : ''}
-				</td>
-				${showBk ? `<td>
-					<div class="mba-cell-main">${t.booking
-						? `<a href="/app/manage-booking-app/booking/${encodeURIComponent(t.booking)}">${esc(t.booking_number || t.booking)}</a>`
-						: esc(t.booking_number || '—')}</div>
-					${t.customer_name ? `<div class="mba-cell-sub">${esc(t.customer_name)}</div>` : ''}
-					${t.booking_status ? `<div class="mba-cell-sub">${badge(t.booking_status, BOOKING_STATUS_COLORS[t.booking_status])}</div>` : ''}
-				</td>` : ''}
-				<td>
-					<div class="mba-cell-main">${t.gender ? esc(__(t.gender)) : '—'}</div>
-					${(() => {
-						const parts = [
-							t.age != null ? esc(String(t.age)) : '',
-							t.age_category ? esc(t.age_category)
-								: (t.age_bucket && t.age_bucket !== 'Unknown'
-									? badge(t.age_bucket, AGE_BUCKET_COLORS[t.age_bucket]) : ''),
-						].filter(Boolean);
-						return parts.length ? `<div class="mba-cell-sub">${parts.join(' · ')}</div>` : '';
-					})()}
-					${t.dob ? `<div class="mba-cell-sub">${dob_badge(t.dob)}</div>` : ''}
-				</td>
-				<td>
-					<div class="mba-cell-main">${t.nationality ? esc(t.nationality) : '—'}</div>
-					${t.passport_no ? `<div class="mba-cell-sub">PP: ${esc(t.passport_no)}</div>` : ''}
-					${t.ic_number ? `<div class="mba-cell-sub">IC: ${esc(t.ic_number)}</div>` : ''}
-					${(() => {
-						// Status dokumen + aksi (view passport / guest passport
-						// link / edit) — dipindahkan dari kolum Status yang
-						// telah dibuang.
-						const docsExtra = [
-							badge(t.document_status, DOC_STATUS_COLORS[t.document_status]),
-							status_btns(t),
-						].filter(Boolean).join(' ');
-						return docsExtra ? `<div class="mba-cell-sub">${docsExtra}</div>` : '';
-					})()}
-				</td>
-				<td>
-					<div class="mba-cell-main">${[
-						t.cabin_no ? '#' + esc(String(t.cabin_no)) : '',
-						t.room_category && t.room_category !== 'Unassigned' ? esc(t.room_category) : '',
-					].filter(Boolean).join(' ') || '—'}</div>
-					${(() => {
-						const p1 = [t.pax_type, t.room_privacy].filter(Boolean).map(esc).join(' · ');
-						return p1 ? `<div class="mba-cell-sub">${p1}</div>` : '';
-					})()}
-					${(() => {
-						// Maklumat kabin cruise (Delegate/Aroya/Stateroom)
-						// diutamakan — bila wujud, rooming_ID disembunyikan;
-						// tiada maklumat cruise → rooming_ID.
-						const cruise = [
-							t.delegate_no ? 'Del: ' + esc(t.delegate_no) : '',
-							(t.aroya_guest_no !== '' && t.aroya_guest_no != null)
-								? 'Aroya: ' + esc(String(t.aroya_guest_no)) : '',
-							t.stateroom_no ? 'Stateroom: ' + esc(t.stateroom_no) : '',
-						].filter(Boolean).join(' / ');
-						if (cruise) return `<div class="mba-cell-sub">${cruise}</div>`;
-						return t.room_id
-							? `<div class="mba-cell-sub">ID: ${esc(t.room_id)}</div>` : '';
-					})()}
-				</td>
-			</tr>`;
-		}).join('');
-		// Header jadual boleh sort — anak panah arah aktif pada kolum terpilih.
-		const sort_th = (col, label) => {
-			const on = tvSort === col;
-			const arrow = !on ? '↕' : (tvDir === 1 ? '↑' : '↓');
-			return `<th class="mba-tv-sort${on ? ' is-sorted' : ''}" data-tvsort="${col}"
-				title="${esc(__('Sort by') + ' ' + __(label))}">${esc(__(label))}
-				<span class="mba-tv-sort-ico">${arrow}</span></th>`;
-		};
-		const table = `
-			<div class="mba-table-wrap mba-tv-tablewrap"${tvView === 'table' && rows.length ? '' : ' style="display:none;"'}">
-				<table class="mba-table">
-					<thead><tr>
-						${sort_th('name', 'Traveller')}
-						${showBk ? sort_th('booking', 'Booking') : ''}
-						${sort_th('age', 'Age')}
-						${sort_th('nationality', 'Docs')}
-						${sort_th('roomcat', 'Accommodation')}
-					</tr></thead>
-					<tbody>${tRows}</tbody>
-				</table>
-			</div>`;
-
-		const dlBase = '/api/method/travel_booking.api.manage_trip_booking.';
-		// Skop muat turun — booking (L3) ATAU group/batch (L2). Kedua-duanya
-		// menggunakan enjin download server yang sama; skop dihantar sebagai
-		// query string (booking=... atau trip_groups=[...]).
-		const dlQuery = ctx.booking
-			? 'booking=' + encodeURIComponent(ctx.booking)
-			: ((ctx.trip_groups || []).length
-				? 'trip_groups=' + encodeURIComponent(JSON.stringify(ctx.trip_groups))
-				: '');
-		const showDl = opts.show_downloads !== false && !!dlQuery;
-		const dlTitle = ctx.booking
-			? __('Download all attached traveller files for this booking as a single ZIP')
-			: __('Download all attached traveller files for this group as a single ZIP');
-		// Toolbar 2 baris — Baris 1: kotak carian di tengah; Baris 2 kiri:
-		// toggol paparan + section tapisan, kanan: butang download + Order
-		// By. Dua mod carian: server_search (L2/L3 — input data-search,
-		// reload via loader) atau carian client-side (.mba-tv-search, tapis
-		// DOM sedia ada).
-		const midSearch = opts.server_search
-			? `<input type="text" class="form-control" data-search="tv"
-				placeholder="${esc(opts.search_placeholder || __('Search traveller / passport / contact…'))}"
-				value="${esc(tvst.search || '')}" />`
-			: (opts.show_search !== false
-				? `<input type="text" class="form-control mba-tv-search"
-					placeholder="${esc(__('Search name / passport / room / contact…'))}" />`
-				: '');
-		target.html(`
-			<div class="mba-tv-toolbar">
-				${midSearch ? `<div class="mba-tv-toolbar-top">${midSearch}</div>` : ''}
-				<div class="mba-tv-toolbar-row">
-					<div class="mba-tv-toolbar-left">
-						<div class="btn-group mba-tv-views" role="group" aria-label="${esc(__('Traveller view'))}">
-							<button type="button" class="btn btn-default btn-xs mba-tv-view${tvView === 'grid' ? ' active' : ''}"
-								data-view="grid" title="${esc(__('Card view'))}"
-								aria-label="${esc(__('Card view'))}">${frappe.utils.icon('layout-grid', 'sm')}</button>
-							<button type="button" class="btn btn-default btn-xs mba-tv-view${tvView === 'table' ? ' active' : ''}"
-								data-view="table" title="${esc(__('Table view'))}"
-								aria-label="${esc(__('Table view'))}">${frappe.utils.icon('table', 'sm')}</button>
-						</div>
-						${useFilters ? `<select class="mba-tv-limitsel" title="${esc(__('Rows to show'))}">${ROW_LIMITS.map((n) => `<option value="${n}" ${n === limitN ? 'selected' : ''}>${n === 0 ? __('All rows') : __('{0} rows', [n])}</option>`).join('')}</select>` : ''}
-						${opts.toolbar_extras || ''}
-					</div>
-					<div class="mba-tv-toolbar-right">
-						${showDl ? `<div class="mba-tv-dl">
-							<button type="button" class="btn btn-default btn-xs mba-tv-dl-btn"
-								title="${esc(dlTitle)}" aria-haspopup="menu">
-								${__('Download')} ${frappe.utils.icon('chevron-down', 'sm')}
-							</button>
-						</div>` : ''}
-						<div class="mba-tv-sortby"></div>
-					</div>
-				</div>
-				${opts.custom_filter_html || ''}
-			</div>
-			${(filterDoc || (limitN > 0 && list0.length > list.length))
-				? `<div class="mba-tv-count">${__('Showing')} ${list.length} / ${rows.length} ${__('travellers')}</div>` : ''}
-			<div class="mba-tv-grid"${tvView === 'table' && rows.length ? ' style="display:none;"' : ''}>${cards
-				|| `<div class="mba-empty">${esc(opts.empty_message || __('No travellers found for this filter.'))}</div>`}</div>
-			${table}
-			${opts.footer_html || ''}`);
-
-		// Order By — komponen standard Frappe (ikon arah asc/desc + dropdown
-		// medan), state yang sama dengan klik header jadual (objek state
-		// dilalui melalui opts.state — rujukan sama ke S.state[key].tv).
-		new frappe.ui.SortSelector({
-			parent: target.find('.mba-tv-sortby'),
-			args: {
-				options: [{ fieldname: 'guest', label: __('Guest order') }]
-					.concat(Object.entries(TV_SORTS)
-						.map(([k, v]) => ({ fieldname: k, label: __(v.label) }))),
-				sort_by: tvSort || 'guest',
-				sort_by_label: tvSort ? __(TV_SORTS[tvSort].label) : __('Guest order'),
-				sort_order: tvDir === -1 ? 'desc' : 'asc',
-			},
-			onchange: (sort_by, sort_order) => {
-				if (!opts.state) return;
-				opts.state.sort = TV_SORTS[sort_by] ? sort_by : '';
-				opts.state.sort_dir = sort_order === 'desc' ? -1 : 1;
-				render_traveller_list(opts);
-			},
-		});
-
-		// Butang Download → dropdown espresso framework (frappe.ui.Dropdown).
-		// Item ialah pautan href native — pelayar memproses muat turun
-		// terus (Content-Disposition), tiada fetch/fail sementara diperlukan.
-		// dlTitle (tooltip lama butang Files) jadi description item pertama.
-		if (showDl) {
-			new frappe.ui.Dropdown({
-				trigger: target.find('.mba-tv-dl-btn'),
-				align: 'end',
-				options: [
-					{
-						label: __('Files (ZIP)'),
-						icon: 'download',
-						href: dlBase + 'download_traveller_images?' + dlQuery,
-					},
-					{
-						label: __('Excel (XLSX)'),
-						icon: 'download',
-						href: dlBase + 'download_travellers_excel?' + dlQuery,
-					},
-					{
-						label: __('CSV'),
-						icon: 'download',
-						href: dlBase + 'download_travellers_csv?' + dlQuery,
-					},
-				],
-			});
-		}
-
-		// Kekalkan carian aktif merentas re-render (sort / tukar paparan).
-		const prevQuery = (tvst.__q || '').trim();
-		if (prevQuery && opts.show_search !== false) {
-			target.find('.mba-tv-search').val(prevQuery).trigger('input');
-		}
-
-		// Callback re-render untuk handler delegated (klik header sort) —
-		// disimpan pada pane supaya handler generik tahu cara render semula
-		// senarai ini (L3 mahupun L2).
-		target.data('mba-tv-rerender', () => render_traveller_list(opts));
-	}
-
-	// ── L3 Tab Travellers — sumber DISATUKAN dengan L2: get_group_travellers
-	// mode booking (with_versions untuk timeline modal). Tapisan server
-	// (carian / doc status / limit) + muat turun pukal per booking; julat
-	// tarikh trip ikut profile. Dimuatkan lazily oleh load_bkg_travellers
-	// bila tab dibuka. ──
-	function render_bkg_travellers(key) {
-		const d = S.cache[key]?.profile;
-		const tv = S.cache[key]?.travellers;
-		const st = S.state[key];
-		if (!d || !tv || !st) return;
-		const pane = $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="tv"]`);
-		const rows = tv.travellers || [];
-		// Mesej kosong: tapisan aktif (carian / doc status / penapis dinamik)
-		// → tiada padanan; selain itu booking memang tiada reservation.
-		const hasFilters = !!(st.tv.search || st.tv.doc_status
-			|| tv_cf_active(st.tv.custom).length);
-		const emptyMsg = hasFilters
-			? __('No travellers found for this filter.')
-			: __('No booking reservations for this booking.');
-		const p0 = d.profile || {};
-		const tripStart = String((p0.is_a_cruise_trip
-			? (p0.cruise_start || p0.departure_date) : p0.departure_date) || '').slice(0, 10);
-		const tripEnd = String((p0.is_a_cruise_trip
-			? (p0.cruise_end || p0.return_date) : p0.return_date) || '').slice(0, 10);
-		render_traveller_list({
-			target: pane,
-			rows,
-			empty_message: emptyMsg,
-			state: st.tv,
-			context: {
-				booking: d.booking,
-				trip_start: tripStart,
-				trip_end: tripEnd,
-			},
-			toolbar_extras: `<span class="mba-tv-extras">
-				${limit_options('tv', st.tv.limit)}
-				${tv_cf_toggle_html(st.tv)}
-			</span>`,
-			server_search: true,
-			search_placeholder: __('Search traveller / passport / contact...'),
-			custom_filter_html: tv_cf_panel_html(st.tv),
-			footer_html: showing_footer(tv, __('travellers'), 'tv'),
-			show_search: false,
-		});
-		tv_cf_hydrate(key);
-	}
-
-	// Muat tab Travellers L3 (lazy) — get_group_travellers mode booking;
-	// cache S.cache[key].travellers (bentuk sama seperti L2 supaya semua
-	// handler generik — sort, view, load-more, refresh cache — seragam).
-	async function load_bkg_travellers(key, force = false) {
+	// ── Tab Rooms L3 — PAKEJ ROOMING LIST (rooms_list.js) diguna semula
+	// untuk skop SATU booking: get_group_rooming(booking=<name>) memulangkan
+	// bilik yang mengandungi reservation booking ini, LENGKAP dengan
+	// penghuni kongsi merentas booking (highlight 'is-cross' oleh pakej).
+	// Klik tetamu → modal maklumat traveller penuh (lalai pakej); pintasan
+	// Rooming Board menuju route group/batch booking ini. ──
+	async function load_bkg_rooms(key, force = false) {
 		if (!key || !key.startsWith('bkg:')) return;
-		const st = S.state[key] || (S.state[key] = default_state());
-		await ensure_tv_filter_fields();       // medan penapis dinamik (cache)
-		if (!force && S.cache[key]?.travellers) {
-			render_bkg_travellers(key);
+		if (!force && S.cache[key]?.bkgrooms) {
+			render_bkg_rooms(key);
 			return;
 		}
-		const $pane = $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="tv"]`);
-		if ($pane.length) $pane.html(`<div class="mba-loading">${__('Loading travellers...')}</div>`);
+		const $pane = $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="rm"]`);
+		if ($pane.length) $pane.html(`<div class="mba-loading">${__('Loading rooms...')}</div>`);
 		try {
-			const tv = await api('get_group_travellers', {
-				booking: key.slice(4),
-				search: st.tv.search || null,
-				doc_status: st.tv.doc_status || null,
-				custom_filters: tv_cf_active(st.tv.custom),
-				custom_match: st.tv.cf_match === 'OR' ? 'OR' : 'AND',
-				limit: st.tv.limit,
-				with_versions: true,
-			});
-			S.cache[key] = { ...(S.cache[key] || {}), travellers: tv };
+			// Skop satu booking — biliknya sedikit; muat semua (limit 0).
+			const rm = await api('get_group_rooming', { booking: key.slice(4), limit: 0 });
+			S.cache[key] = { ...(S.cache[key] || {}), bkgrooms: rm };
 		} catch (e) {
 			return; // api() sudah papar alert ralat
 		}
+		// Pill kiraan bilik pada tab.
+		const n = S.cache[key]?.bkgrooms?.count || 0;
+		const $pill = $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab[data-tab="rm"] [data-rm-pill]`);
+		if ($pill.length) $pill.text(n).toggle(n > 0);
 		// Render hanya bila tab masih dibuka pada item yang sama.
-		const $tab = $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab[data-tab="tv"]`);
-		if ($tab.hasClass('active')) render_bkg_travellers(key);
+		const $tab = $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab[data-tab="rm"]`);
+		if ($tab.hasClass('active')) render_bkg_rooms(key);
 	}
 
+	function render_bkg_rooms(key) {
+		const rm = S.cache[key]?.bkgrooms;
+		if (!rm) return;
+		const pane = $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="rm"]`);
+		if (!pane.length) return;
+
+		const rooms = rm.rooms || [];
+		const pax = rooms.reduce((n, r) => n + (r.guests || []).length, 0);
+
+		// Pintasan Rooming Board — route penuh group/batch booking ini
+		// (susun atur bilik diurus di papan, bukan di sini).
+		const p = S.cache[key]?.profile?.profile || {};
+		const boardBtn = p.trip_date
+			? `<button type="button" class="btn btn-secondary btn-sm mba-rb-open-bkg mba-toolbar-push"
+					data-group="${esc(p.group_batch ? p.group_batch : p.trip_date)}"
+					data-kind="${p.group_batch ? 'batch' : 'group'}">
+					${__('Rooming Board')}</button>` : '';
+
+		pane.html(bkg_section(__('Rooms'), rm.count ?? 0, `
+			<div class="mba-tab-toolbar">
+				<span class="mba-muted">${rooms.length} ${__('rooms')} · ${pax} ${__('guests')}</span>
+				${boardBtn}
+			</div>
+			<div class="mba-rooms-slot"></div>`));
+
+		// Grid kad bilik — pakej rooms_list.js (klik tetamu → modal
+		// maklumat traveller, lalai pakej).
+		mount_rooms_list(pane.find('.mba-rooms-slot'), rm, {
+			empty_message: __('No rooms arranged for this booking yet.'),
+		});
+	}
+
+	// ── Tab Add-ons & Flights L3 — dimuatkan lazily daripada
+	// get_booking_addons_flights (addon order booking ni + Flight yang
+	// dirujuk Booking.flight). Selari bentuk row L2 supaya kad/jadual
+	// konsisten; klik kad/baris → form dokumen (handler .mba-bkcard). ──
+	async function load_bkg_af(key, force = false) {
+		if (!key || !key.startsWith('bkg:')) return;
+		if (!force && S.cache[key]?.afdata) {
+			render_bkg_af(key);
+			return;
+		}
+		const $pane = $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="af"]`);
+		if ($pane.length) $pane.html(`<div class="mba-loading">${__('Loading add-ons & flights...')}</div>`);
+		try {
+			const d = await api('get_booking_addons_flights', { booking: key.slice(4) });
+			S.cache[key] = { ...(S.cache[key] || {}), afdata: d };
+		} catch (e) {
+			return; // api() sudah papar alert ralat
+		}
+		// Pill kiraan pada tab — add-on + flight booking ni.
+		const n = (S.cache[key]?.afdata?.addons?.length || 0)
+			+ (S.cache[key]?.afdata?.flights?.length || 0);
+		const $pill = $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab[data-tab="af"] [data-af-pill]`);
+		if ($pill.length) $pill.text(n).toggle(n > 0);
+		// Render hanya bila tab masih dibuka pada item yang sama.
+		const $tab = $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab[data-tab="af"]`);
+		if ($tab.hasClass('active')) render_bkg_af(key);
+	}
+
+	function render_bkg_af(key) {
+		const d = S.cache[key]?.afdata;
+		if (!d) return;
+		const pane = $('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="af"]`);
+		if (!pane.length) return;
+
+		// ── Add-on order booking ni (tiada kolum Booking — semua milik
+		// booking ini). ──
+		const adRows = d.addons || [];
+		const adTot = d.totals || {};
+		const adDt = adTot.default_totals || { currency: S.currency, amount: 0, rates_complete: true };
+		const adIncomplete = adDt.rates_complete === false ? '+' : '';
+
+		const adCards = adRows.map((a) => `
+			<div class="mba-bkcard" data-route="Booking Addon/${esc(a.name)}">
+				<div class="mba-bkcard-top">
+					<span class="mba-bkcard-no">${esc(a.name)}</span>
+					${badge(a.status, ADDON_STATUS_COLORS[a.status])}
+				</div>
+				<div class="mba-bkcard-cust">${esc(a.trip_package || a.booking_number || '—')}</div>
+				<div class="mba-bkcard-foot">
+					${badge(a.payment_status, PAYMENT_STATUS_COLORS[a.payment_status])}
+					<span><b>${fmtMoney(a.total_amount, a.currency || S.currency)}</b> · ${a.item_count} ${__('items')}</span>
+				</div>
+			</div>`).join('');
+
+		const adTable = `
+			<div class="mba-table-wrap">
+				<table class="mba-table">
+					<thead><tr>
+						<th>${__('Addon No')}</th>
+						<th>${__('Package')}</th>
+						<th>${__('Status')}</th>
+						<th>${__('Payment')}</th>
+						<th class="num">${__('Items')}</th>
+						<th class="num">${__('Amount')}</th>
+						<th class="num">${__('Order Date')}</th>
+					</tr></thead>
+					<tbody>${adRows.map((a) => `
+						<tr data-route="Booking Addon/${esc(a.name)}">
+							<td><div class="mba-cell-main">${esc(a.name)}</div></td>
+							<td>${esc(a.trip_package || '—')}</td>
+							<td>${badge(a.status, ADDON_STATUS_COLORS[a.status])}</td>
+							<td>${badge(a.payment_status, PAYMENT_STATUS_COLORS[a.payment_status])}</td>
+							<td class="num">${a.item_count}</td>
+							<td class="num">${fmtMoney(a.total_amount, a.currency || S.currency)}</td>
+							<td class="num mba-muted">${fmtDateTime(a.order_date)}</td>
+						</tr>`).join('')}
+					</tbody>
+					${adRows.length ? `<tfoot><tr>
+						<td colspan="5">${__('Total')} (${adRows.length} ${__('addon orders')})
+							<span class="mba-muted">· ${esc(adDt.currency || S.currency)}${adIncomplete}</span></td>
+						<td class="num" title="${(adTot.by_currency || []).length ? esc(__('Per currency') + ': ' + adTot.by_currency.map((r) => fmtMoney(r.amount, r.currency)).join(' · ')) : ''}">${fmtMoney(adDt.amount, adDt.currency)}</td>
+						<td></td>
+					</tr></tfoot>` : ''}
+				</table>
+			</div>`;
+
+		const addonsSec = bkg_section(__('Booking Addons'), adRows.length,
+			adRows.length
+				? `<div class="mba-cards">${adCards}</div>${adTable}`
+				: `<div class="mba-empty">${__('No addon orders for this booking.')}</div>`);
+
+		// ── Flight booking ni (Booking.flight) — statistik flight-wide
+		// (bookings/pax) + pax booking ini sendiri. ──
+		const flRows = d.flights || [];
+		const route = (f) => [f.home_airport, f.destination_airport].filter(Boolean).join(' → ');
+
+		const flCards = flRows.map((f) => `
+			<div class="mba-bkcard" data-route="Flight/${esc(f.name)}">
+				<div class="mba-bkcard-top">
+					<span class="mba-bkcard-no">${esc(f.pnr)}</span>
+					${badge(f.status, FLIGHT_STATUS_COLORS[f.status])}
+				</div>
+				<div class="mba-bkcard-cust">${f.airline ? esc(f.airline_name || f.airline) : '—'}</div>
+				<div class="mba-bkcard-meta">${route(f) ? esc(route(f)) : ''}${f.departure_date ? ' · ' + fmtDate(f.departure_date) : ''}</div>
+				<div class="mba-bkcard-foot">
+					<span>${f.seats_occupied}/${f.max_seat || '—'} ${__('seats')} · ${f.booking_count} ${__('bookings')} · ${f.pax} ${__('pax')}</span>
+					<span>${f.pax_booking} ${__('pax')} — ${__('this booking')}</span>
+				</div>
+			</div>`).join('');
+
+		const flTable = `
+			<div class="mba-table-wrap">
+				<table class="mba-table">
+					<thead><tr>
+						<th>${__('PNR')}</th>
+						<th>${__('Airline')}</th>
+						<th>${__('Route')}</th>
+						<th class="num">${__('Departure')}</th>
+						<th class="num">${__('Arrival')}</th>
+						<th class="num" title="${__('Seats occupied / max seats')}">${__('Seats')}</th>
+						<th class="num">${__('Bookings')}</th>
+						<th class="num">${__('Pax')}</th>
+						<th class="num" title="${__('Pax from this booking on this flight')}">${__('Booking Pax')}</th>
+						<th>${__('Status')}</th>
+					</tr></thead>
+					<tbody>${flRows.map((f) => `
+						<tr data-route="Flight/${esc(f.name)}">
+							<td><div class="mba-cell-main">${esc(f.pnr)}</div></td>
+							<td>${f.airline ? esc(f.airline_name || f.airline) : '—'}</td>
+							<td>${route(f) ? esc(route(f)) : '—'}</td>
+							<td class="num">${f.departure_date ? fmtDate(f.departure_date) : '—'}</td>
+							<td class="num">${f.arrival_date ? fmtDate(f.arrival_date) : '—'}</td>
+							<td class="num">${f.seats_occupied}/${f.max_seat || '—'}</td>
+							<td class="num">${f.booking_count}</td>
+							<td class="num">${f.pax}</td>
+							<td class="num">${f.pax_booking}</td>
+							<td>${badge(f.status, FLIGHT_STATUS_COLORS[f.status])}</td>
+						</tr>`).join('')}
+					</tbody>
+				</table>
+			</div>`;
+
+		const flightsSec = bkg_section(__('Flights'), flRows.length,
+			flRows.length
+				? `<div class="mba-cards">${flCards}</div>${flTable}`
+				: `<div class="mba-empty">${__('No flight linked to this booking.')}</div>`);
+
+		pane.html(addonsSec + flightsSec);
+	}
+
+	// (Modal, dialog & renderer senarai traveller — lihat sub-package
+	//  traveller_list.js, di-include di atas.)
 	// Resit rasmi Payment Entry — print format resit app.
 	const pe_receipt_url = (name) =>
 		'/api/method/frappe.utils.print_format.download_pdf?doctype='

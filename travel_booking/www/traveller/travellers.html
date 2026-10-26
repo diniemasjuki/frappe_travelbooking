@@ -106,7 +106,7 @@
                 <!-- Thumbnail preview -->
                 <div style="flex-shrink:0;">
                   <img id="passport-preview" src="" alt="Passport"
-                       style="max-width:220px;max-height:150px;width:auto;height:auto;border-radius:8px;border:2px solid var(--c-success-bg);object-fit:cover;cursor:zoom-in;"
+                       style="border-radius:8px;border:2px solid var(--c-success-bg);"
                        onclick="this.classList.toggle('preview-zoom');"/>
                 </div>
                 <!-- Info + actions -->
@@ -239,7 +239,7 @@
         </div>
         <div class="tv-grid">
           <div class="tv-form-group"><label class="tv-label">State *</label><input type="text" id="tvl-state" class="tv-input" autocomplete="address-level1" required/></div>
-          <div class="tv-form-group"><label class="tv-label">Country *</label><input type="text" id="tvl-country" class="tv-input" autocomplete="country-name" required/></div>
+          <div class="tv-form-group"><label class="tv-label">Country *</label><input type="text" id="tvl-country" class="tv-input" list="tvl-country-list" placeholder="Type to search country…" autocomplete="off" required/><datalist id="tvl-country-list"></datalist></div>
         </div>
       </div>
 

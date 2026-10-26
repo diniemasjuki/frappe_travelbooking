@@ -114,6 +114,27 @@ body:not(.full-width) .page-container[data-page-route="manage-booking-app"] .pag
 }
 .mba-chip-row::-webkit-scrollbar { display: none; }
 
+/* Link View Archived / Back to Active — ke hujung kanan baris chip,
+   gaya teks senyap; aktif = warna brand + tebal */
+.mba-arch-link {
+	flex-shrink: 0;
+	margin-left: auto;
+	background: none;
+	border: none;
+	padding: 2px 6px;
+	font-size: 12px;
+	color: var(--text-muted);
+	text-decoration: underline;
+	text-underline-offset: 2px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+.mba-arch-link:hover { color: var(--text-color); }
+.mba-arch-link.active {
+	color: var(--brand-primary, var(--blue-500, #4f7bfd));
+	font-weight: 600;
+}
+
 .mba-chip {
 	flex-shrink: 0;
 	border: 1px solid var(--border-color);
@@ -175,6 +196,78 @@ body:not(.full-width) .page-container[data-page-route="manage-booking-app"] .pag
 	padding-bottom: 6px;
 }
 .mba-field--check > span { text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--text-color); }
+
+/* Slider julat masa (bulan pergi) — dua handle di atas track sama;
+   input pointer-events none, hanya thumb yang boleh digarak */
+.mba-field--range { grid-column: 1 / -1; }
+.mba-range { position: relative; height: 24px; }
+.mba-range-track {
+	position: absolute;
+	top: 50%;
+	left: 0;
+	right: 0;
+	height: 4px;
+	transform: translateY(-50%);
+	border-radius: 999px;
+	background: var(--border-color, #e2e2e2);
+}
+.mba-range-fill {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	border-radius: 999px;
+	background: var(--brand-primary, var(--blue-500, #4f7bfd));
+}
+.mba-range-input {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 24px;
+	margin: 0;
+	-webkit-appearance: none;
+	appearance: none;
+	background: transparent;
+	pointer-events: none;
+}
+.mba-range-input:focus { outline: none; }
+.mba-range-input::-webkit-slider-runnable-track { background: transparent; }
+.mba-range-input::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	appearance: none;
+	pointer-events: auto;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	background: var(--card-bg, #fff);
+	border: 2px solid var(--brand-primary, var(--blue-500, #4f7bfd));
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+	cursor: pointer;
+}
+.mba-range-input::-moz-range-track { background: transparent; }
+.mba-range-input::-moz-range-thumb {
+	pointer-events: auto;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: var(--card-bg, #fff);
+	border: 2px solid var(--brand-primary, var(--blue-500, #4f7bfd));
+	cursor: pointer;
+}
+.mba-range-labels {
+	display: flex;
+	justify-content: space-between;
+	gap: 8px;
+	font-size: 11px;
+	color: var(--text-muted);
+	min-height: 14px;
+}
+
+/* Header jadual L1 boleh sort — klik tukar kunci/arah */
+.mba-groups-table thead th.mba-sortable { cursor: pointer; user-select: none; }
+.mba-groups-table thead th.mba-sortable:hover { color: var(--text-color); }
+.mba-groups-table thead th.is-sorted { color: var(--text-color); }
+.mba-sort-ind { display: inline-block; margin-left: 3px; font-size: 8px; vertical-align: 1px; }
 
 /* ── Strip jumlah (L1) ─────────────────────────────────── */
 .mba-summary-row {
@@ -339,11 +432,57 @@ body:not(.full-width) .page-container[data-page-route="manage-booking-app"] .pag
 
 .mba-row-cancelled td { opacity: 0.55; }
 
+/* Jadual group L1 — badge kiraan hari (sub kolum Departure) pada baris
+   sendiri: buang margin-left inline, jarak atas kecil selepas sub tarikh */
+.mba-groups-table .mba-days-left { margin-left: 0; margin-top: 3px; }
+
+/* Kolum 1 (Trip Group / Batch) — layout FIKS supaya kelima-lima kolum
+   data muat tanpa skrol mendatar pada desktop lazim; nama group/trip
+   panjang ellipsis (max-width pada td diabaikan browser dalam layout
+   auto — fixed + pecahan lebar eksplisit satu-satunya yang pasti). */
+.mba-groups-table { table-layout: fixed; }
+.mba-groups-table th:nth-child(1) { width: 34px; }
+.mba-groups-table th:nth-child(2) { width: 27%; }
+.mba-groups-table th:nth-child(3) { width: 15%; }
+.mba-groups-table th:nth-child(4) { width: 17%; }
+.mba-groups-table th:nth-child(5) { width: 20%; }
+.mba-groups-table th:nth-child(6) { width: 21%; }
+.mba-groups-table td { overflow: hidden; }
+.mba-groups-table td:nth-child(2) .mba-cell-main {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Biji "+N add-ons" — selepas kiraan booking utama (sel jadual & kad) */
+.mba-card-addon { color: var(--text-muted); font-size: 11px; }
+
 /* ── L2: header detail ─────────────────────────────────── */
 #mba-detail { margin-top: 4px; }
 
 .mba-detail-head { margin: 25px 0px; }
-.mba-detail-actions{ margin-bottom:25px; }
+.mba-detail-actions {
+	margin-bottom: 25px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+/* Prev/Next — navigasi antara item senarai L1; terapung ke kanan baris
+   action, berpindah ke baris baru pada telefon bila ruang tak cukup. */
+.mba-nav-btns {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	margin-left: auto;
+}
+.mba-nav-pos {
+	font-size: 12px;
+	color: var(--text-muted);
+	min-width: 44px;
+	text-align: center;
+	white-space: nowrap;
+}
 
 traveller {
 	display: flex;
@@ -388,6 +527,19 @@ traveller {
 	margin-bottom:20px;
 }
 
+/* Kiraan hari berbaki ke tarikh pergi — selepas julat tarikh, hanya
+   bila status item Active */
+.mba-days-left {
+	display: inline-block;
+	margin-left: 6px;
+	padding: 1px 8px;
+	border-radius: 999px;
+	background: var(--orange-100, #fdeee0);
+	color: var(--orange-700, #b75404);
+	font-weight: 600;
+	white-space: nowrap;
+}
+
 .mba-member-chips {
 	display: flex;
 	gap: 6px;
@@ -398,23 +550,6 @@ traveller {
 }
 .mba-member-chips::-webkit-scrollbar { display: none; }
 .mba-member-chips .mba-chip { flex-shrink: 0; }
-
-.mba-stat-row {
-	display: flex;
-	gap: 4px 16px;
-	margin-top: 8px;
-	padding: 8px 12px;
-	border: 1px solid var(--border-color);
-	border-radius: var(--border-radius-lg);
-	background: var(--card-bg);
-	overflow-x: auto;
-	white-space: nowrap;
-	scrollbar-width: none;
-	-webkit-overflow-scrolling: touch;
-}
-.mba-stat-row::-webkit-scrollbar { display: none; }
-.mba-stat-row span { flex-shrink: 0; color: var(--text-muted); font-size: 12px; }
-.mba-stat-row b { color: var(--text-color); font-weight: 600; }
 
 /* ── Tabs (L2 + L3) ────────────────────────────────────── */
 .mba-tabs {
@@ -478,11 +613,26 @@ traveller {
 	background: var(--card-bg);
 	font-size: 12.5px;
 }
+/* Wrap standard dalam toolbar tab — saiz flex dipindah ke wrap (input
+   di dalamnya width 100%). */
+.mba-tab-toolbar .mba-searchwrap {
+	flex: 1 1 160px;
+	min-width: 140px;
+}
+.mba-tab-toolbar .mba-searchwrap > input {
+	flex: 1 1 auto;
+	min-width: 0;
+	width: 100%;
+}
 .mba-tab-toolbar select {
 	height: 30px;
 	font-size: 12.5px;
 	max-width: 220px;
 }
+
+/* Butang aksi toolbar — dorong ke hujung kanan (cth. Rooming Board pada
+   tab Rooms L3 booking info; teks ringkasan di kiri). */
+.mba-tab-toolbar .mba-toolbar-push { margin-left: auto; }
 
 /* Extras toolbar pakej traveller (L2) — tapisan server (carian/group/doc/
    limit) dalam toolbar pakej; gaya selari .mba-tab-toolbar. */
@@ -495,14 +645,15 @@ traveller {
 .mba-tv-extras input[type="text"] {
 	flex: 1 1 160px;
 	min-width: 140px;
-	height: 28px;
+	height: 30px;
 	border: 1px solid var(--border-color);
 	border-radius: var(--border-radius);
 	padding: 0 10px;
 	background: var(--card-bg);
 	font-size: 12.5px;
 }
-.mba-tv-extras select { height: 28px; font-size: 12.5px; max-width: 220px; }
+.mba-tv-extras select,
+.mba-tv-toolbar-right select { height: 30px; font-size: 12.5px; max-width: 220px; }
 
 .mba-tab-total {
 	margin-top: 8px;
@@ -602,7 +753,23 @@ traveller {
 	font-weight: 400;
 }
 
-.mba-panel-tools select { font-size: 12px; height: 24px; padding: 0 4px; margin: 0; }
+/* Revenue Timeline — panel boleh lipat (details/summary). */
+.mba-tl-sec > summary.mba-panel-head {
+	cursor: pointer;
+	list-style: none;
+}
+.mba-tl-sec > summary.mba-panel-head::-webkit-details-marker { display: none; }
+.mba-tl-sec > summary.mba-panel-head::before {
+	content: "›";
+	display: inline-block;
+	margin-right: 8px;
+	font-size: 14px;
+	color: var(--text-muted);
+	transition: transform 0.15s;
+}
+.mba-tl-sec[open] > summary.mba-panel-head::before { transform: rotate(90deg); }
+
+.mba-panel-tools select { font-size: 11px; height: 26px; padding: 0 4px; margin: 0; }
 .mba-panel-sub { color: var(--text-muted); }
 .mba-panel-body { padding: 8px 10px 12px; }
 
@@ -636,23 +803,13 @@ traveller {
 }
 .mba-analytics[open] > summary::after { transform: rotate(-90deg); }
 
-/* Section Analytics — Bookings / Travellers / Breakdowns */
-.mba-an-sec { padding: 6px 0 2px; }
-.mba-an-sec + .mba-an-sec { border-top: 1px solid var(--border-color); margin-top: 6px; }
-.mba-an-sec-title {
-	font-size: 12px;
-	font-weight: 700;
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-	color: var(--text-color);
-	padding: 2px 0 4px;
-}
-
+/* Analytics — kini tiga panel berasingan (Booking / Travellers / Breakdown);
+   sub-section lipat dalam panel tidak lagi digunakan. */
 .mba-an-grid {
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 0 16px;
-	padding: 0 0 8px;
+	padding: 6px 0 8px;
 }
 /* Tablet — 2 kolum; telefon — 1 kolum (donut 180px muat penuh). */
 @media (max-width: 1199px) and (min-width: 768px) {
@@ -686,6 +843,15 @@ traveller {
 	color: var(--text-color);
 }
 .mba-bd-value { text-align: right; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Pecahan DOB dalam trip (Breakdowns) — nama traveller boleh klik →
+   modal maklumat traveller penuh. */
+.mba-dob-link {
+	color: var(--brand-primary, var(--blue-500, #4f7bfd));
+	cursor: pointer;
+	text-decoration: none;
+}
+.mba-dob-link:hover { text-decoration: underline; }
 
 /* Donut chart (analytics) — pusat jumlah pax + legend HTML menegak */
 .mba-donut-block { padding: 2px 0 4px; }
@@ -803,6 +969,25 @@ traveller {
 	flex-shrink: 0;
 	background: var(--control-bg, var(--bg-color));
 }
+/* Pembungkus foto kad — untuk checkbox bulk edit/download TERAPUNG
+   kanan-atas foto. */
+.mba-tv-photo-wrap {
+	position: relative;
+}
+.mba-tv-photo-wrap .mba-tv-checkrow {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	z-index: 2;
+	width: 16px;
+	height: 16px;
+	margin: 0;
+	cursor: pointer;
+	accent-color: var(--primary, #2490ef);
+	background: rgba(255, 255, 255, 0.85);
+	border-radius: 3px;
+	box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
 .mba-tv-photo--empty {
 	display: flex;
 	align-items: center;
@@ -820,31 +1005,52 @@ traveller {
 	flex-wrap: wrap;
 }
 
-.mba-tvcard-badges { display: inline-flex; gap: 4px; flex-wrap: wrap; }
-.mba-tvcard-sub { font-size: 11.5px; color: var(--text-muted); overflow-wrap: anywhere; }
-
-/* Aksi traveller (L3) — lihat dokumen (modal), jana guest link & edit info;
-   butang sentiasa JAJAR KANAN; dalam kad & kolum Docs jadual. */
-.mba-tv-status-actions {
+.mba-tvcard-badges {
 	display: flex;
 	gap: 4px;
 	flex-wrap: wrap;
 	align-items: center;
-	justify-content: flex-end;
-	margin: 4px 0;
+	justify-content: space-between;
 }
+.mba-tvcard-badges .mba-tvcard-badge-l {
+	display: inline-flex;
+	gap: 4px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+.mba-tvcard-sub { font-size: 11.5px; color: var(--text-muted); overflow-wrap: anywhere; }
+
+/* Aksi traveller — jana guest passport link SAHAJA (ikon telanjang,
+   tiada border/padding); dalam kad & kolum Docs jadual. Butang preview
+   passport (eye) & edit doctype (pencil) dibuang — keduanya ada dalam
+   modal traveller (klik kad/baris → modal → preview + Edit). */
 .btn, select, input {
     border: 0.5px solid #ddd;
     line-height: 1;
     border-radius: 5px;
     padding: 5px 10px;
 }
-.mba-tv-status-actions .btn .icon { vertical-align: middle; margin-top: -2px; }
-.mba-tv-status-actions .btn { line-height: 1; }
+/* Butang guest passport link — ikon telanjang (bukan class .btn supaya
+   terlepas rule border/padding global di atas). */
+.mba-tv-link-btn {
+	display: inline-flex;
+	align-items: center;
+	background: none;
+	border: 0;
+	padding: 0;
+	margin: 0;
+	line-height: 1;
+	cursor: pointer;
+	color: var(--text-muted, #6b7280);
+}
+.mba-tv-link-btn:hover,
+.mba-tv-link-btn:focus {
+	background: none;
+	color: var(--text-color, #36414c);
+}
 
-/* Toolbar 2 baris: Baris 1 carian tengah, Baris 2 kiri (paparan +
-   tapisan) lawan kanan (muat turun + Order By). position:relative —
-   jangkar panel penapis dinamik (.mba-cf) yang terapung di bawahnya. */
+/* Toolbar 2 baris: Baris 1 carian + butang Filter; Baris 2 kiri (paparan)
+   lawan kanan (bilangan baris + muat turun + Order By). */
 .mba-tv-toolbar {
 	position: relative;
 	display: flex;
@@ -852,17 +1058,23 @@ traveller {
 	gap: 6px;
 	margin-bottom: 10px;
 }
-/* Baris 1 — kotak carian di tengah (lebar tetap, di tengah baris).
+/* Baris 1 — kotak carian + butang Filter (extras) di kanannya.
    Warna/border diambil oleh lapisan standard (input putih) di hujung fail. */
 .mba-tv-toolbar-top {
 	display: flex;
-	/* justify-content: center; */
+	gap: 6px;
+	align-items: center;
+	/* Full width — kotak carian meregang memenuhi ruang kosong. */
+	width: 100%;
 }
 .mba-tv-toolbar-top input {
-	width: min(380px, 100%);
-	height: 28px;
+	width: 100%;
+	height: 30px;
 	font-size: 12px;
 }
+/* Pembungkus kotak carian — PAKEJ STANDARD TravelBookingSearchBox
+   (markup .mba-searchwrap; gaya asas dalam search_box.css global).
+   Hanya saiz tempatan toolbar di bawah. */
 /* Baris 2 — kiri: toggol paparan + section tapisan; kanan: label
    Download + kumpulan fail + Order By. Setiap sisi membungkus
    (flex-wrap) pada skrin kecil. */
@@ -888,14 +1100,33 @@ traveller {
 	border-color: var(--brand-primary, var(--blue-500, #4f7bfd));
 }
 .mba-tv-tools { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.mba-tv-tools input { width: 180px; max-width: 60vw; height: 28px; font-size: 12px; }
-.mba-tv-search { width: 200px; max-width: 60vw; height: 28px; font-size: 12px; }
+.mba-tv-tools input { width: 180px; max-width: 60vw; height: 30px; font-size: 12.5px; }
+.mba-tv-search { width: 200px; max-width: 60vw; height: 30px; font-size: 12.5px; }
 
 /* Select tapisan pakej traveller (doc status + bilangan baris, L3) */
 .mba-tv-toolbar-left select {
-	height: 28px;
+	height: 30px;
 	font-size: 12.5px;
 	max-width: 170px;
+}
+/* Checkbox "Unlinked Traveller Only" — selepas butang Bulk Edit. */
+.mba-tv-unlinked {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	margin: 0 0 0 2px;
+	font-size: 12px;
+	color: var(--text-color);
+	white-space: nowrap;
+	cursor: pointer;
+	user-select: none;
+}
+.mba-tv-unlinked input {
+	width: 14px;
+	height: 14px;
+	margin: 0;
+	cursor: pointer;
+	accent-color: var(--primary, #2490ef);
 }
 /* Baris kiraan bila tapisan/limit aktif */
 .mba-tv-count {
@@ -903,6 +1134,38 @@ traveller {
 	color: var(--text-muted);
 	margin: -2px 0 8px;
 }
+/* Ringkasan kecil tab traveller — 3 KOLUM: (1) Booked/Reserved for,
+   (2) Pending Verification / Verified Document, (3) Readiness (kanan).
+   Setiap kolum susunan menegak; Readiness berwarna ikut tahap. */
+.mba-tv-summary {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px 28px;
+	align-items: center;
+	justify-content: flex-start;
+	margin: 0 0 8px;
+	padding: 8px 12px;
+	font-size: 11.5px;
+	color: var(--text-muted);
+	background: #fdfdee;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+}
+.mba-tv-summary b { color: var(--text-color); }
+.mba-tv-sum-col {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+.mba-tv-sum-col--end {
+	margin-left: auto;
+	align-items: flex-end;
+}
+.mba-tv-sum-ready { font-weight: 600; color: var(--text-color); }
+.mba-tv-sum-ready b { font-size: 13px; }
+.mba-tv-sum-ready--good b { color: var(--bs-success, #22a05a); }
+.mba-tv-sum-ready--warn b { color: var(--bs-warning, #d18f00); }
+.mba-tv-sum-ready--bad b { color: var(--bs-danger, #d33); }
 
 /* Header jadual Travellers boleh sort (klik → sort, klik lagi → tukar arah) */
 .mba-tv-sort { cursor: pointer; user-select: none; white-space: nowrap; }
@@ -912,7 +1175,7 @@ traveller {
 .mba-tv-sort.is-sorted .mba-tv-sort-ico { opacity: 1; }
 
 /* Order By (komponen Frappe) — kecilkan supaya sekali dengan toolbar xs */
-.mba-tv-tools .sort-selector .btn { height: 28px; font-size: 12px; padding: 2px 8px; }
+.mba-tv-tools .sort-selector .btn { height: 30px; font-size: 12.5px; padding: 2px 10px; }
 .mba-tv-tools .sort-selector .dropdown-text { font-size: 12px; }
 
 .mba-tv-grid {
@@ -958,44 +1221,78 @@ traveller {
 	background: var(--control-bg, var(--bg-color));
 }
 
-/* Section collapsible dalam kolum info — sub-topik Traveller's Info &
-   Booking Info (details/summary, corak sama dengan .mba-analytics &
-   .mba-room). Summary bergaya sub-head lama; chevron 90° bila terbuka. */
-.mba-tvsec { margin: 0 0 14px; }
-.mba-tvsec + .mba-tvsec { margin-top: 20px; }
-.mba-tvsec > summary {
+/* Semua panel (kad) tab modal berdiri sendiri — tiada lagi struktur
+   collapsible / sub-heading (mba-tvsec). Jarak antara kad dalam pane. */
+.mba-tvtab-pane .mba-bkg-card { margin: 0 0 14px; }
+.mba-tvtab-pane > .mba-bkg-card:last-child,
+.mba-tvtab-pane > .mba-empty:last-child { margin-bottom: 0; }
+/* Header sticky tab Traveller Info — tajuk status doctype Traveller +
+   aksi (Update Traveller / Doctype / Edit). Sticky DI BAWAH bar tab
+   (offset tepat diset JS selepas render); kekal kelihatan semasa
+   kandungan tab menatal pada skrin biasa. */
+.mba-tvdocstatus {
+	display: grid;
+	/* 2 kolum: kiri status (label + badge + pen), kanan aksi. */
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 8px;
+	margin: 14px 0;
+	padding: 8px 10px;
+	background: var(--card-bg, #fff);
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+}
+.mba-tvdocstatus-title {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	font-size: 11.5px;
+	font-size: 12.5px;
 	font-weight: 700;
-	color: var(--text-muted);
-	text-transform: uppercase;
-	letter-spacing: 0.05em;
-	margin: 0 0 8px;
-	padding-bottom: 4px;
-	padding-right: 4px;
-	border-bottom: 1px solid var(--border-color);
-	cursor: pointer;
-	user-select: none;
-	list-style: none;
+	min-width: 0;
+	flex-wrap: wrap;
 }
-.mba-tvsec > summary::-webkit-details-marker { display: none; }
-.mba-tvsec > summary::after {
-	content: '▸';
-	margin-left: auto;
+/* Ikon pen kecil — quick update status di sebelah badge. */
+/* Ikon pen kecil — quick update status di sebelah badge (header status
+   tab Traveller Info + bar tajuk panel Booking / Booking Reservation). */
+/* Ikon pen kecil — quick update status di sebelah badge. Dua lokasi:
+   header Document Status (tab Traveller Info, berlabel "Change Status")
+   + bar tajuk panel Booking / Booking Reservation (ikon sahaja). */
+.mba-tvdocstatus-title .mba-status-pen-btn {
+	padding: 0 6px;
 	font-size: 11px;
-	color: var(--text-muted);
-	transition: transform 0.15s ease;
-	transform: rotate(90deg);
+	line-height: 16px;
+	white-space: nowrap;
 }
-.mba-tvsec:not([open]) > summary::after { transform: rotate(0deg); }
-.mba-tvsec > summary:hover { color: var(--text-color); }
-.mba-tvsec-body > .mba-bkg-card { margin-top: 10px; }
-.mba-tvsec-body > .mba-bkg-card:first-child { margin-top: 0; }
-.mba-tvmodal-info > .mba-tvsec:last-child { margin-bottom: 0; }
-/* Panel yang dikeluarkan dari section (Personal / Booking) — terpapar
-   sentiasa di atas section masing-masing; jarak sendiri. */
+.mba-bkg-card-title-extra .mba-status-pen-btn {
+	padding: 0 5px !important;
+	font-size: 11px !important;
+	line-height: 16px !important;
+	white-space: nowrap;
+}
+/* Kolum kanan — kanan-jajar: Edit + Doctype. */
+.mba-tvdocstatus-actions {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+.mba-tvdocstatus-actions .btn { white-space: nowrap; }
+/* Doctype sebagai link (bukan butang) — tab baharu. */
+.mba-tvdocstatus-link {
+	font-size: 12px;
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+.mba-tvdocstatus-link:hover { color: var(--text-color); }
+@media (min-width: 992px) {
+	.mba-tvmodal-info .mba-tvdocstatus {
+		position: sticky;
+		top: 41px; /* fallback — nilai tepat diset JS (tinggi bar tab) */
+		z-index: 3;
+	}
+}
+/* Kad info dalam kolum (luar tab — borang Edit) kekal berjarak. */
 .mba-tvmodal-info > .mba-bkg-card { margin: 0 0 14px; }
 /* Bar atas modal — navigasi Prev/Next (kiri) + butang Edit (kanan).
    Berada DI ATAS grid .mba-tvmodal (ADIK grid, bukan dalam kolum info)
@@ -1024,43 +1321,169 @@ traveller {
 	gap: 8px;
 }
 .mba-tvmodal-navpos { font-size: 12px; color: var(--text-muted); }
+/* Kumpulan aksi kanan bar top — butang :doctype + Edit. */
+.mba-tvmodal-actions {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+}
 /* Input nama/alamat dialog edit — papar uppercase semasa menaip
    (nilai sebenar di-uppercase oleh before_save doctype Traveller). */
 .mba-input-upper { text-transform: uppercase; }
 /* Panel EDIT dalam modal view — menggantikan kandungan kolum kanan
-   (.mba-tvmodal-info) di bawah bar top sticky. Kepala tetap, butang
-   Save/Cancel bawah; SKROL DI KOLUM (info sudah overflow-y: auto),
-   panel tidak menskrol sendiri. */
+   (.mba-tvmodal-info) di bawah bar top sticky. HEADER sticky di atas
+   (tajuk + butang Save/Cancel), borang menatal di bawahnya; skrol di
+   KOLUM (info sudah overflow-y: auto). Telefon: melekat di bawah bar
+   top modal (44px). */
 .mba-tvedit {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
 }
 .mba-tvedit-head {
+	position: sticky;
+	top: 0;
+	z-index: 4;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin: 0 0 10px;
+	padding: 8px 0 10px;
+	background: var(--card-bg, #fff);
+	border-bottom: 1px solid var(--border-color);
+}
+@media (max-width: 991px) {
+	.mba-tvedit-head { top: 44px; }
+}
+.mba-tvedit-head-title {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
-	padding-bottom: 6px;
-	border-bottom: 1px solid var(--border-color);
+	min-width: 0;
 }
-.mba-tvedit-head .mba-muted { font-size: 12px; }
+.mba-tvedit-head-title .mba-muted {
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.mba-tvedit-head-actions {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+	flex-shrink: 0;
+}
 .mba-tvedit-body {
 	flex: 1 1 auto;
 	padding-right: 4px;
 }
+/* Panel kad seksyen borang — bersempadan, berkepala, boleh collapse
+   (details/summary). Setiap panel badan sendiri (FieldGroup per panel). */
+.mba-tvedit-panels {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+.mba-tvedit-panel {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--card-bg, #fff);
+}
+.mba-tvedit-panel > summary {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 10px;
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--text-color);
+	cursor: pointer;
+	user-select: none;
+	list-style: none;
+}
+.mba-tvedit-panel > summary::-webkit-details-marker { display: none; }
+.mba-tvedit-panel > summary::after {
+	content: '▸';
+	margin-left: auto;
+	font-size: 11px;
+	color: var(--text-muted);
+	transition: transform 0.15s ease;
+	transform: rotate(90deg);
+}
+.mba-tvedit-panel:not([open]) > summary::after { transform: rotate(0deg); }
+/* Paksa sembunyi (selain perilaku native details) — kandungan FieldGroup
+   kekal di DOM supaya nilai masih boleh dibaca semasa save. */
+.mba-tvedit-panel:not([open]) .mba-tvedit-panel-body { display: none; }
+.mba-tvedit-panel[open] > summary {
+	border-bottom: 1px solid var(--border-color);
+}
+.mba-tvedit-panel-body { padding: 10px; }
+/* Panel inline (Identity) — medan sebaris, label kekal. frappe bungkus
+   medan dalam <form> di dalam .form-column — flex pada KEDUA-DUANYA. */
+.mba-tvedit-panel-body--inline .form-column,
+.mba-tvedit-panel-body--inline .form-column form {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+.mba-tvedit-panel-body--inline .frappe-control {
+	flex: 1 1 160px;
+	width: auto;
+	min-width: 160px;
+	max-width: 240px;
+	margin-bottom: 0;
+}
+/* Panel Address — baris inline postcode → city → state → country. */
+.mba-tvedit-inline-row {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+.mba-tvedit-inline-row > .frappe-control {
+	flex: 1 1 130px;
+	width: auto;
+	min-width: 120px;
+	margin-bottom: 8px;
+}
+/* Address Line 1 — textarea mini (Small Text). Frappe set height sendiri
+   (~150px) — paksa rendah dengan !important. */
+.mba-tvedit-panel-body .frappe-control[data-fieldname="address_line1"] textarea {
+	height: 56px !important;
+	min-height: 56px;
+	font-size: 12px;
+	resize: vertical;
+}
+/* Butang salin alamat bil — baris atas panel Address. */
+.mba-addr-copy-wrap {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 8px;
+}
+.mba-addr-copy-note { font-size: 11px; }
 /* FieldGroup dalam panel sempit — sections rapatkan sikit */
 .mba-tvedit-body .form-layout .form-section { margin-bottom: 8px; }
 .mba-tvedit-body .form-layout .section-head { margin-bottom: 4px; }
-.mba-tvedit-foot {
+.mba-tvedit-body .frappe-control { margin-bottom: 8px; }
+/* Mesej kolum kiri bila tiada passport image — kandungan preview
+   disembunyikan, kolum kekal dengan mesej. */
+.mba-tvmodal-nopass {
 	display: flex;
-	gap: 6px;
-	justify-content: flex-end;
-	padding-top: 8px;
-	border-top: 1px solid var(--border-color);
+	align-items: center;
+	justify-content: center;
+	min-height: 120px;
+	padding: 24px 12px;
+	border: 1px dashed var(--border-color);
+	border-radius: var(--border-radius);
+	color: var(--text-muted);
+	font-size: 13px;
+	text-align: center;
+	background: var(--control-bg, var(--bg-color));
 }
-/* Badge status doctype pada sub-heading section — kekal natural-case
-   (summary diset uppercase + letter-spacing). */
-.mba-tvsec > summary .mba-badge { text-transform: none; letter-spacing: normal; }
 
 /* PC (skrin biasa) — modal maksimum, 2 kolum 50/50: preview dokumen
    sticky kiri, kad info scroll di kanan. :has() melabuhkan lebar dialog
@@ -1072,14 +1495,11 @@ traveller {
 
 	.mba-tvmodal {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		/* Kolum kiri MINIMUM 50% (preview dokumen), kanan info — 1fr
+		   mengagih sama rata (50/50) dan minmax menjamin ≥50%. */
+		grid-template-columns: minmax(50%, 1fr) minmax(0, 1fr);
 		gap: 16px;
 		align-items: start;
-	}
-	/* Tanpa panel side (traveller tiada passport & borang edit ditutup) —
-	   kolum tunggal penuh, jangan tinggalkan separuh kanan kosong. */
-	.mba-tvmodal:not(:has(.mba-tvmodal-side)) {
-		grid-template-columns: minmax(0, 1fr);
 	}
 
 	.mba-tvmodal-side {
@@ -1112,6 +1532,20 @@ traveller {
 		max-height: min(74vh, 660px);
 		overflow-y: auto;
 		padding-right: 6px;
+	}
+
+	/* Bar tab kolum info — STICKY pada skrin biasa: melekat di atas
+	   kolum info semasa kandungan tab menatal (kolum ialah scroll
+	   container). Margin diganti padding (background melindungi) —
+	   kandungan tak tampak di celah bawah bar semasa menatal. */
+	.mba-tvmodal-info .mba-tvtabs {
+		position: sticky;
+		top: 0;
+		z-index: 4;
+		margin: 0 0 15px;
+		padding-bottom: 10px;
+		background: var(--card-bg, #fff);
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
 	}
 }
 
@@ -1160,11 +1594,13 @@ traveller {
 	}
 
 	.mba-tvmodal-side .mba-tvmodal-photo-wrap {
-		max-height: 40vh;
+		max-height: 35vh;
 	}
 
+	/* Imej passport pada telefon — TINGGI MAKSIMUM 35vh (frame PDF
+	   dikecualikan — bukan imej). */
 	.mba-tvmodal-side .mba-tvmodal-photo {
-		max-height: 40vh;
+		max-height: 35vh;
 		object-fit: contain;
 		margin: 0 auto;
 	}
@@ -1253,6 +1689,20 @@ traveller {
 	flex-wrap: wrap;
 	margin-bottom: 10px;
 }
+
+/* Link kecil "Open Booking Form" — tab baharu, doctype Booking */
+.mba-bkg-form-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--blue-600, #1a5fb4);
+	text-decoration: none !important;
+	white-space: nowrap;
+}
+.mba-bkg-form-link:hover { color: var(--blue-700, #174ea6); text-decoration: underline !important; }
+.mba-bkg-form-link .icon { width: 12px; height: 12px; }
 
 .mba-crumbs {
 	display: flex;
@@ -1360,37 +1810,48 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 	overflow-wrap: anywhere;
 }
 
-.mba-bkg-cust-actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.mba-bkg-cust-actions {
+	display: flex;
+	gap: 6px;
+	margin-top: 6px;
+	flex-wrap: wrap;
+	justify-content: flex-end;   /* butang kenalan jajar kanan (piawai page) */
+}
 
+/* Butang cepat piawai (Call / WhatsApp / Email / Open) — kecil, ikon + teks */
 .mba-quickbtn {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
 	border: 1px solid var(--border-color);
 	background: var(--card-bg);
-	border-radius: 16px;
-	padding: 3px 12px;
-	font-size: 12px;
+	border-radius: 13px;
+	padding: 2px 9px;
+	font-size: 11px;
 	text-decoration: none !important;
 	color: var(--text-color);
 }
+.mba-quickbtn .icon { width: 12px; height: 12px; flex: 0 0 auto; }
 .mba-quickbtn--wa {
 	background: var(--green-100, #e8f8e8);
 	color: var(--green-700, #1a7a1a);
 	border-color: transparent;
 }
 
-/* Ikon padat sebelah no. telefon (jadual booking) */
+/* Ikon padat sebelah no. telefon (jadual) */
 .mba-contact-icon {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 22px;
-	height: 22px;
+	width: 18px;
+	height: 18px;
 	border-radius: var(--border-radius);
 	color: var(--text-muted);
 	text-decoration: none !important;
 	vertical-align: middle;
 	transition: background 0.12s, color 0.12s;
 }
-.mba-contact-icon .icon { vertical-align: middle; }
+.mba-contact-icon .icon { width: 12px; height: 12px; vertical-align: middle; }
 .mba-contact-icon:hover {
 	background: var(--control-bg, var(--bg-color));
 	color: var(--text-color);
@@ -1398,7 +1859,11 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 .mba-contact-icon--wa { color: var(--green-600, #1a7a1a); }
 .mba-contact-icon--wa:hover { background: var(--green-100, #e8f8e8); }
 
-/* Strip wang */
+/* Baris telefon piawai — no. telefon kiri, ikon kenalan jajar kanan */
+.mba-contact-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mba-contact-acts { margin-left: auto; display: inline-flex; gap: 2px; flex: 0 0 auto; }
+
+/* Strip wang — dalam kandungan tab Overview (atas Order Summary) */
 .mba-bkg-money {
 	display: flex;
 	align-items: stretch;
@@ -1406,9 +1871,9 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 	flex-wrap: wrap;
 	border: 1px solid var(--border-color);
 	border-radius: var(--border-radius-lg);
-	background: var(--card-bg);
+	background: #fdfdee;
 	padding: 10px 12px;
-	margin-bottom: 4px;
+	margin-bottom: 10px;
 }
 
 .mba-mitem { flex: 1 1 120px; min-width: 0; }
@@ -1436,6 +1901,159 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 	padding-left: 12px;
 	border-left: 1px solid var(--border-color);
 	min-width: 120px;
+}
+
+/* Butang kecil Payment Link — selepas label BALANCE (baki tertunggak):
+   ikon + label "Pay", saiz mini. */
+.mba-mitem-l--pay { display: flex; align-items: center; gap: 5px; }
+.mba-paylink-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 3px;
+	flex: 0 0 auto;
+	height: 18px;
+	padding: 0 7px;
+	border: 1px solid var(--border-color);
+	border-radius: 9px;
+	background: var(--card-bg);
+	color: var(--text-muted);
+	font-size: 10px;
+	font-weight: 600;
+	line-height: 1;
+	cursor: pointer;
+	white-space: nowrap;
+}
+.mba-paylink-btn:hover {
+	color: var(--blue-600, #1a5fb4);
+	border-color: var(--blue-500, #4f83cc);
+	background: var(--blue-100, #e8f0fe);
+}
+.mba-paylink-btn .icon { width: 11px; height: 11px; }
+
+/* ── Modal Payment Link ─────────────────────────────────── */
+.mba-paylink { display: flex; flex-direction: column; gap: 14px; }
+.mba-paylink-sec {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: var(--card-bg);
+	padding: 12px;
+}
+.mba-paylink-head {
+	font-size: 10px;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	color: var(--text-muted);
+	margin-bottom: 8px;
+}
+.mba-paylink-so {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 7px 4px;
+	border-bottom: 1px solid var(--border-color);
+	font-size: 13px;
+}
+.mba-paylink-so:last-of-type { border-bottom: 0; }
+.mba-paylink-sel {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	cursor: pointer;
+	margin: 0;
+	font-weight: normal;
+}
+.mba-paylink-soname { min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* Input jumlah alokasi per dokumen — boleh sunting (lalai = baki penuh) */
+.mba-paylink-amtwrap { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.mba-paylink-amt {
+	width: 110px;
+	text-align: right;
+	font-size: 13px;
+	font-weight: 600;
+	padding: 3px 8px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--card-bg);
+	color: var(--text-color);
+}
+.mba-paylink-amt:focus {
+	outline: none;
+	border-color: var(--primary, #1a5fb4);
+}
+.mba-paylink-amt:disabled { opacity: 0.55; background: var(--control-bg, var(--bg-color)); }
+.mba-paylink-amt::-webkit-outer-spin-button,
+.mba-paylink-amt::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.mba-paylink-amt[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.mba-paylink-cur { font-size: 11px; color: var(--text-muted); }
+.mba-paylink-so.is-invalid .mba-paylink-amt {
+	border-color: var(--red-500, #e24c4b);
+	background: var(--red-50, #fdf0f0);
+}
+.mba-paylink-total {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	flex-wrap: wrap;
+	padding: 10px 4px 2px;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+.mba-paylink-total b { font-size: 15px; color: var(--text-color); }
+.mba-paylink-warn {
+	margin-top: 8px;
+	padding: 8px 10px;
+	border-radius: var(--border-radius);
+	background: var(--yellow-100, #fdf6e3);
+	color: var(--yellow-700, #8a6d1a);
+	font-size: 12px;
+}
+.mba-paylink-genrow {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+	margin-top: 10px;
+}
+.mba-paylink-empty { font-size: 12px; color: var(--text-muted); padding: 4px; }
+
+.mba-paylink-card { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.mba-paylink-qr {
+	flex: 0 0 auto;
+	width: 148px;
+	height: 148px;
+	padding: 8px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg);
+	background: #fff;
+}
+.mba-paylink-qr img { width: 100%; height: 100%; display: block; }
+.mba-paylink-info { flex: 1 1 240px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.mba-paylink-amt { font-size: 18px; font-weight: 700; }
+.mba-paylink-urlrow { display: flex; gap: 6px; align-items: center; }
+.mba-paylink-urlrow .form-control {
+	font-size: 12px;
+	color: var(--text-muted);
+	background: var(--control-bg, var(--bg-color));
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.mba-paylink-rows { display: flex; flex-direction: column; }
+.mba-paylink-row {
+	display: flex;
+	justify-content: space-between;
+	gap: 10px;
+	font-size: 12.5px;
+	padding: 4px 0;
+	border-bottom: 1px dashed var(--border-color);
+}
+.mba-paylink-row:last-child { border-bottom: 0; }
+
+@media (max-width: 575px) {
+	.mba-paylink-qr { width: 128px; height: 128px; }
 }
 
 /* Chips operasi */
@@ -1478,7 +2096,23 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 .mba-bkg-osum-row.is-fare { font-weight: 600; border-top: 1px dashed var(--border-color); margin-top: 2px; padding-top: 4px; }
 .mba-bkg-osum-row.is-dsc { color: var(--red-600, #c0392b); }
 
-/* ── L3: Timeline ──────────────────────────────────────── */
+/* ── L3: Timeline — seksyen sangat kecil & muted (visual tenang) ── */
+.mba-bkg-tlwrap .mba-section-title {
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.4px;
+	color: var(--text-muted);
+	margin: 12px 0 6px;
+}
+.mba-bkg-tlwrap .mba-count-pill {
+	min-width: 15px;
+	padding: 0 5px;
+	font-size: 9px;
+	line-height: 15px;
+	border-radius: 8px;
+}
+
 .mba-bkg-tl {
 	position: relative;
 	margin: 4px 0 4px 7px;
@@ -1488,9 +2122,10 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 
 .mba-bkg-tli {
 	position: relative;
-	padding: 0 0 12px 8px;
-	font-size: var(--text-sm);
-	color: var(--text-color);
+	padding: 0 0 10px 8px;
+	font-size: 11px;
+	line-height: 1.5;
+	color: var(--text-muted);
 }
 
 .mba-bkg-tli:last-child { padding-bottom: 2px; }
@@ -1514,10 +2149,27 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 .mba-bkg-tli--future { color: var(--text-muted); }
 
 .mba-bkg-tld {
-	font-size: 10.5px;
+	font-size: 9.5px;
 	text-transform: uppercase;
 	letter-spacing: 0.4px;
 	color: var(--text-muted);
+	opacity: 0.85;
+}
+
+/* Pautan & badge dalam timeline — muted juga (teks kecil kelabu,
+ * badge jadi outline; hover pulihkan kontras untuk kebolehbacaan). */
+.mba-bkg-tl a { color: var(--text-muted); }
+.mba-bkg-tl a:hover { color: var(--text-color); }
+.mba-bkg-tl .mba-badge {
+	background: transparent;
+	border: 1px solid var(--border-color);
+	color: var(--text-muted);
+	font-size: 9px;
+	padding: 0 5px;
+}
+.mba-bkg-tl .mba-tl-toggle {
+	font-size: 11px;
+	padding: 1px 8px;
 }
 
 /* ── L3: Documents & Payments ──────────────────────────── */
@@ -1634,7 +2286,54 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 	padding: 10px 12px;
 }
 
-.mba-bkg-card-title { font-weight: 600; margin-bottom: 4px; }
+.mba-bkg-card-title {
+	font-weight: 600;
+	margin-bottom: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+/* Kumpulan kanan bar tajuk kad — butang status doctype (klik tukar). */
+.mba-bkg-card-title-extra {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 0;
+}
+.mba-bkg-card-title-extra .btn { white-space: nowrap; }
+/* Booking No — nombor booking BESAR & bold (teks sahaja, link dipisah
+   kepada butang ikon selepas info). */
+.mba-bkg-no-link { font-size: 15px; font-weight: 700; white-space: nowrap; }
+/* Butang ikon ↗ selepas info (Booking No / Booking ID) — tab baharu:
+   Booking No → paparan booking halaman ini; Booking ID → rekod doctype
+   Booking. Saiz selari butang pen status (mba-status-pen-btn). */
+.mba-bkg-open-btn {
+	padding: 0 5px !important;
+	font-size: 11px !important;
+	line-height: 16px !important;
+	vertical-align: middle;
+}
+/* Butang edit ikon kecil (✎/✏) — corak sama butang pen status:
+   Booking Contact (mba-bkedit-btn), kad Rooming (mba-rmedit-btn),
+   kad Flight (mba-fltedit-btn), header Traveller Info
+   (mba-tvmodal-edit-btn). */
+.mba-bkedit-btn, .mba-rmedit-btn, .mba-fltedit-btn, .mba-tvmodal-edit-btn {
+	padding: 0 5px !important;
+	font-size: 11px !important;
+	line-height: 16px !important;
+	vertical-align: middle;
+}
+/* Varian dalam baris kad (selepas info) — jarak kecil dari teks. */
+.mba-bkedit-btn { margin-left: 3px; }
+/* Order Summary (baris Booking Info Overview) — teks berstruktur
+   multi-baris (cabin/guest/diskaun dari virtual property Booking);
+   kecil & muted supaya tak menenggelamkan kad. */
+.mba-bkg-osum {
+	white-space: pre-line;
+	font-size: 11.5px;
+	color: var(--text-muted);
+}
 
 .mba-bkg-card-row {
 	display: flex;
@@ -1701,7 +2400,13 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 }
 .mba-glink-meta { font-size: 12px; color: var(--text-muted); }
 
-.mba-bkg-card-actions { display: flex; gap: 6px; padding-top: 6px; flex-wrap: wrap; }
+.mba-bkg-card-actions {
+	display: flex;
+	gap: 6px;
+	padding-top: 6px;
+	flex-wrap: wrap;
+	justify-content: flex-end;   /* butang kenalan jajar kanan (piawai page) */
+}
 
 .mba-bkg-dsc-note {
 	margin-top: 8px;
@@ -1720,6 +2425,19 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 	justify-content: center;
 	margin-top: 5px;
 	margin-bottom: 5px;
+}
+/* Butang aksi KECIL seragam (bukan form submission) — bar aksi dokumen
+   kiri modal traveller + bar aksi dialog Guest Link (WhatsApp/Copy/Open).
+   Saat pen (18px) — btn-xs frappe masih 26px, terlalu besar. Form
+   submission dikecualikan (btn-primary seperti Generate Link kekal
+   normal); dialog status/bulk guna .mba-file-actions sendiri tanpa
+   cakupan ini. */
+.mba-tvmodal-side .mba-file-actions .btn,
+.mba-glink .mba-file-actions .btn:not(.btn-primary) {
+	padding: 0 6px !important;
+	font-size: 11px !important;
+	line-height: 18px !important;
+	height: auto;
 }
 
 /* Crop dokumen passport — seret dalam untuk pan, slider untuk zum,
@@ -1809,7 +2527,7 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 	.mba-tab-total { display: none; }
 
 	.mba-bkg-shell { grid-template-columns: 280px minmax(0, 1fr); align-items: start; }
-	.mba-bkg-rail { position: sticky; top: 24px; }
+	.mba-bkg-rail { position: sticky; top: 64px; }
 
 	.mba-bkg-others-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	.mba-bkg-others-grid > div { min-width: 0; }
@@ -1880,33 +2598,26 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
    .mba-tv-toolbar-top). ── */
 
 /* ── Panel penapis dinamik tab Travellers (L2 & L3) ── */
-/* Panel penapis terapung — OVERLAY di bawah toolbar, TIDAK menolak
-   result ke bawah bila dibuka/tutup (dianggap bahagian toolbar; result
-   kekal di tempatnya). top:100% melekat pada bawah toolbar apa jua
-   ketinggiannya; z-index di atas grid/jadual, di bawah modal framework. */
+/* Panel penapis dinamik — DALAM aliran dokumen (bukan overlay terapung):
+   bila dibuka ia menolak result ke bawah dan tutup kembali menariknya.
+   Render sebagai baris kedua dalam .mba-tv-toolbar (custom_filter_html). */
 .mba-cf {
-	position: absolute;
-	top: 100%;
-	left: 0;
-	right: 0;
-	z-index: 30;
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
 	padding: 8px;
-	margin: 0;
+	margin: 6px 0 0;
 	border: 1px solid var(--border-color, #d1d8dd);
 	border-radius: var(--border-radius, 6px);
-	background: var(--card-bg, var(--control-bg, var(--bg-color, #f8f8f8)));
-	box-shadow: var(--shadow-md, 0 4px 14px rgba(0, 0, 0, 0.12));
+	background: #e9e9ff;
 }
 .mba-cf-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 /* Pemilih medan — input autocomplete (datalist semua medan 4 doctype) */
-.mba-cf-field-input { height: 28px; font-size: 12.5px; flex: 1 1 220px; max-width: 340px; }
-.mba-cf-value { height: 28px; font-size: 12.5px; flex: 1 1 160px; max-width: 260px; }
+.mba-cf-field-input { height: 30px; font-size: 12.5px; flex: 1 1 220px; max-width: 340px; }
+.mba-cf-value { height: 30px; font-size: 12.5px; flex: 1 1 160px; max-width: 260px; }
 /* Julat Min–Max — medan nombor/currency (bukan input nilai tunggal) */
 .mba-cf-range { display: inline-flex; align-items: center; gap: 4px; flex: 1 1 160px; max-width: 260px; }
-.mba-cf-range input { height: 28px; font-size: 12.5px; min-width: 0; flex: 1; }
+.mba-cf-range input { height: 30px; font-size: 12.5px; min-width: 0; flex: 1; }
 .mba-cf-sep { opacity: 0.6; font-size: 12px; }
 .mba-cf-del { padding: 3px 8px; line-height: 1; }
 .mba-cf-actions { display: flex; gap: 6px; align-items: center; }
@@ -1989,4 +2700,677 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 	background: var(--control-bg, #f4f5f6);
 	border-color: var(--border-color, #d1d8dd);
 	color: var(--text-color, #202124);
+}
+
+/* ── Modal page ini — z-index 2000 ──
+   Semua modal yang dibuka dari page manage-booking-app (traveller info,
+   guest link, crop, file viewer) diletakkan di atas overlay framework —
+   selevel #freeze (2000) dan di atas modal piawaian Bootstrap (1050).
+   Modal-backdrop Bootstrap (1040) kekal di bawah modal. */
+.modal {
+	z-index: 2000;
+}
+
+/* Popover pemilih kod negara (kawalan Phone frappe) — lalai z-index
+   bootstrap (1070) berada DI BAWAH modal page ini (2000) → popover
+   tak nampak & "tak respons". Angkat ke atas modal. */
+.phone-picker-popover {
+	z-index: 2100;
+}
+
+/* Kawalan Phone — indikator negara (bendera/kod) sejajar atas input. */
+.selected-phone {
+	top: 0 !important;
+}
+
+/* Bulk edit (table view) — kolum checkbox & butang toolbar. */
+.mba-tv-tablewrap .mba-tv-check {
+	width: 30px;
+	text-align: center;
+}
+.mba-tv-check input {
+	width: 14px;
+	height: 14px;
+	margin: 0;
+	padding: 0;
+	vertical-align: middle;
+}
+.mba-tv-bulk-btn[disabled] { opacity: 0.5; }
+
+/* Baris luput + butang Refresh kecil sebelahnya (modal guest link). */
+.mba-glink-expiry {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+.mba-glink-expiry .btn {
+	padding: 2px 8px;
+	font-size: 11.5px;
+	line-height: 1.2;
+}
+
+/* ── Tab kolum info modal traveller ──
+   Traveller Info / Booking Info / Booking Addon Info / Rooming & Flight. */
+.mba-tvtabs {
+	display: flex;
+	gap: 2px;
+	flex-wrap: wrap;
+	border-bottom: 1px solid var(--border-color);
+	margin-bottom: 12px;
+}
+.mba-tvtab {
+	padding: 5px 10px;
+	font-size: 12px;
+	line-height: 1.2;
+	background: none;
+	border: 0;
+	border-bottom: 2px solid transparent;
+	border-radius: 0;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+.mba-tvtab:hover { color: var(--text-color); }
+.mba-tvtab.active {
+	color: var(--brand-primary, var(--blue-500, #4f7bfd));
+	border-bottom-color: var(--brand-primary, var(--blue-500, #4f7bfd));
+	font-weight: 600;
+}
+.mba-tvtab-pane { display: none; }
+.mba-tvtab-pane.active { display: block; }
+.mba-tvtab-pane > .mba-bkg-card:first-child { margin-top: 0; }
+
+/* Booking ID dalam kolum BOOKING — saiz kecil, muted. */
+.mba-bkg-id { font-size: 11px; }
+
+/* Pengepala jadual traveller (table view) melekat semasa menatal —
+   wrapper menjadi scroll container menegak (max-height) dan thead
+   sticky di atasnya. */
+.mba-tv-tablewrap {
+	overflow: auto;
+}
+.mba-tv-tablewrap thead th {
+	position: sticky;
+	top: 0;
+	z-index: 4;
+	background: var(--control-bg, var(--bg-color));
+	box-shadow: 0 1px 0 var(--border-color);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ROOMING BOARD (rooming_board.js) — papan Kanban susun atur bilik
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Modal papan — lebar penuh & badan boleh scroll (Frappe default
+   modal-body max-height terlalu kecil untuk papan multi-kolum). */
+.mba-rb-dialog .modal-dialog { width: min(96vw, 1500px); max-width: 96vw; }
+.mba-rb-dialog .modal-body { max-height: calc(100vh - 190px); overflow: auto; }
+
+.mba-rb { display: flex; flex-direction: column; gap: 10px; }
+
+/* Toolbar papan — carian + penapis saringan bilik + bilik baharu. */
+.mba-rb-toolbar {
+	display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+	padding-bottom: 8px; border-bottom: 1px solid var(--border-color);
+}
+.mba-rb-toolbar input[type="text"], .mba-rb-toolbar select {
+	height: 30px; padding: 3px 10px; font-size: 12.5px;
+	border: 1px solid var(--border-color); border-radius: var(--border-radius);
+	background: var(--control-bg, var(--bg-color)); color: var(--text-color);
+}
+.mba-rb-toolbar .mba-searchwrap { flex: 1 1 200px; min-width: 160px; }
+.mba-rb-count {
+	font-size: 12px; color: var(--text-muted);
+	font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.mba-rb-addroom { margin-left: auto; white-space: nowrap; }
+.mba-rb-section { display: flex; flex-direction: column; gap: 8px; }
+.mba-rb-section-head {
+	display: flex; align-items: center; gap: 8px;
+	font-size: var(--text-sm, 12px); color: var(--text-muted);
+	padding-bottom: 4px; border-bottom: 1px solid var(--border-color);
+}
+.mba-rb-section-head .mba-rb-addroom { margin-left: auto; }
+
+/* Baris kolum — scroll mendatar pada desktop, susun menegak pada
+   telefon (kanban atas-bawah; laluan pindah = dialog klik kad). */
+.mba-rb-cols {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+	gap: 10px;
+	align-items: start;
+}
+.mba-rb-col {
+	display: flex; flex-direction: column;
+	/* min-width: 0 — benarkan grid item mengecil bawah saiz kandungan
+	   (select/input props mempunyai lebar intrinsik; tanpa ini kolum
+	   melebihi track pada skrin sempit). */
+	min-width: 0;
+	background: #ffeccf;
+	border: 1px solid #ffffff; border-radius: var(--border-radius);
+	box-shadow: inset #0000001c 0.5px 0.5px 10px 0px;
+}
+.mba-rb-col-props select, .mba-rb-col-props input[type="text"] { max-width: 100%; }
+.mba-rb-col.is-unassigned { background: transparent; border-style: dashed; }
+.mba-rb-col.is-new { border-color: var(--primary-color, #2490ef); }
+.mba-rb-col.is-drop { outline: 2px dashed var(--primary-color, #2490ef); outline-offset: -3px; }
+
+.mba-rb-col-head { padding: 8px 10px 6px; border-bottom: 1px solid var(--border-color); }
+.mba-rb-col-title { display: flex; flex-direction: column; gap: 1px; }
+.mba-rb-col-title-main { display: flex; align-items: center; gap: 8px; }
+/* Nama customer — nota kecil subtopik di bawah booking no. */
+.mba-rb-col-cust {
+	font-size: 11px; font-weight: 400; color: var(--text-muted);
+	overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mba-rb-col-id { font-weight: 600; font-size: 13px; }
+.mba-rb-occ {
+	margin-left: auto; font-variant-numeric: tabular-nums; color: var(--text-muted);
+	display: inline-flex; flex-direction: column; align-items: center;
+	gap: 4px; white-space: nowrap;
+}
+.mba-rb-occ.is-over { color: var(--danger-color, #e4484c); font-weight: 600; }
+.mba-rb-col-warns { display: flex; gap: 6px; min-height: 16px; padding: 2px 0; }
+.mba-rb-warn {
+	font-size: 11px; padding: 1px 6px; border-radius: 4px;
+	background: color-mix(in srgb, var(--warning-color, #ed9c0c) 14%, transparent);
+	color: var(--warning-color, #a06b00);
+}
+/* Badge jantina dalam kapsul occ — versi lebih kecil daripada chip
+   baris warns (pill bulat, font 9px). */
+.mba-rb-occ .mba-rb-warn {
+	font-size: 9px; padding: 0 5px; line-height: 14px;
+	border-radius: 999px; font-weight: 600;
+}
+.mba-rb-warn.is-bad {
+	background: color-mix(in srgb, var(--danger-color, #e4484c) 12%, transparent);
+	color: var(--danger-color, #e4484c);
+}
+.mba-rb-col-props { display: flex; flex-direction: column; gap: 4px; padding-top: 10px; }
+.mba-rb-col-props select, .mba-rb-col-props input[type="text"] {
+	height: 26px; padding: 2px 6px; font-size: 11px;
+	border: 1px solid var(--border-color); border-radius: var(--border-radius);
+	background: var(--control-bg, var(--bg-color)); color: var(--text-color);
+}
+.mba-rb-cat-wrap { width: 100%; }
+.mba-rb-cat-wrap .awesomplete > input {
+	width: 100%; height: 26px; padding: 2px 6px; font-size: 11px;
+	border: 1px solid var(--border-color); border-radius: var(--border-radius);
+	background: var(--control-bg, var(--bg-color)); color: var(--text-color);
+}
+.mba-rb-fcat-wrap { flex: 0 1 160px; min-width: 130px; }
+.mba-rb-fcat-wrap .awesomplete > input {
+	width: 100%; height: 30px; padding: 3px 10px; font-size: 12.5px;
+	border: 1px solid var(--border-color); border-radius: var(--border-radius);
+	background: var(--control-bg, var(--bg-color)); color: var(--text-color);
+}
+/* Baris props — 2 lajur sama lebar: kolum 1 = Stateroom + Delegate No,
+   kolum 2 = Privacy + Confirmed; grid-areas letak setiap control ke
+   selnya tanpa ubah HTML, minmax(0,1fr) benarkan mengecil pada kolum
+   sempit. */
+.mba-rb-props-row {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-areas:
+		"stateroom privacy"
+		"delegate   conf";
+	align-items: center; gap: 4px;
+}
+.mba-rb-props-row select, .mba-rb-props-row input[type="text"] { width: 100%; min-width: 0; }
+.mba-rb-stateroom { grid-area: stateroom; width: 100%; }
+.mba-rb-delegate { grid-area: delegate; width: 100%; }
+.mba-rb-privacy { grid-area: privacy; width: 100%; }
+.mba-rb-conf {
+	grid-area: conf;
+	display: inline-flex; align-items: center; gap: 4px;
+	/* place-content: end — jajarkan checkbox + label ke hujung track
+	   (kanan), selari penjajaran kanan kontrol props lain. */
+	place-content: end;
+	font-size: 11px; margin: 0; white-space: nowrap; min-width: 0;
+}
+.mba-rb-conf input { margin: 0; }
+
+/* Kontrol props — gaya lembut minimal: latar hampir lut sinar + garis
+   bawah halus (bukan kotak penuh). !important mengatasi gaya asas
+   select/input kolum & gaya form framework (input-with-feedback). */
+.input-with-feedback, input.mba-rb-stateroom, input.mba-rb-delegate, .mba-rb-privacy {
+	background: #00000005 !important;
+	border-radius: 3px !important;
+	border-bottom: 0.5px solid #0000001a !important;
+}
+
+/* Kolum is-confirmed (panel Confirmed) — kunci penuh: SEMUA control
+   disabled (termasuk Stateroom & Delegate No) + background hijau lembut
+   sebagai isyarat visual "disahkan"; kad tak boleh drag (cursor
+   default, tiada hover aktif). Checkbox Confirmed kekal aktif untuk
+   buka kunci. */
+.mba-rb-col.is-confirmed { background: #ddf2d8; }
+.mba-rb-col.is-confirmed .mba-rb-col-props input:disabled,
+.mba-rb-col.is-confirmed .mba-rb-col-props select:disabled,
+.mba-rb-col.is-confirmed .mba-rb-cat-wrap .awesomplete > input:disabled {
+	cursor: not-allowed;
+	background: color-mix(in srgb, var(--text-muted) 8%, var(--control-bg, var(--bg-color)));
+	opacity: 0.75;
+}
+.mba-rb-col.is-confirmed .mba-rb-rename:disabled { cursor: not-allowed; opacity: 0.5; }
+.mba-rb-col.is-confirmed .mba-rb-card { cursor: default; }
+.mba-rb-col.is-confirmed .mba-rb-card:hover { border-color: var(--border-color); }
+
+/* ══ TABLE VIEW — toggle Grid|Table + senarai reservation ══
+   Toggle di awal toolbar; CSS sorang paparan ikut class mod pada root
+   .mba-rb (kedua-dua view dirender serentak oleh rb_render). */
+.mba-rb-mode { flex: none; }
+.mba-rb-mode .btn { height: 30px; padding: 3px 11px; font-size: 12.5px; line-height: 1; }
+.mba-rb.mode-table .mba-rb-cols { display: none; }
+.mba-rb:not(.mode-table) .mba-rb-tablewrap { display: none; }
+
+.mba-rb-tb { display: flex; flex-direction: column; gap: 6px; }
+/* Kumpulan booking — jarak menegak 20px antara kumpulan. */
+.mba-rb-tb-book { margin: 20px 0; }
+.mba-rb-tb details {
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--card-bg, var(--bg-color));
+}
+.mba-rb-tb summary {
+	display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+	padding: 7px 10px; cursor: pointer; user-select: none; list-style: none;
+}
+.mba-rb-tb summary::-webkit-details-marker { display: none; }
+.mba-rb-tb summary::before {
+	content: '▸'; color: var(--text-muted); flex-shrink: 0;
+	display: inline-block; transition: transform 0.12s ease;
+}
+.mba-rb-tb details[open] > summary::before { transform: rotate(90deg); }
+.mba-rb-tb-book > summary b { font-size: 13px; }
+.mba-rb-tb-cust {
+	color: var(--text-muted); font-size: 12px;
+	overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+	max-width: 320px;
+}
+.mba-rb-tb-meta {
+	margin-left: auto; font-size: 11px; color: var(--text-muted);
+	font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+/* Kumpulan bilik — indent dalam kumpulan booking. */
+.mba-rb-tb-room { margin: 0 8px 8px 24px; }
+.mba-rb-tb-room > summary { padding: 6px 8px; }
+.mba-rb-tb-roomid { font-weight: 600; font-size: 12px; }
+.mba-rb-tb-cat { font-size: 11px; color: var(--text-muted); }
+.mba-rb-tb-room .mba-badge { font-size: 10px; }
+
+.mba-rb-tb-scroll { overflow-x: auto; }
+.mba-rb-tb-table { margin: 0; font-size: 12px; min-width: 640px; }
+.mba-rb-tb-table th {
+	font-size: 10px; font-weight: 600; text-transform: uppercase;
+	letter-spacing: 0.03em; color: var(--text-muted); white-space: nowrap;
+	padding: 4px 8px;
+	background: color-mix(in srgb, var(--text-muted) 6%, transparent);
+}
+.mba-rb-tb-table td { padding: 4px 8px; vertical-align: middle; white-space: nowrap; }
+.mba-rb-tb-no { color: var(--text-muted); font-variant-numeric: tabular-nums; width: 30px; }
+.mba-rb-tb-name {
+	font-weight: 500; max-width: 260px;
+	overflow: hidden; text-overflow: ellipsis;
+}
+.mba-rb-tb-empty { color: var(--text-muted); font-style: italic; text-align: center; }
+
+/* Baris reservation boleh klik → dialog Move Guest (pariti kad kanban). */
+.mba-rb-tb-row { cursor: pointer; }
+.mba-rb-tb-row:hover td {
+	background: color-mix(in srgb, var(--primary-color, #2490ef) 5%, transparent);
+}
+
+/* Baris KONGSI MERENTAS BOOKING — booking tetamu ≠ booking host bilik
+   (Open Sharing): highlight amber + jalur kiri warna amaran. */
+.mba-rb-tb-table tr.is-cross td {
+	background: color-mix(in srgb, var(--warning-color, #ed9c0c) 10%, transparent);
+}
+.mba-rb-tb-table tr.is-cross td:first-child {
+	box-shadow: inset 3px 0 0 var(--warning-color, #ed9c0c);
+}
+.mba-rb-tb-table tr.is-cross:hover td {
+	background: color-mix(in srgb, var(--warning-color, #ed9c0c) 16%, transparent);
+}
+
+.mba-rb-col-body {
+	flex: 1; display: flex; flex-direction: column; gap: 6px;
+	padding: 8px; min-height: 64px;
+}
+.mba-rb-empty {
+	border: 1px dashed var(--border-color); border-radius: var(--border-radius);
+	color: var(--text-muted); font-size: 11px; text-align: center; padding: 10px 4px;
+}
+.mba-rb-cols > .mba-rb-empty { grid-column: 1 / -1; }
+.mba-rb-card {
+	display: flex; align-items: center; gap: 6px;
+	padding: 7px 9px; border-radius: 5px;
+	border: 1px solid #ffffff; background: #ffffff6b;
+	font-size: 13px; cursor: grab; user-select: none;
+	box-shadow: 0.5px 0.5px 3px 0 #bfbebe;
+}
+.mba-rb-card:hover { border-color: var(--primary-color, #2490ef); }
+.mba-rb-card.is-dragging { opacity: 0.55; cursor: grabbing; }
+.mba-rb-card-name {
+	flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mba-rb-card-gender {
+	flex-shrink: 0; width: 18px; height: 18px; border-radius: 50%;
+	display: inline-flex; align-items: center; justify-content: center;
+	font-size: 10px; font-weight: 600; color: #fff;
+}
+.mba-rb-card.is-f .mba-rb-card-gender { background: var(--danger-color, #e4484c); }
+.mba-rb-card.is-m .mba-rb-card-gender { background: var(--primary-color, #2490ef); }
+
+/* Kad tetamu KONGSI MERENTAS BOOKING — booking tetamu ≠ booking host
+   bilik (Open Sharing): tint amber + jalur kiri, konsisten dengan baris
+   .is-cross pada table view. Tooltip kad bawa booking tetamu. */
+.mba-rb-card.is-cross {
+	background: color-mix(in srgb, var(--warning-color, #ed9c0c) 16%, transparent);
+	/* border-color: color-mix(in srgb, var(--warning-color, #ed9c0c) 55%, transparent); */
+	/* box-shadow: inset 3px 0 0 var(--warning-color, #ed9c0c); */
+}
+.mba-rb-card.is-cross:hover { border-color: var(--warning-color, #ed9c0c); }
+
+.mba-rb-move { display: flex; flex-direction: column; gap: 10px; }
+
+/* ── Modal Move Guest — TABS (Update Info | Move) ──
+   [Update Info]: dua kolum vertical — Room Arrangement (kiri) ·
+   Cruise Arrangement (kanan); declaration Custom Arrangement + butang
+   Reset Rooming Number & Save Details dalam form yang sama.
+   [Move]: Current Room ID (ro) + autocomplete bilik baharu + butang. */
+.mba-rb-mv-tabs {
+	display: flex; gap: 2px; border-bottom: 1px solid var(--border-color);
+	margin-bottom: 10px;
+}
+.mba-rb-mv-tab {
+	border: none; background: transparent; cursor: pointer;
+	padding: 6px 14px 8px; font-size: 12px; font-weight: 600;
+	color: var(--text-muted); border-bottom: 2px solid transparent;
+	margin-bottom: -1px;
+}
+.mba-rb-mv-tab.active {
+	color: var(--primary-color, #2490ef);
+	border-bottom-color: var(--primary-color, #2490ef);
+}
+.mba-rb-mv-pane { display: none; flex-direction: column; gap: 10px; }
+.mba-rb-mv-pane.active { display: flex; }
+.mba-rb-mv-cols {
+	display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+}
+.mba-rb-mv-col {
+	display: flex; flex-direction: column; gap: 6px;
+	padding: 8px 10px; border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+}
+.mba-rb-mv-col label {
+	display: flex; flex-direction: column; gap: 3px;
+	font-size: 11px; color: var(--text-muted); min-width: 0;
+}
+.mba-rb-mv-col input[readonly] {
+	background: var(--control-bg, var(--bg-color));
+	color: var(--text-muted);
+}
+.mba-rb-mv-sub-title {
+	font-size: 11px; font-weight: 700; text-transform: uppercase;
+	letter-spacing: 0.04em; color: var(--text-color);
+}
+.mba-rb-move-target-wrap { display: flex; flex-direction: column; gap: 6px; }
+.mba-rb-move-target-wrap label {
+	display: flex; flex-direction: column; gap: 3px;
+	font-size: 11px; color: var(--text-muted); min-width: 0;
+}
+.mba-rb-move-none { padding: 6px 0; font-style: italic; }
+/* New Room — input autocomplete (mula kosong; kosong = tiada penempatan). */
+.mba-rb-move-ac .awesomplete { width: 100%; display: block; }
+.mba-rb-move-ac .awesomplete > input { width: 100%; }
+.mba-rb-move-ac .awesomplete ul {
+	max-height: 240px; overflow-y: auto; z-index: 1060;
+}
+.mba-rb-mv-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.mba-rb-mv-note { font-size: 11px; }
+
+/* Telefon — kolum form jadi satu lajur penuh lebar. */
+@media (max-width: 600px) {
+	.mba-rb-mv-cols { grid-template-columns: 1fr; }
+}
+
+/* ── Notis drag & drop — "from [old] into [new]" + ack wajib ── */
+.mba-rb-notice { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+.mba-rb-notice-rooms {
+	display: flex; align-items: center; gap: 12px;
+	padding: 10px 12px; border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--control-bg, var(--bg-color));
+}
+.mba-rb-notice-room { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mba-rb-notice-room b { word-break: break-all; }
+.mba-rb-notice-tag {
+	font-size: 10px; font-weight: 700; text-transform: uppercase;
+	letter-spacing: 0.05em; color: var(--text-muted);
+}
+.mba-rb-notice-arrow { font-size: 16px; color: var(--text-muted); }
+.mba-rb-notice-footer {
+	display: flex; align-items: center; gap: 10px;
+	border-top: 1px solid var(--border-color); padding-top: 10px;
+}
+.mba-rb-notice-ack {
+	display: flex; align-items: center; gap: 8px; cursor: pointer;
+	font-size: 12px; margin: 0; flex: 1 1 auto;
+}
+.mba-rb-notice-footer .mba-rb-notice-go { margin-left: auto; }
+
+/* Telefon — grid satu kolum penuh lebar. */
+@media (max-width: 600px) {
+	.mba-rb-dialog .modal-dialog { width: 96vw; max-width: 96vw; }
+	.mba-rb-cols { grid-template-columns: 1fr; }
+}
+
+/* ── Grid kad bilik NON-COLLAPSIBLE (tab Rooms, rooming_board.js) ──
+   Kad panel: top = Room ID + badge privacy (Private merah / Open
+   Sharing biru); baris Cruise Cabin = Delegate No + Stateroom No;
+   senarai tetamu = nombor (Guest Sequence ATAU Aroya Guest No) +
+   nama penuh + jantina. */
+.mba-rmgrid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+	gap: 12px;
+}
+.mba-rmcard {
+	display: flex; flex-direction: column;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius-lg, var(--border-radius));
+	/* Warna latar kad rooming — krim lembut (spesifikasi user). */
+	background: #fdfdee;
+	overflow: hidden;
+}
+.mba-rmc-top {
+	display: flex; align-items: center; justify-content: space-between; gap: 8px;
+	padding: 10px 14px;
+	border-bottom: 1px solid var(--border-color);
+}
+.mba-rmc-id {
+	font-weight: 600; font-size: 13px;
+	overflow-wrap: anywhere;
+}
+.mba-rmc-priv { flex-shrink: 0; }
+.mba-rmc-cabin {
+	padding: 7px 14px; font-size: 13px; color: var(--text-muted);
+	border-bottom: 1px dashed var(--border-color);
+}
+.mba-rmc-cabin b { color: var(--text-color); font-weight: 600; }
+.mba-rmc-guests {
+	display: flex; flex-direction: column;
+	padding: 6px 14px 10px;
+}
+.mba-rmc-guest {
+	display: flex; align-items: center; gap: 8px;
+	padding: 7px 0;
+	font-size: 13px;
+	border-bottom: 1px solid color-mix(in srgb, var(--border-color) 55%, transparent);
+}
+.mba-rmc-guest:last-child { border-bottom: none; }
+.mba-rmc-no {
+	flex-shrink: 0; min-width: 20px; text-align: right;
+	color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 13px;
+}
+.mba-rmc-name {
+	flex: 1; overflow-wrap: anywhere;
+}
+
+/* Baris tetamu kad rooming — boleh klik (modal maklumat traveller);
+   slot tanpa link Traveller dipapar teks "No Document". */
+.mba-rmc-guest { cursor: pointer; }
+.mba-rmc-guest:hover .mba-rmc-name { text-decoration: underline; }
+.mba-rmc-guest .mba-badge { flex-shrink: 0; }
+.mba-rmc-nodoc {
+	flex-shrink: 0; font-size: 11px; font-style: italic;
+	color: var(--text-muted);
+}
+
+/* Penapis booking (autocomplete) — lebar serasi select toolbar lain. */
+.mba-rb-fbook-wrap { flex: 0 1 180px; min-width: 140px; }
+.mba-rb-fbook-wrap .awesomplete > input {
+	width: 100%; height: 30px; padding: 3px 10px; font-size: 12.5px;
+	border: 1px solid var(--border-color); border-radius: var(--border-radius);
+	background: var(--control-bg, var(--bg-color)); color: var(--text-color);
+}
+
+/* Butang rename Room ID (ikon ✎) + input inline dalam tajuk kolum. */
+.mba-rb-rename {
+	border: none; background: transparent; cursor: pointer;
+	font-size: 11px; line-height: 1; padding: 2px 3px;
+	color: var(--text-muted); border-radius: var(--border-radius);
+}
+.mba-rb-rename:hover { color: var(--primary-color, #2490ef); background: var(--control-bg, var(--bg-color)); }
+.mba-rb-rename-input {
+	height: 26px; padding: 2px 6px; font-size: 12px; font-weight: 600;
+	max-width: 190px;
+}
+
+/* Control Frappe terakhir dalam wrapper board — buang margin bawah
+   (FieldGroup/Autocomplete meninggalkan .form-group margin yang
+   meluntarkan jarak toolbar/props). */
+.form-group.frappe-control:last-child { margin-bottom: 0; }
+
+/* Subtitel kad rooming — nama customer + booking ID (nota kecil di
+   bawah Room ID, dalam section top). */
+.mba-rmc-top { flex-direction: column; align-items: stretch; gap: 1px; }
+.mba-rmc-top-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.mba-rmc-sub {
+	font-size: 11px; color: var(--text-muted);
+	overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mba-rmc-sub-book { color: color-mix(in srgb, var(--text-muted) 80%, var(--text-color)); }
+
+/* Chip komposisi jantina — warna ikut gender (Male biru / Female merah;
+   Mixed kekal amber neutral). Dipapar sebagai badge kecil dalam kapsul
+   .mba-rb-occ (saiz: .mba-rb-occ .mba-rb-warn di atas). */
+.mba-rb-warn.is-male {
+	background: color-mix(in srgb, var(--primary-color, #2490ef) 12%, transparent);
+	color: var(--primary-color, #2490ef);
+}
+.mba-rb-warn.is-female {
+	background: color-mix(in srgb, var(--danger-color, #e4484c) 12%, transparent);
+	color: var(--danger-color, #e4484c);
+}
+
+/* Chip Unknown — tetamu tanpa data jantina. */
+.mba-rb-warn.is-unknown {
+	background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+	color: var(--text-muted);
+}
+
+/* No. tetamu pada kad papan — awal kad, muted, lebar tetap. */
+.mba-rb-card-no {
+	flex-shrink: 0; min-width: 16px; text-align: right;
+	color: var(--text-muted); font-size: 11px;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ══ Rooming Board — VIEW PENUH (route /rooming/<kind>/<id>) ══ */
+.mba-rbview { display: flex; flex-direction: column; gap: 10px; }
+.mba-rbview-head {
+	display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+	padding-bottom: 8px; border-bottom: 1px solid var(--border-color);
+}
+.mba-rbview-title { flex: 1 1 auto; font-size: 14px; min-width: 0; }
+.mba-rbview-title .mba-muted { font-size: 12px; }
+.mba-rbview-body { min-height: 200px; }
+/* Backdrop modal board lama tak lagi digunakan — view scroll page biasa. */
+
+/* ══════════════════════════════════════════════════════════════════
+   STANDARDISASI KOMPONEN — sistem saiz seragam seluruh page
+   Dua peringkat (peraturan bersaiz sudah ditala di atas):
+   • STANDARD 30px / font 12.5px — input, select & autocomplete semua
+     toolbar (tab, pakej traveller, rooming board), dialog penapis
+     custom, butang dalam toolbar.
+   • COMPACT 26px / font 11px — control dalam panel bilik kanban
+     (kategori/stateroom/delegate/privacy) + rename inline — ruang
+     kolum terhad.
+   Seksyen ini pula menyeragamkan FOKUS, DISABLED, BUTANG & LINK —
+   satu identiti visual untuk seluruh page.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* Fokus — ring biru nipis seragam pada semua input/select custom page
+   (control Frappe form-control ada gaya sendiri; ini untuk input yang
+   distil sendiri oleh page). */
+.mba-app input[type="text"]:focus,
+.mba-app input[type="number"]:focus,
+.mba-app select:focus {
+	outline: none;
+	border-color: var(--primary-color, #2490ef);
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color, #2490ef) 18%, transparent);
+}
+
+/* Disabled — rupa seragam: pudar + cursor larang. */
+.mba-app input:disabled, .mba-app select:disabled, .mba-app button:disabled {
+	cursor: not-allowed;
+	opacity: 0.65;
+}
+
+/* Butang — tinggi & font seragam seluruh page (btn-sm Frappe dipadankan
+   kepada peringkat standard 30px); butang ikon kekal padat. */
+.mba-app .btn-sm {
+	height: 30px;
+	padding: 4px 12px;
+	font-size: 12.5px;
+	line-height: 1;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	white-space: nowrap;
+}
+.mba-app .btn-sm.btn-xs, .mba-app .btn-icon {
+	height: 26px; padding: 2px 8px; font-size: 11px;
+}
+
+/* Autocomplete awesomplete (kategori/booking) — input searas standard. */
+.mba-app .awesomplete > input {
+	height: 30px;
+	font-size: 12.5px;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius);
+	background: var(--control-bg, var(--card-bg, #fff));
+	color: var(--text-color);
+}
+.mba-rb-col-props .awesomplete > input {
+	height: 26px; font-size: 11px;   /* peringkat compact dalam kolum */
+}
+
+/* Link — satu identiti: warna primary, hover bergaris bawah. */
+.mba-app a:not(.btn):not(.nav-link) {
+	color: var(--primary-color, #2490ef);
+	text-decoration: none;
+}
+.mba-app a:not(.btn):not(.nav-link):hover,
+.mba-app a:not(.btn):not(.nav-link):focus {
+	text-decoration: underline;
+}
+
+/* Checkbox & radio — sejajar menegak dengan label 30px. */
+.mba-app input[type="checkbox"],
+.mba-app input[type="radio"] {
+	margin: 0;
+	accent-color: var(--primary-color, #2490ef);
 }

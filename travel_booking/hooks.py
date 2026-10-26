@@ -31,8 +31,19 @@ use_json_request_body = True
 # merentas section desk — kini tab Booking page Manage Booking App &
 # Manage Booking Group; section lain kelak cukup panggil create() pada
 # container masing-masing.
-app_include_js = ["/assets/travel_booking/js/booking_list.js"]
-app_include_css = ["/assets/travel_booking/css/booking_list.css"]
+#
+# ?v= — nginx hantar /assets dengan Cache-Control max-age=1 TAHUN, jadi
+# pelayar pengguna tidak akan ambil salinan baharu selepas bench build
+# sehingga URL berubah. SETIAP kali fail ini dibina semula, NAIKKAN nilai
+# ?v= (timestamp cukup) supaya semua klien fetch versi terkini.
+app_include_js = [
+	"/assets/travel_booking/js/search_box.js?v=20261026-1",
+	"/assets/travel_booking/js/booking_list.js?v=20261026-1",
+]
+app_include_css = [
+	"/assets/travel_booking/css/search_box.css?v=20261026-1",
+	"/assets/travel_booking/css/booking_list.css?v=20261024-2",
+]
 
 # Fix realtime has_permission untuk dokumen belum disimpan (room
 # `new-<doctype>-...`) — dipindahkan daripada modifikasi frappe core
@@ -149,6 +160,11 @@ scheduler_events = {
 		# imej/attachment passport & status Traveller 'Open for Update'
 		# supaya customer hantar dokumen baharu (PII lama tidak disimpan).
 		"travel_booking.api.passport_maintenance.cleanup_expired_passport_images",
+		# Jaring keselamatan aliran status Booking Reservation: peralihan
+		# tarikh (Trip OnProgress, 24-jam Completed, Document Expired
+		# menjelang departure) tak melibatkan sebarang save dokumen —
+		# hook ni kira semula status semua reservation setiap hari.
+		"travel_booking.module_travel_booking.doctype.booking_reservation.booking_reservation.auto_update_reservation_statuses",
 	],
 	"cron": {
 		# Setiap hari jam 12:00 malam (site time) — semak & update status

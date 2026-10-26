@@ -16,9 +16,8 @@
 #     guna back-link ke page onbehalf yang sepadan.
 
 import frappe
-from travel_booking.api._helpers import has_on_behalf_role
 from travel_booking.utils.website_config import web_date
-from travel_booking.www.traveller._guard import guard_context, get_query_param
+from travel_booking.www.traveller._guard import guard_context, get_query_param, require_on_behalf_manager
 
 
 def get_context(context):
@@ -29,9 +28,7 @@ def get_context(context):
     # Khusus manager on-behalf — customer biasa yang tersasar ke URL ni
     # dibawa balik ke My Bookings. (Routing halaman sahaja; endpoint data
     # tetap menolak akses bukan-manager secara independen.)
-    if not has_on_behalf_role(frappe.session.user):
-        frappe.local.flags.redirect_location = "/traveller/bookings"
-        raise frappe.Redirect
+    require_on_behalf_manager()
 
     booking_ref = get_query_param("booking") or get_query_param("ref")
     if not booking_ref:

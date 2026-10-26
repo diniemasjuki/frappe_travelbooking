@@ -56,7 +56,7 @@ EXCLUDED_BOOKING_STATUSES = ("Completed", "Cancelled", "Abandoned")
 # Status reservation yang belum selesai pengesahan dokumen. 'Incomplete'
 # menggantikan 'Pending'/'Pending Review' (dihapus dari options — rujuk
 # patch v30_traveller_status_incomplete).
-PENDING_DOC_STATUSES = ("Incomplete", "Open for Update", "Rejected")
+PENDING_DOC_STATUSES = ("Incomplete", "Open for Update", "Expired")
 
 # Status reservation yang belum selesai pengesahan dokumen
 _UNRESOLVED_DOC_SQL = "IFNULL(br.document_status,'') IN ('Incomplete','Open for Update')"

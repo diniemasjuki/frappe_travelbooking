@@ -594,7 +594,7 @@ def save_booking_traveller(booking_number: str, slot_name: str,
             frappe.throw(
                 "Some details are still incomplete:\n\u2022 " + "\n\u2022 ".join(_missing)
             )
-        # Kekalkan status sedia ada (cth. Rejected / Open for Update);
+        # Kekalkan status sedia ada (cth. Expired / Open for Update);
         # kosong → Incomplete. Naik ke "Pending Verification" bila borang
         # wajib lengkap DILAKUKAN oleh before_save doctype Traveller
         # (evaluate_document_status) — bukan di sini.
@@ -1926,7 +1926,7 @@ def request_document_update(slot_name: str):
 
     slot = frappe.db.get_value(
         "Booking Reservation", slot_name,
-        ["name", "booking", "document_status"],
+        ["name", "booking", "document_status", "traveller"],
         as_dict=True
     )
     if not slot:
@@ -1940,7 +1940,30 @@ def request_document_update(slot_name: str):
     if slot.document_status != "Verified":
         frappe.throw("Only Verified slots can request an update")
 
-    frappe.db.set_value("Booking Reservation", slot_name, "document_status", "Open for Update")
+    # Sumber kebenaran ialah Traveller.status — set di SANA, kemudian cermin
+    # ke SEMUA Booking Reservation traveller ini (termasuk slot lain/booking
+    # lain yang berkongsi traveller sama). Sebelum ni hanya document_status
+    # slot ini yang ditukar; Traveller kekal "Verified" lalu save semula
+    # melalui portal menolak semula "Verified" (permintaan edit hilang) dan
+    # admin nampak status berbeza daripada portal.
+    #
+    # db.set_value dipilih (BUKAN doc.save()) supaya Traveller.before_save
+    # evaluate_document_status tidak menaikkan status terus ke "Pending
+    # Verification" — borang belum diubah lagi; kenaikan ke "Pending
+    # Verification" hanya bila traveller benar-benar hantar semula borang
+    # (selari hook passport_maintenance + Traveller.sync_status_to_
+    # reservations yang turut guna db.set_value).
+    if slot.traveller:
+        frappe.db.set_value("Traveller", slot.traveller,
+            "status", "Open for Update")
+        for res_name in frappe.get_all("Booking Reservation",
+                filters={"traveller": slot.traveller}, pluck="name"):
+            frappe.db.set_value("Booking Reservation", res_name,
+                "document_status", "Open for Update", update_modified=False)
+    else:
+        # Slot tanpa Traveller (belum diisi) — cermin slot sahaja.
+        frappe.db.set_value("Booking Reservation", slot_name,
+            "document_status", "Open for Update")
     frappe.db.commit()
 
     return {"status": "ok"}
@@ -1995,7 +2018,7 @@ def confirm_traveller_documents(booking_number: str, slot_name: str,
             "Some details are still incomplete:\n\u2022 " + "\n\u2022 ".join(missing)
         )
 
-    # Kekalkan status sedia ada (Rejected / Open for Update); kosong →
+    # Kekalkan status sedia ada (Expired / Open for Update); kosong →
     # Incomplete. Naik ke "Pending Verification" bila wajib lengkap
     # DILAKUKAN oleh before_save doctype (evaluate_document_status).
     tvl.status = tvl.status or "Incomplete"
@@ -2054,9 +2077,69 @@ _GUEST_LINK_ADMIN_ROLES = {"System Manager", "Tour Manager", "Tour Operator"}
 _GUEST_LINK_EXPIRY_DAYS = 7
 
 
+def _guest_link_qr(link: str) -> str:
+    """QR link guest passport sebagai data URI PNG (base64)."""
+    qr = qrcode.QRCode(
+        version=1, box_size=10, border=2,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+    )
+    qr.add_data(link)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+@frappe.whitelist()
+def get_guest_passport_link(slot_name: str = ""):
+    """Semak status link passport guest slot — TANPA jana token baharu.
+
+    Auth sama dengan request_guest_passport_link. Pulangkan:
+      - {"status": "active",  link, expires_on, qr_data_uri} — token wujud
+        & belum tamat tempoh;
+      - {"status": "expired"} — token ada tetapi sudah tamat;
+      - {"status": "missing"} — tiada token.
+    Digunakan oleh modal Guest Passport Link (Booking Manager) untuk
+    memaparkan link sedia ada dahulu sebelum menawarkan penjanaan semula.
+    """
+    frappe.flags.ignore_permissions = True
+    slot = frappe.db.get_value(
+        "Booking Reservation", slot_name,
+        ["name", "booking", "traveller", "guest_label", "pax_type",
+         "passport_link_token", "passport_link_expires_on"], as_dict=True)
+    if not slot:
+        frappe.throw("Slot not found.")
+    booking = frappe.db.get_value("Booking", slot.booking,
+                                  ["name", "customer", "status", "trip_name"], as_dict=True)
+    if not booking:
+        frappe.throw("Booking not found.")
+
+    roles = set(frappe.get_roles())
+    if not (_GUEST_LINK_ADMIN_ROLES & roles):
+        _user, session_customer, managed = _portal_access()
+        if not _booking_action_allowed(booking, session_customer, managed, "Docs"):
+            frappe.throw("Access denied.", frappe.PermissionError)
+
+    token = (slot.passport_link_token or "").strip()
+    expires_on = slot.passport_link_expires_on
+    if not token:
+        return {"status": "missing"}
+    if expires_on and frappe.utils.get_datetime(expires_on) <= frappe.utils.now_datetime():
+        return {"status": "expired"}
+
+    link = frappe.utils.get_url("/guest_passport?token=" + token)
+    return {
+        "status": "active",
+        "link": link,
+        "expires_on": str(expires_on),
+        "qr_data_uri": _guest_link_qr(link),
+    }
+
+
 @frappe.whitelist()
 def request_guest_passport_link(booking_number: str = "", slot_name: str = "",
-                                email: str = ""):
+                                email: str = "", hours: int = 0):
     """Jana/hantar semula link passport untuk co-traveller (guest, no login).
 
     Dual-auth:
@@ -2068,8 +2151,12 @@ def request_guest_passport_link(booking_number: str = "", slot_name: str = "",
     (docname Booking Reservation) cukup untuk identifiable slot + parent
     Booking (slot.booking). Param kekal untuk keserasian panggilan portal
     lama. Token disimpan pada Booking Reservation (passport_link_token,
-    search_index). Reusable sehingga expiry (default 7 hari). Re-call =
-    regenerate (token lama di-overwrite → link lama invalidated).
+    search_index). Reusable sehingga expiry. Re-call = regenerate (token
+    lama di-overwrite → link lama invalidated).
+
+    hours: tempoh akses link DALAM JAM — dipakai oleh butang Generate/
+    Refresh modal Desk; DIPAKSA minimum 48 jam bila diberi. 0/kosong →
+    default lama _GUEST_LINK_EXPIRY_DAYS hari (panggilan portal sedia ada).
     """
     frappe.flags.ignore_permissions = True
     email = (email or "").strip()
@@ -2103,8 +2190,18 @@ def request_guest_passport_link(booking_number: str = "", slot_name: str = "",
         frappe.throw("This slot has been verified by admin and cannot be edited.")
 
     token = frappe.generate_hash(length=32)
-    expires_on = frappe.utils.add_to_date(frappe.utils.now_datetime(),
-                                          days=_GUEST_LINK_EXPIRY_DAYS)
+    # Tempoh akses — rujuk tetapan Travel Settings (guest_link_expiry_hours,
+    # lalai 48 jam). Param `hours` eksplisit mengatasi tetapan; DIPAKSA
+    # minimum 48 jam. Tiada kedua-duanya → default lama 7 hari (fallback).
+    setting_hours = frappe.utils.cint(
+        frappe.db.get_single_value("Travel Settings", "guest_link_expiry_hours")) or 48
+    hours = frappe.utils.cint(hours) or setting_hours
+    if hours:
+        hours = max(48, hours)
+        expires_on = frappe.utils.add_to_date(frappe.utils.now_datetime(), hours=hours)
+    else:
+        expires_on = frappe.utils.add_to_date(frappe.utils.now_datetime(),
+                                              days=_GUEST_LINK_EXPIRY_DAYS)
 
     frappe.db.set_value("Booking Reservation", slot_name, {
         "passport_link_token":      token,
@@ -2148,16 +2245,7 @@ def request_guest_passport_link(booking_number: str = "", slot_name: str = "",
         masked = ""
 
     # ── Generate QR Code (base64 PNG data URI) ──
-    qr = qrcode.QRCode(
-        version=1, box_size=10, border=2,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
-    )
-    qr.add_data(link)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    qr_data_uri = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    qr_data_uri = _guest_link_qr(link)
 
     return {
         "status":       "sent" if email else "generated",

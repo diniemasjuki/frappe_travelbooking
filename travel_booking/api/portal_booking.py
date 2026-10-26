@@ -1,6 +1,8 @@
 # travel_booking/api/portal_booking.py
 # Booking Data — Portal
 
+import re
+
 import frappe
 from travel_booking.api._helpers import (
     get_customer_by_email,
@@ -387,6 +389,26 @@ def _so_action_allowed(so_name, customer_name, managed_bookings, required_level)
     return on_behalf_level_ok(required_level)
 
 
+def _address_html_to_text(html):
+    """Tukar HTML display alamat ERPNext kepada teks biasa berbaris baharu.
+
+    Customer.primary_address menyimpan output get_address_display() —
+    string HTML bercampur tag <br>/<br/> DAN baris baharu sebenar. Paparan
+    portal (traveller_detail.js) escape nilai ni sebagai teks biasa
+    (white-space:pre-line), jadi tag <br> tersurat kelihatan pada laman
+    umum. strip_html() sahaja TIDAK cukup — baris yang dipisah <br> tanpa
+    \\n akan bercantum ('sarawak97000Malaysia'); <br> mesti ditukar ke
+    baris baharu dahulu, kemudian baris kosong akibat kombinasi '<br>\\n'
+    di-runtuhkan.
+    """
+    if not html:
+        return ""
+    txt = re.sub(r"<br\s*/?\s*>", "\n", html, flags=re.IGNORECASE)
+    txt = frappe.utils.strip_html(txt)
+    txt = re.sub(r"\n{2,}", "\n", txt)
+    return txt.strip()
+
+
 @frappe.whitelist()
 def get_booking_data(booking_number: str):
     frappe.flags.ignore_permissions = True
@@ -476,10 +498,16 @@ def get_booking_data(booking_number: str):
             )
             if cust_row:
                 end_customer = cust_row.customer_name
-                # primary_address = teks alamat terformat — dikemas kini oleh
+                # primary_address = HTML display alamat terformat (output
+                # get_address_display ERPNext — dikemas kini oleh
                 # _upsert_customer_billing_address() (Address 'Billing'
                 # customer) supaya sentiasa selari dengan alamat billing.
-                end_customer_address = (cust_row.primary_address or "").strip()
+                # Normalisasi ke teks berbaris baharu — paparan portal
+                # escape nilai ini (bukan render HTML), lihat
+                # _address_html_to_text().
+                end_customer_address = _address_html_to_text(
+                    cust_row.primary_address
+                )
             from travel_booking.api._helpers import get_customer_phone
             end_customer_phone = get_customer_phone(end_customer_link) or ""
 

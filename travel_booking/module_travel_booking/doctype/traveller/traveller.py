@@ -22,7 +22,6 @@ class Traveller(Document):
 		country: DF.Link | None
 		date_of_birth: DF.Date | None
 		dietary_requirements: DF.Text | None
-		document_verified: DF.Check
 		email: DF.Data | None
 		emergency_contact_name: DF.Data | None
 		emergency_contact_phone: DF.Phone | None
@@ -43,7 +42,7 @@ class Traveller(Document):
 		phone: DF.Phone | None
 		postcode: DF.Data | None
 		state: DF.Data | None
-		status: DF.Literal["Incomplete", "Pending Verification", "Verified", "Open for Update", "Rejected", "Valid"]
+		status: DF.Literal["Incomplete", "Pending Verification", "Verified", "Open for Update", "Expired"]
 		title: DF.Literal["Mr", "Mrs"]
 		visa_photo: DF.Attach | None
 		wheelchair_assistant: DF.Literal["", "Not Required", "Long Walk Only", "All Time"]
@@ -68,32 +67,6 @@ class Traveller(Document):
 		# Flow dokumen: borang wajib lengkap (kecuali kesihatan & gambar
 		# visa — tidak wajib) → status auto "Pending Verification".
 		self.evaluate_document_status()
-		# Status masuk Verified → auto-centang kunci dokumen (checkbox
-		# 'Document Verified' — medan maklumat jadi read-only di Desk).
-		self.sync_verified_lock()
-
-	def sync_verified_lock(self):
-		"""Auto-enable checkbox 'Document Verified' apabila status naik ke
-		Verified — kunci verified document (semua medan maklumat peribadi
-		jadi read-only di Desk melalui read_only_depends_on).
-
-		- Transisi sahaja: admin yang uncheck manual TIDAK akan
-		  diterbalikkan pada setiap save semasa status kekal Verified.
-		- Keluar dari Verified (Open for Update / Rejected) TIDAK
-		  auto-uncheck — admin kekal kuasa penuh atas kunci manual.
-		- 'age' mandatory bila kunci aktif (mandatory_depends_on) — jangan
-		  centang bila umur belum terkira (DOB kosong) supaya save tidak
-		  gagal; admin isi DOB dahulu, kunci tercentang pada save
-		  seterusnya apabila status ditetapkan Verified semula."""
-		if self.status != "Verified" or self.document_verified:
-			return
-		if not self.age:
-			return
-		old = self.get_doc_before_save()
-		old_status = (old.status if old else "") or ""
-		if old_status == "Verified":
-			return
-		self.document_verified = 1
 
 	def on_update(self):
 		self.sync_status_to_reservations()
@@ -105,14 +78,16 @@ class Traveller(Document):
 
 	# ── Flow status dokumen ─────────────────────────────────────────────
 	# Incomplete → (borang wajib lengkap, auto) → Pending Verification →
-	# admin: Verified / Valid / Rejected; expired passport (hook harian) →
-	# Open for Update → traveller isi semula → Pending Verification lagi.
+	# admin: Verified / Expired (manual); passport hampir/beliau tamat
+	# tempoh (hook harian) → Open for Update → traveller isi semula →
+	# Pending Verification lagi. Status "Valid" & "Rejected" DIBUANG
+	# daripada proses (selari options doctype).
 	PENDING_VERIFICATION = "Pending Verification"
 	# Status yang boleh naik automatik ke Pending Verification bila borang
-	# lengkap: kosong/Incomplete (baru), Open for Update (re-upload lepas
-	# expired) & Rejected (customer betulkan dokumen). Status keputusan
-	# admin — Verified / Valid — TIDAK pernah diketuk automatik.
-	PROMOTABLE_STATUSES = ("", "Incomplete", "Open for Update", "Rejected")
+	# lengkap: kosong/Incomplete (baru) & Open for Update (re-upload lepas
+	# expired). Status keputusan admin — Verified / Expired — TIDAK
+	# pernah diketuk automatik.
+	PROMOTABLE_STATUSES = ("", "Incomplete", "Open for Update")
 
 	# Medan borang yang WAJIB terisi untuk lengkap — cermin gerbang portal
 	# _traveller_missing_fields (section Passport + Contact). title/full_name/
@@ -142,7 +117,7 @@ class Traveller(Document):
 	def evaluate_document_status(self):
 		"""Auto-promote status ke 'Pending Verification' bila borang wajib
 		lengkap. Hanya dari status 'boleh naik' (kosong/Incomplete/
-		Open for Update/Rejected) — status keputusan admin dihormati."""
+		Open for Update) — status keputusan admin (Verified/Expired) dihormati."""
 		if self.status not in self.PROMOTABLE_STATUSES:
 			return
 		if self.is_info_complete():
@@ -156,14 +131,24 @@ class Traveller(Document):
 		BookingReservation.sync_document_status). Guna
 		frappe.db.set_value(update_modified=False): tak picu on_update
 		reservation (elak gelung) dan tak usik modified reservation.
+
+		Status aliran reservation (Waiting Document / Document Completed
+		/ Document Expired) turut dikira semula — perubahan status
+		Traveller ialah pencetus utama peralihan dokumen pada aliran itu.
 		"""
 		old = self.get_doc_before_save()
 		if old and old.status == self.status:
 			return
+		# Import dalam fungsi — elak circular import (reservation modul
+		# tidak import traveller, tapi senang selamat).
+		from travel_booking.module_travel_booking.doctype.booking_reservation.booking_reservation import (
+			recompute_reservation_status,
+		)
 		for name in frappe.get_all("Booking Reservation",
 				filters={"traveller": self.name}, pluck="name"):
 			frappe.db.set_value("Booking Reservation", name,
 				"document_status", self.status, update_modified=False)
+			recompute_reservation_status(name)
   
 	def set_icnumber(self):
 		self.ic_number = self.ic_number.replace(" ","").replace("-","")
@@ -174,10 +159,10 @@ class Traveller(Document):
 			"first_name", "last_name", "full_name",
 			"ic_number", "passport_no",
 			"emergency_contact_name", "emergency_contact_relationship",
-			# Alamat — uppercase ikut konvensyen dokumen perjalanan;
-			# dilaksana di doctype supaya SEMUA laluan edit (Desk, portal,
-			# modal admin Manage Booking) dapat perlakuan sama.
-			"address_line1", "city", "state", "postcode",
+			# Alamat SENGAJA TIDAK dipaksa uppercase — user taip bebas;
+			# berkuatkuasa pada SEMUA laluan simpan (Desk, modal admin
+			# Manage Booking, borang portal traveller / guest passport /
+			# on-behalf) kerana semuanya melalui doctype ini.
 		]
 		for field in text_fields:
 			val = getattr(self, field, None)

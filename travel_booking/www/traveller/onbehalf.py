@@ -7,8 +7,7 @@
 # diuruskan — buka detail, billing, isi traveller, dsb.
 
 import frappe
-from travel_booking.api._helpers import has_on_behalf_role
-from travel_booking.www.traveller._guard import guard_context
+from travel_booking.www.traveller._guard import guard_context, require_on_behalf_manager
 
 
 def get_context(context):
@@ -21,9 +20,7 @@ def get_context(context):
     # dihantar balik ke senarai My Bookings. (guard_context dah benarkan
     # mereka masuk portal; ini sekadar routing halaman, bukan sekuriti —
     # endpoint data turut menyaring ikut role.)
-    if not has_on_behalf_role(frappe.session.user):
-        frappe.local.flags.redirect_location = "/traveller/bookings"
-        raise frappe.Redirect
+    require_on_behalf_manager()
 
     context.site_name = frappe.get_cached_value(
         "Travel Settings", None, "site_name"

@@ -607,6 +607,31 @@
     btn.addEventListener('click', function () { openCustomerEditModal(b); });
   }
 
+  /* ── Senarai negara untuk modal "Edit Billing Info" ──
+     Sumber utama: pageData (page controller onbehalf_booking.py). Fallback:
+     API get_countries — modal ini juga terpapar pada page booking.html
+     (pemilik) & mod staff apabila bendera server on_behalf_view aktif,
+     page yang pageData-nya TIDAK membawa billing_countries; tanpa fallback,
+     dropdown negara kosong dan country tak boleh dipilih.
+     Dicache selepas muatan pertama. */
+  var _billingCountryCache = null;
+  async function _getBillingCountries() {
+    if (_billingCountryCache) return _billingCountryCache;
+    var list = (_pageData.billing_countries || []).slice();
+    if (!list.length) {
+      try {
+        var res = await API_TV('get_countries', {});
+        list = (res || []).map(function (c) { return c.name || c.country_name || c; });
+      } catch (e) { list = []; }
+    }
+    // Malaysia didahulukan, selebihnya A-Z — selari wizard /booknow.
+    list.sort(function (a, b) {
+      return (a === 'Malaysia') ? -1 : (b === 'Malaysia') ? 1 : a.localeCompare(b);
+    });
+    _billingCountryCache = list;
+    return list;
+  }
+
   function openCustomerEditModal(b) {
     var existing = document.getElementById('tvl-cust-modal');
     if (existing) existing.remove();
@@ -618,21 +643,6 @@
     };
     var inp = 'width:100%;padding:10px 12px;border:1.5px solid var(--border-default);border-radius:8px;font:inherit;font-size:13.5px;color:var(--text-primary);box-sizing:border-box;background:#fff;';
     var lbl = 'display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin:10px 0 4px;';
-
-    // Country = dropdown dari dokumen Country (context page controller) —
-    // nilai canonical supaya sentiasa sah untuk Address.customer. Nilai
-    // lama yang tersimpan (cth. free-text rekod lama) tetap dipapar sebagai
-    // opsyen tambahan supaya tak hilang.
-    var countries = _pageData.billing_countries || [];
-    var curCountry = billing.country || '';
-    var countryOptions = '<option value="">Select country</option>';
-    countries.forEach(function (c) {
-      var sel = (c === curCountry) ? ' selected' : '';
-      countryOptions += '<option value="' + _esc(c) + '"' + sel + '>' + _esc(c) + '</option>';
-    });
-    if (curCountry && countries.indexOf(curCountry) === -1) {
-      countryOptions += '<option value="' + _esc(curCountry) + '" selected>' + _esc(curCountry) + '</option>';
-    }
 
     var overlay = document.createElement('div');
     overlay.id = 'tvl-cust-modal';
@@ -662,7 +672,9 @@
           '<div><label style="' + lbl + '">State <span style="color:#DC2626;">*</span></label>' +
           '<input type="text" id="tce-state" required style="' + inp + '" value="' + _esc(billing.state || '') + '" autocomplete="address-level1"/></div>' +
           '<div><label style="' + lbl + '">Country <span style="color:#DC2626;">*</span></label>' +
-          '<select id="tce-country" required style="' + inp + '" autocomplete="country-name">' + countryOptions + '</select></div>' +
+          // Senarai diisi selepas modal dilekap (async) — nilai tersimpan
+          // lamanya dikekalkan sebagai opsyen tambahan supaya tak hilang.
+          '<select id="tce-country" required style="' + inp + '" autocomplete="country-name"><option value="">Loading countries…</option></select></div>' +
         '</div>' +
         '<div id="tce-error" style="display:none;margin-top:12px;padding:10px 12px;border-radius:8px;background:#FDECEC;color:#991B1B;font-size:12.5px;line-height:1.5;"></div>' +
         '<div style="display:flex;gap:10px;margin-top:18px;">' +
@@ -672,6 +684,26 @@
       '</div>';
     document.body.appendChild(overlay);
     document.body.style.overflow = 'hidden';
+
+    // Country = dropdown dari dokumen Country (pageData / API) — nilai
+    // canonical supaya sentiasa sah untuk Address.customer. Nilai lama yang
+    // tersimpan (cth. free-text rekod lama) tetap dipapar sebagai opsyen
+    // tambahan supaya tak hilang.
+    (async function fillCountries() {
+      var sel = overlay.querySelector('#tce-country');
+      if (!sel) return;
+      var curCountry = (billing.country || '').trim();
+      var countries = await _getBillingCountries();
+      var countryOptions = '<option value="">Select country</option>';
+      countries.forEach(function (c) {
+        var selMark = (c === curCountry) ? ' selected' : '';
+        countryOptions += '<option value="' + _esc(c) + '"' + selMark + '>' + _esc(c) + '</option>';
+      });
+      if (curCountry && countries.indexOf(curCountry) === -1) {
+        countryOptions += '<option value="' + _esc(curCountry) + '" selected>' + _esc(curCountry) + '</option>';
+      }
+      sel.innerHTML = countryOptions;
+    })();
 
     function close() {
       overlay.remove();

@@ -851,13 +851,46 @@ def _mark_payment_request_paid(pr_name):
         frappe.local.session.user = _orig_session_user
 
 
+def _intent_payment_requests(payment_intent):
+	"""SEMUA nama Payment Request yang disokong SATU PaymentIntent.
+
+	Laluan biasa (per-SO): metadata 'payment_request' sahaja. Caj gabungan
+	admin (beberapa SO, satu bayaran — create_booking_payment_link dalam
+	manage_trip_booking.py) pula menyimpan metadata 'payment_requests'
+	(dipisah '|') — webhook wajib melunaskan SEMUanya supaya setiap SO
+	terima bahagiannya (satu PE per PR). PR utama sentiasa disertakan
+	(walau metadata lama tiada 'payment_requests') supaya tingkah laku
+	sedia ada tidak berubah."""
+	meta = payment_intent.get("metadata") or {}
+	pr_names = [p.strip() for p in (meta.get("payment_requests") or "").split("|")
+				if p.strip()]
+	pr_name = meta.get("payment_request")
+	if pr_name and pr_name not in pr_names:
+		pr_names.insert(0, pr_name)
+	return pr_names
+
+
 def _handle_payment_succeeded(payment_intent):
-    pr_name = (payment_intent.get("metadata") or {}).get("payment_request")
-    if not pr_name or not frappe.db.exists("Payment Request", pr_name):
-        frappe.log_error("Webhook: payment_request not found in metadata. PI: " +
-                         str(payment_intent.get("id")), "Stripe Webhook")
-        return
-    _mark_payment_request_paid(pr_name)
+	pr_names = _intent_payment_requests(payment_intent)
+	if not pr_names:
+		frappe.log_error("Webhook: payment_request not found in metadata. PI: " +
+						 str(payment_intent.get("id")), "Stripe Webhook")
+		return
+	existing = [p for p in pr_names if frappe.db.exists("Payment Request", p)]
+	if not existing:
+		frappe.log_error("Webhook: none of the Payment Requests exist (metadata: " +
+						 ", ".join(pr_names) + "). PI: " +
+						 str(payment_intent.get("id")), "Stripe Webhook")
+		return
+	if len(existing) < len(pr_names):
+		frappe.log_error(
+			"Webhook: some Payment Requests no longer exist (missing: " +
+			", ".join(p for p in pr_names if p not in existing) + "). PI: " +
+			str(payment_intent.get("id")), "Stripe Webhook")
+	# Satu PE per PR (setiap PR merujuk SO sendiri, pr_amount = baki SO)
+	# — jumlah kesemua PE = jumlah caj Stripe. Idempotent per PR.
+	for pr_name in existing:
+		_mark_payment_request_paid(pr_name)
 
 
 def _handle_payment_failed(payment_intent):
@@ -1032,6 +1065,18 @@ def get_payment_result(payment_intent: str):
     if result_status == "succeeded" and pr_name and pr_status != "Paid":
         if _mark_payment_request_paid(pr_name):
             pr_status = "Paid"
+            # Caj gabungan (beberapa SO) — fallback webhook-miss di atas
+            # mesti melunaskan PR SEBELIAH-ADELIK juga (metadata
+            # 'payment_requests'), bukan PR utama sahaja, supaya baki
+            # setiap SO dikemaskini walaupun webhook tidak sampai.
+            try:
+                siblings = [p for p in _intent_payment_requests(intent)
+                            if p != pr_name]
+            except Exception:
+                siblings = []
+            for sibling in siblings:
+                if frappe.db.exists("Payment Request", sibling):
+                    _mark_payment_request_paid(sibling)
         else:
             # set_as_paid() gagal (rujuk Error Log "Stripe Payment Entry
             # Error") — jangan sorok kegagalan ni dari customer/admin.

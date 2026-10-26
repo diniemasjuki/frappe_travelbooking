@@ -846,6 +846,15 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         "cust_postcode":        billing.get("postcode"),
         "cust_state":           billing.get("state"),
         "cust_country":         billing.get("country"),
+        # SNAPSHOT jumlah yang perlu dibayar SEMASA booking dicipta — nilai
+        # yang sama dipulangkan wizard ("amount_due"): deposit (atau full
+        # payment, atau cash selepas cashback untuk Manual Transfer).
+        # Property virtual Booking tak boleh derive nilai ni (payment_type
+        # Deposit/Full tidak disimpan pada Booking), jadi ia disimpan sebagai
+        # salinan sejarah masa checkout (corak sama cust_email/
+        # pre_discount_total) — dipapar notifikasi Telegram "NEW TRIP
+        # BOOKING" & memudahkan rujukan Desk/laporan.
+        "payment_due_amount":   round(cash_due or 0, 2),
         # Modul booking-channel (fasa 1): rekod SIAPA/SALURAN mana booking
         # ni dibuat. booking_channel "Direct" untuk customer sendiri;
         # "Staff"/"Affiliate" bila checkbox on-behalf aktif DAN session
@@ -969,6 +978,32 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
 
     frappe.db.commit()
 
+    # Telegram "NEW TRIP BOOKING" — trigger EKSPLISIT di sini, BUKAN event
+    # after_insert standard. Punca: SO utama dicipta DAHULU tanpa link
+    # (booking.name belum wujud masa tu), dan `Sales Order.custom_booking`
+    # hanya ditulis SELEPAS booking.insert() selesai — jadi hook
+    # after_insert (yang berlaku DALAM insert()) terbakar ketika
+    # order_summary/total_amount (property yang resolve SO melalui
+    # custom_booking) masih kosong/0, dan notifikasi terhantar data tak
+    # lengkap. Notifikasi dikonfigur dengan event Method =
+    # "booking_created" supaya hook standard tak fire; ia hanya fire di
+    # sini — selepas custom_booking ditulis & SEMUA transaksi committed
+    # (stripe URL / PE manual / voucher), jadi booking yang gagal di
+    # langkah lewat tak sempat diumumkan.
+    try:
+        from erpnext_telegram_integration.erpnext_telegram_integration.doctype.telegram_notification.telegram_notification import (
+            run_telegram_notifications,
+        )
+        run_telegram_notifications(
+            frappe.get_doc("Booking", booking.name), "booking_created"
+        )
+    except Exception:
+        # Notifikasi TIDAK boleh gagalkan booking yang dah berjaya — log
+        # sahaja untuk semakan admin.
+        frappe.log_error(
+            frappe.get_traceback(), "Telegram NEW TRIP BOOKING trigger failed"
+        )
+
     if payment_method in ("Manual Transfer", "Pay Later"):
         # Manual Transfer — booking betul-betul "Pending" (menunggu admin
         # verify resit). Pay Later — booking "Pending" sebab memang belum
@@ -1007,6 +1042,11 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
 # ══════════════════════════════════════════════
 # STATUS ENGINE
 # ══════════════════════════════════════════════
+
+# Status bayaran refund — dikekalkan walaupun booking Cancelled/Abandoned
+# (cermin Booking.REFUND_PAYMENT_STATES doctype controller).
+_REFUND_PAYMENT_STATES = ("Request Refund", "Pending Refund", "Refunded")
+
 
 def _recompute_booking_status(so_name, exclude_current=False, fire_flows=True):
     """Kira semula field STORED booking (payment_status, prog_payment,
@@ -1063,11 +1103,14 @@ def _recompute_booking_status(so_name, exclude_current=False, fire_flows=True):
         if exclude_current:
             # Semua SO booking dah dibatalkan/dipadam — kosongkan snapshot
             # supaya booking tak kekal baki/total/pax palsu. (Tiada SO untuk
-            # activation/auto-invoice — berhenti di sini.)
+            # activation/auto-invoice — berhenti di sini.) Payment status
+            # ikut syarat 4 — 'Canceled' bila booking Cancelled/Abandoned.
+            _st = frappe.db.get_value("Booking", booking_name, "status")
             frappe.db.set_value("Booking", booking_name, {
                 "pre_discount_total": 0,
                 "prog_payment": 0,
-                "payment_status": "Pending",
+                "payment_status": "Canceled" if _st in ("Cancelled", "Abandoned")
+                    else "Pending",
                 "booked_pax": 0,
             })
         return
@@ -1094,6 +1137,16 @@ def _recompute_booking_status(so_name, exclude_current=False, fire_flows=True):
             gross += grand
 
     new_payment_status = _compute_payment_status(paid, total)
+
+    # Syarat 4 — booking Cancelled/Abandoned → payment_status 'Canceled'
+    # (kecuali aliran refund sedang berjalan — Request Refund/Pending
+    # Refund/Refunded dikekalkan kerana maklumat refund lebih spesifik).
+    # Syarat 1-3 di atas kekal dikira supaya rekod bayaran kekal tepat.
+    booking_status, cur_pay_status = frappe.db.get_value(
+        "Booking", booking_name, ["status", "payment_status"]) or (None, None)
+    if booking_status in ("Cancelled", "Abandoned") and (
+            cur_pay_status or "Pending") not in _REFUND_PAYMENT_STATES:
+        new_payment_status = "Canceled"
 
     # pre_discount_total di-sync di sini (bukan dikira on-the-fly) kerana
     # field STORED — dipakai laporan & kiraan komisen affiliate. Tanpa sync
@@ -1235,9 +1288,14 @@ def _cancel_booking_cascade(booking_doc):
     validate_payment_request_amount mengumpul SEMUA PR submitted).
     """
     for r in frappe.get_all("Booking Reservation",
-                            filters={"booking": booking_doc.name, "status": "Confirmed"},
+                            filters={"booking": booking_doc.name, "status": ["!=", "Cancelled"]},
                             fields=["name"]):
         res = frappe.get_doc("Booking Reservation", r.name)
+        # Cancelled ditetapkan EKSPLISIT (bukan compute) — status Booking
+        # dalam save ni belum commit; pengiraan auto baca DB boleh tengok
+        # nilai lama. apply_auto_status dalam validate() menghormatinya:
+        # reservation Cancelled ialah terminal (rujuk guard terminal
+        # compute_auto_status), rule #1 pun mengesahkan nilai yang sama.
         res.status = "Cancelled"
         res.save(ignore_permissions=True)
 
@@ -1350,19 +1408,45 @@ def on_sales_order_change(doc, method=None):
     )
 
 
+@frappe.whitelist()
+def sync_booking_payment_status(booking: str):
+    """API umum — kira semula payment_status SATU booking (guna semula
+    enjin _recompute_booking_status: Pending / Partially Paid / Paid dari
+    agregat semua SO booking) dan terapkan syarat 4 — 'Canceled' bila
+    status booking Cancelled/Abandoned (kecuali aliran refund berjalan).
+    Untuk webhook pembayaran, integrasi luar, penyelarasan manual, atau
+    aliran lain yang perlukan peraturan payment status yang sama. Akses
+    disegerakkan dengan page Manage Booking (peranan pengurusan).
+    Return {booking, status, payment_status}.
+    """
+    from travel_booking.api.manage_trip_booking import _require_access
+    _require_access()
+    if not booking or not frappe.db.exists("Booking", booking):
+        frappe.throw(_("Booking {0} not found").format(booking))
+    so_names = _get_all_booking_sales_orders(booking)
+    if so_names:
+        _recompute_booking_status(so_names[0])
+    status, ps = frappe.db.get_value(
+        "Booking", booking, ["status", "payment_status"]) or (None, None)
+    if status in ("Cancelled", "Abandoned") and (
+            ps or "Pending") not in _REFUND_PAYMENT_STATES:
+        frappe.db.set_value("Booking", booking, "payment_status", "Canceled")
+        ps = "Canceled"
+    return {"booking": booking, "status": status, "payment_status": ps}
+
+
 def on_booking_update(doc, method=None):
     """Hook: Booking.on_update — kesan peralihan status yang dibuat MANUAL
     oleh admin di Desk (pilih value baharu terus di field 'status'), dan
     hantar email sepadan. Turut kesan peralihan ke 'Cancelled' untuk
-    jalankan cascade.
+    jalankan cascade dan ke 'Completed' untuk sebar status ke reservation.
 
     PENTING: "Pending" -> "Accepted" TIDAK dikesan di sini — peralihan tu
     automatik ikut bayaran (rujuk _recompute_booking_status(), dipanggil
-    dari hook Payment Entry), bukan admin pilih terus di dropdown. Begitu
-    juga "Completed" (auto ikut tarikh trip, rujuk mark_completed_trips()).
-    Fungsi ni HANYA kesan dua peralihan MANUAL: ke "Processing" dan ke
-    "Confirmed" (admin pilih terus value baharu di field status), serta
-    peralihan ke "Cancelled" (boleh manual atau dari mana-mana laluan lain).
+    dari hook Payment Entry). "Completed" auto ikut tarikh trip (rujuk
+    mark_completed_trips()) juga TIDAK lalui sini — scheduler itu sync
+    reservation sendiri; cabang Completed di bawah liput peralihan MANUAL
+    sahaja (Desk / Booking Hub update_booking_status).
     """
     old = doc.get_doc_before_save()
     if not old or old.status == doc.status:
@@ -1370,6 +1454,14 @@ def on_booking_update(doc, method=None):
 
     if doc.status == "Cancelled":
         _cancel_booking_cascade(doc)
+    elif doc.status == "Completed":
+        # Sebar ke reservation (Booking Completed → reservation Completed;
+        # reservation terminal tak diketuk ke belakang — rujuk
+        # sync_status_for_booking).
+        from travel_booking.module_travel_booking.doctype.booking_reservation.booking_reservation import (
+            sync_status_for_booking,
+        )
+        sync_status_for_booking(doc.name)
     elif doc.status == "Processing" and old.status != "Processing":
         _send_status_email(doc.name, "Processing")
     elif doc.status == "Confirmed" and old.status != "Confirmed":
@@ -1418,6 +1510,12 @@ def mark_completed_trips(booking_name=None):
         try:
             frappe.db.set_value("Booking", b.name, "status", "Completed")
             _send_status_email(b.name, "Completed")
+            # Sebar ke reservation: Booking Completed → reservation
+            # Completed (reservation terminal tak diketuk ke belakang).
+            from travel_booking.module_travel_booking.doctype.booking_reservation.booking_reservation import (
+                sync_status_for_booking,
+            )
+            sync_status_for_booking(b.name)
             count_completed += 1
         except Exception as e:
             frappe.log_error(
@@ -1475,7 +1573,10 @@ def mark_abandoned_pending_bookings(booking_name=None):
     count_abandoned = 0
     for b in bookings:
         try:
-            frappe.db.set_value("Booking", b.name, "status", "Abandoned")
+            # Syarat 4 — Abandoned → payment_status 'Canceled' (set terus di
+            # DB, selari dengan status; db.set_value tak picu doc_events).
+            frappe.db.set_value("Booking", b.name,
+                {"status": "Abandoned", "payment_status": "Canceled"})
             count_abandoned += 1
         except Exception as e:
             frappe.log_error(

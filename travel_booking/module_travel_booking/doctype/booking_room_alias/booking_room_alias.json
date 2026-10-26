@@ -1,0 +1,72 @@
+{
+ "actions": [],
+ "autoname": "format:ROOMALIAS-{booking}-{cabin_no}",
+ "creation": "2026-10-24 14:30:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "booking",
+  "cabin_no",
+  "custom_name"
+ ],
+ "fields": [
+  {
+   "fieldname": "booking",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Booking",
+   "options": "Booking",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cabin_no",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Cabin No",
+   "reqd": 1
+  },
+  {
+   "fieldname": "custom_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Custom Room Name",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-10-24 14:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Booking Room Alias",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Tour Manager"
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "write": 1,
+   "role": "Tour Operator"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

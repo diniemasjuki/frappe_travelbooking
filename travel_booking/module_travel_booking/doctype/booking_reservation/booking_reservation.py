@@ -3,14 +3,61 @@
 
 import frappe
 from frappe.model.document import Document
+from frappe.utils import add_months, getdate, nowdate
 
 from travel_booking.api.constants import get_max_cabins
 
 # Option status yang sah pada doctype Traveller. document_status pada
 # reservation ialah cermin DUA-HALA status ni (rujuk sync_document_status
 # + Traveller.sync_status_to_reservations) — senarai ini mesti sepadan
-# dengan options field Traveller.status, termasuk "Valid".
-TRAVELLER_STATUS_OPTIONS = ("Incomplete", "Verified", "Open for Update", "Rejected", "Valid")
+# dengan options field Traveller.status, TERMASUK "Pending Verification"
+# (auto oleh Traveller.evaluate_document_status bila borang lengkap)
+# — selari options doctype Traveller.
+TRAVELLER_STATUS_OPTIONS = (
+	"Incomplete", "Pending Verification", "Verified",
+	"Open for Update", "Expired",
+)
+
+# ══════════════════════════════════════════════
+# ALIRAN STATUS RESERVATION (auto kecuali Preparation Complete)
+# ══════════════════════════════════════════════
+#
+# Waiting Document → Document Completed → (Document Expired) →
+# Preparation Complete (manual admin, melekat) → Trip OnProgress →
+# Completed / Cancelled.
+#
+# Status dikira oleh compute_auto_status() ikut KEUTAMAAN:
+#   1. Cancelled         — Booking berstatus Cancelled
+#   2. Completed         — Booking berstatus Completed
+#   3. Completed         — hari ini sudah melepasi return_date trip
+#   4. Trip OnProgress   — departure_date ≤ hari ini ≤ return_date
+#   5. Document Expired  — luput passport < 6 bulan dari departure
+#                          (peraturan 6 bulan, sama threshold dengan
+#                          passport_maintenance)
+#   6. Document Completed — status Traveller: Verified / Valid /
+#                          Pending Verification
+#   7. Waiting Document  — tiada Traveller linked, atau status Traveller
+#                          lain (Incomplete / Open for Update)
+#
+# Status MELEKAT (tak diketuk automatik):
+#   - Preparation Complete — tanda manual admin bahawa persiapan slot ni
+#     siap. Hanya peristiwa "lebih kuat" yang mengatasi: Document Expired,
+#     Trip OnProgress, Completed, Cancelled (rujuk resolve_auto_status).
+#   - Completed / Cancelled — terminal; hanya kemaskini eksplisit (patch,
+#     admin) yang boleh hidupkan semula.
+#
+# Pencetus pengiraan:
+#   - validate() reservation itu sendiri (setiap save)
+#   - Traveller.status berubah → Traveller.sync_status_to_reservations()
+#     → recompute_reservation_status()
+#   - Booking → Completed (manual Desk/Hub ATAU mark_completed_trips)
+#     → sync_status_for_booking()
+#   - passport_maintenance.cleanup_expired_passport_images (hook harian)
+#     → recompute_reservation_status()
+#   - Jaring keselamatan harian: auto_update_reservation_statuses()
+#     (hooks.py scheduler daily) — tangkap peralihan tarikh (Trip
+#     OnProgress, 24-jam Completed, luput passport menjelang departure)
+#     yang tak melibatkan sebarang save dokumen.
 
 
 class BookingReservation(Document):
@@ -24,44 +71,43 @@ class BookingReservation(Document):
 
 		accomodation_info_sent: DF.Check
 		action_for_accomodation: DF.Literal["No"]
-		address_source: DF.Literal["", "From Booking", "Custom"]
-		affiliate: DF.Link | None
+		affiliate: DF.ReadOnly | None
 		airline: DF.Link | None
 		aroya_guest_no: DF.Int
-		arrival_date: DF.Date | None
-		b2b_partner: DF.Link | None
-		booked_by: DF.Link | None
+		arrival_date: DF.ReadOnly | None
+		b2b_partner: DF.ReadOnly | None
+		booked_by: DF.ReadOnly | None
 		booking: DF.Link | None
-		booking_balance_amount: DF.Currency
-		booking_channel: DF.Literal["Direct", "Staff", "Affiliate", "B2B"]
-		booking_currency: DF.Data | None
-		booking_number: DF.Data | None
-		booking_paid_amount: DF.Currency
-		booking_payment_status: DF.Literal["Pending", "Partially Paid", "Paid", "Request Refund", "Pending Refund", "Refunded"]
-		booking_pre_discount_total: DF.Currency
-		booking_price_rule_discount: DF.Currency
-		booking_prog_payment: DF.Percent
-		booking_referral_discount: DF.Currency
-		booking_status: DF.Literal["Pending", "Accepted", "Processing", "Confirmed", "Completed", "Abandoned", "Cancelled"]
-		booking_total_amount: DF.Currency
-		booking_trip_name: DF.Link | None
-		booking_voucher_discount: DF.Currency
+		booking_balance_amount: DF.ReadOnly | None
+		booking_channel: DF.ReadOnly | None
+		booking_currency: DF.ReadOnly | None
+		booking_number: DF.ReadOnly | None
+		booking_paid_amount: DF.ReadOnly | None
+		booking_payment_status: DF.ReadOnly | None
+		booking_pre_discount_total: DF.ReadOnly | None
+		booking_price_rule_discount: DF.ReadOnly | None
+		booking_prog_payment: DF.ReadOnly | None
+		booking_referral_discount: DF.ReadOnly | None
+		booking_status: DF.ReadOnly | None
+		booking_total_amount: DF.ReadOnly | None
+		booking_trip_name: DF.ReadOnly | None
+		booking_voucher_discount: DF.ReadOnly | None
 		cabin_is_confirmed: DF.Check
 		cabin_no: DF.Int
-		checkout_method: DF.Literal["", "Online Payment Gateway", "Manual Transfer", "Held Booking"]
-		company: DF.Link | None
-		cruise_end: DF.Date | None
-		cruise_start: DF.Date | None
-		customer: DF.Data | None
-		customer_email: DF.Data | None
+		checkout_method: DF.ReadOnly | None
+		company: DF.ReadOnly | None
+		cruise_end: DF.ReadOnly | None
+		cruise_start: DF.ReadOnly | None
+		customer: DF.ReadOnly | None
+		customer_email: DF.ReadOnly | None
 		customer_message: DF.SmallText | None
-		customer_phone: DF.Phone | None
+		customer_phone: DF.ReadOnly | None
 		date_selection: DF.Link | None
 		delegate_no: DF.Data | None
-		departure_date: DF.Date | None
-		departure_point: DF.Data | None
-		document_status: DF.Literal["Incomplete", "Verified", "Open for Update", "Rejected", "Valid"]
-		end_customer: DF.Link | None
+		departure_date: DF.ReadOnly | None
+		departure_point: DF.ReadOnly | None
+		document_status: DF.ReadOnly | None
+		end_customer: DF.ReadOnly | None
 		flight: DF.Link | None
 		flight_announcement: DF.Literal["No Action", "Flight Confirmation", "Flight Retime", "Flight eTicket"]
 		flight_departure_airport: DF.Link | None
@@ -71,47 +117,58 @@ class BookingReservation(Document):
 		flight_itinerary: DF.TextEditor | None
 		flight_return_date: DF.Date | None
 		flight_ticket_type: DF.Data | None
-		guest_address_line1: DF.Data | None
-		guest_city: DF.Data | None
-		guest_country: DF.Data | None
 		guest_label: DF.Data | None
-		guest_postcode: DF.Data | None
 		guest_sequence: DF.Int
-		guest_state: DF.Data | None
-		is_a_cruise: DF.Check
-		is_cruise_only: DF.Check
+		is_a_cruise: DF.ReadOnly | None
+		is_cruise_only: DF.ReadOnly | None
 		naming_series: DF.Literal[".{booking}.-.#", "RES.YY.MM.###"]
-		package_title: DF.Data | None
-		package_type: DF.Data | None
+		package_title: DF.ReadOnly | None
+		package_type: DF.ReadOnly | None
 		passport_link_email: DF.Data | None
 		passport_link_expires_on: DF.Datetime | None
 		passport_link_token: DF.Data | None
 		pax_type: DF.Data | None
-		referral_code_used: DF.Data | None
+		referral_code_used: DF.ReadOnly | None
 		room_category: DF.Link | None
 		room_id: DF.Data | None
 		room_privacy: DF.Literal["Private", "Open Sharing"]
 		stateroom_no: DF.Data | None
-		status: DF.Literal["Pending Review", "Confirmed", "Cancelled"]
+		status: DF.Literal["Waiting Document", "Document Completed", "Document Expired", "Preparation Completed", "Trip On Progress", "Completed", "Cancelled"]
 		total_days: DF.ReadOnly | None
 		total_nights: DF.ReadOnly | None
 		traveller: DF.Link | None
-		traveller_datebirth: DF.Date | None
-		traveller_email: DF.Data | None
-		traveller_full_name: DF.Data | None
-		traveller_gender: DF.Literal[None]
-		traveller_ic: DF.Data | None
-		traveller_nationality: DF.Link | None
-		traveller_passportexpiry: DF.Date | None
-		traveller_passportimg: DF.AttachImage | None
-		traveller_passportno: DF.Data | None
+		traveller_address_line1: DF.ReadOnly | None
+		traveller_age_category: DF.ReadOnly | None
+		traveller_city: DF.ReadOnly | None
+		traveller_country: DF.ReadOnly | None
+		traveller_datebirth: DF.ReadOnly | None
+		traveller_email: DF.ReadOnly | None
+		traveller_emergency_contact_name: DF.ReadOnly | None
+		traveller_emergency_contact_phone: DF.ReadOnly | None
+		traveller_emergency_contact_relationship: DF.ReadOnly | None
+		traveller_first_name: DF.ReadOnly | None
+		traveller_full_name: DF.ReadOnly | None
+		traveller_gender: DF.ReadOnly | None
+		traveller_ic: DF.ReadOnly | None
+		traveller_last_name: DF.ReadOnly | None
+		traveller_nationality: DF.ReadOnly | None
+		traveller_passportexpiry: DF.ReadOnly | None
+		traveller_passportimg: DF.ReadOnly | None
+		traveller_passportno: DF.ReadOnly | None
+		traveller_phone: DF.ReadOnly | None
+		traveller_postcode: DF.ReadOnly | None
+		traveller_state: DF.ReadOnly | None
+		traveller_status: DF.ReadOnly | None
+		traveller_title: DF.ReadOnly | None
+		traveller_visa_photo: DF.ReadOnly | None
+		traveller_wheelchair_assistant: DF.ReadOnly | None
 		trip_cruise_schedule: DF.Link | None
 		trip_link: DF.Link | None
-		trip_name: DF.Data | None
-		trip_organizer: DF.Data | None
+		trip_name: DF.ReadOnly | None
+		trip_organizer: DF.ReadOnly | None
 		trip_package: DF.Link | None
-		trip_package_code: DF.Data | None
-		voucher: DF.Link | None
+		trip_package_code: DF.ReadOnly | None
+		voucher: DF.ReadOnly | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Booking Reservation"
@@ -127,10 +184,101 @@ class BookingReservation(Document):
 	# kemaskini booking.js sekali buat masa ni.
 
 	def validate(self):
+		# sync_document_status DULU — ia boleh menulis status baharu ke
+		# Traveller (db.set_value, serta-merta) bila admin ubah mirror di
+		# reservation; apply_auto_status mesti baca nilai Traveller yang
+		# TELAH dikemas kini, bukan yang lama.
 		self.sync_document_status()
+		self.apply_auto_status()
 		self.assign_room_id()
 		self.validate_cabin_capacity()
 		self.sync_booking_money_snapshot()
+
+	# ══════════════════════════════════════════════
+	# ALIRAN STATUS AUTO — teras & pembantu kongsi
+	# ══════════════════════════════════════════════
+
+	# Status MELEKAT: Preparation Complete ialah tanda manual admin
+	# ("persiapan slot ni siap") — pengiraan auto TIDAK menurunkannya
+	# semula ke status dokumen; hanya peristiwa lebih kuat yang mengatasi
+	# (Document Expired, Trip OnProgress, Completed, Cancelled — rujuk
+	# resolve_auto_status()). Completed/Cancelled pula terminal.
+	STICKY_STATUSES = ("Preparation Complete",)
+
+	# Entri status Traveller yang dikira "dokumen siap". Pending
+	# Verification dikira siap kerana borang sudah lengkap — tinggal
+	# semakan admin (kanun: Waiting Document = dokumen BELUM lengkap).
+	COMPLETED_DOC_STATUSES = ("Verified", "Pending Verification")
+
+	def compute_auto_status(self) -> str | None:
+		"""Kira status yang SEPATUTNYA untuk reservation ni ikut aliran
+		auto. Pulangkan None hanya bila status semasa patut dikekalkan
+		(sudah terminal ATAU Preparation Complete masih relevan).
+
+		Tarikh rujukan ialah departure/return Booking (fetch_from Trip
+		Group Date) — reservation ada snapshot departure_date/arrival_date
+		sendiri, tapi fallback ke snapshot itu bila Booking kosong.
+		"""
+		booking_status = None
+		dep, ret = None, None
+		if self.booking and frappe.db.exists("Booking", self.booking):
+			b = frappe.db.get_value("Booking", self.booking,
+				["status", "departure_date", "return_date"], as_dict=True)
+			booking_status = b.status
+			dep, ret = b.departure_date, b.return_date
+		dep = dep or self.departure_date
+		ret = ret or self.arrival_date
+		today = getdate(nowdate())
+
+		# Cancelled ialah TERMINAL — booking Completed tak hidupkan semula
+		# slot yang dibatalkan (Cancel > Complete). Hanya booking Cancelled
+		# yang "mengesahkan" nilai itu (rule #1 di bawah).
+		if self.status == "Cancelled" and booking_status != "Cancelled":
+			return None
+
+		# 1 & 2 — status booking memerintah (Cancel/Complete cascade).
+		if booking_status == "Cancelled":
+			return "Cancelled"
+		if booking_status == "Completed":
+			return "Completed"
+
+		# 3 — trip sudah tamat (fallback bila booking takkan jadi Completed).
+		# Selari dengan mark_completed_trips (return_date < hari ini) supaya
+		# reservation tak lag dari bookingnya; tiada jurang "hari selepas
+		# return" yang tergerak balik ke status dokumen.
+		if ret and today > getdate(ret):
+			return "Completed"
+
+		# 4 — dalam tempoh trip.
+		if dep and ret and getdate(dep) <= today <= getdate(ret):
+			return "Trip OnProgress"
+
+		# 5 — luput passport < 6 bulan dari departure (peraturan 6 bulan,
+		# sama threshold dengan passport_maintenance.cleanup_expired_passport_images).
+		if dep and self.traveller:
+			expiry = frappe.db.get_value("Traveller", self.traveller, "passport_expiry")
+			if expiry and getdate(expiry) < add_months(getdate(dep), -6):
+				return "Document Expired"
+
+		# Sticky: Preparation Complete kekal melainkan peristiwa lebih kuat
+		# di atas menangkapnya. Completed/Cancelled dikekalkan juga (terminal)
+		# bila tak ada rule yang mengatasi.
+		if self.status in self.STICKY_STATUSES or self.status in ("Completed", "Cancelled"):
+			return None
+
+		# 6/7 — dokumen Traveller.
+		tvl_status = frappe.db.get_value("Traveller", self.traveller, "status") if self.traveller else None
+		if tvl_status in self.COMPLETED_DOC_STATUSES:
+			return "Document Completed"
+		return "Waiting Document"
+
+	def apply_auto_status(self):
+		"""Kira status auto dan set pada doc semasa save — pencetus utama
+		bila reservation itu sendiri disimpan (slot baru, edit admin,
+		cancel cascade yang save reservation satu-satu)."""
+		new_status = self.compute_auto_status()
+		if new_status and new_status != self.status:
+			self.status = new_status
 
 	def sync_booking_money_snapshot(self):
 		"""Snapshot kewangan Booking → reservation (currency, total, baki,
@@ -178,7 +326,7 @@ class BookingReservation(Document):
 		form reservation — user tak payah buka dokumen Traveller asing.
 		Perubahan boleh masuk dari mana-mana hala:
 		- document_status diubah di reservation ni → tolak nilai ke
-		  Traveller.status (semua option termasuk "Valid" ditolak —
+		  Traveller.status (option luar senarai ditolak —
 		  senarai sama dengan options Traveller.status).
 		- document_status kosong ATAU traveller baru ditukar → tarik
 		  masuk status sedia ada Traveller.
@@ -265,15 +413,62 @@ class BookingReservation(Document):
 		# tersimpan lagi masa validate() jalan, jadi query di bawah TAK
 		# akan jumpa diri sendiri; kita tambah diri sendiri manual dalam
 		# kiraan supaya termasuk kes semasa).
-		siblings = frappe.get_all(
-			"Booking Reservation",
-			filters={
-				"booking":   self.booking,
-				"cabin_no":  self.cabin_no,
-				"name":      ["!=", self.name or ""],
-			},
-			fields=["pax_type", "room_category"],
-		)
+		#
+		# IDENTITI BILIK FIZIKAL: room_id eksplisit milik booking lain
+		# (penempatan Open Sharing MERENTAS booking — rujuk
+		# arrange_group_rooming) bermakna bilik fizikal tetamu ini ialah
+		# bilik PEMILIK; sibling sebenar = SEMUA reservation yang membawa
+		# room_id yang sama (tetamu booking lain + penghuni asal bilik
+		# pemilik), BUKAN booking+cabin_no sendiri — kunci booking+cabin
+		# akan tersilak kira penghuni bilik berbeza (bug: "Main Guest
+		# exceeds the capacity" untuk perpindahan sah). Tanpa room_id
+		# eksplisit: kekal booking+cabin_no (model asal).
+		own_ref = self.booking_number
+		if not own_ref and self.booking:
+			own_ref = frappe.db.get_value("Booking", self.booking, "booking_number")
+		own_ref = own_ref or self.booking
+		explicit_foreign_room = None
+		if self.room_id and "-Room_" in self.room_id:
+			owner_ref = self.room_id.split("-Room_")[0]
+			if owner_ref != own_ref:
+				explicit_foreign_room = self.room_id
+
+		if explicit_foreign_room:
+			siblings = frappe.get_all(
+				"Booking Reservation",
+				filters={
+					"room_id": explicit_foreign_room,
+					"status":  ["!=", "Cancelled"],
+					"name":    ["!=", self.name or ""],
+				},
+				fields=["pax_type", "room_category"],
+			)
+		else:
+			# Bilik sendiri (booking+cabin). PENGHUNI MERENTAS BOOKING
+			# DIKECUALIKAN — reservation yang membawa room_id milik booking
+			# LAIN (Open Sharing) bukan penghuni bilik ini walaupun
+			# cabin_no-nya kebetulan sama nombor dengan cabin sendiri
+			# (cabin_no tetamu cross-booking mengikut cabin PEMILIK bilik,
+			# bukan penomboran booking sendiri). Tanpa pengecualian ni,
+			# kiraan kapasiti bilik sendiri tersilak masukkannya
+			# (bug: "Main Guest exceeds the capacity" untuk save biasa).
+			siblings = frappe.db.sql("""
+				SELECT pax_type, room_category
+				FROM `tabBooking Reservation`
+				WHERE booking = %(booking)s
+				  AND IFNULL(cabin_no, 0) = %(cabin_no)s
+				  AND name != %(name)s
+				  AND status != 'Cancelled'
+				  AND (
+				      room_id IS NULL OR room_id = ''
+				      OR SUBSTRING_INDEX(room_id, '-Room_', 1) = %(own_ref)s
+				  )
+			""", {
+				"booking": self.booking,
+				"cabin_no": self.cabin_no,
+				"name": self.name or "",
+				"own_ref": own_ref,
+			}, as_dict=True)
 
 		# PENTING: room_category MESTI konsisten dalam satu cabin — satu
 		# cabin FIZIKAL tak boleh jadi 2 jenis bilik serentak (beza dengan
@@ -314,7 +509,6 @@ class BookingReservation(Document):
 									["capacity", "max_capacity"], as_dict=True)
 		if not info:
 			frappe.throw("Invalid room category: " + str(self.room_category))
-
 		capacity = int(info.capacity or 0)
 		# max_capacity == 0 (eksplisit) -> UNLIMITED (overbooking cabin
 		# dibenarkan). None/kosong -> fallback ke capacity (behavior sedia).
@@ -327,7 +521,10 @@ class BookingReservation(Document):
 			max_capacity = int(mc)
 			unlimited = (max_capacity == 0)
 
-		cabin_label = "Cabin " + str(self.cabin_no) + " (" + str(self.room_category) + ")"
+		# Label bilik fizikal — penempatan merentas booking papar room_id
+		# pemilik (lebih tepat daripada "Cabin N" booking sendiri).
+		cabin_label = (explicit_foreign_room if explicit_foreign_room
+		               else "Cabin " + str(self.cabin_no)) + " (" + str(self.room_category) + ")"
 
 		if is_cruise:
 			# SLOT: Extra Bed (upper berth) hanya sah bila Main Guest penuh
@@ -379,20 +576,45 @@ class BookingReservation(Document):
 		atau admin manual di Desk). Assign SEKALI SAHAJA — nilai yang
 		diisi manual admin TIDAK ditimpa. Slot Cancelled tidak dikira
 		(nombor tak dibazorkan); skip senyap bila booking/cabin_no kosong
-		(rekod lama), selari dengan gaya assign_room_id().
+		(rekod lama), selari dengan gaya assign_room_id(). PENGHUNI
+		MERENTAS BOOKING tidak dikira — tetamu Open Sharing bawa room_id
+		bilik booking lain (cabin_no ikut PEMILIK), bukan penghuni cabin
+		penomboran booking sendiri.
 		"""
 		if self.guest_sequence:
 			return
 		if not (self.booking and self.cabin_no):
 			return
-		self.guest_sequence = frappe.db.count("Booking Reservation", {
-			"booking":     self.booking,
-			"cabin_no":    self.cabin_no,
-			"status":      ["!=", "Cancelled"],
-		}) + 1
+		own_ref = self.booking_number
+		if not own_ref:
+			own_ref = frappe.db.get_value("Booking", self.booking, "booking_number")
+		own_ref = own_ref or self.booking
+		self.guest_sequence = frappe.db.sql("""
+			SELECT COUNT(*)
+			FROM `tabBooking Reservation`
+			WHERE booking = %(booking)s
+			  AND IFNULL(cabin_no, 0) = %(cabin_no)s
+			  AND status != 'Cancelled'
+			  AND (room_id IS NULL OR room_id = ''
+			       OR SUBSTRING_INDEX(room_id, '-Room_', 1) = %(own_ref)s)
+		""", {
+			"booking": self.booking,
+			"cabin_no": self.cabin_no,
+			"own_ref": own_ref,
+		})[0][0] + 1
 
 	def refresh_related(self):
-		"""Update Trip Group Date & Flight yang berkaitan."""
+		"""Update Trip Group Date & Flight yang berkaitan.
+
+		Boleh DITUNDA oleh caller batch — set doc.flags.skip_refresh_related
+		= 1 sebelum save supaya N save dalam satu batch tidak menjalankan N
+		refresh (arrange_group_rooming melakukannya: refresh_bookings /
+		refresh_seats ialah kiraan idempoten, jadi caller menjalankan SATU
+		refresh per trip group / flight di hujung batch, dalam transaksi
+		yang sama — keputusan akhir seragam tanpa write amplification).
+		"""
+		if self.flags.get("skip_refresh_related"):
+			return
 		old = self.get_doc_before_save()
 
 		# --- Trip Group Date (via Booking) ---
@@ -405,3 +627,93 @@ class BookingReservation(Document):
 			frappe.get_doc("Flight", self.flight).refresh_seats()
 		if old and old.flight and old.flight != self.flight:
 			frappe.get_doc("Flight", old.flight).refresh_seats()
+
+
+# ══════════════════════════════════════════════
+# ALIRAN STATUS AUTO — pencetus luar (module-level)
+# ══════════════════════════════════════════════
+
+def recompute_reservation_status(reservation_name, new_status=None):
+	"""Kira semula status SATU reservation tanpa laluan save penuh.
+
+	Dipanggil bila sumber status berubah DI LUAR reservation: status
+	Traveller berubah (sync_status_to_reservations), passport dibersihkan
+	(cleanup_expired_passport_images), dsb. Guna doc instance ringkas
+	(tanpa hooks validate penuh) supaya tiada kesan sampingan lain
+	(room_id, guest sequence, refresh_related) terpicu semula.
+
+	new_status (opsyenal) memaksa status tertentu tanpa kiraan — HANYA
+	guna untuk peralihan yang sah dari mana-mana status (cth Cancelled
+	oleh booking). Ia TIDAK mengatasi perlindungan terminal: reservation
+	Completed/Cancelled takkan diketuk.
+	"""
+	doc = frappe.get_doc("Booking Reservation", reservation_name)
+	status = new_status or doc.compute_auto_status()
+	if not status:
+		return
+	# Terminal: Completed/Cancelled hanya bergerak bila booking Cancelled
+	# "mengesahkan" Cancelled (compute_auto_status rule #1) — itu pun bila
+	# status semasa dah sama, tiada write.
+	if doc.status in ("Completed", "Cancelled"):
+		return
+	if status == doc.status:
+		return
+	frappe.db.set_value("Booking Reservation", reservation_name,
+		"status", status, update_modified=False)
+
+
+def sync_status_for_booking(booking_name, booking_status=None):
+	"""Sebar peralihan status Booking ke SEMUA reservation aktifnya.
+
+	Dipanggil bila Booking masuk 'Completed' (manual Desk/Hub ATAU
+	scheduler mark_completed_trips) dan 'Cancelled' (jaringan untuk
+	set_value langsung; cancel cascade yang save reservation satu-satu
+	lalui validate() sendiri). Reservation terminal (Completed/Cancelled)
+	tak diketuk ke belakang — recompute_reservation_status melindungi.
+
+	booking_status (opsyenal) — status booking sedia diketahui caller
+	(elak baca DB dua kali; cancel cascade hantar nilai in-memory Booking
+	yang belum commit).
+	"""
+	if not booking_name or not frappe.db.exists("Booking", booking_name):
+		return
+	if booking_status is None:
+		booking_status = frappe.db.get_value("Booking", booking_name, "status")
+	if booking_status not in ("Completed", "Cancelled"):
+		return
+	for name in frappe.get_all("Booking Reservation",
+			filters={"booking": booking_name}, pluck="name"):
+		try:
+			recompute_reservation_status(name, new_status=booking_status)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(),
+				"Reservation status sync failed: " + str(name))
+
+
+def auto_update_reservation_statuses():
+	"""Scheduled task (harian, hooks.py scheduler_events) — jaring keselamatan
+	aliran status reservation: tangkap peralihan TARIKH yang tak melibatkan
+	sebarang save dokumen (masuk tetingkap trip → Trip OnProgress, return
+	dah lepas → Completed, luput passport menjelang departure → Document
+	Expired) dan booking yang bertukar Completed/Cancelled tanpa melalui
+	laluan berhook. Idempotent — rekod yang dah tepat dikira semula tanpa
+	write.
+
+	Pulangkan ringkasan {checked, changed} untuk log scheduler.
+	"""
+	names = frappe.get_all("Booking Reservation", pluck="name")
+	changed = 0
+	for name in names:
+		try:
+			doc = frappe.get_doc("Booking Reservation", name)
+			new_status = doc.compute_auto_status()
+			if new_status and new_status != doc.status:
+				frappe.db.set_value("Booking Reservation", name,
+					"status", new_status, update_modified=False)
+				changed += 1
+		except Exception:
+			frappe.log_error(frappe.get_traceback(),
+				"Reservation auto-status failed: " + str(name))
+	if changed:
+		frappe.db.commit()
+	return {"checked": len(names), "changed": changed}

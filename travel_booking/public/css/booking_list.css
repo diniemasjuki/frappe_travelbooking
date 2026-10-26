@@ -4,7 +4,16 @@
    berkertas (tidak bersandar CSS page pengguna), rupa selari jadual
    desk frappe (selari .mba-table / .mtb-table).
 
-   Responsif: kad (telefon) <992px; jadual (desktop) ≥992px. */
+   Elemen selari pakej senarai traveller (manage_booking_app): jalur
+   ringkasan (.tblk-summary), toolbar konsep sama — (1) carian + group
+   date (batch) + butang Filter, (2) panel penapis dinamik (.tblk-cf,
+   ditogol butang Filter), (3) kiri: Bulk Edit + Bulk Delete (icon) ·
+   kanan: bilangan baris + Download + Order By — checkbox bulk edit
+   (.tblk-check), butang call/WA kolum Customer (.tblk-contact-icon),
+   muat turun (.tblk-dl), header jadual boleh sort (.tblk-sort).
+
+   Paparan: media query — kad pada telefon, jadual pada desktop; kelas
+   .tblk-view-table pada root memaksa jadual untuk page tanpa kad. */
 
 .tblk-root { min-height: 40px; }
 
@@ -48,23 +57,169 @@
 	text-align: center;
 }
 
-/* ── Toolbar tapisan ── */
-.tblk-toolbar {
+/* ── Jalur ringkasan pendek — 3 KOLUM: (1) Bookings / Pax, (2) Rooms /
+   Pending Docs, (3) Collected % + Balance Due (kanan, berwarna ikut
+   tahap). Mirror .mba-tv-summary pakej traveller. ── */
+.tblk-summary {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 6px;
+	gap: 8px 28px;
 	align-items: center;
+	justify-content: flex-start;
+	margin: 0 0 8px;
+	padding: 8px 12px;
+	font-size: 11.5px;
+	color: var(--text-muted);
+	background: #fdfdee;
+	border: 1px solid var(--border-color);
+	border-radius: var(--border-radius, 6px);
+}
+.tblk-summary b { color: var(--text-color); }
+.tblk-sum-col {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+/* Pemisah menegak antara kumpulan item ringkasan */
+.tblk-sum-sep {
+	width: 1px;
+	align-self: stretch;
+	background: var(--border-color, #d1d8dd);
+}
+.tblk-sum-col--end {
+	margin-left: auto;
+	align-items: flex-end;
+}
+.tblk-sum-ready { font-weight: 600; color: var(--text-color); }
+.tblk-sum-ready b { font-size: 13px; }
+.tblk-sum-ready--good b { color: var(--bs-success, #22a05a); }
+.tblk-sum-ready--warn b { color: var(--bs-warning, #d18f00); }
+.tblk-sum-ready--bad b { color: var(--bs-danger, #d33); }
+
+/* ── Toolbar tapisan — susunan BARIS (block flow): setiap seksyen satu
+   baris penuh sendiri, TIDAK dalam line yang sama —
+   (1) carian + butang Filter,  (2) panel penapis dinamik .tblk-cf bila
+   dibuka (panel box penuh),  (3) baris tapisan standard. ── */
+.tblk-toolbar {
+	position: relative;
 	margin-bottom: 10px;
 }
-.tblk-toolbar input[type="text"] {
-	flex: 1 1 180px;
-	min-width: 140px;
-	max-width: 320px;
+/* Baris 1 — carian (dengan butang ✕) + butang Filter, SATU baris penuh.
+   Kotak carian mengisi ruang yang tinggal; butang kekal di hujung kanan. */
+.tblk-toolbar-top {
+	display: flex;
+	width: 100%;
+	gap: 6px;
+	align-items: center;
+	flex-wrap: wrap;
+	margin-bottom: 6px;
 }
-.tblk-toolbar select {
-	flex: 0 0 auto;
+/* Pembungkus kotak carian — PAKEJ STANDARD TravelBookingSearchBox
+   (markup .mba-searchwrap; gaya asas dalam search_box.css global).
+   Selector bawah hanya saiz tempatan + ketinggian input pakej ini;
+   .tblk-searchwrap (kelas lama) dikekalkan untuk keserasian. */
+.mba-searchwrap .tblk-search,
+.tblk-searchwrap .tblk-search {
+	width: 100%;
+	height: 28px;
+	font-size: 12px;
+	padding-right: 26px;
+}
+.tblk-toolbar-top > .mba-searchwrap { flex: 1 1 200px; min-width: 160px; }
+
+.tblk-toolbar-row {
+	display: flex;
+	gap: 6px;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+}
+.tblk-toolbar-left,
+.tblk-toolbar-right {
+	display: inline-flex;
+	gap: 6px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+.tblk-toolbar-right select {
+	height: 28px;
+	font-size: 12.5px;
 	min-width: 90px;
+	max-width: 220px;
 }
+
+/* ── Baris 2 — Panel penapis dinamik: PANEL BOX penuh pada SATU baris
+   sendiri di bawah baris carian (bukan inline dengannya). DALAM aliran
+   dokumen — bila dibuka ia menolak result ke bawah dan tutup kembali
+   menariknya. Mirror .mba-cf pakej traveller. ── */
+.tblk-cf {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	box-sizing: border-box;
+	gap: 6px;
+	padding: 8px;
+	margin: 0 0 6px;
+	border: 1px solid var(--border-color, #d1d8dd);
+	border-radius: var(--border-radius, 6px);
+	background: var(--card-bg, var(--control-bg, var(--bg-color, #f8f8f8)));
+}
+.tblk-cf-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+/* Pemilih medan — input autocomplete (datalist semua medan Booking + Customer) */
+.tblk-cf-field-input { height: 28px; font-size: 12.5px; flex: 1 1 220px; max-width: 340px; }
+.tblk-cf-value { height: 28px; font-size: 12.5px; flex: 1 1 160px; max-width: 260px; }
+/* Julat Min–Max — medan nombor/currency/tarikh (bukan input nilai tunggal) */
+.tblk-cf-range { display: inline-flex; align-items: center; gap: 4px; flex: 1 1 160px; max-width: 260px; }
+.tblk-cf-range input { height: 28px; font-size: 12.5px; min-width: 0; flex: 1; }
+.tblk-cf-sep { opacity: 0.6; font-size: 12px; }
+.tblk-cf-del { padding: 3px 8px; line-height: 1; }
+.tblk-cf-actions { display: flex; gap: 6px; align-items: center; }
+/* Mod gabungan baris AND | OR — pasangan butang kecil (aktif = tertekan) */
+.tblk-cf-match { display: inline-flex; gap: 0; align-items: center; margin-left: auto; }
+.tblk-cf-match-lbl { font-size: 11.5px; margin-right: 4px; opacity: 0.75; }
+.tblk-cf-match-btn { padding: 3px 10px; line-height: 1; font-weight: 500; }
+.tblk-cf-match-btn.active { background: var(--btn-default-bg, #e2e6e9); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12); }
+.tblk-cf-match .tblk-cf-match-btn:first-of-type { border-radius: var(--border-radius, 4px) 0 0 var(--border-radius, 4px); }
+.tblk-cf-match .tblk-cf-match-btn:last-of-type { border-radius: 0 var(--border-radius, 4px) var(--border-radius, 4px) 0; border-left: 0; }
+
+/* Select baris atas (group date — batch sahaja, slot extras traveller) */
+.tblk-toolbar-top select {
+	height: 28px;
+	font-size: 12.5px;
+	max-width: 220px;
+}
+
+/* ── Butang call / WhatsApp kecil dalam kolum Customer (mirror
+   .mba-contact-icon pakej traveller — piawai sama: ikon xs, jajar kanan) ── */
+.tblk-contact-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: var(--border-radius);
+	color: var(--text-muted);
+	text-decoration: none !important;
+	vertical-align: middle;
+	transition: background 0.12s, color 0.12s;
+}
+.tblk-contact-icon .icon { width: 12px; height: 12px; vertical-align: middle; }
+.tblk-contact-icon:hover {
+	background: var(--control-bg, var(--bg-color));
+	color: var(--text-color);
+}
+.tblk-contact-icon--wa { color: var(--green-600, #1a7a1a); }
+.tblk-contact-icon--wa:hover { background: var(--green-100, #e8f8e8); }
+
+/* Baris telefon piawai — no. telefon kiri, ikon kenalan jajar kanan
+   (mirror .mba-contact-line page Manage Booking App) */
+.tblk-contact-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tblk-contact-acts { margin-left: auto; display: inline-flex; gap: 2px; flex: 0 0 auto; }
+
+/* ── Muat turun + Order By (toolbar kanan) ── */
+.tblk-dl { display: inline-flex; }
+.tblk-dl-btn .icon { vertical-align: middle; }
+.tblk-sortby { display: inline-flex; }
 
 /* ── Badge status ── */
 .tblk-badge {
@@ -83,7 +238,7 @@
 .tblk-badge--red    { background: var(--red-100, #fde8e8);    color: var(--red-700, #c0392b); }
 .tblk-badge--gray   { background: var(--gray-200, #ececec);   color: var(--gray-700, #666); }
 
-/* ── Kad booking (telefon) ── */
+/* ── Kad booking (telefon / togol paparan) ── */
 .tblk-cards {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -120,9 +275,8 @@
 }
 .tblk-bkcard-foot > span:last-child { text-align: right; }
 
-/* ── Jadual booking (desktop) ── */
+/* ── Jadual booking (desktop / togol paparan) ── */
 .tblk-table-wrap {
-	display: none;   /* telefon: kad sahaja */
 	overflow-x: auto;
 }
 .tblk-table {
@@ -157,6 +311,22 @@
 }
 .tblk-tfoot-label { color: var(--text-muted); font-weight: 400 !important; }
 
+/* Header jadual boleh sort (klik → sort, klik lagi → tukar arah) —
+   mirror .mba-tv-sort pakej traveller. */
+.tblk-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+.tblk-sort:hover { background: var(--gray-100, #f0f0f0); }
+.tblk-sort-ico { opacity: 0.5; font-size: 10px; margin-left: 2px; }
+.tblk-sort.is-sorted .tblk-sort-ico { opacity: 1; color: var(--brand-primary, var(--blue-500, #4f7bfd)); }
+
+/* Kolum checkbox bulk edit/download (jadual + kad) — sempit, tengah. */
+.tblk-check {
+	width: 26px;
+	min-width: 26px;
+	text-align: center;
+	vertical-align: middle !important;
+}
+.tblk-check input { cursor: pointer; }
+
 .tblk-cell-main { font-weight: 500; }
 .tblk-cell-sub {
 	color: var(--text-muted);
@@ -175,7 +345,12 @@
 .tblk-msg-btn:hover { color: var(--text-color); }
 .tblk-msg-body { max-width: 480px; white-space: pre-wrap; overflow-wrap: anywhere; }
 
-/* ── Footer showing + ringkas (telefon) ── */
+/* ── Dialog Bulk Edit (mirror .mba-tvbulk pakej traveller) ── */
+.tblk-bulk { padding: 4px 2px; }
+.tblk-bulk-meta { font-size: 12px; color: var(--text-muted); margin: 6px 0; }
+.tblk-bulk-actions { display: flex; gap: 8px; }
+
+/* ── Footer showing + ringkas (paparan kad) ── */
 .tblk-showing {
 	display: flex;
 	justify-content: space-between;
@@ -191,9 +366,27 @@
 	font-size: 12px;
 }
 
-/* ── Desktop (≥992px) — jadual menggantikan kad ── */
+/* ── Root .tblk-view-table — page tanpa kad (show_cards:false) memaksa
+   jadual pada semua saiz skrin; tanpa kelas ini, paparan ikut media
+   query di bawah (kad telefon, jadual desktop). ── */
+.tblk-root.tblk-view-table .tblk-cards { display: none; }
+.tblk-root.tblk-view-table .tblk-table-wrap { display: block; }
+.tblk-root.tblk-view-table .tblk-tab-total { display: none; }
+
+/* Telefon (<992px): kad sahaja; desktop (≥992px): jadual menggantikan kad. */
+@media (max-width: 991.98px) {
+	.tblk-cards { display: grid; }
+	.tblk-table-wrap { display: none; }
+}
 @media (min-width: 992px) {
 	.tblk-cards { display: none; }
 	.tblk-table-wrap { display: block; }
 	.tblk-tab-total { display: none; }
+}
+
+/* Telefon sempit — carian penuh satu baris, baris penapis satu lajur penuh. */
+@media (max-width: 600px) {
+	.mba-searchwrap { max-width: none; flex: 1 1 100%; }
+	.tblk-toolbar-top .btn { flex: 0 0 auto; }
+	.tblk-cf-field-input, .tblk-cf-value, .tblk-cf-range { max-width: none; flex: 1 1 100%; }
 }

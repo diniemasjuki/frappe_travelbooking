@@ -293,6 +293,7 @@
     var slotKey = _esc(slot.slot_name || ('slot-' + cIdx + '-' + sIdx));
     var isFilled = slot.filled || slot.traveller_id;
     var isVerified = slot.is_verified || slot.document_status === 'Verified';
+    var isOpenForUpdate = slot.document_status === 'Open for Update';
     var statusCls = isVerified ? 'verified' : (isFilled ? 'pending' : 'empty');
 
     var name = isFilled
@@ -313,6 +314,7 @@
       html += '<strong>' + name + '</strong>';
       html += '<div class="tv-slot-type">' + slotName;
       if (isVerified) html += ' <span style="color:var(--c-success);">✓ Verified</span>';
+      else if (isOpenForUpdate) html += ' <span style="color:#5B21B6;">↻ Update Needed</span>';
       else if (isFilled) html += ' <span style="color:var(--c-warning);">⏳ Pending Review</span>';
       else html += ' <span style="color:var(--text-muted);">Empty</span>';
       html += '</div>';
@@ -956,15 +958,15 @@
   /* ── Badge enjin scan (AI vs OCR) — dipaparkan di kawasan upload borang ── */  function renderEngineBadge() {
     var badge = document.getElementById('passport-engine-badge');
     if (!badge) return;
+    // Statement pengiklanan enjin AI dibuang dari UI — bila enjin AI aktif
+    // badge TIDAK dipapar terus (tak melabel enjin sebagai OCR yang salah).
     if (AI_SCAN_ENABLED) {
-      badge.textContent = '🤖 AI-powered scanning';
-      badge.style.color = '#0F6E56';
-      badge.style.background = '#E8F4EF';
-    } else {
-      badge.textContent = 'OCR (Image + MRZ) scanning';
-      badge.style.color = '#633806';
-      badge.style.background = '#FAEEDA';
+      badge.style.display = 'none';
+      return;
     }
+    badge.textContent = 'OCR (Image + MRZ) scanning';
+    badge.style.color = '#633806';
+    badge.style.background = '#FAEEDA';
     badge.style.display = 'inline-block';
     badge.style.padding = '4px 12px';
     badge.style.borderRadius = '12px';
@@ -1109,8 +1111,13 @@ function _hidePassportScanProgress() {
     if (!hdr || !slot) return;
     var isFilled = slot.filled || slot.traveller_id;
     var isVerified = slot.is_verified || slot.document_status === 'Verified';
-    var statusText = isVerified ? '✓ Verified' : (isFilled ? '⏳ Pending Review' : 'Not filled');
-    var statusColor = isVerified ? 'var(--c-success)' : (isFilled ? 'var(--c-warning)' : 'var(--text-muted)');
+    var isOpenForUpdate = slot.document_status === 'Open for Update';
+    var statusText = isVerified ? '✓ Verified'
+      : (isOpenForUpdate ? '↻ Update Needed'
+      : (isFilled ? '⏳ Pending Review' : 'Not filled'));
+    var statusColor = isVerified ? 'var(--c-success)'
+      : (isOpenForUpdate ? '#5B21B6'
+      : (isFilled ? 'var(--c-warning)' : 'var(--text-muted)'));
     
     hdr.innerHTML =
       '<div style="display:flex;align-items:center;gap:12px;">' +
@@ -1209,17 +1216,34 @@ function _hidePassportScanProgress() {
 
   function _loadCountries() {
     if (countries && countries.length) {
+      var opts = countries.map(function (c) {
+        var name = c.name || c.country_name || c;
+        return '<option value="' + _esc(name) + '">' + _esc(c.country_name || name) + '</option>';
+      }).join('');
       var sel = document.getElementById('tvl-nat');
       if (sel) {
         var current = sel.value || '';
-        sel.innerHTML = '<option value="">Select nationality</option>' +
-          countries.map(function (c) {
-            var name = c.name || c.country_name || c;
-            return '<option value="' + _esc(name) + '">' + _esc(name) + '</option>';
-          }).join('');
+        sel.innerHTML = '<option value="">Select nationality</option>' + opts;
         if (current) sel.value = current;
       }
+      // Country (alamat) — datalist autocomplete, sumber dokumen Country
+      // yang sama dengan nationality (nilai canonical c.name).
+      var ctryList = document.getElementById('tvl-country-list');
+      if (ctryList) ctryList.innerHTML = opts;
     }
+  }
+
+  /* Input country alamat → nama Country canonical (padanan tak kisah huruf
+     besar/kecil supaya rekod lama "MALAYSIA" ter-normalisasi ke "Malaysia").
+     Pulangkan null jika tiada padanan — caller papar ralat field. */
+  function _canonicalCountry(value) {
+    var needle = (value || '').trim().toLowerCase();
+    if (!needle) return '';
+    var hit = countries.find(function (c) {
+      var n = (c.name || c.country_name || c);
+      return String(n).toLowerCase() === needle;
+    });
+    return hit ? (hit.name || hit.country_name) : null;
   }
 
   function _checkPassportValidity() {
@@ -1692,6 +1716,16 @@ function _hidePassportScanProgress() {
     for (var ai = 0; ai < addrFields.length; ai++) {
       if (!get(addrFields[ai][0]).value.trim())
         return fail(get(addrFields[ai][0]), addrFields[ai][1] + ' is required.');
+    }
+    // Country autocomplete: normalisasi input ke nama Country canonical
+    // (padanan tak kisah huruf besar/kecil) supaya nilai sah tersimpan.
+    // Langkau bila senarai negara gagal dimuatkan — server tetap terima.
+    var countryVal = get('tvl-country').value.trim();
+    if (countryVal && countries && countries.length) {
+      var canonicalCountry = _canonicalCountry(countryVal);
+      if (canonicalCountry === null)
+        return fail(get('tvl-country'), 'Please pick a country from the suggestion list.');
+      get('tvl-country').value = canonicalCountry;
     }
     // Emergency contact: WAJIB diisi — maklumat waris/penghubung kecemasan
     // diperlukan untuk keselamatan traveller sepanjang trip.

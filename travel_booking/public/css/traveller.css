@@ -2480,26 +2480,47 @@ button.tv-cabin__header:focus-visible {
   margin-top: 4px;
 }
 
-/* ── Passport Image Preview Zoom Effect ── */
+/* ── Passport Image Preview Zoom Effect ──
+   Saiz thumbnail ditetapkan DI SINI (bukan inline style pada <img>) —
+   inline style mengatasi CSS biasa, menyebabkan keadaan zoom dahulu
+   kekal terhad kepada 220×150px walaupun CSS zoom set 90vw/90vh. */
 #passport-preview {
+  max-width: 220px;
+  max-height: 150px;
+  width: auto;
+  height: auto;
+  object-fit: cover;
   transition: all .3s ease;
   cursor: zoom-in;
 }
 
+/* Zoom: absolute-centering (inset 0 + margin auto) — JANGAN guna transform
+   translate untuk centering; transform menjadikan elemen ini containing
+   block untuk keturunan position:fixed, jadi overlay ::before di bawah
+   hanya menutup kotak imej (bukan skrin penuh) dan latar gelap hilang. */
 #passport-preview.preview-zoom {
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  max-width: 90vw;
-  max-height: 90vh;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: auto;
+  /* !important — melindungi keadaan zoom daripada sebarang inline style
+     / deklarasi !important lain (cth. rule thumbnail mobile) yang boleh
+     mengekang saiz semasa zoom. */
+  width: auto !important;
+  height: auto !important;
+  max-width: 90vw !important;
+  max-height: 90vh !important;
+  object-fit: contain !important;
   z-index: 9999;
   box-shadow: 0 8px 40px rgba(0,0,0,.4);
   border-radius: 12px;
   cursor: zoom-out;
 }
 
-/* Overlay for zoomed image */
+/* Overlay gelap skrin penuh di belakang imej zoom — klik pada kawasan
+   gelap (kotak ::before) turut mencetus onclick <img> → zoom keluar. */
 #passport-preview.preview-zoom::before {
   content: '';
   position: fixed;
@@ -2531,7 +2552,9 @@ button.tv-cabin__header:focus-visible {
     flex-direction: column !important;
   }
 
-  #passport-uploaded img#passport-preview {
+  /* :not(.preview-zoom) — keadaan THUMBNAIL sahaja; tanpa ini, !important
+     di bawah mengatasi rule zoom (max-height 90vh) pada skrin mobile. */
+  #passport-uploaded img#passport-preview:not(.preview-zoom) {
     max-width: 100% !important;
     max-height: 200px !important;
   }

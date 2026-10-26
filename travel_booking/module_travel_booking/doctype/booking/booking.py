@@ -43,7 +43,8 @@ class Booking(Document):
 		naming_series: DF.Literal["BK.YY.MM.###"]
 		package_type: DF.ReadOnly | None
 		paid_amount: DF.Currency
-		payment_status: DF.Literal["Pending", "Partially Paid", "Paid", "Request Refund", "Pending Refund", "Refunded"]
+		payment_due_amount: DF.Currency
+		payment_status: DF.Literal["Pending", "Partially Paid", "Paid", "Request Refund", "Pending Refund", "Refunded", "Canceled"]
 		pre_discount_total: DF.Currency
 		price_rule_discount: DF.Currency
 		prog_payment: DF.Percent
@@ -58,17 +59,37 @@ class Booking(Document):
 		total_days: DF.ReadOnly | None
 		total_night: DF.ReadOnly | None
 		trip_date: DF.Link | None
+		trip_date_group_name: DF.ReadOnly | None
 		trip_date_group_status: DF.ReadOnly | None
-		trip_name: DF.Link | None
+		trip_name: DF.ReadOnly | None
 		trip_package: DF.Link | None
+		trip_package_name: DF.ReadOnly | None
 		trip_package_status: DF.ReadOnly | None
 		trip_status: DF.Data | None
-		trip_title: DF.Data | None
+		trip_title: DF.ReadOnly | None
 		voucher: DF.Link | None
 		voucher_discount: DF.Currency
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Booking"
+
+	# Status bayaran yang menjejak proses refund — dikekalkan walaupun
+	# booking telah dibatalkan (maklumat refund lebih spesifik daripada
+	# label 'Canceled'). Cermin _REFUND_PAYMENT_STATES (booking_engine).
+	REFUND_PAYMENT_STATES = ("Request Refund", "Pending Refund", "Refunded")
+
+	def validate(self):
+		# Payment status AUTO — syarat 4: booking Cancelled/Abandoned →
+		# 'Canceled' (kecuali aliran refund sedang berjalan — status itu
+		# lebih spesifik dan dikekalkan). Syarat 1-3 (Pending / Partially
+		# Paid / Paid) dikira daripada agregat SO melalui
+		# _recompute_booking_status() (hook Payment Entry / Sales Order) —
+		# validate ini melindungi kes mana-mana laluan simpan lain (edit
+		# Desk, bulk edit, update status) supaya label Canceled sentiasa
+		# konsisten bila status booking bertukar.
+		if self.status in ("Cancelled", "Abandoned") and (
+				self.payment_status or "Pending") not in self.REFUND_PAYMENT_STATES:
+			self.payment_status = "Canceled"
 
 	
 	@property
@@ -223,15 +244,22 @@ class Booking(Document):
 
 	@property
 	def total_pax(self):
-		return frappe.db.count("Booking Reservation", {"booking": self.name, "status": "Confirmed"})
+		# Pax aktif = SEMUA reservation kecuali Cancelled (Waiting Document
+		# masih tetamu yang datang — hanya pembatalan yang mengeluarkan pax).
+		return frappe.db.count("Booking Reservation", {
+			"booking": self.name, "status": ["!=", "Cancelled"]})
 
 	@property
 	def verified_pax(self):
-		return frappe.db.count("Booking Reservation", {"booking": self.name, "status": "Confirmed", "document_status": "Verified"})
+		return frappe.db.count("Booking Reservation", {
+			"booking": self.name, "status": ["!=", "Cancelled"],
+			"document_status": "Verified"})
 
 	@property
 	def pending_pax(self):
-		return frappe.db.count("Booking Reservation", {"booking": self.name, "status": "Confirmed", "document_status": "Incomplete"})
+		return frappe.db.count("Booking Reservation", {
+			"booking": self.name, "status": ["!=", "Cancelled"],
+			"document_status": "Incomplete"})
 
 	def on_trash(self):
 		"""Padam Booking Reservations berkaitan bila Booking dipadam — elak data yatim."""

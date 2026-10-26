@@ -1362,22 +1362,20 @@ def _main_reservations_absent(booking_name: str, force: bool) -> bool:
 	"""Guard langkah 4 resync: 'tiada reservation' bermaksud tiada slot
 	individu dari _activate_booking (SO utama).
 
-	Mode force mengecualikan baris share traveller (pautan junction
-	Share Slot Reservation) daripada kiraan — senario: fasa 1 gagal
+	Mode force mengecualikan baris share traveller (stamp
+	Booking Reservation.sales_order) daripada kiraan — senario: fasa 1 gagal
 	kapasiti pada slot utama (rollback) TAPI slot share traveller cabin
 	lain berjaya dicipta; tanpa pengecualian ni guard count() != 0 akan
 	menyekat _activate_booking selamanya walau admin sudah sahkan
-	overwrite. Reservation manual admin (bukan share-link) tetap
+	overwrite. Reservation manual admin (tanpa stamp) tetap
 	menghalang aktivasi semula seperti biasa.
 	"""
 	if frappe.db.count('Booking Reservation', {'booking': booking_name}) == 0:
 		return True
 	if not force:
 		return False
-	share_linked = frappe.get_all('Share Slot Reservation',
-		filters={'booking': booking_name}, pluck='booking_reservation') or ['']
 	return not frappe.get_all('Booking Reservation',
-		filters={'booking': booking_name, 'name': ['not in', share_linked]},
+		filters={'booking': booking_name, 'sales_order': ['is', 'Not Set']},
 		limit_page_length=1)
 
 
@@ -1527,7 +1525,7 @@ def resync_booking(booking_name: str, force: int = 0) -> dict:
 	# Guna nilai fresh — bukan nilai form (boleh stale).
 	has_payment = fresh.payment_status in ('Partially Paid', 'Paid')
 	if so_names and has_payment and fresh.status != 'Cancelled':
-		share_before = frappe.db.count('Share Slot Reservation',
+		share_before = frappe.db.count('Booking Reservation',
 			{'sales_order': ['in', so_names]})
 		if _main_reservations_absent(booking_name, force):
 			# SAVEPOINT wajib: _activate_booking insert satu-persatu — kalau
@@ -1558,8 +1556,9 @@ def resync_booking(booking_name: str, force: int = 0) -> dict:
 						_('Reservation activation') + ': ' + str(e))
 				else:
 					_resync_warn(warnings, _('Reservation activation'), e)
-		# Idempoten sendiri (guard Share Slot Reservation + SO fully paid);
-		# savepoint + exception ditangkap supaya langkah lain tetap berjalan.
+		# Idempoten sendiri (guard stamp Booking Reservation.sales_order
+		# + SO fully paid); savepoint + exception ditangkap supaya langkah
+		# lain tetap berjalan.
 		for so_name in so_names:
 			frappe.db.savepoint('resync_share_traveller')
 			try:
@@ -1583,7 +1582,7 @@ def resync_booking(booking_name: str, force: int = 0) -> dict:
 					_resync_warn(warnings,
 						_('Share traveller activation SO {0}').format(so_name), e)
 		result['share_slots_created'] = (
-			frappe.db.count('Share Slot Reservation', {'sales_order': ['in', so_names]})
+			frappe.db.count('Booking Reservation', {'sales_order': ['in', so_names]})
 			- share_before)
 
 	# ── 5. Sales Invoice HILANG untuk SO fully paid (per-SO idempotent —

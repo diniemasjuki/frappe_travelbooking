@@ -135,7 +135,7 @@
   {
    "default": "0",
    "depends_on": "eval:doc.manual_transfer_cashback_enabled==1",
-   "description": "Fallback akaun deduction cashback (Marketing Expenses) pada Payment Entry Manual Transfer \u2014 digunakan HANYA jika baris Travel Settings > Multi Currency Account untuk currency SO tiada 'Cashback Discount Account' sendiri, DAN akaun ni milik company yang sama dengan SO. Amaun cashback dicatat sebagai deduction (debit) pada akaun ni dalam Payment Entry.",
+   "description": "Fallback akaun deduction cashback (Marketing Expenses) pada Payment Entry Manual Transfer — digunakan HANYA jika baris Travel Settings > Multi Currency Account untuk currency SO tiada 'Cashback Discount Account' sendiri, DAN akaun ni milik company yang sama dengan SO. Amaun cashback dicatat sebagai deduction (debit) pada akaun ni dalam Payment Entry.",
    "fieldname": "cashback_discount_account",
    "fieldtype": "Link",
    "label": "Cashback Discount Account (Fallback)",
@@ -208,7 +208,7 @@
   },
   {
    "default": "0",
-   "description": "Gunakan AI (OpenAI-compatible vision API) untuk: (1) baca resit pindahan manual di wizard booking \u2014 auto-isi Reference No + semak jumlah (alert sahaja); (2) ekstrak maklumat passport di wizard traveller \u2014 pre-fill borang. Jika gagal, sistem fallback ke OCR tempatan (Tesseract).",
+   "description": "Gunakan AI (OpenAI-compatible vision API) untuk: (1) baca resit pindahan manual di wizard booking — auto-isi Reference No + semak jumlah (alert sahaja); (2) ekstrak maklumat passport di wizard traveller — pre-fill borang. Jika gagal, sistem fallback ke OCR tempatan (Tesseract).",
    "fieldname": "enable_ai_receipt_ocr",
    "fieldtype": "Check",
    "label": "Enable AI OCR"
@@ -219,7 +219,7 @@
   },
   {
    "default": "https://api.openai.com/v1",
-   "description": "Base URL sahaja, cth https://api.openai.com/v1 \u2014 JANGAN masukkan kaedah HTTP (POST) atau path /chat/completions (sistem tambah sendiri). Servis serasi lain (Groq, OpenRouter) juga diterima.",
+   "description": "Base URL sahaja, cth https://api.openai.com/v1 — JANGAN masukkan kaedah HTTP (POST) atau path /chat/completions (sistem tambah sendiri). Servis serasi lain (Groq, OpenRouter) juga diterima.",
    "fieldname": "ai_ocr_base_url",
    "fieldtype": "Data",
    "label": "API Base URL",
@@ -234,7 +234,7 @@
    "length": 80
   },
   {
-   "description": "API key disimpan server-side \u2014 tidak pernah dihantar ke browser customer.",
+   "description": "API key disimpan server-side — tidak pernah dihantar ke browser customer.",
    "fieldname": "ai_ocr_api_key",
    "fieldtype": "Data",
    "label": "API Key"
@@ -281,7 +281,7 @@
    "label": "Email Notifications"
   },
   {
-   "description": "Kawal email operasi app: aktif/matikan setiap notifikasi dan pilih Email Template pengganti. Baris yang dinyahaktif TIDAK dihantar lagi. OTP & magic-link portal dikecualikan \u2014 sentiasa aktif untuk keselamatan login. Senarai template di bawah boleh diedit terus di Desk.",
+   "description": "Kawal email operasi app: aktif/matikan setiap notifikasi dan pilih Email Template pengganti. Baris yang dinyahaktif TIDAK dihantar lagi. OTP & magic-link portal dikecualikan — sentiasa aktif untuk keselamatan login. Senarai template di bawah boleh diedit terus di Desk.",
    "fieldname": "email_notification_section",
    "fieldtype": "Section Break",
    "label": "Notifications"
@@ -339,6 +339,19 @@
   {
    "fieldname": "section_break_whxn",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "guest_link_section",
+   "fieldtype": "Section Break",
+   "label": "Guest Passport Link"
+  },
+  {
+   "default": "48",
+   "description": "Validity of guest passport link tokens, in hours (minimum 48 is enforced). Applies to Generate/Refresh in Booking Manager and portal link requests.",
+   "fieldname": "guest_link_expiry_hours",
+   "fieldtype": "Int",
+   "label": "Guest Link Validity (hours)",
+   "non_negative": 1
   }
  ],
  "grid_page_length": 50,

@@ -488,7 +488,9 @@ def _cabin_layout_from_so(so_name):
 
 
 def _activate_booking(booking_name, force=False):
-    """Cipta Booking Reservation (status Confirmed) bila booking Confirmed.
+    """Cipta Booking Reservation bila booking Confirmed. Status slot
+    dikira auto oleh BookingReservation.validate() ikut aliran status
+    (rujuk compute_auto_status).
     Idempotent. Reservation dicipta dengan room_category + cabin_no +
     pax_type terisi (bukan cuma room_category macam sebelum ni) — setiap
     slot individu terus tahu cabin & jenis pax dia dari mula, konsisten
@@ -570,6 +572,8 @@ def _activate_booking(booking_name, force=False):
                     # multi-pax (pilihan hanya wujud untuk solo cruise).
                     "room_privacy":    cabin.get("room_privacy") or "",
                     "is_a_cruise":     is_cruise,
+                    # Status auto dikira validate() ikut aliran status
+                    # reservation — nilai awal ini diabaikan.
                     "status":          "Confirmed",
                     # 'Incomplete' (bukan 'Pending' — dihapus dari options
                     # bersama patch v30_traveller_status_incomplete; nilai

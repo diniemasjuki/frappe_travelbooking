@@ -85,6 +85,8 @@ def cleanup_expired_passport_images() -> dict:
 	  2. Kosongkan Traveller.passport_image.
 	  3. Padam dokumen File (fizikal dipadam Frappe bila tiada duplikat).
 	  4. Set status Traveller = 'Open for Update'.
+	  5. Sebar 'Open for Update' ke document_status SEMUA Booking
+	     Reservation traveller ini (buka semula slot portal/guest link).
 	Idempotent — traveller tanpa imej hanya dapat status 'Open for Update'."""
 	threshold = add_months(nowdate(), 6)
 	# Tarikh kosong/legacy '0000-00-00' diketepikan (jangan padam imej
@@ -118,6 +120,22 @@ def cleanup_expired_passport_images() -> dict:
 				else:
 					skipped.append({"traveller": name, "reason": "file shared", "url": image})
 			frappe.db.set_value("Traveller", name, "status", "Open for Update")
+			# Sebar status ke SEMUA Booking Reservation traveller ini.
+			# db.set_value TIDAK memicu Traveller.on_update (sync_status_
+			# to_reservations) — tanpa sebaran ini mirror document_status
+			# kekal "Verified" (locked) pada portal/guest link, jadi customer
+			# TIDAK dapat hantar passport baharu walaupun hook sudah minta.
+			# Status aliran reservation turut dikira semula (Open for
+			# Update bukan status "dokumen siap" → slot masuk Waiting
+			# Document, atau Document Expired bila departure dah dekat).
+			from travel_booking.module_travel_booking.doctype.booking_reservation.booking_reservation import (
+				recompute_reservation_status,
+			)
+			for res_name in frappe.get_all("Booking Reservation",
+					filters={"traveller": name}, pluck="name"):
+				frappe.db.set_value("Booking Reservation", res_name,
+					"document_status", "Open for Update", update_modified=False)
+				recompute_reservation_status(res_name)
 			frappe.db.commit()
 			done.append({"traveller": name, "expiry": str(r.passport_expiry),
 				"files_deleted": deleted_files})

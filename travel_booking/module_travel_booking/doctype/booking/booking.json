@@ -73,7 +73,9 @@
   "trip_name",
   "trip_title",
   "trip_date",
+  "trip_date_group_name",
   "trip_package",
+  "trip_package_name",
   "column_break_tgtv",
   "is_a_cruise_trip",
   "is_cruise_only",
@@ -91,7 +93,8 @@
   "cruise_end",
   "column_break_jvfy",
   "package_type",
-  "ground_arrangement"
+  "ground_arrangement",
+  "payment_due_amount"
  ],
  "fields": [
   {
@@ -108,7 +111,7 @@
    "unique": 1
   },
   {
-   "description": "Pending = Pending Payment (auto)<br>\nAccepted = Payment Started (auto)<br>\nProcessing = Admin Attending  (Manual) <br>\nConfirmed = Preparation Completed (Manual) <br>\nCompleted = Journey has completed (Auto)<br>\nAbandoned = Pending Payment Too Long <br>\nCancelled = Canceled by any reason (Manual)",
+   "description": "Pending = Pending Payment (auto)<br>\nAccepted = Payment Started (auto)<br>\nProcessing = Admin Attending  (Manual) <br>\nConfirmed = Preparation Completed (Manual) <br>\nCompleted = Journey has completed (Auto)<br>\nAbandoned = Pending Payment Too Long (auto) <br>\nCancelled = Canceled by any reason (Manual)",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -116,11 +119,12 @@
    "options": "Pending\nAccepted\nProcessing\nConfirmed\nCompleted\nAbandoned\nCancelled"
   },
   {
+   "description": "Pending = (auto) waiting 1st paymetn<br>\nPartially Paid = (auto) paymetn in progress <br>\nPaid = (auto) fully paid <br>\nCanceled = (auto) booking canceled or abandoned <br>\nRequest Refund = (manual) customer request <br>\nPending Refund = (manual) admin processing refund <br>\nRefunded = (manual) admin done refund ",
    "fieldname": "payment_status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Payment Status",
-   "options": "Pending\nPartially Paid\nPaid\nRequest Refund\nPending Refund\nRefunded"
+   "options": "Pending\nPartially Paid\nPaid\nRequest Refund\nPending Refund\nRefunded\nCanceled"
   },
   {
    "fieldname": "column_break_lfil",
@@ -129,7 +133,7 @@
   {
    "fetch_from": "trip_package.trip_link",
    "fieldname": "trip_name",
-   "fieldtype": "Link",
+   "fieldtype": "Read Only",
    "label": "Trip",
    "options": "Trip",
    "search_index": 1
@@ -295,6 +299,7 @@
    "label": "Traveller Info"
   },
   {
+   "description": "Jumlah booking_reservation (ticket or seat) yang dicipta untuk traveller.",
    "fieldname": "total_pax",
    "fieldtype": "Int",
    "is_virtual": 1,
@@ -537,10 +542,9 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "trip_name.title",
+   "fetch_from": "trip_package.trip_name",
    "fieldname": "trip_title",
-   "fieldtype": "Data",
-   "hidden": 1,
+   "fieldtype": "Read Only",
    "label": "Trip Title"
   },
   {
@@ -642,6 +646,30 @@
    "label": "Paid Amount",
    "options": "doc.total_amount - doc.balance_amount",
    "precision": "2"
+  },
+  {
+   "fieldname": "payment_due_amount",
+   "fieldtype": "Currency",
+   "label": "Payment Due (at Booking)",
+   "options": "currency",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.trip_name",
+   "fetch_from": "trip_date.trip_group_name",
+   "fieldname": "trip_date_group_name",
+   "fieldtype": "Read Only",
+   "label": "Trip Date Group",
+   "options": "Trip Group Date"
+  },
+  {
+   "depends_on": "eval:doc.trip_date",
+   "fetch_from": "trip_package.package_title",
+   "fieldname": "trip_package_name",
+   "fieldtype": "Read Only",
+   "label": "Trip Package Name",
+   "options": "Trip Package"
   }
  ],
  "grid_page_length": 50,
@@ -657,9 +685,13 @@
   {
    "link_doctype": "Booking Reservation",
    "link_fieldname": "booking"
+  },
+  {
+   "link_doctype": "Booking Addon",
+   "link_fieldname": "booking"
   }
  ],
- "modified": "2026-10-17 21:48:18.545079",
+ "modified": "2026-10-25 14:52:05.838904",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Booking",

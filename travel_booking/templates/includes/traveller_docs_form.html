@@ -79,19 +79,21 @@
         <input type="text" id="tvl-lastname" placeholder="bin Razali" autocomplete="family-name" oninput="syncFullName();clearFieldError(this);" style="text-transform:uppercase;"/>
       </div>
     </div>
-    <div class="f">
-      <label class="lbl" for="tvl-fullname-format">Full Name Format</label>
-      {# Pilihan = options Select fullname_format pada doctype Traveller.
-         full_name diira semula serta-merta bila format ditukar
-         (syncFullName) — selari dengan set_full_name() controller. #}
-      <select id="tvl-fullname-format" onchange="syncFullName();clearFieldError(this);">
-        <option value="First Name + Last Name">First Name + Last Name</option>
-        <option value="Last Name + First Name">Last Name + First Name</option>
-      </select>
-    </div>
-    <div class="f">
-      <label class="lbl" for="tvl-name">Full Name</label>
-      <input type="text" id="tvl-name" readonly style="background:#F5F3EE;"/>
+    <div class="g2">
+      <div class="f">
+        <label class="lbl" for="tvl-fullname-format">Full Name Format</label>
+        {# Pilihan = options Select fullname_format pada doctype Traveller.
+           full_name diira semula serta-merta bila format ditukar
+           (syncFullName) — selari dengan set_full_name() controller. #}
+        <select id="tvl-fullname-format" onchange="syncFullName();clearFieldError(this);">
+          <option value="First Name + Last Name">First Name + Last Name</option>
+          <option value="Last Name + First Name">Last Name + First Name</option>
+        </select>
+      </div>
+      <div class="f">
+        <label class="lbl" for="tvl-name">Full Name</label>
+        <input type="text" id="tvl-name" readonly style="background:#F5F3EE;"/>
+      </div>
     </div>
     <div class="g2">
       <div class="f">
@@ -188,7 +190,8 @@
       </div>
       <div class="f">
         <label class="lbl" for="tvl-country">Country <span style="color:#C0392B;">*</span></label>
-        <input type="text" id="tvl-country" autocomplete="country-name" oninput="clearFieldError(this);"/>
+        <input type="text" id="tvl-country" list="tvl-country-list" placeholder="Type to search country…" autocomplete="off" oninput="clearFieldError(this);"/>
+        <datalist id="tvl-country-list"></datalist>
       </div>
     </div>
   </div>
