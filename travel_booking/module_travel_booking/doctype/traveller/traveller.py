@@ -70,6 +70,7 @@ class Traveller(Document):
 
 	def on_update(self):
 		self.sync_status_to_reservations()
+		self.sync_trip_flags_to_reservations()
 		# Emel pemakluman "Pending Verification" DIURUS oleh Notification
 		# Desk "Passport Submission" (event Value Change pada field status +
 		# condition doc.status == "Pending Verification") — BUKAN kod di
@@ -117,7 +118,15 @@ class Traveller(Document):
 	def evaluate_document_status(self):
 		"""Auto-promote status ke 'Pending Verification' bila borang wajib
 		lengkap. Hanya dari status 'boleh naik' (kosong/Incomplete/
-		Open for Update) — status keputusan admin (Verified/Expired) dihormati."""
+		Open for Update) — status keputusan admin (Verified/Expired) dihormati.
+
+		flags.keep_manual_status — keputusan status EXPLISIT admin (cth. Quick
+		Status modal Booking Manager → update_traveller_status): auto-promote
+		DILANGKAHI supaya 'Open for Update' yang admin paksakan tidak serta-
+		merta dibalikkan semula (aliran auto portal re-upload kekal normal).
+		"""
+		if self.flags.get("keep_manual_status"):
+			return
 		if self.status not in self.PROMOTABLE_STATUSES:
 			return
 		if self.is_info_complete():
@@ -149,6 +158,24 @@ class Traveller(Document):
 			frappe.db.set_value("Booking Reservation", name,
 				"document_status", self.status, update_modified=False)
 			recompute_reservation_status(name)
+
+	def sync_trip_flags_to_reservations(self):
+		"""Sebar perubahan DOB / passport_expiry ke penanda klasifikasi trip
+		(birthday_on_trip / passport_to_expire_on_trip) SEMUA reservation
+		traveller ini — reservation tak disave bila Traveller dikemaskini,
+		jadi penandanya mesti dikira semula dari luar (corak sama dengan
+		sync_status_to_reservations). Skip bila kedua-dua medan tak berubah.
+		"""
+		old = self.get_doc_before_save()
+		if old and old.date_of_birth == self.date_of_birth \
+				and old.passport_expiry == self.passport_expiry:
+			return
+		from travel_booking.module_travel_booking.doctype.booking_reservation.booking_reservation import (
+			recompute_reservation_trip_flags,
+		)
+		for name in frappe.get_all("Booking Reservation",
+				filters={"traveller": self.name}, pluck="name"):
+			recompute_reservation_trip_flags(name)
   
 	def set_icnumber(self):
 		self.ic_number = self.ic_number.replace(" ","").replace("-","")

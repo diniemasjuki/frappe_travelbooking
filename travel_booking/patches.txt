@@ -48,3 +48,5 @@ travel_booking.patches.v33_room_alias_migrate
 travel_booking.patches.v34_remove_share_slot_reservation
 travel_booking.patches.v35_repair_room_alias_v33
 travel_booking.patches.v36_drop_custom_arrangement
+travel_booking.patches.v37_reservation_trip_flags
+travel_booking.patches.v38_repair_postcode_url_data

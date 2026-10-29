@@ -2428,6 +2428,17 @@ def verify_guest_token(token: str = ""):
                 "special_needs":                   t.special_needs or "",
                 "medicine_treatment":              t.medicine_treatment or "",
                 "wheelchair_assistant":            t.wheelchair_assistant or "",
+                # Alamat traveller — sumber PERTAMA utk prefill borang
+                # guest (keutamaan sama seperti page traveller portal:
+                # traveller_postcode || postcode). Tanpa ni alamat slot
+                # (snapshot legacy guest_* pada Booking Reservation) jadi
+                # satu-satunya sumber & nilai tercemar URL fail passport
+                # terpapar sebagai "Postcode" (bug guest_passport page).
+                "address_line1":                   t.address_line1 or "",
+                "city":                            t.city or "",
+                "postcode":                        t.postcode or "",
+                "state":                           t.state or "",
+                "country":                         t.country or "",
             })
             if t.full_name:
                 ctx["slot_label"] = t.full_name
@@ -2458,7 +2469,13 @@ def verify_guest_token(token: str = ""):
                                 ("state", "guest_state"),
                                 ("country", "guest_country")):
         if not ctx.get(ctx_key):
-            ctx[ctx_key] = slot_addr.get(slot_field) or ""
+            val = slot_addr.get(slot_field) or ""
+            # Guard: kolum snapshot legacy guest_* (kini dibuang dari
+            # doctype) pernah tercemar URL fail passport. Nilai sebegitu
+            # bukan alamat — jangan papar; biar medan kosong utk guest isi.
+            if val.startswith("/files/") or val.startswith("/private/files/"):
+                val = ""
+            ctx[ctx_key] = val
 
     return ctx
 

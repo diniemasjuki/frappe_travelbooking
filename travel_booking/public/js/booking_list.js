@@ -1096,15 +1096,40 @@ window.TravelBookingBookingList = (function () {
 		const inst = () => $root.data('tblk-inst');
 		const default_open = (name) => frappe.set_route('Form', 'Booking', name);
 
-		// Carian — debounce seperti page asal; butang ✕ kosongkan terus
-		// (kelas standard .mba-search-clear daripada pakej carian).
-		$root.on('input', '.tblk-search', debounce(function () {
+		// Carian — ENTER sahaja (bukan debounce-on-input: load() menjana
+		// semula seluruh root termasuk kotak carian, fokus hilang tengah
+		// menaip & user terpaksa klik semula medan untuk sambung).
+		// Kosong sahaja (✕ / padam ke kosong) reload serta-merta tanpa
+		// Enter — guard st.search kosong elak fetch pendua selepas ✕.
+		$root.on('keydown', '.tblk-search', function (ev) {
+			if (ev.key === 'Escape') {
+				// ESC — kosongkan carian (sama seperti ✕). Reload hanya bila
+				// carian LAGI aktif; teks yang belum di-Enter tidak perlu fetch.
+				if (this.value === '') return;
+				ev.preventDefault();
+				const i0 = inst();
+				if (!i0) return;
+				const applied0 = i0.st.search || '';
+				this.value = '';
+				$(this).closest('.mba-searchwrap').find('.mba-search-clear').prop('hidden', true);
+				if (applied0 !== '') { i0.st.search = ''; i0.load(true); }
+				return;
+			}
+			if (ev.key !== 'Enter' || ev.shiftKey || ev.ctrlKey || ev.altKey || ev.metaKey) return;
+			ev.preventDefault();
 			const i = inst();
 			if (!i) return;
 			i.st.search = this.value;
 			$root.find('.mba-search-clear').prop('hidden', !this.value);
 			i.load(true);
-		}, 350));
+		});
+		$root.on('input', '.tblk-search', function () {
+			const i = inst();
+			if (!i || this.value !== '' || i.st.search === '') return;
+			i.st.search = '';
+			$root.find('.mba-search-clear').prop('hidden', true);
+			i.load(true);
+		});
 		$root.on('click', '.mba-search-clear', function () {
 			const i = inst();
 			if (!i) return;

@@ -960,6 +960,26 @@ traveller {
 
 .mba-tvcard--cancelled { opacity: 0.55; }
 
+/* ── Highlight TO EXPIRED ────────────────────────────────
+   Kad / baris traveller yang ditanda passport_to_expire
+   (passport luput < 6 bulan dari departure — checkbox
+   passport_to_expire_on_trip pada Booking Reservation)
+   diserlahkan supaya mudah dikesan sepintas lalu: tint latar
+   merah lembut + aksen sempadan merah (keluarga warna yang
+   sama dengan badge TO EXPIRED). Berasingan daripada gaya
+   Cancelled (redup opacity) — kedua-dua boleh bertindan. */
+.mba-tvcard--toexpire {
+	background: var(--red-100, #fde8e8);
+	border-color: var(--red-500, #e24c4b);
+}
+
+.mba-row-toexpire td {
+	background: var(--red-100, #fde8e8);
+}
+.mba-row-toexpire td:first-child {
+	box-shadow: inset 3px 0 0 var(--red-500, #e24c4b);
+}
+
 .mba-tv-photo {
 	/* Thumbnail dokumen di atas kad — lebar penuh kad, cover (crop). */
 	width: 100%;

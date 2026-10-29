@@ -1673,7 +1673,7 @@
 		};
 		$info.find('.mba-tvedit-cancel').on('click', restore);
 
-		const save = async () => {
+		const save = async (force_merge) => {
 			// get_values(true) — TANPA enforcement required FieldGroup yang
 			// memanggil frappe.msgprint global (akan APPEND ke modal view
 			// yang sama). Required disemak manual dengan alert. Nilai
@@ -1700,7 +1700,26 @@
 			try {
 				const out = await api('update_traveller_info', {
 					traveller: t.traveller, values: v,
+					force_merge: !!force_merge,
 				});
+				if (out && out.needs_confirmation) {
+					// IC + tarikh lahir sepadan dengan rekod sedia ada tetapi
+					// nama berbeza — server menahan tulisan sehingga admin
+					// mengesahkan orang yang sama; hantar semula force_merge.
+					$btn.prop('disabled', false);
+					const e = out.existing || {};
+					const saving = [v.first_name, v.last_name].filter(Boolean).join(' ');
+					frappe.confirm(
+						__('IC {0} and date of birth match {1} ({2}), but the name differs from "{3}" being saved. Same person — merge the records?', [
+							e.ic_number || e.traveller,
+							e.full_name || e.traveller,
+							e.date_of_birth || '—',
+							saving || __('this record'),
+						]),
+						() => save(true)
+					);
+					return;
+				}
 				const { traveller, renamed, ...patch } = out || {};
 				if (!traveller) throw new Error(__('No response'));
 				// IC Number = nama dokumen Traveller (autoname) — bila
@@ -2207,7 +2226,7 @@
 				t.phone ? `<span class="mba-contact-line"><span>☎ ${esc(t.phone)}</span>${contact_icons(t.phone)}</span>` : '',
 			].filter(Boolean).join('<br>') || '<span class="mba-muted">—</span>';
 			return `
-			<div class="mba-tvcard${cancelled ? ' mba-tvcard--cancelled' : ''}"
+			<div class="mba-tvcard${cancelled ? ' mba-tvcard--cancelled' : ''}${t.passport_to_expire ? ' mba-tvcard--toexpire' : ''}"
 				data-res="${esc(t.reservation)}" data-hay="${esc(hay(t))}"
 				data-trav="${esc(JSON.stringify(t))}">
 				<div class="mba-tv-photo-wrap">${photo}${cardCheck}</div>
@@ -2217,6 +2236,7 @@
 						<span class="mba-tvcard-badge-l">
 							${badge(t.reservation_status, RES_STATUS_COLORS[t.reservation_status])}
 							${badge(t.document_status, DOC_STATUS_COLORS[t.document_status])}
+							${t.passport_to_expire ? badge(__('TO EXPIRED'), 'red') : ''}
 						</span>
 						${status_btns(t)}
 					</div>
@@ -2240,7 +2260,7 @@
 			const displayName = t.traveller
 				? t.traveller_name : (t.guest_label || t.traveller_name);
 			return `
-			<tr class="mba-tv-trow${cancelled ? ' mba-row-cancelled' : ''}"
+			<tr class="mba-tv-trow${cancelled ? ' mba-row-cancelled' : ''}${t.passport_to_expire ? ' mba-row-toexpire' : ''}"
 				data-hay="${esc(hay(t))}" data-trav="${esc(JSON.stringify(t))}">
 				<td class="mba-tv-check">${t.traveller
 					? `<input type="checkbox" class="mba-tv-checkrow" data-traveller="${esc(t.traveller)}" data-reservation="${esc(t.reservation)}">`
@@ -2265,9 +2285,12 @@
 					${t.passport_expiry ? `<div class="mba-cell-sub">Exp: ${esc(fmtDate(t.passport_expiry))}</div>` : ''}
 					${(() => {
 						// Status doctype Traveller + aksi share guest passport
-						// link — baris terakhir kolum Document.
+						// link — baris terakhir kolum Document. Badge TO
+						// EXPIRED (passport < 6 bulan dari departure) di
+						// sebelah badge status dokumen.
 						const docsExtra = [
 							badge(t.document_status, DOC_STATUS_COLORS[t.document_status]),
+							t.passport_to_expire ? badge(__('TO EXPIRED'), 'red') : '',
 							status_btns(t),
 						].filter(Boolean).join(' ');
 						return docsExtra ? `<div class="mba-cell-sub">${docsExtra}</div>` : '';

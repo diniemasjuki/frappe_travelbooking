@@ -84,6 +84,8 @@
   "traveller_nationality",
   "traveller_passportno",
   "traveller_passportexpiry",
+  "birthday_on_trip",
+  "passport_to_expire_on_trip",
   "column_break_egqo",
   "html_gwqb",
   "traveller_passportimg",
@@ -185,8 +187,10 @@
   {
    "fieldname": "status",
    "fieldtype": "Select",
+   "in_filter": 1,
    "in_list_view": 1,
-   "label": "Status",
+   "in_standard_filter": 1,
+   "label": "Reservation Status",
    "options": "Waiting Document\nDocument Completed\nDocument Expired\nPreparation Completed\nTrip On Progress\nCompleted\nCancelled"
   },
   {
@@ -383,7 +387,7 @@
    "label": "Notes"
   },
   {
-   "description": "Pesanan customer untuk slot reservation ini — diisi admin di Desk (padanan Booking.customer_message). Nota Booking dipapar di portal traveller;",
+   "description": "Pesanan customer untuk slot reservation ini \u2014 diisi admin di Desk (padanan Booking.customer_message). Nota Booking dipapar di portal traveller;",
    "fieldname": "customer_message",
    "fieldtype": "Small Text",
    "label": "Reservation Message"
@@ -630,6 +634,22 @@
    "fieldname": "traveller_passportexpiry",
    "fieldtype": "Read Only",
    "label": "Passport Expiry",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Auto: hari jadi traveller (bulan-hari DOB) jatuh dalam tempoh perjalanan (departure\u2013return). Dikira semula pada setiap save reservation / Traveller.",
+   "fieldname": "birthday_on_trip",
+   "fieldtype": "Check",
+   "label": "Birthday On Trip",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Auto: passport tamat tempoh kurang dari 6 bulan dari tarikh departure (termasuk sudah luput). Dikira semula pada setiap save reservation / Traveller.",
+   "fieldname": "passport_to_expire_on_trip",
+   "fieldtype": "Check",
+   "label": "To Expired On Trip",
    "read_only": 1
   },
   {
@@ -890,7 +910,7 @@
    "fieldname": "document_status",
    "fieldtype": "Read Only",
    "in_list_view": 1,
-   "label": "Document Status",
+   "label": "Travellser Document Status",
    "read_only": 1
   },
   {
@@ -898,7 +918,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Snapshot konteks Booking induk slot ni — rujukan sahaja (read-only). Nilai live sentiasa di dokumen Booking.",
+   "description": "Snapshot konteks Booking induk slot ni \u2014 rujukan sahaja (read-only). Nilai live sentiasa di dokumen Booking.",
    "fieldname": "booking_info_section",
    "fieldtype": "Section Break",
    "label": "Booking Info (Snapshot)"
@@ -1005,14 +1025,14 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Snapshot masa slot diisi/di-backfill (sumber virtual Booking, dikira dari Sales Order) — nilai live di Booking.",
+   "description": "Snapshot masa slot diisi/di-backfill (sumber virtual Booking, dikira dari Sales Order) \u2014 nilai live di Booking.",
    "fieldname": "booking_currency",
    "fieldtype": "Read Only",
    "label": "Booking Currency",
    "read_only": 1
   },
   {
-   "description": "Snapshot masa slot diisi/di-backfill — nilai live di Booking.",
+   "description": "Snapshot masa slot diisi/di-backfill \u2014 nilai live di Booking.",
    "fieldname": "booking_total_amount",
    "fieldtype": "Read Only",
    "label": "Booking Total Amount",
@@ -1020,7 +1040,7 @@
    "read_only": 1
   },
   {
-   "description": "Snapshot masa slot diisi/di-backfill — nilai live di Booking.",
+   "description": "Snapshot masa slot diisi/di-backfill \u2014 nilai live di Booking.",
    "fieldname": "booking_balance_amount",
    "fieldtype": "Read Only",
    "label": "Booking Balance Amount",
@@ -1028,7 +1048,7 @@
    "read_only": 1
   },
   {
-   "description": "Snapshot masa slot diisi/di-backfill — nilai live di Booking.",
+   "description": "Snapshot masa slot diisi/di-backfill \u2014 nilai live di Booking.",
    "fieldname": "booking_paid_amount",
    "fieldtype": "Read Only",
    "label": "Booking Paid Amount",
@@ -1117,8 +1137,9 @@
   }
  ],
  "grid_page_length": 50,
+ "link_display_mode": "Search",
  "links": [],
- "modified": "2026-10-24 21:32:22.749247",
+ "modified": "2026-10-29 07:21:48.826872",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Booking Reservation",

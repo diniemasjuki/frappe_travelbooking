@@ -33,7 +33,9 @@ TRAVELLER_STATUS_OPTIONS = (
 #   4. Trip OnProgress   — departure_date ≤ hari ini ≤ return_date
 #   5. Document Expired  — luput passport < 6 bulan dari departure
 #                          (peraturan 6 bulan, sama threshold dengan
-#                          passport_maintenance)
+#                          passport_maintenance) ATAU status Traveller
+#                          "Open for Update" (dokumen dibuka semula —
+#                          hook harian / admin Quick Status)
 #   6. Document Completed — status Traveller: Verified / Valid /
 #                          Pending Verification
 #   7. Waiting Document  — tiada Traveller linked, atau status Traveller
@@ -76,6 +78,7 @@ class BookingReservation(Document):
 		aroya_guest_no: DF.Int
 		arrival_date: DF.ReadOnly | None
 		b2b_partner: DF.ReadOnly | None
+		birthday_on_trip: DF.Check
 		booked_by: DF.ReadOnly | None
 		booking: DF.Link | None
 		booking_balance_amount: DF.ReadOnly | None
@@ -127,6 +130,7 @@ class BookingReservation(Document):
 		passport_link_email: DF.Data | None
 		passport_link_expires_on: DF.Datetime | None
 		passport_link_token: DF.Data | None
+		passport_to_expire_on_trip: DF.Check
 		pax_type: DF.Data | None
 		referral_code_used: DF.ReadOnly | None
 		room_category: DF.Link | None
@@ -190,9 +194,48 @@ class BookingReservation(Document):
 		# TELAH dikemas kini, bukan yang lama.
 		self.sync_document_status()
 		self.apply_auto_status()
+		self.compute_trip_flags()
 		self.assign_room_id()
 		self.validate_cabin_capacity()
 		self.sync_booking_money_snapshot()
+
+	# ══════════════════════════════════════════════
+	# PENANDA KLASIFIKASI TRIP (checkbox auto)
+	# ══════════════════════════════════════════════
+
+	def compute_trip_flags(self):
+		"""Kira semula checkbox klasifikasi trip slot ni (setiap validate —
+		INSERT & UPDATE, termasuk Data Import / kemaskini portal):
+
+		- birthday_on_trip        — ulang tahun (bulan-hari) DOB traveller
+		                           jatuh dalam tempoh departure–return.
+		- passport_to_expire_on_trip — passport luput < 6 bulan dari
+		                           departure (termasuk sudah luput).
+
+		Sumber data sentiasa LIVE dari DB (Booking + Traveller), bukan
+		snapshot fetch_from pada reservation — snapshot hanya segar bila
+		link diset semula di UI; DB sentiasa nilai terkini selepas save
+		dokumen sumber. Fallback ke snapshot hanya bila sumber live kosong
+		(rekod lama / data separuh isi).
+		"""
+		dep, ret = None, None
+		if self.booking and frappe.db.exists("Booking", self.booking):
+			b = frappe.db.get_value("Booking", self.booking,
+				["departure_date", "return_date"], as_dict=True)
+			dep, ret = b.departure_date, b.return_date
+		dep = dep or self.departure_date
+		ret = ret or self.arrival_date
+
+		dob, expiry = None, None
+		if self.traveller and frappe.db.exists("Traveller", self.traveller):
+			t = frappe.db.get_value("Traveller", self.traveller,
+				["date_of_birth", "passport_expiry"], as_dict=True)
+			dob, expiry = t.date_of_birth, t.passport_expiry
+		dob = dob or self.traveller_datebirth
+		expiry = expiry or self.traveller_passportexpiry
+
+		self.birthday_on_trip = 1 if birthday_during_trip(dob, dep, ret) else 0
+		self.passport_to_expire_on_trip = 1 if passport_expiring_before_departure(expiry, dep) else 0
 
 	# ══════════════════════════════════════════════
 	# ALIRAN STATUS AUTO — teras & pembantu kongsi
@@ -255,10 +298,21 @@ class BookingReservation(Document):
 
 		# 5 — luput passport < 6 bulan dari departure (peraturan 6 bulan,
 		# sama threshold dengan passport_maintenance.cleanup_expired_passport_images).
+		tvl_status = frappe.db.get_value("Traveller", self.traveller, "status") if self.traveller else None
 		if dep and self.traveller:
 			expiry = frappe.db.get_value("Traveller", self.traveller, "passport_expiry")
 			if expiry and getdate(expiry) < add_months(getdate(dep), -6):
 				return "Document Expired"
+
+		# 5b — Traveller "Open for Update" — dokumen tidak sah sehingga
+		# traveller hantar semula (hook harian passport_maintenance membuka
+		# semula borang bila passport hampir luput; admin juga boleh set
+		# manual melalui dialog Quick Status pakej traveller). Slot
+		# reservation traveller sedemikian terus "Document Expired";
+		# selepas re-upload status Traveller naik "Pending Verification"
+		# → rule #6 bawa balik "Document Completed".
+		if tvl_status == "Open for Update":
+			return "Document Expired"
 
 		# Sticky: Preparation Complete kekal melainkan peristiwa lebih kuat
 		# di atas menangkapnya. Completed/Cancelled dikekalkan juga (terminal)
@@ -267,7 +321,6 @@ class BookingReservation(Document):
 			return None
 
 		# 6/7 — dokumen Traveller.
-		tvl_status = frappe.db.get_value("Traveller", self.traveller, "status") if self.traveller else None
 		if tvl_status in self.COMPLETED_DOC_STATUSES:
 			return "Document Completed"
 		return "Waiting Document"
@@ -633,6 +686,77 @@ class BookingReservation(Document):
 # ALIRAN STATUS AUTO — pencetus luar (module-level)
 # ══════════════════════════════════════════════
 
+# ── Penanda klasifikasi trip — helper TULEN (tiada akses DB) ──
+# Sumber tunggal logik ulang tahun & peraturan 6 bulan; dipakai oleh
+# compute_trip_flags() (validate reservation), Traveller.on_update cascade
+# (sync_trip_flags_to_reservations), patch backfill v37, dan paparan API
+# (api/manage_trip_booking._birthday_in_range melimpahkan ke sini).
+
+def birthday_during_trip(dob, dep, ret) -> bool:
+	"""True bila ulang tahun DOB (bulan-hari) jatuh dalam tempoh trip
+	dep..ret. Tahun DOB diabaikan — disemak pada tahun departure & return
+	(berbeza bila trip melintasi tahun baharu; 29 Feb digulung ke 28)."""
+	try:
+		d0, a, b = getdate(dob), getdate(dep), getdate(ret)
+	except Exception:
+		return False
+	if not (d0 and a and b) or a > b:
+		return False
+	for y in {a.year, b.year}:
+		try:
+			bday = d0.replace(year=y)
+		except ValueError:  # 29 Feb pada tahun bukan lompat
+			bday = d0.replace(year=y, day=28)
+		if a <= bday <= b:
+			return True
+	return False
+
+
+def passport_expiring_before_departure(expiry, dep) -> bool:
+	"""True bila passport luput KURANG dari 6 bulan dari tarikh departure
+	(peraturan validity 6 bulan — termasuk passport yang sudah luput).
+	Threshold berbeza dari rule #5 compute_auto_status (expiry < dep-6bln
+	= sudah lama luput) — penanda ni lebih luas: apa-apa baki validity
+	kurang dari 6 bulan pada hari berlepas ditandakan."""
+	if not (expiry and dep):
+		return False
+	try:
+		return getdate(expiry) < add_months(getdate(dep), 6)
+	except Exception:
+		return False
+
+
+def recompute_reservation_trip_flags(reservation_name, doc=None):
+	"""Kira semula penanda klasifikasi trip SATU reservation tanpa laluan
+	save penuh (elak kesan sampingan validate — capacity check,
+	refresh_related, dsb). Dipanggil bila DOB / passport_expiry Traveller
+	berubah (Traveller.sync_trip_flags_to_reservations) dan oleh jaring
+	harian auto_update_reservation_statuses (tangkap perubahan tarikh trip
+	yang tak melalui sebarang save dokumen).
+
+	doc (opsyenal) — instance reservation sedia dimuat caller (jaring
+	harian); None → muat sendiri. Idempotent — hanya write bila nilai
+	berubah."""
+	try:
+		d = doc or frappe.get_doc("Booking Reservation", reservation_name)
+		# Nilai lama mesti dibaca SEBELUM compute_trip_flags() menimpa
+		# field pada instance yang sama (d === doc bila caller hantar).
+		old_b = d.birthday_on_trip or 0
+		old_p = d.passport_to_expire_on_trip or 0
+		d.compute_trip_flags()
+		updates = {}
+		if (d.birthday_on_trip or 0) != old_b:
+			updates["birthday_on_trip"] = d.birthday_on_trip
+		if (d.passport_to_expire_on_trip or 0) != old_p:
+			updates["passport_to_expire_on_trip"] = d.passport_to_expire_on_trip
+		if updates:
+			frappe.db.set_value("Booking Reservation", reservation_name,
+				updates, update_modified=False)
+	except Exception:
+		frappe.log_error(frappe.get_traceback(),
+			"Reservation trip-flags recompute failed: " + str(reservation_name))
+
+
 def recompute_reservation_status(reservation_name, new_status=None):
 	"""Kira semula status SATU reservation tanpa laluan save penuh.
 
@@ -696,8 +820,10 @@ def auto_update_reservation_statuses():
 	sebarang save dokumen (masuk tetingkap trip → Trip OnProgress, return
 	dah lepas → Completed, luput passport menjelang departure → Document
 	Expired) dan booking yang bertukar Completed/Cancelled tanpa melalui
-	laluan berhook. Idempotent — rekod yang dah tepat dikira semula tanpa
-	write.
+	laluan berhook. Turut menyegarkan penanda klasifikasi trip
+	(birthday_on_trip / passport_to_expire_on_trip) — tarikh trip yang
+	diubah pada Trip Group Date tak memicu save reservation.
+	Idempotent — rekod yang dah tepat dikira semula tanpa write.
 
 	Pulangkan ringkasan {checked, changed} untuk log scheduler.
 	"""
@@ -706,11 +832,14 @@ def auto_update_reservation_statuses():
 	for name in names:
 		try:
 			doc = frappe.get_doc("Booking Reservation", name)
+			before = doc.status
 			new_status = doc.compute_auto_status()
 			if new_status and new_status != doc.status:
 				frappe.db.set_value("Booking Reservation", name,
 					"status", new_status, update_modified=False)
 				changed += 1
+			# Penanda trip — same doc instance (tiada get_doc kedua).
+			recompute_reservation_trip_flags(name, doc=doc)
 		except Exception:
 			frappe.log_error(frappe.get_traceback(),
 				"Reservation auto-status failed: " + str(name))

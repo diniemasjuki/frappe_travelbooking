@@ -1168,9 +1168,14 @@ const cur_sub_line = (a, cur, field) => {
 			else load_tab(key, tab, true);
 		});
 
-		// Carian dalam tab (debounce) — toolbar tab biasa & toolbar pakej
+		// Carian dalam tab — ENTER sahaja. Bukan debounce-on-input: fetch +
+		// re-render menjana semula toolbar (kotak carian diganti), fokus
+		// hilang tengah menaip & user terpaksa klik semula medan untuk
+		// sambung. Kosong sahaja (✕ pakej carian / padam ke kosong) reload
+		// serta-merta tanpa Enter. Toolbar tab biasa & toolbar pakej
 		// traveller (.mba-tv-toolbar membawa tapisan server L2/L3 sebagai extras).
-		$d.on('input', '.mba-tab-toolbar input[data-search], .mba-tv-toolbar input[data-search]', debounce(function () {
+		const tab_search_sel = '.mba-tab-toolbar input[data-search], .mba-tv-toolbar input[data-search]';
+		const run_tab_search = function () {
 			const key = $(this).closest('.mba-group').data('item');
 			const scope = $(this).data('search');       // bk | ad | tv | fl | rm
 			const tab = SCOPE_TAB[scope];
@@ -1179,7 +1184,28 @@ const cur_sub_line = (a, cur, field) => {
 			st[scope].search = $(this).val();
 			if (key.startsWith('bkg:') && scope === 'tv') load_bkg_travellers(key, true);
 			else load_tab(key, tab, true);
-		}, 350));
+		};
+		$d.on('keydown', tab_search_sel, function (ev) {
+			if (ev.key === 'Escape') {
+				// ESC — kosongkan carian (sama seperti ✕). Reload hanya bila
+				// carian LAGI aktif; teks yang belum di-Enter tidak perlu fetch.
+				if (this.value === '') return;
+				ev.preventDefault();
+				const key0 = $(this).closest('.mba-group').data('item');
+				const scope0 = $(this).data('search');
+				const applied = S.state[key0]?.[scope0]?.search || '';
+				this.value = '';
+				$(this).closest('.mba-searchwrap').find('.mba-search-clear').prop('hidden', true);
+				if (applied !== '') run_tab_search.call(this);
+				return;
+			}
+			if (ev.key !== 'Enter' || ev.shiftKey || ev.ctrlKey || ev.altKey || ev.metaKey) return;
+			ev.preventDefault();
+			run_tab_search.call(this);
+		})
+			.on('input', tab_search_sel, function () {
+				if (this.value === '') run_tab_search.call(this);
+			});
 
 		// Select filter / row limit dalam tab (termasuk extras toolbar pakej
 		// traveller — SortSelector tiada <select> jadi tidak terkesan).

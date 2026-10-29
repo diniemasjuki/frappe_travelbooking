@@ -38,7 +38,7 @@ use_json_request_body = True
 # ?v= (timestamp cukup) supaya semua klien fetch versi terkini.
 app_include_js = [
 	"/assets/travel_booking/js/search_box.js?v=20261026-1",
-	"/assets/travel_booking/js/booking_list.js?v=20261026-1",
+	"/assets/travel_booking/js/booking_list.js?v=20261028-2",
 ]
 app_include_css = [
 	"/assets/travel_booking/css/search_box.css?v=20261026-1",

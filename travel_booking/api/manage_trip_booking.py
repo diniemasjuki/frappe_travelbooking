@@ -1749,21 +1749,14 @@ def _date_or_none(v) -> "str | None":
 def _birthday_in_range(dob, dep, ret) -> bool:
 	"""True bila ulang tahun DOB (bulan-hari) jatuh dalam tempoh trip
 	dep..ret. Tahun DOB diabaikan — disemak pada tahun departure & return
-	(berbeza bila trip melintasi tahun baharu; 29 Feb digulung ke 28)."""
-	try:
-		d0, a, b = getdate(dob), getdate(dep), getdate(ret)
-	except Exception:
-		return False
-	if not (d0 and a and b) or a > b:
-		return False
-	for y in {a.year, b.year}:
-		try:
-			bday = d0.replace(year=y)
-		except ValueError:  # 29 Feb pada tahun bukan lompat
-			bday = d0.replace(year=y, day=28)
-		if a <= bday <= b:
-			return True
-	return False
+	(berbeza bila trip melintasi tahun baharu; 29 Feb digulung ke 28).
+
+	Melimpahkan ke birthday_during_trip (controller Booking Reservation) —
+	sumber tunggal logik, dipakai bersama checkbox birthday_on_trip."""
+	from travel_booking.module_travel_booking.doctype.booking_reservation.booking_reservation import (
+		birthday_during_trip,
+	)
+	return birthday_during_trip(dob, dep, ret)
 
 
 def _tv_filter_conditions(custom_filters: list, fmt: dict, match: str = "AND",
@@ -1923,8 +1916,9 @@ def get_group_travellers(trip_group: str = None, trip_groups: list = None, booki
 		       COALESCE(NULLIF(t.passport_image, ''),
 		                NULLIF(br.traveller_passportimg, ''), '') AS passport_image,
 		       t.visa_photo,
-	       t.email AS tv_email, t.phone AS tv_phone,
+		       t.email AS tv_email, t.phone AS tv_phone,
 		       t.status AS traveller_status,
+		       br.birthday_on_trip, br.passport_to_expire_on_trip,
 		       COALESCE(NULLIF(t.title, ''), NULLIF(br.traveller_title, ''), '') AS title,
 		       COALESCE(NULLIF(t.first_name, ''), NULLIF(br.traveller_first_name, ''), '') AS first_name,
 		       COALESCE(NULLIF(t.last_name, ''), NULLIF(br.traveller_last_name, ''), '') AS last_name,
@@ -2021,8 +2015,12 @@ def get_group_travellers(trip_group: str = None, trip_groups: list = None, booki
 			"traveller": r.traveller or "",
 			"gender": r.gender or "",
 			"dob": _s(r.dob),
-			"birthday_trip": _birthday_in_range(
-				r.dob, r.b_departure or r.br_departure, r.b_return or r.br_arrival),
+			# Penanda klasifikasi trip — checkbox TERPASANG pada Booking
+			# Reservation (auto oleh compute_trip_flags pada save reservation
+			# / Traveller + jaring harian); bukan kiraan live supaya selari
+			# dengan nilai yang admin lihat pada borang reservation.
+			"birthday_trip": bool(r.birthday_on_trip),
+			"passport_to_expire": bool(r.passport_to_expire_on_trip),
 			"age": years,
 			"age_bucket": _age_bucket(years),
 			"nationality": r.nationality or "",
@@ -2297,6 +2295,12 @@ def update_traveller_status(traveller: str, status: str) -> dict:
 			doc.set(f, _sanitize_phone_value(val))
 	if doc.status != status:
 		doc.status = status
+		# Status ni KEPUTUSAN MANUAL admin — langkau auto-promote
+		# evaluate_document_status (balikkan 'Open for Update' ke
+		# 'Pending Verification' bila borang lengkap) supaya pilihan admin
+		# kekal; kemaskini status inilah yang mencetus cascade reservation
+		# → 'Document Expired' (compute_auto_status rule 5b).
+		doc.flags.keep_manual_status = 1
 		doc.save(ignore_permissions=True)
 	# NOTE: kunci "renamed" HANYA untuk update_traveller_info (rename bila
 	# IC Number — autoname — berubah). Fungsi status tidak pernah rename;
@@ -2810,8 +2814,31 @@ def bulk_delete_bookings(bookings: "list | str" = None) -> dict:
 	return {"deleted": deleted, "skipped": skipped, "failed": failed}
 
 
+def _norm_name(value) -> str:
+	"""Nama untuk perbandingan identiti Traveller — upper + ruang berlebihan
+	diruntuhkan (before_save Traveller uppercase-kan nama; input admin boleh
+	berbeza kes/lebar spasi)."""
+	return " ".join(str(value or "").upper().split())
+
+
+def _traveller_merge_guard(traveller: str, target: str):
+	"""Halang merge yang akan meletakkan traveller yang sama pada DUA slot
+	dalam satu booking (selari guard borang save_booking_traveller)."""
+	bookings = frappe.get_all("Booking Reservation",
+		filters={"traveller": traveller}, pluck="booking")
+	if not bookings:
+		return
+	dupe = frappe.db.get_value("Booking Reservation",
+		{"booking": ("in", bookings), "traveller": target}, "name")
+	if dupe:
+		frappe.throw(_("Both travellers are attached to slots in the same booking "
+			"({0}). Merging would place the same traveller on two slots of one "
+			"booking — unlink one slot first.").format(frappe.bold(dupe)))
+
+
 @frappe.whitelist()
-def update_traveller_info(traveller: str, values: "dict | str" = None) -> dict:
+def update_traveller_info(traveller: str, values: "dict | str" = None,
+                          force_merge: bool = False) -> dict:
 	"""Kemaskini maklumat peribadi Traveller dari modal page Manage Booking.
 
 	Cara kerja (satu-satunya laluan betul utk kekal konsisten):
@@ -2823,6 +2850,18 @@ def update_traveller_info(traveller: str, values: "dict | str" = None) -> dict:
 	  (uppercase/full_name tidak akan dikira).
 	- visa_photo pastikan PRIVATE selepas save (upload dialog boleh
 	  tersimpan public) — flip fizikal + URL dikemaskini.
+
+	IC pendua — nama dokumen Traveller ialah IC (autoname field:ic_number),
+	jadi menukar IC kepada IC yang sudah dimiliki rekod lain bermakna DUA
+	rekod (mungkin) orang yang sama. Tiga tahap keputusan:
+	1) nama (normalized) + tarikh lahir sepadan → AUTO-MERGE senyap: rekod
+	   ini digabung ke rekod pemilik IC (semua slot/Comment/Version/File
+	   di-repoint, rekod lama dipadam, nilai yang admin taip MENANG).
+	2) tarikh lahir sepadan tapi nama berbeza → pulang needs_confirmation
+	   TANPA sebarang tulisan; klien minta pengesahan admin lalu hantar
+	   semula force_merge=1 untuk melaksanakan merge.
+	3) tarikh lahir berbeza → throw dengan identiti pemilik IC (orang
+	   berbeza).
 	Pulangkan nilai terkini (medan edit + alias paparan) utk kemaskini cache
 	klien."""
 	_require_access()
@@ -2837,15 +2876,69 @@ def update_traveller_info(traveller: str, values: "dict | str" = None) -> dict:
 		frappe.throw(_("Traveller {0} not found").format(traveller))
 
 	doc = frappe.get_doc("Traveller", traveller)
-	doc.flags.ignore_mentions = True
-	for f in TRAVELLER_EDIT_FIELDS:
-		if f in values:
-			v = values.get(f)
-			if isinstance(v, str):
-				v = v.strip()
-				if f in ("phone", "emergency_contact_phone") and v:
-					v = _sanitize_phone_value(v)
-			doc.set(f, ("" if v is None else str(v)) if isinstance(v, str) else v)
+
+	def _apply_editable_fields(target_doc):
+		target_doc.flags.ignore_mentions = True
+		for f in TRAVELLER_EDIT_FIELDS:
+			if f in values:
+				v = values.get(f)
+				if isinstance(v, str):
+					v = v.strip()
+					if f in ("phone", "emergency_contact_phone") and v:
+						v = _sanitize_phone_value(v)
+				target_doc.set(f, ("" if v is None else str(v)) if isinstance(v, str) else v)
+
+	# ── IC pendua — keputusan SEBELUM sebarang tulisan ──────────────────
+	# Fasa pengesahan (tahap 2) mesti pulang bersih tanpa save separuh
+	# jalan. Identiti dibandingkan: nilai yang DIHANTAR (fallback nilai
+	# semasa rekod) lawan rekod pemilik IC baharu.
+	merge_target = None
+	merge_same_name = False
+	if "ic_number" in values:
+		new_ic = str(values.get("ic_number") or "").strip().upper()
+		if new_ic and new_ic != traveller and frappe.db.exists("Traveller", new_ic):
+			existing = frappe.get_doc("Traveller", new_ic)
+			same_name = (
+				_norm_name(values.get("first_name") or doc.first_name)
+				== _norm_name(existing.first_name)
+				and _norm_name(values.get("last_name") or doc.last_name)
+				== _norm_name(existing.last_name)
+			)
+			sub_dob = str(values.get("date_of_birth") or doc.date_of_birth or "")[:10]
+			same_dob = bool(sub_dob) and sub_dob == str(existing.date_of_birth or "")[:10]
+			if not same_dob:
+				# Tahap 3 — tarikh lahir berbeza: orang berbeza. Nyatakan
+				# identiti pemilik IC supaya admin terus nampak sebabnya.
+				frappe.throw(_("IC Number {0} already belongs to {1} (born {2}) — "
+					"the date of birth does not match this traveller. Check the IC "
+					"number, or fix the records manually if this is really the same "
+					"person.").format(
+					frappe.bold(new_ic),
+					frappe.bold(existing.full_name or new_ic),
+					str(existing.date_of_birth or "—"),
+				))
+			if same_name or force_merge:
+				# Tahap 1 (nama+DOB sepadan → auto) atau tahap 2 yang telah
+				# disahkan admin (force_merge) — merge dilaksanakan di bawah.
+				_traveller_merge_guard(traveller, new_ic)
+				merge_target = new_ic
+				merge_same_name = same_name
+			else:
+				# Tahap 2 — IC + DOB sepadan tapi nama berbeza: minta
+				# pengesahan admin sebelum merge. Pulang TANPA tulisan.
+				return {
+					"needs_confirmation": True,
+					"existing": {
+						"traveller": existing.name,
+						"full_name": existing.full_name or existing.name,
+						"first_name": existing.first_name or "",
+						"last_name": existing.last_name or "",
+						"date_of_birth": str(existing.date_of_birth or ""),
+						"ic_number": existing.ic_number or existing.name,
+					},
+				}
+
+	_apply_editable_fields(doc)
 	doc.save(ignore_permissions=True)
 
 	# IC Number ialah NAMA dokumen Traveller (autoname: field:ic_number).
@@ -2858,12 +2951,41 @@ def update_traveller_info(traveller: str, values: "dict | str" = None) -> dict:
 	# tiada ignore_permissions — import model.rename_doc terus.)
 	from frappe.model.rename_doc import rename_doc as _rename_doc
 	renamed = False
-	if "ic_number" in values:
+	if merge_target:
+		# MERGE X → Y — IC baharu milik rekod lain yang terbukti (nama+DOB)
+		# atau diakui (force_merge) orang sama. rename_doc(merge=True)
+		# repoint SEMUA rujukan X ke Y dan memadam X, tetapi mengekalkan
+		# nilai medan Y — jadi medan yang admin hantar di-apply semula
+		# selepas merge supaya suntingan terkini MENANG. Jejak audit
+		# direkod sebagai Comment Info pada rekod survivor.
+		merged_from = traveller
+		_rename_doc("Traveller", traveller, merge_target,
+			merge=True, ignore_permissions=True, show_alert=False)
+		traveller = merge_target
+		renamed = True
+		doc = frappe.get_doc("Traveller", traveller)
+		_apply_editable_fields(doc)
+		doc.save(ignore_permissions=True)
+		frappe.get_doc({
+			"doctype":           "Comment",
+			"comment_type":      "Info",
+			"reference_doctype": "Traveller",
+			"reference_name":    traveller,
+			"content": (
+				"Auto-merged Traveller {0} into {1} — matched IC + date of birth"
+				"{2}, by {3}".format(
+					frappe.bold(merged_from),
+					frappe.bold(traveller),
+					" + name"
+					if merge_same_name
+					else " (name differs, confirmed by admin)",
+					frappe.session.user,
+				)
+			),
+		}).insert(ignore_permissions=True)
+	elif "ic_number" in values:
 		new_ic = str(values.get("ic_number") or "").strip().upper()
 		if new_ic and new_ic != traveller:
-			if frappe.db.exists("Traveller", new_ic):
-				frappe.throw(_("Traveller with IC Number {0} already exists").format(
-					frappe.bold(new_ic)))
 			_rename_doc("Traveller", traveller, new_ic,
 				ignore_permissions=True, show_alert=False)
 			frappe.db.set_value("Traveller", new_ic, "ic_number", new_ic,
@@ -2883,6 +3005,8 @@ def update_traveller_info(traveller: str, values: "dict | str" = None) -> dict:
 	return {
 		"traveller": doc.name,
 		"traveller_name": doc.full_name or doc.name,
+		# rename/merge berlaku? — klien papar alert yang berbeza
+		"renamed": renamed,
 		"title": doc.title or "",
 		"first_name": doc.first_name or "",
 		"last_name": doc.last_name or "",
