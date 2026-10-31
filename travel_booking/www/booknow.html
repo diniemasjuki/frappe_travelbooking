@@ -687,7 +687,7 @@ if ('serviceWorker' in navigator) {
 
 {# ── Page Data JSON (dari Frappe context) ── #}
 <script id="pageData" type="application/json">
-{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_cruise_flags": {{ trip_cruise_flags }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "currency": "{{ currency }}", "currency_native_only": {{ 'true' if currency_native_only else 'false' }}, "csrf_token": "{{ csrf_token }}", "current_user": "{{ current_user }}", "user_profile": {{ user_profile_json }}, "booking_actor": {{ booking_actor_json }}, "own_affiliate_code": "{{ own_affiliate_code }}", "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}"}
+{"trip_group_dates": {{ trip_group_dates }}, "trip_packages": {{ trip_packages }}, "trip_cruise_flags": {{ trip_cruise_flags }}, "trip_master": "{{ trip_master }}", "trip_group_date": "{{ trip_group_date }}", "currency": "{{ currency }}", "currency_native_only": {{ 'true' if currency_native_only else 'false' }}, "csrf_token": "{{ csrf_token }}", "current_user": "{{ current_user }}", "user_profile": {{ user_profile_json }}, "booking_actor": {{ booking_actor_json }}, "own_affiliate_code": "{{ own_affiliate_code }}", "company_currency": "{{ company_currency }}", "company_symbol": "{{ company_symbol }}", "max_cabins": {{ max_cabins }}}
 </script>
 
 {% endblock %}

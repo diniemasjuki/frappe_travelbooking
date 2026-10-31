@@ -29,6 +29,7 @@
   "on_behalf_roles",
   "booking_automation_section",
   "pending_abandoned_days",
+  "max_cabins_per_booking",
   "referral_and_voucher_section",
   "default_referral_discount_percent",
   "price_category_section",
@@ -177,6 +178,14 @@
    "fieldname": "pending_abandoned_days",
    "fieldtype": "Int",
    "label": "Auto-Abandon Pending Bookings After (Days)",
+   "non_negative": 1
+  },
+  {
+   "default": "0",
+   "description": "Had maksimum cabin/room bagi SATAU booking (satu transaksi checkout di /booknow, cabin tambahan portal, dan Booking Reservation admin di Desk). Isi 0 = TANPA HAD (unlimited). Nilai disemak semula di backend untuk setiap checkout.",
+   "fieldname": "max_cabins_per_booking",
+   "fieldtype": "Int",
+   "label": "Max Cabins Per Booking (0 = Unlimited)",
    "non_negative": 1
   },
   {
@@ -357,7 +366,7 @@
  "grid_page_length": 50,
  "issingle": 1,
  "links": [],
- "modified": "2026-10-16 18:40:00.000000",
+ "modified": "2026-10-31 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Travel Settings",

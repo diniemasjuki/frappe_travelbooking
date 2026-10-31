@@ -14,10 +14,11 @@ import frappe
 
 # ── Pemalar tetap (hardcoded) ──────────────────────────────────────
 
-# Had maksimum cabin per booking — MESTI disegerakkan dengan
-# MAX_CABINS_PER_BOOKING dalam booking.js (frontend) dan
-# validate_cabin_capacity() dalam booking_reservation.py (admin manual
-# di Desk), supaya konsisten merentasi ketiga-tiga laluan.
+# Had maksimum cabin per booking — kini BOLEH KONFIGURASI melalui
+# Travel Settings > Max Cabins Per Booking (rujuk get_max_cabins()
+# di bawah; 0 = unlimited). Nilai ni hanya fallback terakhir bila
+# Travel Settings gagal dimuatkan. Frontend (booknow.js) terima
+# nilai sebenar melalui pageData — tiada lagi sync manual 3 tempat.
 MAX_CABINS_PER_BOOKING = 8
 
 # Nama Print Format untuk resit — dikongsi oleh email_service.py
@@ -63,22 +64,30 @@ DEFAULT_SELLING_PRICE_LIST = "Standard Selling"
 # ── Pemalar boleh konfigurasi (dibaca dari Travel Settings) ─────────
 
 def get_max_cabins():
-	"""Had maksimum cabin per booking — dibaca dari Travel Settings jika
-	field 'max_cabins_per_booking' wujud pada doctype itu, JATUH BALIK
-	kepada MAX_CABINS_PER_BOOKING (8) jika tiada/belum dikonfigurasikan.
+	"""Had maksimum cabin per booking — dibaca dari Travel Settings
+	field 'max_cabins_per_booking' (tab App Configurations > Booking
+	Automation). SEMANTIK: 0 = TANPA HAD (unlimited); nilai NULL
+	(field belum ada nilai dalam tabSingles,cth selepas tambah field
+	tapi Travel Settings belum pernah di-save semula) juga dikira
+	unlimited supaya default baharu terus berkesan.
 
-	PENGGUNAAN: panggil fungsi ini di tempat yang sebelum ini hardcoded
-	MAX_CABINS_PER_BOOKING — backend (_validate_selection_capacity di
-	pricing.py) dan doctype controller (booking_reservation.py). Frontend
-	(booking.js) kekal hardcoded (8) buat masa ni sebab ia dimuat sebelum
-	sebarang panggilan API; admin yang tukar nilai di Travel Settings
-	perlu kemaskini booking.js sekali buat sementara.
+	Fallback terakhir MAX_CABINS_PER_BOOKING (8) hanya bila Travel
+	Settings gagal dimuatkan sama sekali (cth doctype belum migrate) —
+	nilai lama konservatif.
+
+	PENGGUNAAN: panggil fungsi ini di semua titik had cabin — backend
+	(_validate_selection_capacity di pricing.py, create_new_cabin_order
+	di cabin_sharing.py), doctype controller (booking_reservation.py),
+	dan www/booknow.py yang menyuntik nilai ke pageData untuk frontend
+	(booknow.js). SEMUA caller mesti treat 0 sebagai unlimited
+	(gate dengan `if max_cabins and ...`).
 	"""
 	try:
 		settings = frappe.get_cached_doc("Travel Settings")
 		val = getattr(settings, "max_cabins_per_booking", None)
-		if val:
-			return int(val)
+		if val is None:
+			return 0
+		return max(int(val), 0)
 	except Exception:
 		pass
 	return MAX_CABINS_PER_BOOKING

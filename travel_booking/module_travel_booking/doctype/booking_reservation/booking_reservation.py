@@ -455,9 +455,10 @@ class BookingReservation(Document):
 		if not (self.booking and self.cabin_no and self.pax_type and self.room_category):
 			return
 
-		if self.cabin_no > get_max_cabins():
+		max_cabins = get_max_cabins()  # Travel Settings; 0 = unlimited
+		if max_cabins and self.cabin_no > max_cabins:
 			frappe.throw(
-				"Maximum " + str(get_max_cabins()) +
+				"Maximum " + str(max_cabins) +
 				" cabins are allowed per booking (Cabin No " +
 				str(self.cabin_no) + " exceeds the limit)."
 			)

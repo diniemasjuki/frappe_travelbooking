@@ -883,6 +883,17 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     })
     booking.insert(ignore_permissions=True)
 
+    # SO utama dikaitkan SEMATA-MATA melalui Sales Order.custom_booking (one-
+    # standard: SO rujuk Booking, bukan dua-hala). SO dicipta SEBELUM Booking
+    # wujud, jadi baru boleh diisi sekarang selepas booking.name ada.
+    # PENTING: link ini MESTI ditulis SEBELUM _ensure_portal_user() di bawah —
+    # fungsi tu frappe.db.commit() (cipta User baru), jadi jika langkah lewat
+    # gagal & rollback (cth Payment Entry), booking yang dah ter-commit kerana
+    # commit separa tu akan kekal TANPA link custom_booking (booking yatim,
+    # order_summary/total_amount jadi kosong). Dengan urutan ni, link tersimpan
+    # dalam commit separa yang sama.
+    frappe.db.set_value("Sales Order", so.name, "custom_booking", booking.name)
+
     # Portal access — cipta User serentak dengan Booking (bukan lazy-created
     # bila customer minta login link). Kalau email ni dah ada User (returning
     # customer), tak buat apa-apa — reuse User sedia ada. B2B: User portal
@@ -900,11 +911,6 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         full_name  = billing.get("full_name") or "Customer"
         first_name = full_name.split()[0] if full_name else "Customer"
         _send_set_password_email(email, first_name)
-
-    # SO utama dikaitkan SEMATA-MATA melalui Sales Order.custom_booking (one-
-    # standard: SO rujuk Booking, bukan dua-hala). SO dicipta SEBELUM Booking
-    # wujud, jadi baru boleh diisi sekarang selepas booking.name ada.
-    frappe.db.set_value("Sales Order", so.name, "custom_booking", booking.name)
 
     res_created = 0  # dicipta bila Confirmed (hook Payment Entry)
 

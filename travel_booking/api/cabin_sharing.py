@@ -658,10 +658,10 @@ def get_new_cabin_options(booking_number: str) -> dict:
 
     seats_left  = _trip_seats_left(booking)
     next_cabin_no = _next_cabin_no(booking.name, ctx["layout"])
-    max_cabins  = get_max_cabins()
+    max_cabins  = get_max_cabins()  # Travel Settings; 0 = unlimited
 
     cabins_used = len(ctx["layout"])
-    has_cabin_slot = cabins_used < max_cabins
+    has_cabin_slot = (not max_cabins) or (cabins_used < max_cabins)
     eligible = seats_left > 0 and has_cabin_slot
     if not eligible:
         reason = ("This trip date is fully booked." if seats_left <= 0
@@ -767,9 +767,10 @@ def create_new_cabin_order(booking_number: str, room_category: str,
             str(total_pax) + " guest(s).")
 
     cabin_no = _next_cabin_no(booking.name, ctx["layout"])
-    if cabin_no > get_max_cabins():
+    max_cabins = get_max_cabins()  # Travel Settings; 0 = unlimited
+    if max_cabins and cabin_no > max_cabins:
         frappe.throw(
-            "Maximum " + str(get_max_cabins()) +
+            "Maximum " + str(max_cabins) +
             " cabins are allowed per booking (Cabin No " +
             str(cabin_no) + " exceeds the limit)."
         )

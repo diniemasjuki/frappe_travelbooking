@@ -14,7 +14,7 @@
 import frappe
 
 from travel_booking.api._helpers import get_company_currency
-from travel_booking.api.constants import MAX_CABINS_PER_BOOKING
+from travel_booking.api.constants import get_max_cabins
 from travel_booking.api.so_helpers import _get_primary_so, _compute_payment_status
 
 
@@ -664,9 +664,11 @@ def _validate_selection_capacity(selections, cabin_info_map, is_cruise=True):
     # PENTING: had maksimum cabin — check DULU sebelum apa-apa, sebab
     # 'selections' terus dari payload customer (boleh dimanipulasi walau
     # frontend dah disable butang "Add another room" bila cecah had).
-    if len(selections) > MAX_CABINS_PER_BOOKING:
+    # Had dari Travel Settings (get_max_cabins) — 0 = unlimited.
+    max_cabins = get_max_cabins()
+    if max_cabins and len(selections) > max_cabins:
         frappe.throw(
-            "Maximum " + str(MAX_CABINS_PER_BOOKING) +
+            "Maximum " + str(max_cabins) +
             " cabins allowed per booking. Please contact us " +
             "directly for larger reservations."
         )

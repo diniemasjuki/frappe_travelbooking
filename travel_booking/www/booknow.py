@@ -15,6 +15,7 @@ from travel_booking.api._helpers import (
     get_own_affiliate_code,
     resolve_booking_actor,
 )
+from travel_booking.api.constants import get_max_cabins
 from travel_booking.api.terms import get_active_terms_record
 from travel_booking.utils.trip_catalog import get_ready_bundle
 from travel_booking.www.trips import _get_currency_filter
@@ -187,6 +188,12 @@ def get_context(context):
     # — nilai dari client tidak pernah dipercayai begitu sahaja.
     actor = resolve_booking_actor()
     context.booking_actor_json = json.dumps(actor) if actor else "null"
+
+    # Had maksimum cabin per booking — dari Travel Settings
+    # (get_max_cabins; 0 = unlimited). Disuntik ke pageData supaya
+    # booknow.js tak perlu hardcode — backend (confirm_booking) tetap
+    # semak semula nilai yang sama; nilai frontend ini untuk UX sahaja.
+    context.max_cabins = get_max_cabins()
 
     # Pre-aktivasi affiliate: kod referral SENDIRI session user kalau dia
     # ada profil affiliate sah (Affiliate Profile "Verified" — rujuk

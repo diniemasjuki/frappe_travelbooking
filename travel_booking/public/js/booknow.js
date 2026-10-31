@@ -1724,16 +1724,19 @@ function initRooms() {
   else renderRooms();
 }
 
-// Had maksimum cabin per booking — konsisten dengan validation backend
-// (confirm_booking()) dan Booking Reservation.validate_cabin_capacity()
-// untuk admin manual di Desk. Perubahan nilai ni MESTI disegerakkan di
-// ketiga-tiga tempat.
-var MAX_CABINS_PER_BOOKING = 8;
+// Had maksimum cabin per booking — dari Travel Settings melalui pageData
+// (www/booknow.py → get_max_cabins()). 0 = TANPA HAD. Backend
+// (confirm_booking → _validate_selection_capacity) menyemak semula had
+// yang sama — nilai di sini untuk UX sahaja (disable butang + alert).
+var MAX_CABINS_PER_BOOKING = Number(_data.max_cabins);
+if (!isFinite(MAX_CABINS_PER_BOOKING) || MAX_CABINS_PER_BOOKING < 0) {
+  MAX_CABINS_PER_BOOKING = 0; // pageData tiada/rosak → anggap unlimited (selari backend)
+}
 
 function addRoom() {
   var avail = availableCabins();
   if (!avail.length) return;
-  if (state.rooms.length >= MAX_CABINS_PER_BOOKING) {
+  if (MAX_CABINS_PER_BOOKING && state.rooms.length >= MAX_CABINS_PER_BOOKING) {
     alert("Maximum " + MAX_CABINS_PER_BOOKING + " rooms allowed per booking. Please contact us directly for larger reservations.");
     return;
   }
@@ -2002,9 +2005,10 @@ function renderRooms() {
   // Disable "Add another room" secara VISUAL bila dah cecah had maksimum
   // — elak customer klik berulang tanpa tahu kenapa tak jadi apa-apa
   // (sebelum ni cuma block senyap dalam addRoom(), tiada isyarat visual).
+  // 0 = unlimited (Travel Settings) → butang tak pernah disabled.
   var addRoomBtnEl = document.getElementById("bnwAddRoomBtn");
   if (addRoomBtnEl) {
-    var atMax = state.rooms.length >= MAX_CABINS_PER_BOOKING;
+    var atMax = !!MAX_CABINS_PER_BOOKING && state.rooms.length >= MAX_CABINS_PER_BOOKING;
     addRoomBtnEl.disabled = atMax;
     addRoomBtnEl.title    = atMax
       ? "Maximum " + MAX_CABINS_PER_BOOKING + " rooms per booking"

@@ -775,6 +775,10 @@
       : (Number(cat.max_capacity) || cat.capacity) + ' pax';
     var gs = Number(opts.seats_left || 0);
     var seatsTxt = (gs && gs < 100000) ? gs + ' seat(s) left for this trip date' : 'seats available';
+    // Had cabin dari Travel Settings (get_max_cabins) — 0 = unlimited.
+    var cabinsTxt = (Number(opts.max_cabins) > 0)
+      ? 'Maximum ' + _esc(opts.max_cabins) + ' cabins per booking'
+      : 'No cabin limit per booking';
 
     /* Kotak peraturan reservasi cruise — ringkasan rule yang di-enforce
        semula di server (_validate_selection_capacity + seats + max
@@ -786,7 +790,7 @@
           '<li>Main guests: up to ' + (Number(cat.capacity) > 0 ? _esc(cat.capacity) : '\u2014') + ' per cabin (base capacity). 1 guest pays the solo fare; 2+ guests pay the twin-share rate per person.</li>' +
           '<li>Extra Bed is available only once the base capacity is filled. Infants require at least 1 main guest.</li>' +
           '<li>All guests share the cabin maximum capacity (' + _esc(maxCapTxt) + ').</li>' +
-          '<li>Maximum ' + _esc(opts.max_cabins) + ' cabins per booking \u00b7 ' + _esc(seatsTxt) + '.</li>' +
+          '<li>' + cabinsTxt + ' \u00b7 ' + _esc(seatsTxt) + '.</li>' +
           '<li>Traveller slots are confirmed after full payment \u2014 traveller details are filled afterwards on this page.</li>' +
         '</ul>' +
       '</div>';
