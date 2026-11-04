@@ -49,6 +49,35 @@ def _require_command_center_write_access():
 	_check_command_center_roles(TRIP_COMMAND_CENTER_WRITE_ROLES, "Website settings")
 
 
+# ══════════════════════════════════════════════
+# PRODUCT READINESS (P3 — Fasa A)
+# Enjin sebenar di utils/product_readiness.py — endpoint di sini wrapper
+# nipis berpagarkan role sahaja (mengikut corak gate fail ini).
+# ══════════════════════════════════════════════
+
+@frappe.whitelist()
+def get_product_readiness(trip: str) -> dict:
+	"""Checklist kesediaan SATU trip — kenapa ready / tak ready untuk dijual."""
+	_require_command_center_access()
+	from travel_booking.utils.product_readiness import get_trip_readiness
+	return get_trip_readiness(trip)
+
+
+@frappe.whitelist()
+def get_readiness_summary(trips: str = None, limit: int = 200) -> dict:
+	"""Ringkasan kesediaan BANYAK trip (badge senarai Command Center).
+
+	'trips': JSON array nama Trip (opsyenal — kosong = semua, terhad 'limit').
+	"""
+	_require_command_center_access()
+	import json as _json
+	from travel_booking.utils.product_readiness import get_batch_readiness
+	names = _json.loads(trips) if trips else None
+	if not isinstance(names, list):
+		names = None
+	return get_batch_readiness(names, limit=limit)
+
+
 @frappe.whitelist()
 def get_trips_list(search: str = None, status: str = None, is_cruise: str = None, limit: int = 50) -> dict:
 	"""

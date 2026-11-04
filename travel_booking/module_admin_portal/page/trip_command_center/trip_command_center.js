@@ -341,6 +341,7 @@ window.TripCommandCenter = (function () {
 									${badge(t.status || 'Active', stColor)}
 									${t.is_a_cruise_trip ? badge('🚢 Cruise', 'blue') : badge('✈️ Tour', 'orange')}
 									${badge(t.published ? '🌐 Published' : '📝 Draft', t.published ? 'green' : 'gray')}
+									<span class="tcc-readiness-slot" data-readiness="${esc(t.name)}"></span>
 								</div>
 							</div>
 						</div>
@@ -375,13 +376,63 @@ window.TripCommandCenter = (function () {
 
 		// Bind events
 		bind_unified_events();
-		
+
+		// Readiness badges (P3-FasaA) — async, nice-to-have (gagal = senyap)
+		if (trips.length) load_readiness_badges(trips.map((t) => t.name));
+
 		// Auto-expand any that were previously expanded
 		if ($('.tcc-trip-expanded').length) {
 			$('.tcc-trip-expanded').each(function() {
 				load_trip_expanded_content($(this).data('trip'));
 			});
 		}
+	}
+
+	// ── Kesediaan Produk (P3-FasaA) — enjin: utils/product_readiness.py ──
+	const READINESS_LABEL = {
+		ready:  '● Ready',
+		warning:'● Ready (amaran)',
+		error:  '✕ Tak ready',
+	};
+
+	async function load_readiness_badges(names) {
+		try {
+			const data = await api('get_readiness_summary', { trips: JSON.stringify(names) });
+			const map = data?.trips || {};
+			names.forEach((n) => {
+				const r = map[n];
+				const slot = document.querySelector(`.tcc-readiness-slot[data-readiness="${CSS.escape(n)}"]`);
+				if (!slot || !r) return;
+				if (r.level === 'error') {
+					// warna merah tiada dalam set css badge sedia ada — inline
+					slot.outerHTML = '<span class="tcc-badge" style="background:#b91c1c;color:#fff">'
+						+ (READINESS_LABEL.error) + '</span>';
+				} else {
+					slot.outerHTML = badge(READINESS_LABEL[r.level] || '?',
+						r.level === 'ready' ? 'green' : 'orange');
+				}
+			});
+		} catch (e) { /* badge nice-to-have — jangan pecahkan senarai */ }
+	}
+
+	function render_readiness_section(r) {
+		const items = (r.issues || []).map((iss) =>
+			`<li style="color:${iss.level === 'error' ? '#b91c1c' : '#92400e'}">
+				${iss.level === 'error' ? '✕' : '⚠'} ${esc(iss.message)}</li>`
+		).join('');
+		const body = items
+			|| '<li style="color:#15803d">✓ Semua selesai — trip ready untuk dijual.</li>';
+		const color = r.level === 'ready' ? '#15803d' : (r.level === 'warning' ? '#92400e' : '#b91c1c');
+		return `
+			<div class="tcc-section" style="border:1px solid ${color}33;border-left:4px solid ${color};
+				border-radius:8px;padding:10px 14px;margin-bottom:12px;background:${color}08">
+				<div style="font-weight:700;color:${color};margin-bottom:6px">
+					Kesediaan Produk: ${r.ready ? 'READY' : 'TAK READY'}
+					<span style="font-weight:400;color:#666"> — ${esc(r.trip_name)}
+					(${r.active_packages || 0} pakej Active, ${r.active_departures || 0} tarikh Active hadapan)</span>
+				</div>
+				<ul style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.7">${body}</ul>
+			</div>`;
 	}
 
 	function bind_unified_events() {
@@ -426,17 +477,21 @@ window.TripCommandCenter = (function () {
 		const contentArea = $(`.tcc-trip-expanded-content[data-content-for="${tripName}"]`);
 		
 		try {
-			// Load both dates and packages in parallel
-			const [datesData, packagesData] = await Promise.all([
+			// Load dates, packages, dan kesediaan dalam parallel
+			const [datesData, packagesData, readinessData] = await Promise.all([
 				api('get_trip_dates', { trip_name: tripName }),
 				api('get_trip_packages', { trip_name: tripName }),
+				api('get_product_readiness', { trip: tripName }),
 			]);
+			const readiness = readinessData || null;
 
 			const dates = datesData?.dates || [];
 				const packages = packagesData?.packages || [];
 				const isCruiseTrip = datesData?.trip?.is_a_cruise_trip;
 
 				contentArea.html(`
+					<!-- Kesediaan Produk (P3-FasaA) -->
+					${readiness ? render_readiness_section(readiness) : ''}
 					<!-- Dates Section -->
 					<div class="tcc-section tcc-dates-section">
 						<div class="tcc-section-header">
