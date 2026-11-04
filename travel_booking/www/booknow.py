@@ -6,7 +6,12 @@
 # dengan /booking; bezanya hanya tema visual (gold/dark/cream).
 import frappe
 import frappe.sessions
-import json
+
+# JSON yang dibenamkan dalam <script id="pageData"> mesti html-safe —
+# Frappe render www dengan autoescape OFF dan json.dumps TIDAK escape
+# < > &, jadi nilai query param (trip_master/trip_group_date) boleh
+# breakout dari tag <script> dan inject JS (reflected XSS).
+from travel_booking.www._json import json_safe
 
 from travel_booking.api._helpers import (
     get_company_currency,
@@ -134,9 +139,9 @@ def get_context(context):
     )
 
     context.trips            = trips
-    context.trip_group_dates = json.dumps(trip_group_dates)
-    context.trip_packages    = json.dumps(trip_packages)
-    context.trip_cruise_flags = json.dumps(trip_is_cruise)
+    context.trip_group_dates = json_safe(trip_group_dates)
+    context.trip_packages    = json_safe(trip_packages)
+    context.trip_cruise_flags = json_safe(trip_is_cruise)
     context.trip_master      = trip_master or ""
     context.trip_group_date  = trip_group_date or ""
     context.currency         = currency
@@ -166,7 +171,7 @@ def get_context(context):
     # login — server-side (bukan API call client) supaya tiada endpoint PII
     # baharu yang boleh di-probe. Client BOLEH edit semula nilai ini — field
     # tidak pernah dikunci (keputusan produk: prefill adalah kemudahan).
-    context.user_profile_json = json.dumps(_get_session_profile())
+    context.user_profile_json = json_safe(_get_session_profile())
 
     # Senarai negara untuk dropdown Billing Address (Step 2). Dibaca
     # server-side kerana Guest tidak boleh panggil frappe.client.get_list
@@ -187,7 +192,7 @@ def get_context(context):
     # disahkan SEMULA di confirm_booking() melalui resolve_booking_actor()
     # — nilai dari client tidak pernah dipercayai begitu sahaja.
     actor = resolve_booking_actor()
-    context.booking_actor_json = json.dumps(actor) if actor else "null"
+    context.booking_actor_json = json_safe(actor) if actor else "null"
 
     # Had maksimum cabin per booking — dari Travel Settings
     # (get_max_cabins; 0 = unlimited). Disuntik ke pageData supaya

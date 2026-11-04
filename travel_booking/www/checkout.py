@@ -1,6 +1,10 @@
 # travel_booking/www/checkout.py
 import frappe
-import json
+
+# JSON dibenamkan dalam <script type="application/json"> mesti html-safe —
+# Frappe render www dengan autoescape OFF dan json.dumps TIDAK escape < > &,
+# jadi "</script>" dalam query param (src/ref) boleh breakout & inject JS.
+from travel_booking.www._json import json_safe
 
 
 def get_context(context):
@@ -28,10 +32,10 @@ def get_context(context):
         context.source   = source
         context.ref      = ref
         context.ret      = ret
-        context.pr_name_json = json.dumps(pr_name)
-        context.source_json  = json.dumps(source)
-        context.ref_json     = json.dumps(ref)
-        context.ret_json     = json.dumps(ret)
+        context.pr_name_json = json_safe(pr_name)
+        context.source_json  = json_safe(source)
+        context.ref_json     = json_safe(ref)
+        context.ret_json     = json_safe(ret)
 
         # PENTING: pr.grand_total dicap kepada baki SO TUNGGAL yang dirujuk PR
         # ini (untuk booking gabungan) — jumlah PENUH yang customer sebenarnya

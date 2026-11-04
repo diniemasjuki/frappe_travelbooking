@@ -1141,6 +1141,10 @@ def get_linked_sales_order(booking_name: str) -> str:
 	"""
 	Get primary Sales Order name yang linked kepada booking ini.
 	"""
+	# SECURITY: endpoint ini dedah status + grand_total SO mana-mana booking —
+	# wajib gate role staff (dulu tiada check: IDOR).
+	_require_booking_manager()
+
 	if not booking_name:
 		return None
 	
@@ -1163,6 +1167,10 @@ def get_addon_orders(limit: int = 30, booking: str = None) -> list:
 	"""
 	Return list of addon orders.
 	"""
+	# SECURITY: endpoint ini senaraikan SEMUA addon order (customer + amount)
+	# merentas booking — wajib gate role staff (dulu tiada check: IDOR).
+	_require_booking_manager()
+
 	filters = {}
 	if booking:
 		filters['booking'] = booking

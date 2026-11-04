@@ -12,11 +12,38 @@ from frappe import _
 from datetime import datetime, timedelta
 
 
+# ══════════════════════════════════════════════
+# PERMISSION GATE — data dashboard adalah company-wide
+# ══════════════════════════════════════════════
+
+# Endpoint di sini mendedahkan data SEMUA customer (revenue, dokumen
+# traveller, overdue payment) — popula role yang sama seperti Booking Hub.
+# Tanpa gate, mana-mana portal Customer / Website User boleh dump data
+# syarikat melalui /api/method/ walaupun tiada akses UI dashboard.
+DASHBOARD_ROLES = ["System Manager", "Tour Manager", "Tour Operator", "Accounts User"]
+
+
+def _require_dashboard_access():
+	"""Gate semua endpoint dashboard_reports — mencegah data leak/IDOR."""
+	if not frappe.session.user or frappe.session.user == "Guest":
+		frappe.throw(_("Please login to access Dashboard"), frappe.PermissionError)
+
+	user_roles = frappe.get_roles()
+	if not any(role in DASHBOARD_ROLES for role in user_roles):
+		frappe.throw(
+			_("You do not have permission to access Dashboard. Required roles: {0}").format(
+				", ".join(DASHBOARD_ROLES)
+			),
+			frappe.PermissionError,
+		)
+
+
 @frappe.whitelist()
 def get_kpi_data(from_date: str = None, to_date: str = None) -> dict:
 	"""
 	Get KPI metrics for dashboard.
 	"""
+	_require_dashboard_access()
 	try:
 		today = datetime.now().date()
 		
@@ -129,6 +156,7 @@ def get_recent_bookings(limit: int = 10) -> list:
 	"""
 	Get recent bookings untuk dashboard.
 	"""
+	_require_dashboard_access()
 	try:
 		bookings = frappe.get_all(
 			'Booking',
@@ -148,6 +176,7 @@ def get_upcoming_departures(limit: int = 5) -> list:
 	"""
 	Get upcoming trip departures.
 	"""
+	_require_dashboard_access()
 	try:
 		today = datetime.now().strftime('%Y-%m-%d')
 		
@@ -181,6 +210,7 @@ def get_bookings_by_status(from_date: str = None, to_date: str = None) -> list:
 	"""
 	Get booking counts grouped by status.
 	"""
+	_require_dashboard_access()
 	try:
 		today = datetime.now().date()
 		from_date = from_date or str(today - timedelta(days=30))
@@ -207,6 +237,7 @@ def get_bookings_by_trip(from_date: str = None, to_date: str = None) -> list:
 	"""
 	Get top trips by booking count and revenue.
 	"""
+	_require_dashboard_access()
 	try:
 		today = datetime.now().date()
 		from_date = from_date or str(today - timedelta(days=30))
@@ -247,6 +278,7 @@ def get_conversion_funnel(from_date: str = None, to_date: str = None) -> list:
 	"""
 	Get conversion funnel data.
 	"""
+	_require_dashboard_access()
 	try:
 		today = datetime.now().date()
 		from_date = from_date or str(today - timedelta(days=30))
@@ -274,6 +306,7 @@ def get_monthly_revenue(from_date: str = None, to_date: str = None) -> list:
 	"""
 	Get monthly revenue breakdown.
 	"""
+	_require_dashboard_access()
 	try:
 		today = datetime.now().date()
 		from_date = from_date or str(today - timedelta(days=365))
@@ -304,6 +337,7 @@ def get_revenue_by_source(from_date: str = None, to_date: str = None) -> list:
 	"""
 	Get revenue by payment source/type.
 	"""
+	_require_dashboard_access()
 	try:
 		today = datetime.now().date()
 		from_date = from_date or str(today - timedelta(days=30))
@@ -328,6 +362,7 @@ def get_revenue_by_package(from_date: str = None, to_date: str = None) -> list:
 	"""
 	Get top packages by revenue.
 	"""
+	_require_dashboard_access()
 	try:
 		packages = frappe.db.sql("""
 			SELECT 
@@ -356,6 +391,7 @@ def get_pending_documents() -> dict:
 	"""
 	Get travellers with pending/incomplete documents.
 	"""
+	_require_dashboard_access()
 	try:
 		count = frappe.db.count('Booking Reservation', {
 			'document_status': ['in', ['Incomplete', 'Open for Update']],
@@ -389,6 +425,7 @@ def get_overdue_payments() -> dict:
 	"""
 	Get overdue payments summary.
 	"""
+	_require_dashboard_access()
 	try:
 		today = datetime.now().strftime('%Y-%m-%d')
 
@@ -414,6 +451,7 @@ def get_capacity_alerts() -> dict:
 	"""
 	Get trips nearing or at capacity.
 	"""
+	_require_dashboard_access()
 	try:
 		alerts = frappe.db.sql("""
 			SELECT 
@@ -454,6 +492,7 @@ def generate_report(report_type: str, date_range: str = '30d') -> dict:
 	3. Save to public/files directory
 	4. Return the file URL
 	"""
+	_require_dashboard_access()
 	import os
 	
 	report_configs = {

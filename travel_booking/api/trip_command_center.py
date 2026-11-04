@@ -8,9 +8,45 @@
 # - Website settings & configuration
 # - Cruise schedule management
 
+import re
+
 import frappe
 from frappe import _
 from datetime import datetime
+
+
+# ══════════════════════════════════════════════
+# PERMISSION GATES — Security gates untuk Trip Command Center
+# ══════════════════════════════════════════════
+
+# Bacaan: data trip, harga internal (Trip Package Price), dan config website —
+# data operasi dalaman yang tidak patut dilihat portal Customer / Guest.
+TRIP_COMMAND_CENTER_ROLES = ["System Manager", "Tour Manager", "Tour Operator", "Accounts User"]
+
+# Tulisan: menukar konfigurasi website global — pengurusan sahaja.
+TRIP_COMMAND_CENTER_WRITE_ROLES = ["System Manager", "Tour Manager"]
+
+
+def _check_command_center_roles(roles, context_label):
+	if not frappe.session.user or frappe.session.user == "Guest":
+		frappe.throw(_("Please login to access {0}").format(context_label), frappe.PermissionError)
+
+	user_roles = frappe.get_roles()
+	if not any(role in roles for role in user_roles):
+		frappe.throw(
+			_("You do not have permission to access {0}. Required roles: {1}").format(
+				context_label, ", ".join(roles)
+			),
+			frappe.PermissionError,
+		)
+
+
+def _require_command_center_access():
+	_check_command_center_roles(TRIP_COMMAND_CENTER_ROLES, "Trip Command Center")
+
+
+def _require_command_center_write_access():
+	_check_command_center_roles(TRIP_COMMAND_CENTER_WRITE_ROLES, "Website settings")
 
 
 @frappe.whitelist()
@@ -27,6 +63,7 @@ def get_trips_list(search: str = None, status: str = None, is_cruise: str = None
 	  ORDER BY creation DESC
 	  LIMIT {limit}
 	"""
+	_require_command_center_access()
 	try:
 		# Build WHERE clauses dynamically dengan parameter binding
 		where_conditions = []
@@ -139,6 +176,7 @@ def get_trip_dates(trip_name: str) -> dict:
 	"""
 	Get all group dates for a specific trip.
 	"""
+	_require_command_center_access()
 	try:
 		# Graceful handling of missing/empty trip_name
 		if not trip_name or not trip_name.strip():
@@ -193,6 +231,7 @@ def get_trip_packages(trip_name: str) -> dict:
 	"""
 	Get all packages for a specific trip dengan pricing summary.
 	"""
+	_require_command_center_access()
 	try:
 		# Graceful handling of missing/empty trip_name
 		if not trip_name or not trip_name.strip():
@@ -268,6 +307,7 @@ def get_website_settings() -> dict:
 
 	Cached per-site; invalidated when Travel Website document is saved.
 	"""
+	_require_command_center_access()
 	try:
 		# Try cache first
 		cache = frappe.cache()
@@ -501,6 +541,7 @@ def get_published_trips() -> list:
 	"""
 	Get all published trips untuk website display.
 	"""
+	_require_command_center_access()
 	try:
 		trips = frappe.get_all(
 			'Trip',
@@ -521,6 +562,7 @@ def get_cruise_schedules(trip_name: str) -> dict:
 	"""
 	Get cruise schedules for a trip.
 	"""
+	_require_command_center_access()
 	try:
 		# Graceful handling of missing/empty trip_name
 		if not trip_name or not trip_name.strip():
@@ -571,8 +613,21 @@ def update_website_setting(field: str, value: str) -> dict:
 	"""
 	Update individual website setting field.
 	"""
+	# SECURITY: endpoint ini menulis konfigurasi website global — wajib gate
+	# role pengurusan. Dulu TIADA check: mana-mana user logged-in (termasuk
+	# portal Customer) boleh tamper config site via setattr + ignore_permissions.
+	_require_command_center_write_access()
+
 	if not field:
 		frappe.throw(_('Field name required'))
+
+	# Pertahanan kedua: fieldname mesti field sebenar pada meta Travel
+	# Website, dan bukan field berkait kredensial/token.
+	meta = frappe.get_meta('Travel Website')
+	if not meta.has_field(field):
+		frappe.throw(_('Invalid field: {0}').format(field))
+	if re.search(r'password|secret|key|token', field, re.IGNORECASE):
+		frappe.throw(_('Field not editable via this endpoint: {0}').format(field))
 
 	try:
 		wc = frappe.get_doc('Travel Website')
