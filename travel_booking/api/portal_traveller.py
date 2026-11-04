@@ -8,6 +8,7 @@ import re
 
 import frappe
 import qrcode
+from frappe.rate_limiter import rate_limit
 from travel_booking.api.portal_booking import (
     _get_customer,
     _portal_access,
@@ -1556,6 +1557,11 @@ def _sanitize_extracted(extracted: dict) -> dict:
 
 
 @frappe.whitelist(allow_guest=True)
+# SECURITY FIX (P2/W1): rate limit — endpoint ni jalankan AI-vision +
+# Tesseract OCR (bajet 45s+30s per panggilan, di-bill per call) dan
+# forward imej ke API AI luaran. Tanpa had, bot boleh salur kos + longsi
+# worker. Corak sama dengan analyze_receipt() (receipt_ocr.py).
+@rate_limit(key="passport_scan", limit=10, seconds=600)
 def check_traveller_passport(filedata: str, guest_token: str = ""):
     """Langkah 1 wizard: customer/guest muat naik gambar passport DULU.
 

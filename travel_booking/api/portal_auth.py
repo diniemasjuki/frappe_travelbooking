@@ -243,13 +243,19 @@ def set_password(key: str, email: str, new_password: str):
 
     from frappe.utils.password import update_password
     update_password(user, new_password)
+
+    # SECURITY FIX (P2/W1): tamatkan SEMUA sesi lain user ni — kata laluan
+    # baharu mesti mematikan sesi curi (device hilang / session hijack).
+    # keep_current=True: sesi yang sedang tukar kata laluan (kalau ada)
+    # kekal log masuk.
+    frappe.sessions.clear_sessions(user=user, keep_current=True)
+
     frappe.db.set_value("User", user, {"reset_password_key": ""})
     frappe.cache().delete_value(issued_key)
     frappe.db.commit()
     return {"status": "ok", "message": "Password set successfully. Please log in."}
 
 
-@frappe.whitelist(allow_guest=True)
 @frappe.whitelist(allow_guest=True)
 def send_magic_link_by_email(email: str):
     """Portal login — hantar magic link ke email registered.
@@ -329,13 +335,13 @@ def send_magic_link_by_email(email: str):
         now=True
     )
 
-    parts  = email.split("@")
-    masked = parts[0][:2] + "***@" + parts[1] if len(parts) == 2 else "***"
-
+    # SECURITY FIX (P2/W1): respons SERAGAM dengan branch "email tak
+    # berdaftar" — dulu field "masked" + mesej berbeza jadi oracle untuk
+    # teka email mana yang ada akaun portal (allow_guest POST). JS tidak
+    # guna "masked" langsung (disahkan — tiada rujukan di public/js).
     return {
         "status":  "ok",
-        "masked":  masked,
-        "message": "Login link sent to " + masked + "."
+        "message": generic_msg
     }
 
 

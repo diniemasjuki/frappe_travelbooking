@@ -45,7 +45,7 @@ def get_kpi_data(from_date: str = None, to_date: str = None) -> dict:
 	"""
 	_require_dashboard_access()
 	try:
-		today = datetime.now().date()
+		today = frappe.utils.getdate()  # site-TZ (P2/W2 — bukan server clock)
 		
 		# Default to last 30 days if no dates provided
 		if not from_date:
@@ -178,7 +178,7 @@ def get_upcoming_departures(limit: int = 5) -> list:
 	"""
 	_require_dashboard_access()
 	try:
-		today = datetime.now().strftime('%Y-%m-%d')
+		today = frappe.utils.today()  # site-TZ (P2/W2)
 		
 		departures = frappe.db.sql("""
 			SELECT 
@@ -212,7 +212,7 @@ def get_bookings_by_status(from_date: str = None, to_date: str = None) -> list:
 	"""
 	_require_dashboard_access()
 	try:
-		today = datetime.now().date()
+		today = frappe.utils.getdate()  # site-TZ (P2/W2 — bukan server clock)
 		from_date = from_date or str(today - timedelta(days=30))
 		to_date = to_date or str(today)
 
@@ -239,7 +239,7 @@ def get_bookings_by_trip(from_date: str = None, to_date: str = None) -> list:
 	"""
 	_require_dashboard_access()
 	try:
-		today = datetime.now().date()
+		today = frappe.utils.getdate()  # site-TZ (P2/W2 — bukan server clock)
 		from_date = from_date or str(today - timedelta(days=30))
 		to_date = to_date or str(today)
 
@@ -280,7 +280,7 @@ def get_conversion_funnel(from_date: str = None, to_date: str = None) -> list:
 	"""
 	_require_dashboard_access()
 	try:
-		today = datetime.now().date()
+		today = frappe.utils.getdate()  # site-TZ (P2/W2 — bukan server clock)
 		from_date = from_date or str(today - timedelta(days=30))
 		to_date = to_date or str(today)
 
@@ -308,7 +308,7 @@ def get_monthly_revenue(from_date: str = None, to_date: str = None) -> list:
 	"""
 	_require_dashboard_access()
 	try:
-		today = datetime.now().date()
+		today = frappe.utils.getdate()  # site-TZ (P2/W2 — bukan server clock)
 		from_date = from_date or str(today - timedelta(days=365))
 		to_date = to_date or str(today)
 
@@ -339,7 +339,7 @@ def get_revenue_by_source(from_date: str = None, to_date: str = None) -> list:
 	"""
 	_require_dashboard_access()
 	try:
-		today = datetime.now().date()
+		today = frappe.utils.getdate()  # site-TZ (P2/W2 — bukan server clock)
 		from_date = from_date or str(today - timedelta(days=30))
 		to_date = to_date or str(today)
 
@@ -427,7 +427,7 @@ def get_overdue_payments() -> dict:
 	"""
 	_require_dashboard_access()
 	try:
-		today = datetime.now().strftime('%Y-%m-%d')
+		today = frappe.utils.today()  # site-TZ (P2/W2)
 
 		data = frappe.db.sql("""
 			SELECT 

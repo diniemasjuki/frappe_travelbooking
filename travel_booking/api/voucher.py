@@ -8,6 +8,7 @@
 import frappe
 import json
 from frappe import _
+from frappe.rate_limiter import rate_limit
 
 from travel_booking.api._helpers import get_customer_by_email
 from travel_booking.api.pricing import fmt_currency, _get_pricing_map, _price_selection
@@ -18,6 +19,9 @@ from travel_booking.api.pricing import fmt_currency, _get_pricing_map, _price_se
 # ══════════════════════════════════════════════
 
 @frappe.whitelist(allow_guest=True)
+# SECURITY FIX (P2/W1): rate limit — elak dictionary-scan kod voucher
+# (respons "Invalid voucher code." vs diskaun = oracle kod yang hidup).
+@rate_limit(key="voucher_validate", limit=10, seconds=60)
 def validate_voucher(code: str, trip_group_date: str, grand_total: float, email: str = "",
                      selections: str = "", trip_package: str = None, is_cruise: bool = True):
     """Validate voucher + kira discount ikut scope (Voucher doctype terkini).
@@ -169,6 +173,9 @@ def validate_voucher(code: str, trip_group_date: str, grand_total: float, email:
 # ══════════════════════════════════════════════
 
 @frappe.whitelist(allow_guest=True)
+# SECURITY FIX (P2/W1): rate limit — elak dictionary-scan kod referral
+# (corak sama dengan validate_voucher di atas).
+@rate_limit(key="affiliate_code", limit=10, seconds=60)
 def validate_affiliate_code(code: str, trip_group_date: str = None):
     """Validate referral/affiliate code. Discount % kepada CUSTOMER tetap
     sama untuk semua trip — diambil dari

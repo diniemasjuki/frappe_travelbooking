@@ -289,7 +289,7 @@ def get_resources_summary() -> dict:
         dict with KPIs and summary data
     """
     try:
-        today = datetime.now().date()
+        today = getdate()  # site-TZ (P2/W2 — bukan server clock)
 
         # Total counts
         total_crew = frappe.db.count("Crew", filters={"status": "Active"})
@@ -373,7 +373,7 @@ def get_crew_schedule(crew_id: str, months_ahead: int = 3) -> list:
         list of assigned slots
     """
     try:
-        future_date = datetime.now() + relativedelta(months=months_ahead)
+        future_date = frappe.utils.now_datetime() + relativedelta(months=months_ahead)  # site-TZ (P2/W2)
 
         # Find all slots where this crew is assigned
         allocations = frappe.get_all(
@@ -386,6 +386,18 @@ def get_crew_schedule(crew_id: str, months_ahead: int = 3) -> list:
             fields=["parent", "role_in_slot", "allocation_status"],
         )
 
+        # PERF (P2/W3): fetch SEMUA slot dalam SATU query (dulu get_doc
+        # per allocation — N+1 untuk crew dengan banyak slot).
+        slot_names = list({a.parent for a in allocations})
+        slots_map = {}
+        if slot_names:
+            for s in frappe.get_all(
+                "Crew Slot",
+                filters={"name": ["in", slot_names]},
+                fields=["name", "start_date", "end_date", "status", "trip_name"],
+            ):
+                slots_map[s.name] = s
+
         schedule = []
         seen_slots = set()
 
@@ -394,22 +406,21 @@ def get_crew_schedule(crew_id: str, months_ahead: int = 3) -> list:
                 continue
             seen_slots.add(alloc.parent)
 
-            try:
-                slot = frappe.get_doc("Crew Slot", alloc.parent)
-
-                # Only include future or active slots
-                if slot.end_date and getdate(slot.end_date) >= getdate(nowdate()):
-                    schedule.append({
-                        "slot_name": slot.name,
-                        "start_date": str(slot.start_date),
-                        "end_date": str(slot.end_date),
-                        "status": slot.status,
-                        "trip_name": slot.trip_name,
-                        "role_in_slot": alloc.role_in_slot,
-                        "allocation_status": alloc.allocation_status,
-                    })
-            except Exception:
+            slot = slots_map.get(alloc.parent)
+            if not slot:
                 continue
+
+            # Only include future or active slots
+            if slot.end_date and getdate(slot.end_date) >= getdate(nowdate()):
+                schedule.append({
+                    "slot_name": slot.name,
+                    "start_date": str(slot.start_date),
+                    "end_date": str(slot.end_date),
+                    "status": slot.status,
+                    "trip_name": slot.trip_name,
+                    "role_in_slot": alloc.role_in_slot,
+                    "allocation_status": alloc.allocation_status,
+                })
 
         # Sort by start date
         schedule.sort(key=lambda x: x["start_date"])
@@ -444,39 +455,58 @@ def get_gantt_data_by_crew(filters: str | None = None) -> list:
             order_by="grade desc, crew_name asc",
         )
 
-        result = []
-        for crew in crew_members:
-            alloc_filters = {
-                "crew": crew.name,
+        # PERF (P2/W3): batch SEMUA allocation (semua crew) + SEMUA slot
+        # dalam 2 query — dulu per-crew allocation query + per-allocation
+        # get_doc (N+1 besar untuk ~30 crew × ~10 allocation).
+        crew_names = [c.name for c in crew_members]
+        all_allocations = frappe.get_all(
+            "Crew Allocation",
+            filters={
+                "crew": ["in", crew_names],
                 "parenttype": "Crew Slot",
                 "allocation_status": ["!=", "Replaced"],
-            }
-            allocations = frappe.get_all(
-                "Crew Allocation",
-                filters=alloc_filters,
-                fields=["parent", "role_in_slot", "allocation_status"],
-            )
+            },
+            fields=["parent", "crew", "role_in_slot", "allocation_status"],
+        ) if crew_names else []
 
+        slot_names = list({a.parent for a in all_allocations})
+        slots_map = {}
+        if slot_names:
+            for s in frappe.get_all(
+                "Crew Slot",
+                filters={"name": ["in", slot_names]},
+                fields=["name", "start_date", "end_date", "status",
+                        "trip_name", "max_crew", "current_crew", "notes"],
+            ):
+                slots_map[s.name] = s
+
+        allocs_by_crew = {}
+        for a in all_allocations:
+            allocs_by_crew.setdefault(a.crew, []).append(a)
+
+        status_filter = filters.get("status")
+
+        result = []
+        for crew in crew_members:
             slots = []
-            for alloc in allocations:
-                try:
-                    slot = frappe.get_doc("Crew Slot", alloc.parent)
-                    if filters.get("status") and slot.status != filters["status"]:
-                        continue
-                    slots.append({
-                        "slot_name": slot.name,
-                        "start": str(slot.start_date),
-                        "end": str(slot.end_date),
-                        "status": slot.status,
-                        "role_in_slot": alloc.role_in_slot,
-                        "allocation_status": alloc.allocation_status,
-                        "trip_name": slot.trip_name,
-                        "max_crew": slot.max_crew or 1,
-                        "current_crew": slot.current_crew or 0,
-                        "notes": slot.notes or "",
-                    })
-                except Exception:
+            for alloc in allocs_by_crew.get(crew.name, []):
+                slot = slots_map.get(alloc.parent)
+                if not slot:
                     continue
+                if status_filter and slot.status != status_filter:
+                    continue
+                slots.append({
+                    "slot_name": slot.name,
+                    "start": str(slot.start_date),
+                    "end": str(slot.end_date),
+                    "status": slot.status,
+                    "role_in_slot": alloc.role_in_slot,
+                    "allocation_status": alloc.allocation_status,
+                    "trip_name": slot.trip_name,
+                    "max_crew": slot.max_crew or 1,
+                    "current_crew": slot.current_crew or 0,
+                    "notes": slot.notes or "",
+                })
 
             result.append({
                 "crew_id": crew.name,

@@ -13,6 +13,10 @@
   var SOURCE  = _data.source;
   var REF     = _data.ref;
   var RET     = _data.ret || "";   // laluan pulangan portal (cth booking_billing?ref=...)
+  // SECURITY FIX (P2/W1 — F9): checkout token (dari URL &t=) — wajib
+  // dihantar ke 3 endpoint checkout bersama PR name (nombor PR boleh
+  // diteka; token tidak).
+  var CHECKOUT_TOKEN = _data.checkout_token || "";
 
   // Teks asal butang ("Pay RM XXX.XX") dah betul-betul dirender server-side
   // dalam HTML — tangkap terus dari DOM sebelum ditukar ke "Processing...",
@@ -94,7 +98,7 @@
       '</div>';
 
     // Beritahu server supaya emel "Pending" dihantar (jika belum).
-    fetch("/api/method/travel_booking.api.stripe_checkout.mark_checkout_timeout?pr=" + encodeURIComponent(PR_NAME))
+    fetch("/api/method/travel_booking.api.stripe_checkout.mark_checkout_timeout?pr=" + encodeURIComponent(PR_NAME) + "&t=" + encodeURIComponent(CHECKOUT_TOKEN))
       .catch(function() { /* senyap — UI dah papar pending walau apa pun */ });
   }
 
@@ -126,7 +130,7 @@
       backBtn.textContent = "Cancelling...";
       if (timeoutHandle) clearTimeout(timeoutHandle);
 
-      fetch("/api/method/travel_booking.api.stripe_checkout.cancel_checkout_payment?pr=" + encodeURIComponent(PR_NAME))
+      fetch("/api/method/travel_booking.api.stripe_checkout.cancel_checkout_payment?pr=" + encodeURIComponent(PR_NAME) + "&t=" + encodeURIComponent(CHECKOUT_TOKEN))
         .then(function() { /* hasil tak penting — redirect tetap jalan */ })
         .catch(function() { /* senyap — redirect tetap jalan walau gagal */ })
         .then(function() {
@@ -149,7 +153,7 @@
   async function init() {
     var errBox = document.getElementById("co-error");
     try {
-      var res = await fetch("/api/method/travel_booking.api.stripe_checkout.get_checkout_context?pr=" + encodeURIComponent(PR_NAME));
+      var res = await fetch("/api/method/travel_booking.api.stripe_checkout.get_checkout_context?pr=" + encodeURIComponent(PR_NAME) + "&t=" + encodeURIComponent(CHECKOUT_TOKEN));
       var data = await res.json();
       var ctx = data.message || data;
 

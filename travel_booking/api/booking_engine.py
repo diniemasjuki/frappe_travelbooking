@@ -1661,7 +1661,7 @@ def reconcile_missing_invoices():
 def _generate_booking_number():
     while True:
         suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        year_month = datetime.now().strftime("%y%m")  # contoh: 2608
+        year_month = frappe.utils.now_datetime().strftime("%y%m")  # site-TZ (P2/W2 — bukan server clock)
         booking_number = "R" + suffix + year_month
         if not frappe.db.exists("Booking", {"booking_number": booking_number}):
             return booking_number

@@ -12,9 +12,20 @@ def get_context(context):
     source  = frappe.form_dict.get("src", "portal")
     ref     = frappe.form_dict.get("ref", "")
     ret     = frappe.form_dict.get("ret", "")
+    # SECURITY FIX (P2/W1 — F9): checkout token dari URL (&t=...) —
+    # dijana bersama Payment Intent. Nombor PR boleh diteka; token TIDAK.
+    token   = frappe.form_dict.get("t", "")
 
     if not pr_name or not frappe.db.exists("Payment Request", pr_name):
         frappe.log_error(f"Checkout: Payment Request not found | pr={pr_name}", "Checkout Redirect")
+        frappe.local.flags.redirect_location = "/"
+        raise frappe.Redirect
+
+    # SECURITY FIX (P2/W1 — F9): laluan guest WAJIB bawa token yang sah;
+    # sesi owner SO / staff diluluskan juga (bayar semula dari portal).
+    # Gagal → redirect "/" — respons seragam, tanpa oracle kewujudan PR.
+    from travel_booking.api.stripe_checkout import _checkout_authorized
+    if not _checkout_authorized(pr_name, token):
         frappe.local.flags.redirect_location = "/"
         raise frappe.Redirect
 
@@ -36,6 +47,7 @@ def get_context(context):
         context.source_json  = json_safe(source)
         context.ref_json     = json_safe(ref)
         context.ret_json     = json_safe(ret)
+        context.token_json   = json_safe(token)
 
         # PENTING: pr.grand_total dicap kepada baki SO TUNGGAL yang dirujuk PR
         # ini (untuk booking gabungan) — jumlah PENUH yang customer sebenarnya

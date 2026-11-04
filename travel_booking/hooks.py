@@ -173,10 +173,12 @@ scheduler_events = {
 		"travel_booking.module_travel_booking.doctype.booking_reservation.booking_reservation.auto_update_reservation_statuses",
 	],
 	"cron": {
-		# Setiap hari jam 12:00 malam (site time) — semak & update status
-		# Trip Group Date (Running / Completed / Closed / Full ikut tarikh
-		# & kapasiti). Rujuk auto_update_trip_group_statuses().
-		"0 0 * * *": [
+		# Setiap hari 00:20 (site time) — SENGAJA di-stagger 20 minit selepas
+		# blok "daily" (yang laku tepat 00:00) supaya beban job malam tak
+		# bercampur di satu titik (P2/W4). Semak & update status Trip Group
+		# Date (Running / Completed / Closed / Full ikut tarikh & kapasiti).
+		# Rujuk auto_update_trip_group_statuses().
+		"20 0 * * *": [
 				"travel_booking.module_travel_booking.doctype.trip_group_date.trip_group_date.auto_update_trip_group_statuses",
 				"travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.auto_update_cruise_schedule_statuses",
 			],
@@ -190,44 +192,10 @@ export_python_type_annotations = True
 # Require all whitelisted methods to have type annotations
 require_type_annotated_api_methods = True
 
-# Pages
-# ------
-# Frappe pages yang boleh diakses melalui /app/<page-name>
-
-pages = [
-	{
-		'name': 'ongoing-today',
-		'label': 'Ongoing Today',
-		'icon': 'clock',
-		'roles': ['System Manager', 'Tour Manager', 'Tour Operator', 'Accounts User'],
-		'script': 'module_travel_booking.page.ongoing_today.ongoing_today',
-	},
-	{
-		'name': 'trip-command-center',
-		'label': 'Trip Command Center',
-		'icon': 'plane',
-		'roles': ['Tour Manager', 'Tour Operator'],
-		'script': 'module_travel_booking.page.trip_command_center.trip_command_center',
-	},
-	{
-		'name': 'booking-hub',
-		'label': 'Booking Operations Hub',
-		'icon': 'briefcase',
-		'roles': ['Tour Manager', 'Tour Operator'],
-		'script': 'module_travel_booking.page.booking_hub.booking_hub',
-	},
-	{
-		'name': 'dashboard-reports',
-		'label': 'Dashboard & Reports',
-		'icon': 'chart',
-		'roles': ['Tour Manager', 'Tour Operator'],
-		'script': 'module_travel_booking.page.dashboard_reports.dashboard_reports',
-	},
-	{
-			'name': 'travel-resources',
-			'label': 'Travel Resources',
-			'icon': 'users',
-			'roles': ['Tour Manager', 'Tour Operator'],
-			'script': 'resources_management.page.travel_resources.travel_resources',
-		},
-]
+# NOTA (P2/W4): blok hook "pages" DIBUANG — "pages" bukan hook Frappe
+# (tiada get_hooks("pages") di core); pendaftaran page sebenar datang
+# daripada sync fail page/*.json per module. Entri lama juga STALE:
+# booking-hub & dashboard-reports tiada page JSON langsung, dan
+# trip-command-center kini DIDEFINISIKAN sekali sahaja di
+# module_admin_portal/page/trip_command_center/ (duplikasi lama di
+# module_travel_booking telah dipadam).

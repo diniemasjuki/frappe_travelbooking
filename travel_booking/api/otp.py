@@ -66,14 +66,15 @@ def send_otp(email: str):
     # Customer terus di Desk, atau import data pukal) — kes tu Customer
     # wujud tapi orang tu tak pernah verify email ni sendiri, jadi tak
     # patut skip OTP.
-    if frappe.db.exists("User", email):
-        # SECURITY FIX (v2): Jangan bocorkan PII (nama, telefon)
-        # Return generic message — elak user enumeration
-        return {
-            "verified":  True,
-            "message":   "Email already registered. Please sign in instead.",
-            # PII fields REMOVED for security
-        }
+    # SECURITY FIX (P2/W1): SEMUA email dilayan SAMA — berdaftar ATAU tak,
+    # OTP tetap dihantar dan respons sentiasa shape "otp_sent".
+    # Dulu: email berdaftar pulangkan {"verified": True, "Email already
+    # registered"} — bit pembeza tu jadi ORACLE untuk scraper teka email
+    # mana yang ada akaun portal (30/min/IP). Kini registered user pun
+    # lalui OTP verify macam pengguna baharu (buktikan pemilikan emel);
+    # gate backend confirm_booking TAK berubah (has_portal_user kekal
+    # dikenali di sana). Branch verified=True di booknow.js kini tak
+    # pernah terpicak — dead branch yang tidak berbahaya.
 
     # ── Rate limiting — elak spam/abuse hantar OTP berulang-ulang ──
     # Lapisan 1: cooldown 60 saat antara setiap request (elak klik

@@ -132,6 +132,15 @@ def get_wizard_confirmation(booking_number: str, pr: str = None):
     Approach: Baca terus dari Booking doctype — field trip_name, departure_date,
     return_date, is_a_cruise_trip dah ada pada Booking sendiri!
     """
+    # SECURITY FIX (P2/W1): 'pr' WAJIB — dulu opsyenal, jadi sesiapa boleh
+    # walk booking_number berurutan (cth BK2609009 → BK2609010) dan baca
+    # status + grand_total/advance_paid pelanggan lain TANPA token. Semakan
+    # pasangan pr↔booking ada di bawah (STEP 2: pr_so != primary_so →
+    # throw) tapi DILANGKAU bila 'pr' kosong. Wizard sentiasa hantar 'pr'
+    # (pollWizardConfirmation); kalau gagal, JS render dari snapshot.
+    if not pr:
+        frappe.throw("Invalid or missing payment reference.", frappe.PermissionError)
+
     # === STEP 1: Dapatkan Booking record dengan SEMUA field yang diperlukan ===
     # NOTE: Booking guna 'cruise_start'/'cruise_end', BUKAN 'sailing_start'/'sailing_end'
     try:

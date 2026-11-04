@@ -431,6 +431,22 @@ def _create_payment_intent_impl(sales_order: str, amount: float, source: str = "
         expires_in_sec=7200
     )
 
+    # SECURITY FIX (P2/W1 — F9): Checkout token tak-terteka untuk PR ni.
+    # Nombor siri Payment Request (cth "ACC/PRQ/2026/00037") BOLEH DITEKA,
+    # jadi /checkout + 3 endpoint checkout (get_checkout_context,
+    # mark_checkout_timeout, cancel_checkout_payment) kini WAJIB bawa
+    # token ni (URL: &t=...). Simpan dalam cache — corak sama dengan
+    # checkout_intent_ — TANPA schema change pada Payment Request.
+    # TTL sama 7200s. Sesi owner portal/staff juga diluluskan tanpa
+    # token (rujuk _checkout_authorized) supaya "bayar semula dari
+    # portal" tak rosak untuk link lama.
+    checkout_token = frappe.generate_hash(length=32)
+    frappe.cache().set_value(
+        "checkout_token_" + pr.name,
+        checkout_token,
+        expires_in_sec=7200
+    )
+
     frappe.db.commit()
 
     # 'ret' — laluan pulangan portal (sudah disahkan). checkout.js bawa
@@ -442,6 +458,7 @@ def _create_payment_intent_impl(sales_order: str, amount: float, source: str = "
 
     checkout_url = frappe.utils.get_url(
         "/checkout?pr=" + quote(pr.name, safe="") +
+        "&t=" + quote(checkout_token, safe="") +
         "&src=" + quote(source, safe="") +
         (("&ref=" + quote(booking_number, safe="")) if booking_number else "") +
         (("&ret=" + quote(safe_return_to, safe="")) if safe_return_to else "")
@@ -454,8 +471,36 @@ def _create_payment_intent_impl(sales_order: str, amount: float, source: str = "
     }
 
 
+def _checkout_authorized(pr: str, token: str = None) -> bool:
+    """SECURITY FIX (P2/W1 — F9): PR name sequential (boleh diteka), jadi
+    endpoint checkout guest WAJIB bawa checkout_token yang dijana semasa
+    create_payment_intent() (cache checkout_token_<pr>).
+
+    Dua laluan diluluskan:
+      1. Token sah — guest dari wizard / link emel (token dalam URL);
+      2. Sesi owner — customer portal yang memang pemilik SO rujukan PR
+         (bayar semula dari portal TIDAK bawa token), atau staff role.
+    """
+    cached_token = frappe.cache().get_value("checkout_token_" + pr)
+    if token and cached_token and token == cached_token:
+        return True
+
+    if frappe.session.user and frappe.session.user != "Guest":
+        staff_roles = {"System Manager", "Tour Manager", "Tour Operator", "Accounts User"}
+        if any(r in staff_roles for r in frappe.get_roles()):
+            return True
+        so_name = frappe.db.get_value("Payment Request", pr, "reference_name")
+        if so_name:
+            from travel_booking.api._helpers import get_customer_by_email
+            session_customer = get_customer_by_email(frappe.session.user)
+            so_customer = frappe.db.get_value("Sales Order", so_name, "customer")
+            if session_customer and session_customer == so_customer:
+                return True
+    return False
+
+
 @frappe.whitelist(allow_guest=True)
-def get_checkout_context(pr: str):
+def get_checkout_context(pr: str, t: str = None):
     """Dipanggil oleh checkout.html untuk dapatkan client_secret + publishable_key.
     Tak dedah secret_key — hanya client_secret (selamat untuk frontend, ikut design Stripe).
 
@@ -466,6 +511,11 @@ def get_checkout_context(pr: str):
     # ══════════════════════════════════════════════
     if not _rate_limit("checkout_context", 20, 60):
         frappe.throw("Too many requests. Please try again later.")
+
+    # SECURITY FIX (P2/W1 — F9): token wajib / sesi owner — elak enum PR
+    # (amount/currency/client_secret). Mesej generik — tanpa oracle wujud.
+    if not _checkout_authorized(pr, t):
+        frappe.throw("Payment request not found.")
 
     if not frappe.db.exists("Payment Request", pr):
         frappe.throw("Payment request not found.")
@@ -542,7 +592,7 @@ def get_checkout_context(pr: str):
 
 
 @frappe.whitelist(allow_guest=True)
-def mark_checkout_timeout(pr: str):
+def mark_checkout_timeout(pr: str, t: str = None):
     """Dipanggil oleh checkout.html bila countdown 5 minit tamat tanpa
     bayaran berjaya (customer tinggal page tu terbuka, tak siapkan bayaran).
     Hantar emel "Pending" (kalau belum) supaya customer dapat pautan untuk
@@ -559,6 +609,11 @@ def mark_checkout_timeout(pr: str):
     # block abuse. Corak sama dengan send_otp() di otp.py.
     if not _rate_limit("checkout_timeout", max_requests=5, window_sec=60):
         frappe.throw("Too many requests. Please try again shortly.")
+
+    # SECURITY FIX (P2/W1 — F9): token / sesi owner — elak trigger emel
+    # "Pending" ke booking orang lain melalui nombor PR yang boleh diteka.
+    if not _checkout_authorized(pr, t):
+        return {"status": "ignored"}
 
     if not pr or not frappe.db.exists("Payment Request", pr):
         return {"status": "ignored"}
@@ -581,7 +636,7 @@ def mark_checkout_timeout(pr: str):
 
 
 @frappe.whitelist(allow_guest=True)
-def cancel_checkout_payment(pr: str):
+def cancel_checkout_payment(pr: str, t: str = None):
     """Batalkan Payment Request + Stripe PaymentIntent bila customer tekan
     "Back" di checkout.html (tukar kaedah bayar / cuba semula dari booknow).
     Dipanggil SEBELUM redirect kembali ke booknow/portal.
@@ -595,6 +650,11 @@ def cancel_checkout_payment(pr: str):
     # enumerate/grief cancel PR orang lain. Corak sama dgn endpoint sebelah.
     if not _rate_limit("checkout_cancel", max_requests=10, window_sec=60):
         frappe.throw("Too many requests. Please try again shortly.")
+
+    # SECURITY FIX (P2/W1 — F9): token / sesi owner — elak cancel PR orang
+    # lain (ganggu bayaran pending) melalui nombor PR yang boleh diteka.
+    if not _checkout_authorized(pr, t):
+        return {"status": "not_found"}
 
     if not pr or not frappe.db.exists("Payment Request", pr):
         return {"status": "not_found"}

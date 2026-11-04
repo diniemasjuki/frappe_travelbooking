@@ -844,7 +844,15 @@ def auto_update_reservation_statuses():
 
 	Pulangkan ringkasan {checked, changed} untuk log scheduler.
 	"""
-	names = frappe.get_all("Booking Reservation", pluck="name")
+	# PERF (P2/W3): pra-tapis — reservation 'Cancelled' tak pernah berubah
+	# status automatik; dulu SEMUA baris di-get_doc setiap malam (kos linear
+	# dengan saiz tabel). Completed kekal diimbas (self-healing: booking
+	# boleh bertukar status tanpa lalui hook — rujuk docstring di atas).
+	names = frappe.get_all(
+		"Booking Reservation",
+		filters={"status": ["!=", "Cancelled"]},
+		pluck="name",
+	)
 	changed = 0
 	for name in names:
 		try:

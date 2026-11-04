@@ -67,48 +67,57 @@ class CrewSlot(Document):
         if not self.crew_allocations:
             return
 
+        # SECURITY (P1/C3 — TOCTOU): Lock baris Crew untuk setiap allocation
+        # sebelum semakan konflik — dua slot bertindih boleh save serentak
+        # dan kedua-dua lulus semakan "tiada konflik" (double-booking crew).
+        # SELECT ... FOR UPDATE menyusun save untuk crew yang sama (corak
+        # sama dengan gate overbooking trip di api/booking_engine.py).
+        for alloc in self.crew_allocations:
+            if alloc.crew:
+                frappe.db.sql(
+                    "SELECT name FROM `tabCrew` WHERE name = %s FOR UPDATE",
+                    alloc.crew,
+                )
+
+        # PERF (P2/W3): SEMUA slot bertindih + SEMUA allocation disemak
+        # dalam 2 query (dulu: per-allocation × per-slot = N+1). Syarat
+        # overlap sama untuk semua allocation — query sekali cukup.
+        crews = [a.crew for a in self.crew_allocations if a.crew]
+        if not crews:
+            return
+
+        conflicting_slots = frappe.get_all(
+            "Crew Slot",
+            filters={
+                "name": ["!=", self.name],  # Exclude current slot
+                "status": ["!=", "Cancelled"],  # Exclude cancelled slots
+                # Overlap condition:
+                # Existing slot starts before or on current end date AND
+                # Existing slot ends after or on current start date
+                "start_date": ["<=", self.end_date],
+                "end_date": [">=", self.start_date],
+            },
+            fields=["name", "start_date", "end_date", "status"],
+        )
+        if not conflicting_slots:
+            return
+
+        occupied = frappe.get_all(
+            "Crew Allocation",
+            filters={
+                "parent": ["in", [s.name for s in conflicting_slots]],
+                "parenttype": "Crew Slot",
+                "crew": ["in", crews],
+            },
+            fields=["parent", "crew"],
+        )
+        occupied_pairs = {(a.parent, a.crew) for a in occupied}
+
         for alloc in self.crew_allocations:
             if not alloc.crew:
                 continue
-
-            # SECURITY (P1/C3 — TOCTOU): Lock baris Crew sebelum imbas
-            # konflik — dua slot bertindih boleh save serentak dan kedua-dua
-            # lulus semakan "tiada konflik" (double-booking crew). SELECT ...
-            # FOR UPDATE menyusun save untuk crew yang sama (corak sama
-            # dengan gate overbooking trip di api/booking_engine.py).
-            frappe.db.sql(
-                "SELECT name FROM `tabCrew` WHERE name = %s FOR UPDATE",
-                alloc.crew,
-            )
-
-            # Find all OTHER slots where this crew is assigned
-            conflicting_slots = frappe.get_all(
-                "Crew Slot",
-                filters={
-                    "name": ["!=", self.name],  # Exclude current slot
-                    "status": ["!=", "Cancelled"],  # Exclude cancelled slots
-                    # Overlap condition:
-                    # Existing slot starts before or on current end date AND
-                    # Existing slot ends after or on current start date
-                    "start_date": ["<=", self.end_date],
-                    "end_date": [">=", self.start_date],
-                },
-                fields=["name", "start_date", "end_date", "status"],
-            )
-
-            # Check if crew exists in any of these conflicting slots
             for slot in conflicting_slots:
-                crew_in_slot = frappe.get_all(
-                    "Crew Allocation",
-                    filters={
-                        "parent": slot.name,
-                        "parenttype": "Crew Slot",
-                        "crew": alloc.crew,
-                    },
-                    limit=1,
-                )
-
-                if crew_in_slot:
+                if (slot.name, alloc.crew) in occupied_pairs:
                     crew_name = alloc.crew_name or frappe.get_value("Crew", alloc.crew, "crew_name")
                     frappe.throw(
                         f"<b>Conflict Detected!</b><br><br>"
