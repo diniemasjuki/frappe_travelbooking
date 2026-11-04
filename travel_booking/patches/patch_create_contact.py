@@ -19,7 +19,13 @@ from frappe.exceptions import QueryDeadlockError
 
 
 def apply():
+    """Pasang wrapper retry deadlock — IDEMPOTENT per proses: selamat
+    dipanggil berulang (setiap confirm_booking / _create_customer)
+    tanpa membungkus dua kali."""
     import frappe.core.doctype.user.user as mod
+
+    if getattr(mod.create_contact, "_tb_unpatched_original", None) is not None:
+        return  # sudah dipatch dalam proses ni
 
     _orig = mod.create_contact
 
@@ -31,4 +37,5 @@ def apply():
             # Convert to retryable error so the BG job runner retries instead of dying.
             raise frappe.RetryBackgroundJobError from e
 
+    _patched._tb_unpatched_original = _orig
     mod.create_contact = _patched

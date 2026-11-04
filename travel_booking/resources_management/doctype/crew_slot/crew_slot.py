@@ -71,6 +71,16 @@ class CrewSlot(Document):
             if not alloc.crew:
                 continue
 
+            # SECURITY (P1/C3 — TOCTOU): Lock baris Crew sebelum imbas
+            # konflik — dua slot bertindih boleh save serentak dan kedua-dua
+            # lulus semakan "tiada konflik" (double-booking crew). SELECT ...
+            # FOR UPDATE menyusun save untuk crew yang sama (corak sama
+            # dengan gate overbooking trip di api/booking_engine.py).
+            frappe.db.sql(
+                "SELECT name FROM `tabCrew` WHERE name = %s FOR UPDATE",
+                alloc.crew,
+            )
+
             # Find all OTHER slots where this crew is assigned
             conflicting_slots = frappe.get_all(
                 "Crew Slot",

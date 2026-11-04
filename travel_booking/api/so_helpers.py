@@ -89,6 +89,11 @@ def _find_customer_by_email_raw(email):
 
 
 def _create_customer(billing):
+    # Aktifkan monkeypatch retry deadlock create_contact (P1/H6 — hook
+    # "app_init" lama tidak wujud dalam Frappe). Idempotent per proses.
+    from travel_booking.patches.patch_create_contact import apply as _apply_contact_patch
+    _apply_contact_patch()
+
     email = billing.get("email")
 
     # Cuba cari Customer sedia ada untuk email ni dulu — elakkan
@@ -1092,8 +1097,12 @@ def _create_payment_url(customer_name, so_name, amount, booking_number):
     tetap commit supaya customer ada rekod booking dan boleh bayar lewat di portal.
     """
     try:
-        from travel_booking.api.stripe_checkout import create_payment_intent
-        result = create_payment_intent(
+        # Panggilan INTERNAL — guna impl tanpa gate sesi (P1/H3): wrapper
+        # HTTP create_payment_intent() kini menolak Guest, jadi wizard
+        # guest cipta intent secara internal di sini (SO baru ciptaan
+        # request yang sama — ownership implicit).
+        from travel_booking.api.stripe_checkout import _create_payment_intent_impl
+        result = _create_payment_intent_impl(
             sales_order=so_name,
             amount=amount,
             source="wizard",

@@ -38,7 +38,13 @@ class Flight(Document):
 
 	def refresh_seats(self):
 		"""Kira seats_occupied dari Booking Reservation yang assign ke Flight ini."""
-		filled = frappe.db.count("Booking Reservation", {"flight": self.name})
+		# Kecualikan Cancelled — selari dengan agregat occupancy lain
+		# (validate_cabin_capacity, refresh_bookings). Dulu slot batal
+		# kekal dikira → seats_occupied stuck, Flight boleh kekal 'Full'.
+		filled = frappe.db.count(
+			"Booking Reservation",
+			{"flight": self.name, "status": ["!=", "Cancelled"]},
+		)
 		frappe.db.set_value("Flight", self.name, "seats_occupied", filled,update_modified=False)
 
 	def validate(self):

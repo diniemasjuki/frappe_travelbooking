@@ -262,12 +262,27 @@ class Booking(Document):
 			"document_status": "Incomplete"})
 
 	def on_trash(self):
-		"""Padam Booking Reservations berkaitan bila Booking dipadam — elak data yatim."""
-		frappe.db.delete("Booking Reservation", {"booking": self.name})
+		"""Padam Booking Reservations berkaitan bila Booking dipadam — elak data yatim.
+
+		CONSISTENCY FIX (P1/H5): dulu frappe.db.delete() pukal — hook
+		after_delete reservation (sync_cabin_availability) dan on_trash
+		(refresh_related) TIDAK terpicak, meninggalkan Trip Group Date
+		current_participants, Flight.seats_occupied & occupancy kabin stale
+		sampai reservation tak berkaitan berubah lain. Delete satu-per-satu
+		supaya SEMUA hook dokumen berjalan.
+		"""
+		for res_name in frappe.get_all("Booking Reservation", {"booking": self.name}, pluck="name"):
+			frappe.delete_doc("Booking Reservation", res_name, ignore_permissions=True)
 
 		# Padam Voucher Usage records (release voucher)
 		for vu in frappe.get_all("Voucher Usage", {"booking": self.name}, pluck="name"):
 			try:
 				frappe.delete_doc("Voucher Usage", vu, ignore_permissions=True)
 			except Exception:
-				pass
+				# Jangan senyap (dulu except: pass) — kegagalan release
+				# voucher bermakna kuota voucher tersadai kekal terpakai.
+				# Log untuk tindakan admin, jangan gagalkan trash booking.
+				frappe.log_error(
+					frappe.get_traceback(),
+					"Booking.on_trash: Voucher Usage delete failed",
+				)

@@ -166,6 +166,31 @@ def _get_all_stripe_settings():
 
 @frappe.whitelist()
 def create_payment_intent(sales_order: str, amount: float, source: str = "portal", booking_number: str = None, pr_amount: float = None, return_to: str = None):
+    """Endpoint HTTP cipta Payment Request + Stripe Payment Intent.
+
+    SECURITY FIX (P1/H3): 'source' TIDAK lagi kawal sekuriti — dulu
+    client hantar source="wizard" untuk MELANGKAU semakan ownership,
+    jadi sesi apa pun boleh cipta intent ke SO orang lain. Kini:
+      - Guest ditolak terus (wizard/guest flow cipta intent SECARA
+        INTERNAL dalam confirm_booking melalui _create_payment_intent_impl
+        — tiada panggilan HTTP guest diperlukan);
+      - Semakan ownership sentiasa berjalan untuk sesi customer (sesi
+        staff role tidak terjejas — mereka bukan customer).
+    'source' kini metadata maklumat sahaja.
+    """
+    if frappe.session.user == "Guest":
+        frappe.throw("Please login to create a payment.", frappe.PermissionError)
+    return _create_payment_intent_impl(
+        sales_order=sales_order,
+        amount=amount,
+        source=source,
+        booking_number=booking_number,
+        pr_amount=pr_amount,
+        return_to=return_to,
+    )
+
+
+def _create_payment_intent_impl(sales_order: str, amount: float, source: str = "portal", booking_number: str = None, pr_amount: float = None, return_to: str = None):
     """Cipta Payment Request (rekod) + Stripe Payment Intent (bayaran sebenar).
     source: "wizard" (booking baru, guest) atau "portal" (customer login).
     Pulangkan info untuk checkout.html render Stripe Elements.
@@ -201,20 +226,13 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     default_currency = get_default_currency()
 
     # ══════════════════════════════════════════════
-    # SECURITY: Verify ownership — elak IDOR/payment hijacking.
-    # Skip untuk source="wizard" (booking baru oleh Guest) — SO baru
-    # dicipta oleh confirm_booking dalam request yang sama, ownership
-    # implicit. check ni hanya untuk portal (customer login bayar SO
-    # sedia ada).
+    # SECURITY (P1/H3): Semakan ownership kini di wrapper HTTP
+    # create_payment_intent() — BUKAN di sini. Fungsi internal ni
+    # dipanggil secara DALAMAN sahaja (confirm_booking →
+    # so_helpers._create_payment_url), termasuk untuk Guest dan booking
+    # on-behalf (session customer ≠ so.customer secara sah), jadi
+    # semakan customer-session tidak boleh hidup di dalam impl.
     # ══════════════════════════════════════════════
-    if source != "wizard":
-        from travel_booking.api._helpers import get_customer_by_email
-        session_customer = get_customer_by_email(frappe.session.user)
-        if session_customer and session_customer != so.customer:
-            frappe.throw(
-                _("You do not have permission to make payments for this order."),
-                title="Permission Denied"
-            )
 
     amount = float(amount)
     if amount <= 0:

@@ -1675,6 +1675,11 @@ def _ensure_portal_user(email, customer_name):
     (reset_password_key, hantar sekali dalam emel booking pertama) atau
     Magic Link (login page). Pulangkan True kalau User baru dicipta.
     """
+    # Aktifkan monkeypatch retry deadlock create_contact (P1/H6 — hook
+    # "app_init" lama tidak wujud dalam Frappe). Idempotent per proses.
+    from travel_booking.patches.patch_create_contact import apply as _apply_contact_patch
+    _apply_contact_patch()
+
     email = (email or "").strip().lower()
     if not email:
         return False

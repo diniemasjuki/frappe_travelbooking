@@ -5,6 +5,38 @@ import frappe
 from frappe.model.document import Document
 
 
+# ══════════════════════════════════════════════
+# HELPERS DIKONGSI — sumber TUNGGAL untuk kod & tajuk pakej (P1/M3).
+# Trip Package.validate() dan Trip._propagate_package_title() dulu
+# menyimpan salinan logik yang sama (map package_type→kod + format
+# tajuk) — bila satu pihak berubah, tajuk yang diagihkan oleh Trip
+# drift daripada yang disimpan semasa save. Kedua-dua pihak kini
+# panggil fungsi yang sama di sini.
+# ══════════════════════════════════════════════
+
+def get_package_type_code(package_type: str) -> str:
+	"""Map package_type → kod 2-huruf (FC/CO/FP/GP/CU) untuk package_code."""
+	return {
+		"Cruise + Flight": "FC",
+		"Cruise Only": "CO",
+		"Fly Package": "FP",
+		"Ground Only": "GP",
+		"Customed": "CU",
+	}.get(package_type or "", "")
+
+
+def build_package_title(trip_name: str, package_type: str, airport_form: str, currency: str) -> str:
+	"""package_title format: "{trip_name} : {package_type} : {airport_or_currency}"
+	— CO/GP guna currency sebagai suffix (pakej tanpa penerbangan); yang
+	lain guna airport_form. Pariti EXACT dengan kedua-dua implementasi lama."""
+	code = get_package_type_code(package_type)
+	if code in ("CO", "GP"):
+		suffix = currency or "MYR"
+	else:
+		suffix = airport_form or ""
+	return " : ".join([trip_name or "", package_type or "", suffix])
+
+
 class TripPackage(Document):
 	# begin: auto-generated types
 	# This code is auto-generated. Do not modify anything in this block.
@@ -40,18 +72,8 @@ class TripPackage(Document):
 
 	def validate(self):
 
-		if self.package_type == "Cruise + Flight":
-			package_type = "FC"
-		elif self.package_type == "Cruise Only":
-			package_type = "CO"
-		elif self.package_type == "Fly Package":
-			package_type = "FP"
-		elif self.package_type == "Ground Only":
-			package_type = "GP"
-		elif self.package_type == "Customed":
-			package_type = "CU"
-		else:
-			package_type = ""
+		# P1/M3: kod pakej via helper dikongsi (sumber tunggal, rujuk atas fail)
+		package_type = get_package_type_code(self.package_type)
 
 		if( self.airport_form ):
 			airport = self.airport_form
@@ -83,7 +105,11 @@ class TripPackage(Document):
 			self.package_code = (self.trip_link + " : " + package_type + " : " + airport ).upper().replace(" ","").strip()
 
 		if not self.package_title or self.package_title == "" :
-			self.package_title = (self.trip_name or "") + " : " + (self.package_type or "") + " : " + airport
+			# P1/M3: format tajuk via helper dikongsi — pariti dengan logik
+			# lama (CO/GP → currency suffix; selain itu → airport_form)
+			self.package_title = build_package_title(
+				self.trip_name, self.package_type, self.airport_form, self.currency
+			)
 
 	
 		domain = frappe.utils.get_url()

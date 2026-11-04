@@ -463,6 +463,22 @@ class BookingReservation(Document):
 				str(self.cabin_no) + " exceeds the limit)."
 			)
 
+		# SECURITY (P1/C3 — TOCTOU): Lock baris Trip Group Date sebelum kira
+		# sibling — SASARAN LOCK YANG SAMA dengan gate overbooking trip di
+		# api/booking_engine.py (confirm_booking). Dengan itu SEMUA jalan
+		# ciptaan reservation (wizard portal, _activate_booking semasa Payment
+		# Entry submit, admin Desk) tersusun untuk departure yang sama. Tanpa
+		# lock ni, dua PE submit serentak untuk kabin yang sama boleh baca
+		# "0 sibling" dan kedua-dua insert → kabin fizikal overbooked.
+		# Lock row yang sama = re-entrant dalam transaksi yang sama, jadi
+		# confirm_booking yang dah lock tidak akan deadlock dengan dirinya.
+		trip_date = frappe.db.get_value("Booking", self.booking, "trip_date")
+		if trip_date:
+			frappe.db.sql(
+				"SELECT name FROM `tabTrip Group Date` WHERE name = %s FOR UPDATE",
+				trip_date,
+			)
+
 		# Kira sibling (rekod LAIN, bukan diri sendiri — dokumen ni belum
 		# tersimpan lagi masa validate() jalan, jadi query di bawah TAK
 		# akan jumpa diri sendiri; kita tambah diri sendiri manual dalam

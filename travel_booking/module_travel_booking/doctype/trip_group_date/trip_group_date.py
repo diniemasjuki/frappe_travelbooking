@@ -109,6 +109,12 @@ class TripGroupDate(Document):
 		if self.return_date and self.sailing_end and not self.is_cruise_only:
 			if sailing_end > return_date:
 				frappe.throw("RETURN DATE must earlier then SAILING END DATE" )
+
+		# Mula dengan string kosong — field tarikh separa lengkap (satu ada,
+		# satu tiada) tidak lagi crash UnboundLocalError di cabang naming
+		# bawah yang guna pembolehubah ini tanpa jaminan ia ditetapkan (bug P1/M1).
+		date_format_departure = ""
+		date_format_sailing = ""
     
 		if self.departure_date and self.return_date:
 			date_format_departure = departure_date.strftime("%d %b %Y") + " - " + return_date.strftime("%d %b %Y")
@@ -118,17 +124,17 @@ class TripGroupDate(Document):
 
 		# this is for CRUISE + FLIGHT trip = group title use sailing date
 		if (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (not self.is_cruise_only or self.is_cruise_only == 0):
-			self.trip_group_name = date_format_departure + (" : " + self.trip or "") + " : Cruise + Flight"
+			self.trip_group_name = date_format_departure + (" : " + (self.trip or "")) + " : Cruise + Flight"
 			self.trip_group_code = (str(self.departure_date) + "-" + str(self.return_date) + ":" + self.trip + ":" + "FC").replace("-", "")
 
 		# this is for CRUISE ONLY trip
 		elif (self.is_a_cruise_trip or self.is_a_cruise_trip == 1) and (self.is_cruise_only is True or self.is_cruise_only == 1):
-			self.trip_group_name =  date_format_sailing + (" : " + self.trip or "") + " : Cruise Only"
+			self.trip_group_name =  date_format_sailing + (" : " + (self.trip or "")) + " : Cruise Only"
 			self.trip_group_code = (str(self.sailing_start) + "-" + str(self.sailing_end) + ":" + self.trip + ":" + "CO").replace("-", "")
 
 		# this is for RARECATION / NON-CRUISE trip
 		else:
-			self.trip_group_name = date_format_departure + (" : " + self.trip or "") + (" : " + self.name or "")
+			self.trip_group_name = date_format_departure + (" : " + (self.trip or "")) + (" : " + (self.name or ""))
 			self.trip_group_code = (str(self.departure_date) + "-" + str(self.return_date) + ":" + self.trip + ":" + self.name).replace("-", "")
 
 		"""

@@ -140,10 +140,20 @@ class BookingAddonItem(Document):
 		"""
 		if not self.addon_package:
 			return
-		ap = frappe.db.get_value(
-			"Trip Addon Package", self.addon_package, ["max_qty_per_booking", "max_total_qty", "current_qty_sold"],
+		# SECURITY (P1/C3 — TOCTOU): Baca nilai ATAS LOCK (SELECT ... FOR
+		# UPDATE) — dua checkout serentak boleh baca current_qty_sold yang
+		# sama dan kedua-dua lulus semakan max_total_qty → stok addon
+		# melebihi had fizikal. Lock baris Trip Addon Package menyusun
+		# checkout untuk addon yang sama (corak sama dengan gate overbooking
+		# trip di api/booking_engine.py).
+		ap_rows = frappe.db.sql(
+			"""SELECT max_qty_per_booking, max_total_qty, current_qty_sold
+			FROM `tabTrip Addon Package`
+			WHERE name = %s FOR UPDATE""",
+			(self.addon_package,),
 			as_dict=True,
 		)
+		ap = ap_rows[0] if ap_rows else None
 		if not ap:
 			return
 

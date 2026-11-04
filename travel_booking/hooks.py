@@ -52,8 +52,14 @@ override_whitelisted_methods = {
 	"frappe.realtime.has_permission": "travel_booking.api.realtime.has_permission",
 }
 
-# Patches (run once at app init, before any request handling)
-app_init = "travel_booking.patches.patch_create_contact.apply"
+# MONKEYPATCH create_contact (retry deadlock MariaDB error 1020) —
+# diaktifkan LAZILY dari kod penggunaan: booking_engine._ensure_portal_user()
+# dan so_helpers._create_customer() memanggil patch_create_contact.apply().
+#
+# JANGAN guna hook "app_init" untuk ni — hook itu TIDAK WUJUD dalam
+# Frappe (tiada call site di core); konfigurasi lama di sini senyap mati
+# dan patch tidak pernah diload (bug P1/H6). apply() idempotent — selamat
+# dipanggil dalam setiap proses (web & rq worker).
 
 
 # Jinja

@@ -514,31 +514,17 @@ class Trip(Document):
 				as_dict=True,
 			)
 
+			# P1/M3: helper DIKONGSI dengan Trip Package.validate() — dulu map
+			# kod + format tajuk diduplikasi di sini dan boleh drift bila satu
+			# pihak berubah.
+			from travel_booking.module_travel_booking.doctype.trip_package.trip_package import build_package_title
+
 			for pkg in packages:
 				try:
-					# Generate package_type code (same logic as Trip Package validate())
-					pt = pkg.package_type or ""
-					if pt == "Cruise + Flight":
-						pt_code = "FC"
-					elif pt == "Cruise Only":
-						pt_code = "CO"
-					elif pt == "Fly Package":
-						pt_code = "FP"
-					elif pt == "Ground Only":
-						pt_code = "GP"
-					elif pt == "Customed":
-						pt_code = "CU"
-					else:
-						pt_code = ""
-
-					# Determine airport/currency suffix (same logic as Trip Package)
-					if pt_code in ("CO", "GP"):
-						airport = pkg.currency or "MYR"
-					else:
-						airport = pkg.airport_form or ""
-
-					# Regenerate package_title
-					new_title = f"{new_trip_name or ''} : {pkg.package_type or ''} : {airport}"
+					# Regenerate package_title — logik SAMA dengan semasa save
+					new_title = build_package_title(
+						new_trip_name, pkg.package_type, pkg.airport_form, pkg.currency
+					)
 
 					# Update only if changed
 					frappe.db.sql(
