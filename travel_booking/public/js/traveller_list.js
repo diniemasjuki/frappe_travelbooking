@@ -1,10 +1,10 @@
 /* ============================================================
    travel_booking/public/js/traveller_list.js
-   Bookings list rendering — grouping (Upcoming / Future / Past),
-   carian & penapis (client-side) + pagination SELURUH senarai:
-   setiap halaman dihadkan kepada `perPage` baris merentas kumpulan
-   (susunan paparan: Upcoming → Future → Past) supaya senarai panjang
-   tidak dirender sekali gus.
+   Bookings list rendering — grouping (Upcoming / Future /
+   Incomplete / Past), carian & penapis (client-side) + pagination
+   SELURUH senarai: setiap halaman dihadkan kepada `perPage` baris
+   merentas kumpulan (susunan paparan: Upcoming → Future →
+   Incomplete → Past) supaya senarai panjang tidak dirender sekali gus.
    Requires: traveller_common.js (loaded before this)
    ============================================================ */
 
@@ -74,7 +74,10 @@
     return b.return_date || b.sailing_end || tripStart(b);
   }
 
-  /* ── Group bookings into Upcoming / Future / Past ── */
+  /* ── Group bookings into Upcoming / Future / Incomplete / Past ──
+     Incomplete = perjalanan dah TAMAT (atau tiada tarikh) tapi status
+     belum terminal (Pending/Processing/Accepted/...) — booking masih
+     tertunggak, BUKAN sejarah. Completed & Cancelled tidak masuk sini. */
   function groupBookings(bookings) {
     var now = new Date();
     now.setHours(0,0,0,0);
@@ -91,7 +94,8 @@
 
     var upcoming = null;  // max 1 — closest future trip
     var future = [];      // remaining active trips
-    var past = [];        // past or cancelled
+    var past = [];        // sejarah (perjalanan selesai + cancelled)
+    var action = [];      // belum selesai tapi perjalanan dah lepas/tiada tarikh
 
     active.forEach(function (b) {
       var depDate = new Date(tripStart(b) + 'T00:00:00');
@@ -99,8 +103,24 @@
         upcoming = b;
       } else if (depDate > now) {
         future.push(b);
-      } else {
+      } else if (b.booking_status === 'Completed'
+                 || new Date(tripEnd(b) + 'T00:00:00') >= now) {
+        // Sejarah: Completed yang dah lepas, ATAU masih berjalan (dah
+        // berangkat, belum tamat — kelakuan lama halaman ini).
         past.push(b);
+      } else {
+        // Belum selesai tapi perjalanan dah tamat → Incomplete
+        // (dulu tersangkut dalam Past Trips).
+        action.push(b);
+      }
+    });
+
+    // Tiada tarikh & belum terminal — dulu hilang terus dari senarai
+    // (active menapis baris tanpa tarikh); papar dalam Incomplete.
+    bookings.forEach(function (b) {
+      if (b.booking_status !== 'Cancelled' && b.booking_status !== 'Completed'
+          && !tripStart(b)) {
+        action.push(b);
       }
     });
 
@@ -111,7 +131,12 @@
       }
     });
 
-    return { upcoming: upcoming, future: future, past: past };
+    // Incomplete paling terkini dulu (tiada tarikh kekal di hujung).
+    action.sort(function (a, b) {
+      return String(tripStart(b)).localeCompare(String(tripStart(a)));
+    });
+
+    return { upcoming: upcoming, future: future, action: action, past: past };
   }
 
   /* ── Carian & penapis (client-side) ──
@@ -217,11 +242,12 @@
     var list = applyFilters(ALL_BOOKINGS);
     var g = groupBookings(list);
 
-    // Susunan mendatar seluruh senarai: Upcoming → Future (asc) → Past.
-    // Pagination menghadkan bilangan baris SETIAP halaman merentas
-    // kumpulan — bukan setiap kumpulan berasingan — supaya halaman
-    // kekal pendek tanpa mengira kumpulan mana yang besar.
-    var flat = (g.upcoming ? [g.upcoming] : []).concat(g.future, g.past);
+    // Susunan mendatar seluruh senarai: Upcoming → Future (asc) →
+    // Incomplete (terkini dulu) → Past. Pagination menghadkan bilangan
+    // baris SETIAP halaman merentas kumpulan — bukan setiap kumpulan
+    // berasingan — supaya halaman kekal pendek tanpa mengira kumpulan
+    // mana yang besar.
+    var flat = (g.upcoming ? [g.upcoming] : []).concat(g.future, g.action, g.past);
     var total = flat.length;
 
     var totalPages = Math.max(1, Math.ceil(total / perPage));
@@ -229,17 +255,25 @@
     var startIdx = (currentPage - 1) * perPage;
     var endIdx = Math.min(startIdx + perPage, total);
 
-    // Kerat setiap kumpulan mengikut julat halaman semasa
+    // Kerat setiap kumpulan mengikut julat halaman semasa — petikan
+    // GLOBAL flat.slice(s, e). Formula lama slice(s-gs, e-gs) memakai
+    // indeks relatif-kumpulan atas array global flat: kumpulan selain
+    // pertama yang terkerat di sempadan halaman memaparkan BARIS SALAH
+    // (baris awal flat — booking upcoming/future — muncul di bawah
+    // header Incomplete/Past).
     function grpSlice(gs, ge) {
       var s = Math.max(startIdx, gs), e = Math.min(endIdx, ge);
-      return s < e ? flat.slice(s - gs, e - gs) : [];
+      return s < e ? flat.slice(s, e) : [];
     }
     var uLen = g.upcoming ? 1 : 0;
     var parts = {
       upcoming: grpSlice(0, uLen),
       future: grpSlice(uLen, uLen + g.future.length),
-      past: grpSlice(uLen + g.future.length, total),
+      action: grpSlice(uLen + g.future.length,
+                       uLen + g.future.length + g.action.length),
+      past: grpSlice(uLen + g.future.length + g.action.length, total),
       futureTotal: g.future.length,
+      actionTotal: g.action.length,
       pastTotal: g.past.length
     };
 
@@ -306,6 +340,17 @@
       html += '<div class="tv-stagger">';
       parts.future.forEach(function (b) {
         html += bookingCard(b, false);
+      });
+      html += '</div>';
+    }
+
+    // Incomplete Trips — perjalanan dah tamat/tiada tarikh tapi booking
+    // belum selesai (masih tertunggak, bukan sejarah)
+    if (parts.action.length) {
+      html += '<div class="tv-group-label">⚠️ Incomplete Trips (' + parts.actionTotal + ')</div>';
+      html += '<div class="tv-stagger">';
+      parts.action.forEach(function (b) {
+        html += bookingCard(b, false, true);
       });
       html += '</div>';
     }

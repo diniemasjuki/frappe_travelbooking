@@ -1,3 +1,4 @@
 Module Travel Booking
 Module Admin Portal
 Resources Management
+Module Trip Management

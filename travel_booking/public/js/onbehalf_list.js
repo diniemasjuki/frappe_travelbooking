@@ -7,8 +7,9 @@
    - Data dari get_on_behalf_bookings_list (booked_by = user,
      booking_channel != Direct).
    - Paparan TABLE (bukan kad): satu .tv-bk-table, baris dikumpul
-     Future / Running / Past melalui baris tajuk kumpulan; dalam
-     setiap kumpulan susunan ikut tarikh berangkat/sailing.
+     Future / Running / Incomplete / Past melalui baris tajuk
+     kumpulan; dalam setiap kumpulan susunan ikut tarikh
+     berangkat/sailing.
    - Lajur pertama = CUSTOMER AKHIR (nama + email) — identiti utama
      baris supaya manager tahu serta-merta booking milik siapa.
    - Ref dalam lajur kedua.
@@ -76,46 +77,63 @@
     return b.return_date || b.sailing_end || tripStart(b);
   }
 
-  /* ── Kumpul booking ke Future / Running / Past ──
-     Future  : tarikh mula belum sampai.
-     Running : sudah berangkat, belum tamat (return/sailing_end >= hari ini).
-     Past    : perjalanan selesai; booking Cancelled & tarikh kosong masuk sini. */
+  /* ── Kumpul booking ke Future / Running / Incomplete / Past ──
+     Future     : tarikh mula belum sampai.
+     Running    : sudah berangkat, belum tamat (return/sailing_end >= hari ini).
+     Incomplete : perjalanan dah TAMAT (atau tiada tarikh) tapi status belum
+                  terminal (Pending/Processing/Accepted/...) — booking masih
+                  tertunggak, BUKAN sejarah.
+     Past       : sejarah — Completed yang perjalanan dah tamat, Cancelled
+                  (walau tarikh masih depan), dan Completed tanpa tarikh. */
   function groupBookings(bookings) {
     var now = new Date();
     now.setHours(0,0,0,0);
 
-    var future = [], running = [], past = [];
+    var future = [], running = [], action = [], past = [];
 
     bookings.forEach(function (b) {
       var start = tripStart(b);
-      if (b.booking_status === 'Cancelled' || !start) {
+      // Cancelled kekal sejarah Past walau tarikh masih depan (terminal).
+      if (b.booking_status === 'Cancelled') {
         past.push(b);
+        return;
+      }
+      if (!start) {
+        // Tiada tarikh: Completed → Past (kelakuan lama); yang lain masih
+        // dalam proses → Incomplete supaya kelihatan & tak hilang.
+        if (b.booking_status === 'Completed') past.push(b);
+        else action.push(b);
         return;
       }
       var startDate = new Date(start + 'T00:00:00');
       var endDate = new Date(tripEnd(b) + 'T00:00:00');
       if (startDate > now) future.push(b);
       else if (endDate >= now) running.push(b);
-      else past.push(b);
+      // Tarikh dah lepas: Completed → sejarah; yang belum selesai
+      // → Incomplete (dulu tersangkut dalam Past Trip).
+      else if (b.booking_status === 'Completed') past.push(b);
+      else action.push(b);
     });
 
     // Order ikut tarikh berangkat/sailing: belum perjalanan paling hampir
-    // dulu; yang lepas paling terkini dulu.
+    // dulu; yang lepas paling terkini dulu (tiada tarikh kekal di hujung).
     function byStartAsc(a, b) {
       return String(tripStart(a)).localeCompare(String(tripStart(b)));
     }
+    function byStartDesc(a, b) { return byStartAsc(b, a); }
     future.sort(byStartAsc);
     running.sort(byStartAsc);
-    past.sort(function (a, b) { return byStartAsc(b, a); });
+    action.sort(byStartDesc);
+    past.sort(byStartDesc);
 
-    return { future: future, running: running, past: past };
+    return { future: future, running: running, action: action, past: past };
   }
 
   /* ── Render semua kumpulan (TABLE view — halaman semasa sahaja) ──
-     Baris dikumpul dgn baris tajuk kumpulan (Future / Running / Past);
-     header muncul hanya bila kumpulan itu ada baris pada halaman ini,
-     dan kekal memaparkan JUMLAH penuh kumpulan. Pager dirender di bawah
-     table oleh renderFiltered(). */
+     Baris dikumpul dgn baris tajuk kumpulan (Future / Running /
+     Incomplete / Past); header muncul hanya bila kumpulan itu ada baris
+     pada halaman ini, dan kekal memaparkan JUMLAH penuh kumpulan. Pager
+     dirender di bawah table oleh renderFiltered(). */
   function renderBookings(parts) {
     var html = '';
     html += '<div class="tv-table-wrap tv-animate-in">';
@@ -142,6 +160,12 @@
     if (parts.running.length) {
       html += groupRow('🚢 Running Trip (' + parts.runningTotal + ')');
       parts.running.forEach(function (b) {
+        html += bookingRow(b, false);
+      });
+    }
+    if (parts.action.length) {
+      html += groupRow('⚠️ Incomplete Trip (' + parts.actionTotal + ')');
+      parts.action.forEach(function (b) {
         html += bookingRow(b, false);
       });
     }
@@ -386,9 +410,9 @@
     var g = groupBookings(list);
 
     // Susunan mendatar seluruh senarai: Future (asc) → Running (asc) →
-    // Past (terkini dulu). Pagination menghadkan bilangan baris SETIAP
-    // halaman merentas kumpulan.
-    var flat = g.future.concat(g.running, g.past);
+    // Incomplete (terkini dulu) → Past (terkini dulu). Pagination
+    // menghadkan bilangan baris SETIAP halaman merentas kumpulan.
+    var flat = g.future.concat(g.running, g.action, g.past);
     var total = flat.length;
 
     var totalPages = Math.max(1, Math.ceil(total / perPage));
@@ -396,18 +420,25 @@
     var startIdx = (currentPage - 1) * perPage;
     var endIdx = Math.min(startIdx + perPage, total);
 
-    // Kerat setiap kumpulan mengikut julat halaman semasa
+    // Kerat setiap kumpulan mengikut julat halaman semasa — petikan
+    // GLOBAL flat.slice(s, e). Formula lama slice(s-gs, e-gs) memakai
+    // indeks relatif-kumpulan atas array global flat: kumpulan selain
+    // pertama yang terkerat di sempadan halaman memaparkan BARIS SALAH
+    // (baris awal flat — booking future — muncul di bawah header
+    // Running/Incomplete/Past).
     function grpSlice(gs, ge) {
       var s = Math.max(startIdx, gs), e = Math.min(endIdx, ge);
-      return s < e ? flat.slice(s - gs, e - gs) : [];
+      return s < e ? flat.slice(s, e) : [];
     }
-    var fLen = g.future.length, rLen = g.running.length;
+    var fLen = g.future.length, rLen = g.running.length, aLen = g.action.length;
     var parts = {
       future: grpSlice(0, fLen),
       running: grpSlice(fLen, fLen + rLen),
-      past: grpSlice(fLen + rLen, total),
+      action: grpSlice(fLen + rLen, fLen + rLen + aLen),
+      past: grpSlice(fLen + rLen + aLen, total),
       futureTotal: fLen,
       runningTotal: rLen,
+      actionTotal: aLen,
       pastTotal: g.past.length
     };
 
