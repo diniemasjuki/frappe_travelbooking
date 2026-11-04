@@ -4,6 +4,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 from travel_booking.api.trip_command_center import (
 	TRIP_COMMAND_CENTER_ROLES,
@@ -35,3 +36,12 @@ def generate_offer_from_template(package: str, departure_date: str, return_date:
 		"return_date": return_date,
 	})
 	return {"status": "ok", "offer": offer_name}
+
+
+@frappe.whitelist()
+def cross_check_structure(limit: int = 500) -> dict:
+	"""Cross-check struktur baharu vs sumber lama (harga/allotment/sold)
+	melalui provenance legacy_* — bukti migrasi tak drift (F3)."""
+	_require_product_admin()
+	from travel_booking.utils.product_readiness import cross_check_legacy
+	return cross_check_legacy(cint(limit) or 500)

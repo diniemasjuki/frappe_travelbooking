@@ -26,7 +26,8 @@
   "section_meta",
   "trip",
   "item",
-  "package_description"
+  "package_description",
+  "public_slug"
  ],
  "fields": [
   {
@@ -140,6 +141,15 @@
    "fieldname": "package_description",
    "fieldtype": "Text Editor",
    "label": "Description"
+  },
+  {
+   "fieldname": "public_slug",
+   "fieldtype": "Data",
+   "label": "Public Slug",
+   "read_only": 1,
+   "unique": 1,
+   "no_copy": 1,
+   "description": "Token rawak utk URL awam (jangan guna nama berjujukan — ajaran F9)"
   }
  ],
  "links": [],

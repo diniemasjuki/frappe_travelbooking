@@ -156,7 +156,8 @@
   "passport_link_token",
   "column_break_gplt",
   "passport_link_email",
-  "passport_link_expires_on"
+  "passport_link_expires_on",
+  "inventory_key"
  ],
  "fields": [
   {
@@ -387,7 +388,7 @@
    "label": "Notes"
   },
   {
-   "description": "Pesanan customer untuk slot reservation ini \u2014 diisi admin di Desk (padanan Booking.customer_message). Nota Booking dipapar di portal traveller;",
+   "description": "Pesanan customer untuk slot reservation ini — diisi admin di Desk (padanan Booking.customer_message). Nota Booking dipapar di portal traveller;",
    "fieldname": "customer_message",
    "fieldtype": "Small Text",
    "label": "Reservation Message"
@@ -638,7 +639,7 @@
   },
   {
    "default": "0",
-   "description": "Auto: hari jadi traveller (bulan-hari DOB) jatuh dalam tempoh perjalanan (departure\u2013return). Dikira semula pada setiap save reservation / Traveller.",
+   "description": "Auto: hari jadi traveller (bulan-hari DOB) jatuh dalam tempoh perjalanan (departure–return). Dikira semula pada setiap save reservation / Traveller.",
    "fieldname": "birthday_on_trip",
    "fieldtype": "Check",
    "label": "Birthday On Trip",
@@ -918,7 +919,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Snapshot konteks Booking induk slot ni \u2014 rujukan sahaja (read-only). Nilai live sentiasa di dokumen Booking.",
+   "description": "Snapshot konteks Booking induk slot ni — rujukan sahaja (read-only). Nilai live sentiasa di dokumen Booking.",
    "fieldname": "booking_info_section",
    "fieldtype": "Section Break",
    "label": "Booking Info (Snapshot)"
@@ -1025,14 +1026,14 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Snapshot masa slot diisi/di-backfill (sumber virtual Booking, dikira dari Sales Order) \u2014 nilai live di Booking.",
+   "description": "Snapshot masa slot diisi/di-backfill (sumber virtual Booking, dikira dari Sales Order) — nilai live di Booking.",
    "fieldname": "booking_currency",
    "fieldtype": "Read Only",
    "label": "Booking Currency",
    "read_only": 1
   },
   {
-   "description": "Snapshot masa slot diisi/di-backfill \u2014 nilai live di Booking.",
+   "description": "Snapshot masa slot diisi/di-backfill — nilai live di Booking.",
    "fieldname": "booking_total_amount",
    "fieldtype": "Read Only",
    "label": "Booking Total Amount",
@@ -1040,7 +1041,7 @@
    "read_only": 1
   },
   {
-   "description": "Snapshot masa slot diisi/di-backfill \u2014 nilai live di Booking.",
+   "description": "Snapshot masa slot diisi/di-backfill — nilai live di Booking.",
    "fieldname": "booking_balance_amount",
    "fieldtype": "Read Only",
    "label": "Booking Balance Amount",
@@ -1048,7 +1049,7 @@
    "read_only": 1
   },
   {
-   "description": "Snapshot masa slot diisi/di-backfill \u2014 nilai live di Booking.",
+   "description": "Snapshot masa slot diisi/di-backfill — nilai live di Booking.",
    "fieldname": "booking_paid_amount",
    "fieldtype": "Read Only",
    "label": "Booking Paid Amount",
@@ -1134,6 +1135,14 @@
   {
    "fieldname": "column_break_uoyb",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "inventory_key",
+   "fieldtype": "Data",
+   "label": "Inventory Key",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Kunci pool stok struktur baharu (cth cabin:CODE) — auto dari Room Category (F3)"
   }
  ],
  "grid_page_length": 50,

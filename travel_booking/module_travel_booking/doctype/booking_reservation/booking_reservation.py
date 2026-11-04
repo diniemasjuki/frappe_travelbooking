@@ -198,6 +198,16 @@ class BookingReservation(Document):
 		self.assign_room_id()
 		self.validate_cabin_capacity()
 		self.sync_booking_money_snapshot()
+		self._sync_inventory_key()
+
+	def _sync_inventory_key(self):
+		"""F3 dual-write: kunci pool stok struktur baharu (cabin:CODE)
+		dari Room Category — offer inventory boleh recalc tanpa
+		bergantung docname kategori. Kosong biar takganggu rekod lama."""
+		if self.inventory_key or not self.room_category:
+			return
+		code = frappe.db.get_value("Trip Price Category", self.room_category, "category_code")
+		self.inventory_key = "cabin:" + (code or self.room_category)
 
 	# ══════════════════════════════════════════════
 	# PENANDA KLASIFIKASI TRIP (checkbox auto)

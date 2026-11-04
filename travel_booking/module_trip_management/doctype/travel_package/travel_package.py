@@ -39,6 +39,8 @@ class TravelPackage(Document):
 	def validate(self):
 		self._normalize_axes()
 		self._sync_price_keys()
+		if not self.public_slug:
+			self.public_slug = frappe.generate_hash(length=16)
 
 	def on_update(self):
 		# E1: daftar Item sejagat — cipta automatik bila Active
