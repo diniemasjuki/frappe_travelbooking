@@ -39,6 +39,8 @@ class PackageOffer(Document):
 		current_pax: DF.Int
 		days_before_closure: DF.Int
 		public_slug: DF.Data | None
+		legacy_tgd: DF.Data | None
+		legacy_trip_package: DF.Data | None
 		inventory: DF.Table[OfferInventory]
 		prices: DF.Table[OfferPrice]
 		components: DF.Table[OfferComponent]

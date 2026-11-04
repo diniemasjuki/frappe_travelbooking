@@ -42,7 +42,9 @@
   "section_children",
   "inventory",
   "prices",
-  "components"
+  "components",
+  "legacy_tgd",
+  "legacy_trip_package"
  ],
  "fields": [
   {
@@ -238,6 +240,22 @@
    "fieldtype": "Table",
    "label": "Resolved Components",
    "options": "Offer Component"
+  },
+  {
+   "fieldname": "legacy_tgd",
+   "fieldtype": "Data",
+   "label": "Legacy TGD (migration)",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "legacy_trip_package",
+   "fieldtype": "Data",
+   "label": "Legacy Trip Package (migration)",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1
   }
  ],
  "links": [],
