@@ -1,0 +1,87 @@
+{
+ "actions": [],
+ "creation": "2026-11-05 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "module": "Module Trip Management",
+ "name": "Variant Axis",
+ "modified": "2026-11-05 09:00:00.000000",
+ "modified_by": "Administrator",
+ "owner": "Administrator",
+ "field_order": [
+  "axis_code",
+  "axis_name",
+  "nature",
+  "column_break_a",
+  "slot",
+  "component_scope",
+  "required",
+  "sort_order"
+ ],
+ "fields": [
+  {
+   "fieldname": "axis_code",
+   "fieldtype": "Data",
+   "label": "Axis Code",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "axis_name",
+   "fieldtype": "Data",
+   "label": "Axis Name",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "nature",
+   "fieldtype": "Select",
+   "label": "Nature",
+   "options": "inventory\nprice\ninfo",
+   "default": "inventory",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2,
+   "description": "inventory = pilih pool stok; price = hanya harga; info = kosmetik"
+  },
+  {
+   "fieldname": "column_break_a",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "slot",
+   "fieldtype": "Select",
+   "label": "Matrix Slot",
+   "options": "\nopt1\nopt2\nopt3",
+   "description": "Slot lajur matriks harga utk paksi ini (age guna lajur sendiri)"
+  },
+  {
+   "fieldname": "component_scope",
+   "fieldtype": "Data",
+   "label": "Component Scope",
+   "description": "kosong = semua komponen; cth 'cruise'"
+  },
+  {
+   "fieldname": "required",
+   "fieldtype": "Check",
+   "label": "Required",
+   "default": "1"
+  },
+  {
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "label": "Sort",
+   "default": "0"
+  }
+ ],
+ "links": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "istable": 1,
+ "editable_grid": 1,
+ "allow_bulk_edit": 1
+}

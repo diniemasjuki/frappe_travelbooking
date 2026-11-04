@@ -1,0 +1,288 @@
+{
+ "actions": [],
+ "creation": "2026-11-05 09:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "module": "Module Trip Management",
+ "name": "Package Offer",
+ "modified": "2026-11-05 09:00:00.000000",
+ "modified_by": "Administrator",
+ "owner": "Administrator",
+ "field_order": [
+  "naming_series",
+  "package",
+  "offer_name",
+  "column_break_a",
+  "status_editorial",
+  "status_operational",
+  "section_dates",
+  "departure_date",
+  "return_date",
+  "column_break_b",
+  "total_days",
+  "total_nights",
+  "section_sailing",
+  "sailing_start",
+  "sailing_end",
+  "column_break_c",
+  "cruise_schedule",
+  "flight",
+  "section_ship",
+  "ship_name",
+  "ship_code",
+  "column_break_d",
+  "embarkation_port",
+  "disembarkation_port",
+  "section_capacity",
+  "max_pax",
+  "current_pax",
+  "column_break_e",
+  "days_before_closure",
+  "public_slug",
+  "section_children",
+  "inventory",
+  "prices",
+  "components"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Naming Series",
+   "options": "OFF-.YYYY.-.####",
+   "reqd": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "package",
+   "fieldtype": "Link",
+   "label": "Travel Package",
+   "options": "Travel Package",
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "offer_name",
+   "fieldtype": "Data",
+   "label": "Offer Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_a",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status_editorial",
+   "fieldtype": "Select",
+   "label": "Editorial Status",
+   "options": "Draft\nActive\nCancelled",
+   "default": "Draft",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "status_operational",
+   "fieldtype": "Select",
+   "label": "Operational Status (auto)",
+   "options": "Scheduled\nRunning\nSailing\nFull\nClosed\nCompleted",
+   "default": "Scheduled",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "description": "Di-set oleh auto-job sahaja (Fasa B guard)"
+  },
+  {
+   "fieldname": "section_dates",
+   "fieldtype": "Section Break",
+   "label": "Dates"
+  },
+  {
+   "fieldname": "departure_date",
+   "fieldtype": "Date",
+   "label": "Departure Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "return_date",
+   "fieldtype": "Date",
+   "label": "Return Date"
+  },
+  {
+   "fieldname": "column_break_b",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_days",
+   "fieldtype": "Int",
+   "label": "Total Days"
+  },
+  {
+   "fieldname": "total_nights",
+   "fieldtype": "Int",
+   "label": "Total Nights"
+  },
+  {
+   "fieldname": "section_sailing",
+   "fieldtype": "Section Break",
+   "label": "Sailing & Ops Reference"
+  },
+  {
+   "fieldname": "sailing_start",
+   "fieldtype": "Date",
+   "label": "Sailing Start"
+  },
+  {
+   "fieldname": "sailing_end",
+   "fieldtype": "Date",
+   "label": "Sailing End"
+  },
+  {
+   "fieldname": "column_break_c",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cruise_schedule",
+   "fieldtype": "Link",
+   "label": "Cruise Schedule (ops source)",
+   "options": "Trip Cruise Schedule"
+  },
+  {
+   "fieldname": "flight",
+   "fieldtype": "Link",
+   "label": "Charter Flight",
+   "options": "Flight"
+  },
+  {
+   "fieldname": "section_ship",
+   "fieldtype": "Section Break",
+   "label": "Ship / Ports"
+  },
+  {
+   "fieldname": "ship_name",
+   "fieldtype": "Data",
+   "label": "Ship Name"
+  },
+  {
+   "fieldname": "ship_code",
+   "fieldtype": "Data",
+   "label": "Ship Code"
+  },
+  {
+   "fieldname": "column_break_d",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "embarkation_port",
+   "fieldtype": "Data",
+   "label": "Embarkation Port"
+  },
+  {
+   "fieldname": "disembarkation_port",
+   "fieldtype": "Data",
+   "label": "Disembarkation Port"
+  },
+  {
+   "fieldname": "section_capacity",
+   "fieldtype": "Section Break",
+   "label": "Capacity & Window"
+  },
+  {
+   "fieldname": "max_pax",
+   "fieldtype": "Int",
+   "label": "Max Pax (0 = unlimited)",
+   "default": "0"
+  },
+  {
+   "fieldname": "current_pax",
+   "fieldtype": "Int",
+   "label": "Current Pax",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_e",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "days_before_closure",
+   "fieldtype": "Int",
+   "label": "Days Before Closure"
+  },
+  {
+   "fieldname": "public_slug",
+   "fieldtype": "Data",
+   "label": "Public Slug",
+   "read_only": 1,
+   "unique": 1,
+   "description": "Token rawak untuk URL awam (jangan guna nama berjujukan)"
+  },
+  {
+   "fieldname": "section_children",
+   "fieldtype": "Section Break",
+   "label": "Inventory / Prices / Components"
+  },
+  {
+   "fieldname": "inventory",
+   "fieldtype": "Table",
+   "label": "Inventory (per variant option)",
+   "options": "Offer Inventory"
+  },
+  {
+   "fieldname": "prices",
+   "fieldtype": "Table",
+   "label": "Prices (matrix)",
+   "options": "Offer Price"
+  },
+  {
+   "fieldname": "components",
+   "fieldtype": "Table",
+   "label": "Resolved Components",
+   "options": "Offer Component"
+  }
+ ],
+ "links": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "autoname": "OFF-.YYYY.-.####",
+ "naming_rule": "By \"Naming Series\" field",
+ "allow_rename": 1,
+ "index_web_pages_for_search": 1,
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "export": 1,
+   "report": 1,
+   "share": 1,
+   "submit": 0
+  },
+  {
+   "role": "Tour Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "export": 1,
+   "report": 1,
+   "share": 1
+  },
+  {
+   "role": "Tour Operator",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "export": 1,
+   "report": 1,
+   "share": 1
+  }
+ ]
+}
