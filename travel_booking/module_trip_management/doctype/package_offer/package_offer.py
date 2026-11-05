@@ -72,3 +72,65 @@ class PackageOffer(Document):
 					f"Offer {self.name}: status_operational {old} -> {self.status_operational} "
 					f"oleh {frappe.session.user}"
 				)
+
+
+def auto_update_offer_statuses():
+	"""Auto-job harian (scheduler 00:40) — paksi OPERASIONAL Package Offer.
+
+	Tangga keutamaan (pertama yang padan):
+	  1. Completed  — return_date sudah lepas
+	  2. Sailing    — hari ini dalam tetingkap sailing_start..sailing_end
+	  3. Running    — departure <= hari ini <= return
+	  4. Closed     — dalam tetingkap days_before_closure sebelum berangkat
+	  5. Full       — max_pax > 0 dan current_pax >= max_pax
+	  6. Scheduled  — lalai (belum dekat tarikh)
+
+	Aturan:
+	  - HANYA offer status_editorial = 'Active' (Draft/Cancelled tak disentuh)
+	  - idempotent: db.set_value(update_modified=False), tiada hook side-effect
+	  - kembalikan ringkasan {checked, changed} untuk log scheduler
+	"""
+	from datetime import date, timedelta
+
+	import frappe
+	from frappe.utils import getdate, today
+
+	today = getdate(today())
+	rows = frappe.get_all(
+		"Package Offer",
+		filters={"status_editorial": "Active"},
+		fields=["name", "departure_date", "return_date", "sailing_start",
+				"sailing_end", "status_operational", "max_pax",
+				"current_pax", "days_before_closure"],
+	)
+
+	changed = 0
+	tally: dict = {}
+	for o in rows:
+		if not o.departure_date:
+			continue
+		dep = getdate(o.departure_date)
+		ret = getdate(o.return_date) if o.return_date else None
+
+		if ret and ret < today:
+			new = "Completed"
+		elif o.sailing_start and o.sailing_end and \
+				getdate(o.sailing_start) <= today <= getdate(o.sailing_end):
+			new = "Sailing"
+		elif dep <= today and (not ret or ret >= today):
+			new = "Running"
+		elif o.days_before_closure and dep > today and \
+				today >= dep - timedelta(days=int(o.days_before_closure)):
+			new = "Closed"
+		elif int(o.max_pax or 0) > 0 and int(o.current_pax or 0) >= int(o.max_pax):
+			new = "Full"
+		else:
+			new = "Scheduled"
+
+		tally[new] = tally.get(new, 0) + 1
+		if new != o.status_operational:
+			frappe.db.set_value("Package Offer", o.name,
+				"status_operational", new, update_modified=False)
+			changed += 1
+
+	return {"checked": len(rows), "changed": changed, "tally": tally}

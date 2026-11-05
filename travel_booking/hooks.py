@@ -182,6 +182,12 @@ scheduler_events = {
 				"travel_booking.module_travel_booking.doctype.trip_group_date.trip_group_date.auto_update_trip_group_statuses",
 				"travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.auto_update_cruise_schedule_statuses",
 			],
+		# 00:40 — paksi OPERASIONAL Package Offer (F4): Scheduled/Running/
+		# Sailing/Full/Closed/Completed ikut tarikh & occupancy. Struktur
+		# baharu — TGD lama kekal di-job 00:20 sehingga cutover penuh (F5).
+		"40 0 * * *": [
+				"travel_booking.module_trip_management.doctype.package_offer.package_offer.auto_update_offer_statuses",
+			],
 	},
 }
 

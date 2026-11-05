@@ -52,7 +52,8 @@
   "section_break_whxn",
   "html_apxx",
   "section_break_kdna",
-  "trip_package"
+  "trip_package",
+  "use_package_offers"
  ],
  "fields": [
   {
@@ -361,6 +362,13 @@
    "fieldtype": "Int",
    "label": "Guest Link Validity (hours)",
    "non_negative": 1
+  },
+  {
+   "fieldname": "use_package_offers",
+   "fieldtype": "Check",
+   "label": "Use Package Offers (New Structure)",
+   "default": "0",
+   "description": "F4 suis cutover: 1 = katalog/jualan baca struktur baharu (Travel Package / Package Offer). 0 = struktur lama. JANGAN hidupkan sebelum aliran tulis booking siap (F5)."
   }
  ],
  "grid_page_length": 50,

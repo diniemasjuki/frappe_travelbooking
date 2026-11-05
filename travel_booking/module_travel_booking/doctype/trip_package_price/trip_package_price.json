@@ -34,7 +34,7 @@
   },
   {
    "default": "0",
-   "description": "(Age 12+ years old) \u2014 SEMUA harga dalam COMPANY CURRENCY",
+   "description": "(Age 12+ years old) — SEMUA harga dalam COMPANY CURRENCY",
    "fieldname": "price_adult",
    "fieldtype": "Currency",
    "in_list_view": 1,
@@ -131,7 +131,7 @@
   },
   {
    "default": "0",
-   "description": "Total cabins allotted for this class on the schedule. Availability auto-syncs: Allotment \u2212 Occupancy.",
+   "description": "Total cabins allotted for this class on the schedule. Availability auto-syncs: Allotment − Occupancy.",
    "fieldname": "cabin_allotment",
    "fieldtype": "Int",
    "label": "Cabin Allotment",
