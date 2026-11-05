@@ -203,3 +203,120 @@ def sold_from_reservations(tgd_name: str, old_package_name: str = None) -> dict:
 		as_dict=True,
 	)
 	return {r.cat: int(r.n) for r in rows}
+
+
+# ══════════════════════════════════════════════
+# F5 — aliran tulis booking ke struktur baharu (flag use_package_offers)
+# ══════════════════════════════════════════════
+
+def resolve_legacy_from_offer(offer_name: str, travel_package_name: str):
+	"""Offer baharu → NAMA WARISAN (TGD + Trip Package lama) melalui
+	provenance. Bila flag ON, confirm_booking delegate ke SELURUH aliran
+	lama guna nama-nama ni — kapasiti/harga/SO/perakaunan tak tersentuh.
+	Throw jelas kalau provenance belum lengkap (pakej/offer luar skrip
+	migrasi v39/v40)."""
+	offer = frappe.db.get_value(
+		"Package Offer", offer_name,
+		["legacy_tgd", "legacy_trip_package", "package"],
+		as_dict=True,
+	)
+	if not offer:
+		frappe.throw(f"Offer {offer_name} not found.", frappe.DoesNotExistError)
+	pkg_legacy = frappe.db.get_value(
+		"Travel Package", travel_package_name, "legacy_trip_package"
+	)
+	if not offer.legacy_tgd or not pkg_legacy:
+		frappe.throw(
+			"Provenance legacy belum lengkap untuk struktur baharu ini "
+			"(legacy_tgd / legacy_trip_package kosong). Flag use_package_offers "
+			"tidak boleh digunakan untuk offer/pakej ini."
+		)
+	return offer.legacy_tgd, pkg_legacy
+
+
+def _selection_needs(selections) -> dict:
+	"""Jumlah pax per inventory_key daripada selections wizard.
+	pax = main_guests + extra_beds + infants; kabin daripada room_category
+	(docname Trip Price Category → category_code → 'cabin:CODE')."""
+	needs: dict = {}
+	codes: dict = {}
+	for s in selections or []:
+		rc = s.get("room_category")
+		if not rc:
+			continue
+		if rc not in codes:
+			codes[rc] = frappe.db.get_value(
+				"Trip Price Category", rc, "category_code"
+			) or rc
+		key = "cabin:" + codes[rc]
+		pax = (int(s.get("main_guests", 0) or 0)
+			   + int(s.get("extra_beds", 0) or 0)
+			   + int(s.get("infants", 0) or 0))
+		needs[key] = needs.get(key, 0) + pax
+	return needs
+
+
+def check_offer_capacity(offer_name: str, selections):
+	"""F5 gate kapasiti — LOCK baris Package Offer (SELECT ... FOR UPDATE,
+	corak P1/C3) kemudian semak setiap inventory_key ada available cukup.
+	Dipanggil SEBELUM aliran legacy confirm_booking; lock kekal sehingga
+	transaksi commit — apply_offer_booking() yang seterusnya re-lock baris
+	yang sama (re-entrant, tiada deadlock)."""
+	frappe.db.sql(
+		"SELECT name FROM `tabPackage Offer` WHERE name = %s FOR UPDATE",
+		(offer_name,),
+	)
+	needs = _selection_needs(selections)
+	inv = {
+		r.inventory_key: r
+		for r in frappe.get_all(
+			"Offer Inventory", filters={"parent": offer_name},
+			fields=["name", "inventory_key", "allotment", "sold"],
+		)
+	}
+	for key, pax in needs.items():
+		row = inv.get(key)
+		if row is None:
+			frappe.throw(f"Kabin '{key}' tiada dalam inventori offer ini.")
+		avail = int(row.allotment or 0) - int(row.sold or 0)
+		if avail < pax:
+			frappe.throw(
+				f"{key}: hanya {avail} tempat tersedia (perlukan {pax}). "
+				"Sila kurangkan bilangan tetamu atau pilih kabin lain."
+			)
+
+
+def apply_offer_booking(offer_name: str, selections) -> int:
+	"""F5 tulis: tolak stok offer (sold += pax) atas LOCK yang sama.
+	Panggil SELEPAS booking berjaya dicipta, DALAM transaksi yang sama.
+	Kembalikan jumlah pax ditolak."""
+	frappe.db.sql(
+		"SELECT name FROM `tabPackage Offer` WHERE name = %s FOR UPDATE",
+		(offer_name,),
+	)
+	needs = _selection_needs(selections)
+	rows = frappe.get_all(
+		"Offer Inventory", filters={"parent": offer_name},
+		fields=["name", "inventory_key", "allotment", "sold"],
+	)
+	by_key = {r.inventory_key: r for r in rows}
+	total = 0
+	for key, pax in needs.items():
+		row = by_key.get(key)
+		if row is None:
+			continue  # sudah ditolak oleh check_offer_capacity di atas
+		new_sold = int(row.sold or 0) + pax
+		frappe.db.set_value(
+			"Offer Inventory", row.name,
+			{"sold": new_sold, "available": int(row.allotment or 0) - new_sold},
+			update_modified=False,
+		)
+		total += pax
+	if total:
+		offer = frappe.db.get_value(
+			"Package Offer", offer_name, ["current_pax"], as_dict=True
+		)
+		frappe.db.set_value("Package Offer", offer_name,
+			"current_pax", int(offer.current_pax or 0) + total,
+			update_modified=False)
+	return total

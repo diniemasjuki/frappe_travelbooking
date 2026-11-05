@@ -129,11 +129,33 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
                     bank_transfer_date: str = "", bank_transfer_note: str = "",
                     booking_number: str = None, on_behalf: bool = False,
                     terms_accepted: bool = False, terms_reference: str = "",
-                    customer_message: str = ""):
+                    customer_message: str = "",
+                    travel_package: str = None, package_offer: str = None):
     if isinstance(selections, str):
         selections = json.loads(selections)
     if isinstance(billing, str):
         billing = json.loads(billing)
+
+    # ── F5: STRUKTUR BAHARU (flag use_package_offers) ────────────────────
+    # Bila flag ON + travel_package/package_offer dihantar: RESOLVE ke nama
+    # warisan melalui provenance (legacy_tgd / legacy_trip_package) supaya
+    # SELURUH aliran lama di bawah (kapasiti TGD, harga Trip Package Price,
+    # SO, rooming, perakaunan) berjalan TANPA diubah. Gate kapasiti offer
+    # (FOR UPDATE) dijalankan dahulu. Medan baharu Booking.travel_package/
+    # package_offer + potongan Offer Inventory di-stamp SELEPAS booking
+    # berjaya (rujuk sebelum return). Flag OFF → laluan 100% lama.
+    use_new_structure = bool(travel_package and package_offer)
+    if use_new_structure:
+        from travel_booking.utils.flags import use_package_offers
+        use_new_structure = use_package_offers()
+    if use_new_structure:
+        from travel_booking.utils.offer_factory import (
+            resolve_legacy_from_offer, check_offer_capacity,
+        )
+        trip_group_date, trip_package = resolve_legacy_from_offer(
+            package_offer, travel_package
+        )
+        check_offer_capacity(package_offer, selections)
 
     email = billing.get("email", "").strip().lower()
 
@@ -1020,6 +1042,16 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         # 'receipt' supaya tetap selamat kalau dipanggil terus via API.)
         _send_status_email(booking.name, "Pending",
                            email_override=billing.get("email", ""))
+
+    if use_new_structure:
+        # F5: stamp rujukan struktur baharu + tolak stok Offer Inventory
+        # (DALAM transaksi yang sama dengan penciptaan booking/SO)
+        frappe.db.set_value("Booking", booking.name, {
+            "travel_package": travel_package,
+            "package_offer": package_offer,
+        })
+        from travel_booking.utils.offer_factory import apply_offer_booking
+        apply_offer_booking(package_offer, selections)
 
     return {
         "success":        True,

@@ -94,7 +94,9 @@
   "column_break_jvfy",
   "package_type",
   "ground_arrangement",
-  "payment_due_amount"
+  "payment_due_amount",
+  "travel_package",
+  "package_offer"
  ],
  "fields": [
   {
@@ -156,7 +158,7 @@
    "options": "Customer"
   },
   {
-   "description": "Company yang mengeluarkan Sales Order utama booking ini (dari paksi currency \u2014 currency native pakej menentukan company).",
+   "description": "Company yang mengeluarkan Sales Order utama booking ini (dari paksi currency — currency native pakej menentukan company).",
    "fieldname": "company",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -179,7 +181,7 @@
    "read_only": 1
   },
   {
-   "description": "Dokumen T&C standard (Terms and Conditions) yang dipersetujui customer semasa booking dibuat \u2014 dokumen dipilih dalam Travel Settings > Booking Terms & Conditions.",
+   "description": "Dokumen T&C standard (Terms and Conditions) yang dipersetujui customer semasa booking dibuat — dokumen dipilih dalam Travel Settings > Booking Terms & Conditions.",
    "fieldname": "terms_reference",
    "fieldtype": "Link",
    "label": "T&C Version",
@@ -271,7 +273,7 @@
    "read_only": 1
   },
   {
-   "description": "Snapshot jumlah jimat promosi Travel Price Rule (price slash) semasa booking disahkan. Baris SO dibina terus atas harga promo (net) \u2014 diskaun ini TIDAK diserap sebagai Payment Entry deduction (beza daripada voucher/referral).",
+   "description": "Snapshot jumlah jimat promosi Travel Price Rule (price slash) semasa booking disahkan. Baris SO dibina terus atas harga promo (net) — diskaun ini TIDAK diserap sebagai Payment Entry deduction (beza daripada voucher/referral).",
    "fieldname": "price_rule_discount",
    "fieldtype": "Currency",
    "label": "Price Rule Discount Amount",
@@ -318,7 +320,7 @@
    "label": "Pending Traveller"
   },
   {
-   "description": "Jumlah pax (Main Guest + Extra Bed + Infant) dirayang masa booking dicipta \u2014 sumber kebenaran untuk gate overbooking (sum merentasi semua booking tak-cancelled vs Trip Group Date.max_participants). Berbeza dari Total Traveller (virtual, kira Booking Reservation Confirmed).",
+   "description": "Jumlah pax (Main Guest + Extra Bed + Infant) dirayang masa booking dicipta — sumber kebenaran untuk gate overbooking (sum merentasi semua booking tak-cancelled vs Trip Group Date.max_participants). Berbeza dari Total Traveller (virtual, kira Booking Reservation Confirmed).",
    "fieldname": "booked_pax",
    "fieldtype": "Int",
    "label": "Booked Pax",
@@ -330,7 +332,7 @@
    "label": "Billing Info"
   },
   {
-   "description": "Snapshot alamat billing customer masa booking dicipta (borang wizard /booknow) \u2014 salinan sejarah/audit, bukan rujukan terkini; alamat operasional customer diurus pada doctype Address yang di-link ke Customer.",
+   "description": "Snapshot alamat billing customer masa booking dicipta (borang wizard /booknow) — salinan sejarah/audit, bukan rujukan terkini; alamat operasional customer diurus pada doctype Address yang di-link ke Customer.",
    "fieldname": "cust_address_line1",
    "fieldtype": "Data",
    "label": "Street Address"
@@ -504,7 +506,7 @@
   },
   {
    "default": "Direct",
-   "description": "Saluran booking: Direct = customer tempah sendiri; Staff = sales user (role Sales User) tempah bagi pihak customer tanpa OTP; Affiliate = rakan kongsi affiliate (role Affiliate) tempah bagi pihak customer tanpa OTP; B2B = partner/agen/reseller tempah bagi pihak pelanggan mereka \u2014 SO & billing kepada Customer partner, harga net (deducted price), end-customer lihat status sahaja di portal.",
+   "description": "Saluran booking: Direct = customer tempah sendiri; Staff = sales user (role Sales User) tempah bagi pihak customer tanpa OTP; Affiliate = rakan kongsi affiliate (role Affiliate) tempah bagi pihak customer tanpa OTP; B2B = partner/agen/reseller tempah bagi pihak pelanggan mereka — SO & billing kepada Customer partner, harga net (deducted price), end-customer lihat status sahaja di portal.",
    "fieldname": "booking_channel",
    "fieldtype": "Select",
    "in_standard_filter": 1,
@@ -548,7 +550,7 @@
    "label": "Trip Title"
   },
   {
-   "description": "Partner B2B yang DIBILKAN untuk tempahan ini (booking_channel = B2B). Sales Order / Payment Entry / Sales Invoice semua atas Customer milik partner \u2014 pelanggan end-customer tidak melihat sebarang harga.",
+   "description": "Partner B2B yang DIBILKAN untuk tempahan ini (booking_channel = B2B). Sales Order / Payment Entry / Sales Invoice semua atas Customer milik partner — pelanggan end-customer tidak melihat sebarang harga.",
    "fieldname": "b2b_partner",
    "fieldtype": "Link",
    "in_standard_filter": 1,
@@ -557,7 +559,7 @@
    "search_index": 1
   },
   {
-   "description": "Customer end-customer (contact traveller) yang datanya diisi partner semasa tempah bagi pihak. Memberi akses portal traveller \u2014 status/dokumen SAHAJA, tanpa harga/billing.",
+   "description": "Customer end-customer (contact traveller) yang datanya diisi partner semasa tempah bagi pihak. Memberi akses portal traveller — status/dokumen SAHAJA, tanpa harga/billing.",
    "fieldname": "end_customer",
    "fieldtype": "Link",
    "in_standard_filter": 1,
@@ -670,6 +672,24 @@
    "fieldtype": "Read Only",
    "label": "Trip Package Name",
    "options": "Trip Package"
+  },
+  {
+   "fieldname": "travel_package",
+   "fieldtype": "Link",
+   "label": "Travel Package (New)",
+   "options": "Travel Package",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "F5: pautan struktur baharu — di-set semasa confirm_booking bila flag use_package_offers ON"
+  },
+  {
+   "fieldname": "package_offer",
+   "fieldtype": "Link",
+   "label": "Package Offer (New)",
+   "options": "Package Offer",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "F5: offer yang dibooking (inventori ditolak daripada offer ini)"
   }
  ],
  "grid_page_length": 50,

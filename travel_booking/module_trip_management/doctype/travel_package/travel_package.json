@@ -27,7 +27,8 @@
   "trip",
   "item",
   "package_description",
-  "public_slug"
+  "public_slug",
+  "legacy_trip_package"
  ],
  "fields": [
   {
@@ -150,6 +151,14 @@
    "unique": 1,
    "no_copy": 1,
    "description": "Token rawak utk URL awam (jangan guna nama berjujukan — ajaran F9)"
+  },
+  {
+   "fieldname": "legacy_trip_package",
+   "fieldtype": "Data",
+   "label": "Legacy Trip Package (migration)",
+   "read_only": 1,
+   "hidden": 1,
+   "no_copy": 1
   }
  ],
  "links": [],

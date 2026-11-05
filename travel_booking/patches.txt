@@ -53,3 +53,4 @@ travel_booking.patches.v38_repair_postcode_url_data
 travel_booking.patches.v39_package_structure_migrate
 travel_booking.patches.v40_offer_migrate
 travel_booking.patches.v41_inventory_key_backfill
+travel_booking.patches.v42_legacy_trip_package_backfill
