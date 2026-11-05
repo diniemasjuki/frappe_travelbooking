@@ -125,18 +125,32 @@ def get_context(context):
     trip_group_date = frappe.form_dict.get("trip_group_date")
 
     # Data "ready trip" dari lapisan kongsi trip_catalog — identik /booking.
-    trips, trip_group_dates, trip_packages, trip_is_cruise = get_ready_bundle()
+    # ── F5 dwi-baca: flag use_package_offers ─────────────────────────
+    # ON  → katalog daripada struktur baharu (bentuk serasi; item pakej
+    #       membawa kunci `offer`/`travel_package` untuk laluan tulis
+    #       confirm_booking). Nama item kekal WARISAN (legacy_tgd /
+    #       legacy_trip_package) supaya get_booking_details + harga
+    #       warisan berfungsi tanpa diubah.
+    # OFF → get_ready_bundle() lama (100% seperti sedia ada).
+    # NOTE (F5 lanjut): penapis currency di-skip dalam mod baharu —
+    # currency adalah paksi per Travel Package.
+    from travel_booking.utils.flags import use_package_offers
 
-    # Currency listing paksi multi-company (rantaian yang sama dengan
-    # katalog: ?currency= → cookie rc_currency → geo default). Hanya pakej
-    # dalam currency ini dipaparkan — polisi get_trip_detail; trip tanpa
-    # pakej currency itu fallback papar semua pakej native.
     currency = _get_currency_filter()
-    trips, trip_group_dates, trip_packages, currency_native_only = (
-        _filter_packages_by_currency(
-            trips, trip_group_dates, trip_packages, currency
+    if use_package_offers():
+        from travel_booking.utils.new_catalog import get_bundle_new
+
+        trips, trip_group_dates, trip_packages, trip_is_cruise = get_bundle_new()
+        currency_native_only = False
+        context.use_package_offers = 1
+    else:
+        trips, trip_group_dates, trip_packages, trip_is_cruise = get_ready_bundle()
+        trips, trip_group_dates, trip_packages, currency_native_only = (
+            _filter_packages_by_currency(
+                trips, trip_group_dates, trip_packages, currency
+            )
         )
-    )
+        context.use_package_offers = 0
 
     context.trips            = trips
     context.trip_group_dates = json_safe(trip_group_dates)
@@ -146,6 +160,7 @@ def get_context(context):
     context.trip_group_date  = trip_group_date or ""
     context.currency         = currency
     context.currency_native_only = currency_native_only
+    context.use_package_offers = context.get("use_package_offers", 0)
     context.no_cache         = 1
     context.title            = "Book Now — Rarecation"
 

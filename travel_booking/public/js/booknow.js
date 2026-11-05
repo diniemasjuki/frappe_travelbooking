@@ -38,6 +38,12 @@ const CSRF_TOKEN  = _data.csrf_token || "";
 // PAPARAN sahaja: gate OTP sebenar disahkan semula di confirm_booking().
 var BOOKING_ACTOR = (_data && _data.booking_actor) || null;
 
+// ─── F5 STRUKTUR BAHARU (flag use_package_offers dari booknow.py) ───
+// Bila ON: item pakej terpilih membawa kunci `travel_package` + `offer`
+// (disuntik oleh shim katalog) — dihantar ke confirm_booking supaya
+// backend cabang ke aliran tulis struktur baharu (stok offer ditolak).
+var USE_PACKAGE_OFFERS = !!(_data && _data.use_package_offers);
+
 // ─── SESSION PROFILE (prefill Step 2 untuk user yang sudah login) ──
 // {full_name, phone} — data user SENDIRI dari session, dikira server-side
 // dalam www/booknow.py (Customer ikut email session → fallback User.phone).
@@ -5119,6 +5125,10 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
       {
         trip_group_date:      state.trip_group_date,
         trip_package:   state.trip_package,
+        // F5: rujukan struktur baharu dari item pakej terpilih (flag ON);
+        // kosong bila flag OFF → backend laluan lama 100%.
+        travel_package: (USE_PACKAGE_OFFERS && selectedPackage && selectedPackage.travel_package) || "",
+        package_offer:  (USE_PACKAGE_OFFERS && selectedPackage && selectedPackage.offer) || "",
         selections:     activeSelections,
         billing:        state.billing,
         payment_type:   payment_type,
