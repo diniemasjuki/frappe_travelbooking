@@ -1,17 +1,22 @@
 // travel_booking/module_admin_portal/page/travel_manager/travel_manager.js
-// TRAVEL MANAGER v5 — GRID DASHBOARD (permintaan pengguna: rail sempit →
-// grid). Tiada tab/rail: SEMUA seksyen dipaparkan serentak sebagai kad
-// dalam grid 12-kolum.
+// TRAVEL MANAGER v6 — 1ST LAYER DIRECTORY + NAVIGATION PANEL + BREADCRUMB
+// (permintaan pengguna: 3 "page" dalam satu app shell)
 //
-//   /app/travel-manager            → indeks: KPI + grid kad trip + jualan
-//   /app/travel-manager/<TRIP>     → direktori trip:
-//       [Cruise Schedule | Flight Arrangement]  (grid 6+6)
-//       [Produk & Komponen]                      (12)
-//       [Pakej] [Tarikh Perjalanan] [Jualan]     (12 setiap)
+//   NAV PANEL (kiri)              KANDUNGAN (breadcrumb › …)
+//   🗺️ Trip Management      →  senarai trip (grid) → direktori trip
+//   👥 Booking Group Mgmt   →  /app/manage-booking-app (app sedia ada —
+//                              L1 group list / L2 group detail / L3 booking)
+//   📄 Booking Management   →  senarai booking individual (semua status,
+//                              carian + aliran status)
 //
-// Hierarki Trip-first; semua operasi melalui API berpagarkan role —
-// TIADA akses DocType terus. Kelulusan Active/Retired/Cancelled:
-// Tour Manager/System Manager sahaja.
+// ROUTING:
+//   /app/travel-manager                        → Trip Management
+//   /app/travel-manager/trip-management        → Trip Management
+//   /app/travel-manager/trip/<TRIP>            → direktori trip
+//   /app/travel-manager/booking-management     → Booking Management
+//
+// Semua operasi melalui API berpagarkan role — TIADA akses DocType terus.
+// Kelulusan Active/Retired/Cancelled: Tour Manager/System Manager sahaja.
 
 frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 	frappe.ui.make_app_page({
@@ -21,27 +26,33 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 	});
 
 	wrapper.querySelector('.page-head').innerHTML = `
-		<div class="tm-head">
-			<div style="display:flex;align-items:center;gap:10px;
-				padding:14px 4px;border-bottom:1px solid #e8e8e8">
-				<button class="btn btn-xs btn-default tm-back" style="display:none">← Semua Trip</button>
-				<div class="tm-title-wrap">
-					<h2 style="margin:0;font-weight:700">Travel Manager</h2>
-					<p class="tm-subtitle" style="margin:2px 0 0;color:#666;font-size:12.5px">
-						Trip → pautan → pakej → tarikh → jualan.</p>
-				</div>
-				<button class="btn btn-xs btn-default tm-refresh" style="margin-left:auto">
-					Muat Semula</button>
+		<div class="tm-shell" style="display:flex;gap:0;align-items:stretch;
+			min-height:calc(100vh - 120px)">
+			<div class="tm-nav" style="width:240px;flex-shrink:0;border-right:1px solid #e8e8e8;
+				padding:14px 10px">
+				<div style="font-size:11px;font-weight:700;color:#999;letter-spacing:.06em;
+					padding:0 10px 8px">TRAVEL MANAGER</div>
+				<div class="tm-nav-items" style="display:flex;flex-direction:column;gap:4px"></div>
+				<div style="margin-top:18px;padding:10px;border-top:1px solid #f0f0f0;
+					font-size:11.5px;color:#999;line-height:1.6">
+					Status Active/Retired/Cancelled<br>perlukan kelulusan
+					<strong>Tour Manager</strong>.</div>
+			</div>
+			<div class="tm-main" style="flex:1;min-width:0;display:flex;flex-direction:column">
+				<div class="tm-breadcrumb" style="padding:14px 18px;border-bottom:1px solid #f0f0f0;
+					font-size:13px;color:#666"></div>
+				<button class="btn btn-xs btn-default tm-refresh" style="margin:10px 18px 0;
+					align-self:flex-start">Muat Semula</button>
+				<div class="tm-body" style="padding:12px 18px 40px;flex:1"></div>
 			</div>
 		</div>
-		<div class="tm-body" style="padding:12px 4px 40px"></div>
 	`;
 
 	window.TravelManager = (function () {
 		const $body = $(wrapper).find('.tm-body');
+		const $bc = $(wrapper).find('.tm-breadcrumb');
+		const $navItems = $(wrapper).find('.tm-nav-items');
 		const $back = $(wrapper).find('.tm-back');
-		const $title = $(wrapper).find('.tm-title-wrap h2');
-		const $subtitle = $(wrapper).find('.tm-subtitle');
 
 		const isManager = frappe.user.has_role('Tour Manager') || frappe.user.has_role('System Manager');
 
@@ -73,73 +84,112 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 		const money = (n) => 'RM ' + parseFloat(n || 0).toLocaleString('en-MY',
 			{ minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-		// GRID helpers — 12 kolum
 		const GRID = 'display:grid;grid-template-columns:repeat(12,1fr);gap:14px';
-		const card = (span, title, inner, extra = '') => `
+		const card = (span, title, inner) => `
 			<div class="panel panel-default" style="grid-column:span ${span};
-				padding:12px;margin:0;${extra}">
+				padding:12px;margin:0">
 				${title ? `<div style="font-size:12px;color:#666;margin-bottom:6px;
 					font-weight:700;letter-spacing:.02em">${title}</div>` : ''}
 				${inner}
 			</div>`;
 
-		const state = { view: null, trip: null, search: '' };
+		const NAV = [
+			{ key: 'trip-management', route: 'trip-management', icon: '🗺️',
+				label: 'Trip Management', desc: 'Senarai trip + direktori' },
+			{ key: 'booking-group', route: 'manage-booking-app', icon: '👥',
+				label: 'Booking Group Management', desc: 'Booking ikut group date — app khas', external: true },
+			{ key: 'booking-management', route: 'booking-management', icon: '📄',
+				label: 'Booking Management', desc: 'Booking individual + status' },
+		];
 
-		function set_header(title, subtitle, showBack) {
-			$title.text(title);
-			$subtitle.text(subtitle);
-			$back.toggle(!!showBack);
+		const state = {
+			view: 'trip-management',  // trip-management | trip | booking-management
+			trip: null,
+			search: '', bkg_search: '', bkg_status: 'All',
+		};
+
+		function render_nav() {
+			$navItems.html(NAV.map((n) => {
+				const active = !n.external && state.view === n.key;
+				return `
+					<button class="btn btn-default tm-nav-item ${active ? 'tm-nav-active' : ''}"
+						data-key="${n.key}" style="text-align:left;padding:10px 12px;
+						border-radius:8px;display:flex;gap:10px;align-items:flex-start;
+						${active ? 'background:#1d4ed810;border-color:#1d4ed855' : ''}">
+						<span style="font-size:16px">${n.icon}</span>
+						<span>
+							<div style="font-weight:${active ? '700' : '600'};font-size:13px">
+								${esc(n.label)}</div>
+							<div style="font-size:11px;color:#999">${esc(n.desc)}</div>
+						</span>
+					</button>`;
+			}).join(''));
+			$navItems.find('.tm-nav-item').on('click', function () {
+				const key = $(this).data('key');
+				const item = NAV.find((n) => n.key === key);
+				if (item.external) {
+					frappe.set_route(item.route);  // app Booking Group sedia ada
+					return;
+				}
+				frappe.set_route('travel-manager', item.route);
+			});
+		}
+
+		function breadcrumb(segments) {
+			// segments: [{label, route?: [..]}] — terakhir TIADA link (current)
+			$bc.html(segments.map((s, i) => {
+				const isLast = i === segments.length - 1;
+				const inner = isLast
+					? `<strong style="color:#1E1C18">${esc(s.label)}</strong>`
+					: `<a href="javascript:void(0)" class="tm-bc-link" data-route='${esc(JSON.stringify(s.route))}'
+						style="color:#1d4ed8">${esc(s.label)}</a>`;
+				return inner + (isLast ? '' : ' <span style="color:#bbb">›</span> ');
+			}).join(''));
+			$bc.find('.tm-bc-link').on('click', function () {
+				frappe.set_route(...JSON.parse($(this).data('route')));
+			});
 		}
 
 		function handle_route() {
 			const route = frappe.get_route() || [];
-			const trip = route[1];
-			if (trip && trip !== 'travel-manager') show_trip(trip);
-			else show_index();
-		}
-
-		function show_index() {
-			state.view = 'index';
-			state.trip = null;
-			set_header('Travel Manager', 'Trip → pautan → pakej → tarikh → jualan.', false);
-			load_index();
-		}
-
-		function show_trip(trip) {
-			state.view = 'trip';
-			state.trip = trip;
-			set_header(trip, 'Direktori trip.', true);
-			load_trip_directory(trip);
+			const seg = route[1];
+			if (seg === 'trip' && route[2]) {
+				state.view = 'trip';
+				state.trip = route[2];
+				render_nav();
+				load_trip_directory(state.trip);
+			} else if (seg === 'booking-management') {
+				state.view = 'booking-management';
+				render_nav();
+				load_bookings();
+			} else {
+				state.view = 'trip-management';
+				render_nav();
+				load_trips();
+			}
 		}
 
 		function refresh() {
-			state.view === 'trip' ? load_trip_directory(state.trip) : load_index();
+			handle_route();
 		}
+		$(wrapper).find('.tm-refresh').on('click', refresh);
 
-		// ════════════ INDEKS — GRID ════════════
-		async function load_index() {
+		// ════════════ TRIP MANAGEMENT ════════════
+		async function load_trips() {
+			breadcrumb([
+				{ label: 'Travel Manager', route: ['travel-manager'] },
+				{ label: 'Trip Management' },
+			]);
 			$body.html(`<div style="color:#999;padding:30px;text-align:center">
 				<div class="spinner-border spinner-border-sm"></div></div>`);
 
-			const [tripsData, ready, sales] = await Promise.all([
+			const [tripsData, ready] = await Promise.all([
 				tcc('get_trips_list', { search: state.search, limit: 60 }),
 				tcc('get_readiness_summary', {}),
-				hub('get_booking_kanban', {}).catch(() => null),
 			]);
 			const trips = tripsData?.trips || [];
 			const s = ready?.summary || { ready: 0, warning: 0, error: 0 };
 
-			// ── KPI row (4+4+4) ──
-			const kpi = `
-				${card(4, '', `<h2 style="margin:0;color:${C.green};display:inline">${s.ready || 0}</h2>
-					<span style="color:#888"> trip ready</span>`)}
-				${card(4, '', `<h2 style="margin:0;color:${C.orange};display:inline">${s.warning || 0}</h2>
-					<span style="color:#888"> dengan amaran</span>`)}
-				${card(4, '', `<h2 style="margin:0;color:${C.red};display:inline">${s.error || 0}</h2>
-					<span style="color:#888"> perlu tindakan</span>`)}
-			`;
-
-			// ── Trip cards — grid responsif dalam span 12 ──
 			const tripCards = trips.map((t) => `
 				<div class="panel panel-default tm-trip" data-trip="${esc(t.name)}"
 					style="padding:12px;margin:0;cursor:pointer">
@@ -156,28 +206,14 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 				</div>
 			`).join('');
 
-			// ── Jualan (span 12) ──
-			const cols = sales?.columns || {};
-			let salesRows = '';
-			let salesCount = 0;
-			['Pending', 'Accepted', 'Processing', 'Confirmed'].forEach((st) => {
-				(cols[st] || []).slice(0, 15).forEach((b) => {
-					salesCount++;
-					salesRows += `
-						<tr data-booking="${esc(b.name)}">
-							<td><strong>${esc(b.name)}</strong></td>
-							<td>${esc(b.customer_name || '')}</td>
-							<td>${esc(b.trip_name || '')}</td>
-							<td style="text-align:right">${money(b.total_amount)}</td>
-							<td>${badge(b.status, BKG_COLOR[b.status] || C.gray)}</td>
-							<td style="white-space:nowrap">${next_status_options(b.status)}</td>
-						</tr>`;
-				});
-			});
-
 			$body.html(`
 				<div style="${GRID}">
-					${kpi}
+					${card(4, '', `<h2 style="margin:0;color:${C.green};display:inline">${s.ready || 0}</h2>
+						<span style="color:#888"> trip ready</span>`)}
+					${card(4, '', `<h2 style="margin:0;color:${C.orange};display:inline">${s.warning || 0}</h2>
+						<span style="color:#888"> dengan amaran</span>`)}
+					${card(4, '', `<h2 style="margin:0;color:${C.red};display:inline">${s.error || 0}</h2>
+						<span style="color:#888"> perlu tindakan</span>`)}
 					${card(12, `TRIP (${trips.length}) — klik untuk buka direktori
 						<input class="form-control tm-search" placeholder="Cari…"
 							value="${esc(state.search)}"
@@ -186,37 +222,118 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 						`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px">
 							${tripCards || '<p style="color:#999">Tiada trip.</p>'}
 						</div>`)}
-					${card(12, `💰 JUALAN AKTIF (${salesCount}) — Pending → Confirmed`, salesCount ? `
-						<table class="table table-condensed" style="margin:0;font-size:12.5px">
-							<thead><tr><th>Booking</th><th>Customer</th><th>Trip</th>
-								<th style="text-align:right">Jumlah</th><th>Status</th><th>Tindakan</th></tr></thead>
-							<tbody>${salesRows}</tbody>
-						</table>` : '<p style="color:#999;margin:0">Tiada booking aktif.</p>')}
 				</div>
 			`);
 
 			$body.find('.tm-trip').on('click', function () {
-				frappe.set_route('travel-manager', $(this).data('trip'));
+				frappe.set_route('travel-manager', 'trip', $(this).data('trip'));
 			});
 			$body.find('.tm-search').on('input', frappe.utils.debounce(function () {
-				state.search = $(this).val(); load_index();
+				state.search = $(this).val(); load_trips();
 			}, 400));
-			$body.find('.tm-next').on('click', function (e) {
-				e.stopPropagation();
+		}
+
+		// ════════════ BOOKING MANAGEMENT (individual) ════════════
+		const BKG_STATUSES = ['Pending', 'Accepted', 'Processing', 'Confirmed', 'Completed', 'Abandoned', 'Cancelled'];
+
+		async function load_bookings() {
+			breadcrumb([
+				{ label: 'Travel Manager', route: ['travel-manager'] },
+				{ label: 'Booking Management' },
+			]);
+			$body.html(`
+				<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+					<input class="form-control tm-bkg-search" placeholder="Cari booking/customer/trip…"
+						value="${esc(state.bkg_search)}" style="max-width:280px;height:28px;font-size:12.5px">
+					${['All'].concat(BKG_STATUSES).map((s) =>
+						`<button class="btn btn-xs tm-bst ${state.bkg_status === s ? 'btn-primary' : 'btn-default'}"
+							data-s="${s}">${s}</button>`).join('')}
+				</div>
+				<div class="tm-bkg"><div style="color:#999;padding:30px;text-align:center">
+					<div class="spinner-border spinner-border-sm"></div></div></div>
+			`);
+			$body.find('.tm-bkg-search').on('input', frappe.utils.debounce(function () {
+				state.bkg_search = $(this).val().toLowerCase(); render_bookings();
+			}, 300));
+			$body.find('.tm-bst').on('click', function () {
+				state.bkg_status = $(this).data('s'); render_bookings();
+			});
+
+			const data = await hub('get_booking_kanban', {});
+			state.bkg_data = data;
+			render_bookings();
+		}
+
+		function render_bookings() {
+			const $box = $body.find('.tm-bkg');
+			if (!$box.length) return;
+			const cols = state.bkg_data?.columns || {};
+			const q = state.bkg_search;
+			let rows = '';
+			let shown = 0;
+			BKG_STATUSES.forEach((s) => {
+				if (state.bkg_status !== 'All' && state.bkg_status !== s) return;
+				(cols[s] || []).forEach((b) => {
+					const hay = [b.name, b.customer_name, b.trip_name, b.departure_date, b.trip_date]
+						.join(' ').toLowerCase();
+					if (q && hay.indexOf(q) === -1) return;
+					shown++;
+					rows += `
+						<tr data-booking="${esc(b.name)}">
+							<td><strong>${esc(b.name)}</strong></td>
+							<td>${esc(b.customer_name || '')}</td>
+							<td>${esc(b.trip_name || '')}</td>
+							<td>${esc(b.departure_date || b.trip_date || '')}</td>
+							<td style="text-align:right">${money(b.total_amount)}</td>
+							<td>${badge(b.status, BKG_COLOR[b.status] || C.gray)}</td>
+							<td style="white-space:nowrap">${next_status_options(b.status)}</td>
+						</tr>`;
+				});
+			});
+			$box.html(`
+				${shown ? `
+				<table class="table table-hover" style="font-size:12.5px;background:#fff">
+					<thead><tr><th>Booking</th><th>Customer</th><th>Trip</th>
+						<th>Berangkat</th><th style="text-align:right">Jumlah</th>
+						<th>Status</th><th>Tindakan</th></tr></thead>
+					<tbody>${rows}</tbody>
+				</table>
+				<p style="color:#999;font-size:12px">${shown} booking</p>`
+				: '<p style="color:#999;padding:30px;text-align:center">Tiada booking sepadan.</p>'}
+			`);
+			$box.find('.tm-next').on('click', function () {
 				const booking = $(this).closest('tr').data('booking');
 				const next = $(this).data('next');
 				frappe.confirm(`Tukar status booking ${booking} → "${next}"?`, async () => {
 					try {
 						await hub('update_booking_status', { booking_name: booking, new_status: next });
-						frappe.show_alert({ message: 'Status dikemas kini', indicator: 'green' });
-						load_index();
+						frappe.show_alert({ message: 'Status booking dikemas kini', indicator: 'green' });
+						load_bookings();
 					} catch (err) { /* frappe dah papar */ }
 				});
 			});
 		}
 
-		// ════════════ DIREKTORI TRIP — GRID ════════════
+		function next_status_options(status) {
+			const flow = {
+				Pending: ['Accepted', 'Cancelled'],
+				Accepted: ['Processing', 'Cancelled'],
+				Processing: ['Confirmed'],
+				Confirmed: ['Completed'],
+				Completed: [], Abandoned: [], Cancelled: [],
+			};
+			return (flow[status] || []).map((n) =>
+				`<button class="btn btn-xs btn-default tm-next" data-next="${n}">→ ${n}</button>`).join(' ')
+				|| '<span style="color:#bbb">—</span>';
+		}
+
+		// ════════════ DIREKTORI TRIP ════════════
 		async function load_trip_directory(trip) {
+			breadcrumb([
+				{ label: 'Travel Manager', route: ['travel-manager'] },
+				{ label: 'Trip Management', route: ['travel-manager', 'trip-management'] },
+				{ label: trip },
+			]);
 			$body.html(`<div style="color:#999;padding:30px;text-align:center">
 				<div class="spinner-border spinner-border-sm"></div></div>`);
 
@@ -228,14 +345,18 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 				tcc('get_trips_list', { search: trip, limit: 1 }),
 			]);
 			const info = (core?.trips || []).find((t) => t.name === trip);
-			set_header(info?.trip_name || trip,
-				`${pkgs?.packages?.length || 0} pakej · ${offers?.offers?.length || 0} tarikh perjalanan`,
-				true);
+			// breadcrumb segment terakhir: nama trip sebenar
+			breadcrumb([
+				{ label: 'Travel Manager', route: ['travel-manager'] },
+				{ label: 'Trip Management', route: ['travel-manager', 'trip-management'] },
+				{ label: info?.trip_name || trip },
+			]);
+			set_trip_title(info?.trip_name || trip,
+				`${pkgs?.packages?.length || 0} pakej · ${offers?.offers?.length || 0} tarikh perjalanan`);
 
 			const c = links?.cruise_schedule;
 			const fa = links?.flight_arrangement;
 
-			// ── kad cruise schedule (span 6) ──
 			const cruiseCard = card(6, '🚢 CRUISE SCHEDULE', c ? `
 				<div style="margin-bottom:6px">
 					<strong>${esc(c.ship_name || c.schedule_code || c.name)}</strong>
@@ -262,7 +383,6 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 				<button class="btn btn-xs btn-primary tm-pick-schedule">Pautkan Cruise Schedule</button>
 			`);
 
-			// ── kad flight arrangement (span 6) ──
 			const faCard = card(6, '✈️ FLIGHT ARRANGEMENT', fa ? `
 				<div style="font-size:12.5px;line-height:1.8">
 					${badge(fa.flight_mode, C.blue)}
@@ -278,7 +398,6 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 				<button class="btn btn-xs btn-primary tm-edit-fa">+ Flight Arrangement</button>
 			`);
 
-			// ── komponen (span 12) ──
 			const comps = (links?.components || []);
 			const compCard = card(12, '📦 PRODUK & KOMPONEN', comps.length ? `
 				<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px">
@@ -291,7 +410,6 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 						</div>`).join('')}
 				</div>` : '<p style="color:#999;font-size:12px;margin:0">Tiada komponen — tambah melalui pakej.</p>');
 
-			// ── pakej (span 12) ──
 			const pkgList = (pkgs?.packages || []);
 			const pkgCard = card(12, `📦 PAKEJ (${pkgList.length})
 				<button class="btn btn-xs btn-primary tm-new-package" style="float:right">+ Pakej Baharu</button>`,
@@ -312,7 +430,6 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 						</tr>`).join('')}</tbody>
 				</table>` : '<p style="color:#999;font-size:12.5px;margin:0">Belum ada pakej.</p>');
 
-			// ── tarikh perjalanan (span 12) ──
 			const offerList = (offers?.offers || []);
 			const offerCard = card(12, `🗓️ TARIKH PERJALANAN (${offerList.length})
 				<button class="btn btn-xs btn-primary tm-new-offer" style="float:right">+ Offer Baharu</button>`,
@@ -341,7 +458,6 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 						</tr>`).join('')}</tbody>
 				</table>` : '<p style="color:#999;font-size:12.5px;margin:0">Belum ada tarikh — cipta offer.</p>');
 
-			// ── jualan trip ini (span 12) ──
 			const salesCols = sales?.columns || {};
 			let salesRows = '';
 			let salesCount = 0;
@@ -369,7 +485,6 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 				${cruiseCard}${faCard}${compCard}${pkgCard}${offerCard}${salesCard}
 			</div>`);
 
-			// wiring
 			$body.find('.tm-pick-schedule').on('click', function () {
 				pick_schedule_dialog(trip, () => load_trip_directory(trip));
 			});
@@ -405,6 +520,17 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 					} catch (err) { /* frappe dah papar */ }
 				});
 			});
+		}
+
+		function set_trip_title(name, subtitle) {
+			// direktori: kemas kini breadcrumb segment terakhir + subtitle bawah
+			$bc.find('strong').last().text(name);
+			let sub = $bc.find('.tm-dir-subtitle');
+			if (!sub.length) {
+				sub = $('<div class="tm-dir-subtitle" style="color:#999;font-size:12px;margin-top:2px"></div>');
+				$bc.append(sub);
+			}
+			sub.text(subtitle || '');
 		}
 
 		function pick_schedule_dialog(trip, onDone) {
@@ -549,23 +675,7 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 			});
 		}
 
-		function next_status_options(status) {
-			const flow = {
-				Pending: ['Accepted', 'Cancelled'],
-				Accepted: ['Processing', 'Cancelled'],
-				Processing: ['Confirmed'],
-				Confirmed: ['Completed'],
-				Completed: [],
-			};
-			return (flow[status] || []).map((n) =>
-				`<button class="btn btn-xs btn-default tm-next" data-next="${n}">→ ${n}</button>`).join(' ')
-				|| '<span style="color:#bbb">—</span>';
-		}
-
 		// ── ROUTING ──
-		$back.on('click', () => frappe.set_route('travel-manager'));
-		$(wrapper).find('.tm-refresh').on('click', refresh);
-
 		return { refresh, handle_route };
 	})();
 
