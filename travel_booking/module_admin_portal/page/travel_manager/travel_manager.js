@@ -1,9 +1,12 @@
 // travel_booking/module_admin_portal/page/travel_manager/travel_manager.js
-// TRAVEL MANAGER v3 — DIRECTORY ROUTING (permintaan pengguna):
-//   /app/travel-manager            → indeks: senarai trip (kad sahaja)
-//   /app/travel-manager/<TRIP>     → DIREKTORI trip itu:
-//       PAUTAN PRODUK (cruise schedule / flight arrangement / komponen)
-//       PAKEJ · TARIKH PERJALANAN · JUALAN TRIP INI
+// TRAVEL MANAGER v4 — VERTICAL TAB LAYOUT (permintaan pengguna):
+//   rail kiri (navigasi menegak) + pane kandungan kanan.
+//
+//   /app/travel-manager            → indeks
+//      rail: Trip · Jualan · Ringkasan
+//   /app/travel-manager/<TRIP>     → direktori trip
+//      rail: 🔗 Pautan · 📦 Pakej · 🗓️ Tarikh · 💰 Jualan
+//      (data dimuat SEKALI per lawatan — penukaran seksyen segera)
 //
 // Hierarki Trip-first; semua operasi melalui API berpagarkan role —
 // TIADA akses DocType terus. Kelulusan Active/Retired/Cancelled:
@@ -29,19 +32,19 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 				<button class="btn btn-xs btn-default tm-refresh" style="margin-left:auto">
 					Muat Semula</button>
 			</div>
-			<div class="tm-tabs" style="display:none;gap:6px;padding:10px 4px">
-				<button class="btn btn-default tm-tab" data-tab="trips">Trip</button>
-				<button class="btn btn-default tm-tab" data-tab="sales">Jualan</button>
-				<button class="btn btn-default tm-tab" data-tab="summary">Ringkasan</button>
-			</div>
 		</div>
-		<div class="tm-body" style="padding:6px 4px 40px"></div>
+		<div class="tm-layout" style="display:flex;gap:14px;padding:12px 4px 40px;
+			align-items:flex-start">
+			<div class="tm-rail" style="width:190px;flex-shrink:0;display:flex;
+				flex-direction:column;gap:4px"></div>
+			<div class="tm-pane" style="flex:1;min-width:0"></div>
+		</div>
 	`;
 
 	window.TravelManager = (function () {
-		const $body = $(wrapper).find('.tm-body');
+		const $rail = $(wrapper).find('.tm-rail');
+		const $pane = $(wrapper).find('.tm-pane');
 		const $back = $(wrapper).find('.tm-back');
-		const $tabs = $(wrapper).find('.tm-tabs');
 		const $title = $(wrapper).find('.tm-title-wrap h2');
 		const $subtitle = $(wrapper).find('.tm-subtitle');
 
@@ -75,13 +78,66 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 		const money = (n) => 'RM ' + parseFloat(n || 0).toLocaleString('en-MY',
 			{ minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-		const state = { view: null, trip: null, tab: 'trips', search: '', sales_status: 'Pending' };
+		const state = {
+			view: null,          // 'index' | 'trip'
+			trip: null,
+			index_tab: 'trips',  // trips | sales | summary
+			dir_section: 'links',// links | packages | dates | sales
+			dir_data: null,      // cache — dimuat sekali per lawatan direktori
+			search: '',
+			sales_status: 'Pending',
+		};
 
-		function set_header(title, subtitle, showBack, showTabs) {
+		function set_header(title, subtitle, showBack) {
 			$title.text(title);
 			$subtitle.text(subtitle);
 			$back.toggle(!!showBack);
-			$tabs.toggle(!!showTabs);
+		}
+
+		function render_rail(items) {
+			// items: [{key, label, icon}]
+			$rail.html(items.map((it) => `
+				<button class="btn btn-default tm-rail-item ${it.key === rail_active() ? 'tm-rail-active' : ''}"
+					data-key="${it.key}" style="text-align:left;padding:9px 12px;
+					border-radius:8px;display:flex;gap:8px;align-items:center;
+					${it.key === rail_active() ? 'background:#1d4ed810;border-color:#1d4ed855;font-weight:700' : ''}">
+					<span>${it.icon}</span><span>${esc(it.label)}</span>
+				</button>
+			`).join(''));
+			$rail.find('.tm-rail-item').on('click', function () {
+				rail_go($(this).data('key'));
+			});
+		}
+
+		function rail_active() {
+			return state.view === 'trip' ? state.dir_section : state.index_tab;
+		}
+
+		function rail_go(key) {
+			if (state.view === 'trip') {
+				state.dir_section = key;
+				render_dir_section();
+			} else {
+				state.index_tab = key;
+				render_index_section();
+			}
+			render_rail(current_rail_items());
+		}
+
+		function current_rail_items() {
+			if (state.view === 'trip') {
+				return [
+					{ key: 'links', label: 'Pautan', icon: '🔗' },
+					{ key: 'packages', label: 'Pakej', icon: '📦' },
+					{ key: 'dates', label: 'Tarikh Perjalanan', icon: '🗓️' },
+					{ key: 'sales', label: 'Jualan Trip', icon: '💰' },
+				];
+			}
+			return [
+				{ key: 'trips', label: 'Trip', icon: '🗺️' },
+				{ key: 'sales', label: 'Jualan', icon: '💰' },
+				{ key: 'summary', label: 'Ringkasan', icon: '📊' },
+			];
 		}
 
 		function handle_route() {
@@ -97,43 +153,37 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 		function show_index() {
 			state.view = 'index';
 			state.trip = null;
-			set_header('Travel Manager', 'Trip → pautan → pakej → tarikh → jualan.', false, true);
-			switch_tab(state.tab || 'trips');
+			state.dir_data = null;
+			set_header('Travel Manager', 'Trip → pautan → pakej → tarikh → jualan.', false);
+			render_rail(current_rail_items());
+			render_index_section();
 		}
 
 		function show_trip(trip) {
 			state.view = 'trip';
 			state.trip = trip;
-			set_header(trip, 'Direktori trip — pautan, pakej, tarikh & jualan.', true, false);
+			state.dir_section = 'links';
+			state.dir_data = null;
+			set_header(trip, 'Direktori trip — pautan, pakej, tarikh & jualan.', true);
+			render_rail(current_rail_items());
 			load_trip_directory(trip);
 		}
 
 		function refresh() {
 			if (state.view === 'trip') load_trip_directory(state.trip);
-			else if (state.tab === 'trips') load_trips();
-			else if (state.tab === 'sales') load_sales();
+			else render_index_section(true);
+		}
+
+		// ── INDEKS: seksyen mengikut rail ──
+		function render_index_section(force) {
+			render_rail(current_rail_items());
+			if (state.index_tab === 'trips') load_trips();
+			else if (state.index_tab === 'sales') load_sales();
 			else load_summary();
 		}
 
-		$back.on('click', () => frappe.set_route('travel-manager'));
-		$(wrapper).find('.tm-refresh').on('click', refresh);
-		$(wrapper).find('.tm-tab').on('click', function () {
-			state.tab = $(this).data('tab');
-			$(wrapper).find('.tm-tab').removeClass('btn-primary').addClass('btn-default');
-			$(this).addClass('btn-primary').removeClass('btn-default');
-			refresh();
-		});
-
-		// ════════════ INDEKS: SENARAI TRIP ════════════
-		function switch_tab(tab) {
-			state.tab = tab;
-			$(wrapper).find('.tm-tab').removeClass('btn-primary').addClass('btn-default');
-			$(wrapper).find(`.tm-tab[data-tab="${tab}"]`).addClass('btn-primary').removeClass('btn-default');
-			refresh();
-		}
-
 		async function load_trips() {
-			$body.html(`
+			$pane.html(`
 				<div class="tm-toolbar" style="display:flex;gap:8px;margin-bottom:12px">
 					<input class="form-control tm-search" placeholder="Cari trip…"
 						value="${esc(state.search)}" style="max-width:280px">
@@ -143,13 +193,13 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 				<div class="tm-trips"><div style="color:#999;padding:30px;text-align:center">
 					<div class="spinner-border spinner-border-sm"></div></div></div>
 			`);
-			$(wrapper).find('.tm-search').on('input', frappe.utils.debounce(function () {
+			$pane.find('.tm-search').on('input', frappe.utils.debounce(function () {
 				state.search = $(this).val(); load_trips();
 			}, 400));
 
 			const data = await tcc('get_trips_list', { search: state.search, limit: 50 });
 			const trips = data?.trips || [];
-			const $list = $body.find('.tm-trips').empty();
+			const $list = $pane.find('.tm-trips').empty();
 			if (!trips.length) {
 				$list.html('<p style="color:#999;padding:30px;text-align:center">Tiada trip.</p>');
 				return;
@@ -184,32 +234,43 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 			});
 		}
 
-		// ════════════ DIREKTORI TRIP ════════════
+		// ── DIREKTORI TRIP ──
 		async function load_trip_directory(trip) {
-			$body.html('<div style="color:#999;padding:30px;text-align:center">…</div>');
-			const [tripCore, links, pkgs, offers, sales] = await Promise.all([
-				tcc('get_trips_list', { search: trip, limit: 1 }),
+			$pane.html('<div style="color:#999;padding:30px;text-align:center">…</div>');
+			const [links, pkgs, offers, sales] = await Promise.all([
 				tlinks('get_trip_links', { trip }),
 				api('get_packages_list', { trip, limit: 100 }),
 				api('get_offers_list', { trip, upcoming: 0, limit: 200 }),
 				hub('get_booking_kanban', { trip }).catch(() => null),
 			]);
-			const core = (tripCore?.trips || []).find((t) => t.name === trip) || {};
-			// tajuk header: nama trip sebenar
-			set_header(core.trip_name || trip,
-				`Direktori trip — ${links?.packages?.length || 0} pakej · ` +
-				`(offers ${offers?.offers?.length || 0})`, true, false);
+			const core = await tcc('get_trips_list', { search: trip, limit: 1 });
+			const info = (core?.trips || []).find((t) => t.name === trip);
+			set_header(info?.trip_name || trip,
+				`${links?.packages?.length || 0} pakej · ${offers?.offers?.length || 0} tarikh perjalanan`,
+				true);
 
-			$body.html(`
-				${render_links_section(links, trip)}
-				${render_packages_section(pkgs, trip)}
-				${render_dates_section(offers, trip)}
-				${render_trip_sales_section(sales, trip)}
-			`);
-			wire_links_section($body, links, trip);
-			wire_packages_section($body, trip);
-			wire_dates_section($body, offers, trip);
-			wire_trip_sales_section($body, trip);
+			// cache — penukaran rail TIDAK refetch
+			state.dir_data = { links, pkgs, offers, sales, trip };
+			render_dir_section();
+		}
+
+		function render_dir_section() {
+			render_rail(current_rail_items());
+			const d = state.dir_data;
+			if (!d) return;
+			if (state.dir_section === 'links') $pane.html(render_links_section(d.links, d.trip));
+			else if (state.dir_section === 'packages') $pane.html(render_packages_section(d.pkgs, d.trip));
+			else if (state.dir_section === 'dates') $pane.html(render_dates_section(d.offers, d.trip));
+			else $pane.html(render_trip_sales_section(d.sales, d.trip));
+			wire_dir_section();
+		}
+
+		function wire_dir_section() {
+			const trip = state.trip;
+			if (state.dir_section === 'links') wire_links_section($pane, state.dir_data.links, trip);
+			else if (state.dir_section === 'packages') wire_packages_section($pane, trip);
+			else if (state.dir_section === 'dates') wire_dates_section($pane, state.dir_data.offers, trip);
+			else wire_trip_sales_section($pane, trip);
 		}
 
 		// ── SEKSYEN: PAUTAN PRODUK ──
@@ -273,22 +334,20 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 				</table>` : '<p style="color:#999;font-size:12px">Tiada komponen — tambah melalui pakej.</p>';
 
 			return `
-				<div class="tm-section" style="border:1px solid #eee;border-radius:8px;
-					padding:12px;margin-bottom:10px;background:#fff">
-					<div style="font-weight:700;margin-bottom:8px">🔗 PAUTAN PRODUK</div>
-					<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-						<div>
+				<div>
+					<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+						<div class="panel panel-default" style="padding:12px">
 							<div style="font-size:12px;color:#666;margin-bottom:4px">
 								🚢 CRUISE SCHEDULE (1)</div>
 							${cruiseHtml}
 						</div>
-						<div>
+						<div class="panel panel-default" style="padding:12px">
 							<div style="font-size:12px;color:#666;margin-bottom:4px">
 								✈️ FLIGHT ARRANGEMENT (1)</div>
 							${faHtml}
 						</div>
 					</div>
-					<div style="margin-top:10px">
+					<div class="panel panel-default" style="padding:12px">
 						<div style="font-size:12px;color:#666;margin-bottom:4px">
 							📦 PRODUK & KOMPONEN (dari pakej)</div>
 						${compsHtml}
@@ -375,14 +434,13 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 		function render_packages_section(pkgs, trip) {
 			const list = (pkgs?.packages || []);
 			return `
-				<div class="tm-section" style="border:1px solid #eee;border-radius:8px;
-					padding:12px;margin-bottom:10px;background:#fff">
+				<div>
 					<div style="display:flex;align-items:center;margin-bottom:8px">
 						<div style="font-weight:700;flex:1">📦 PAKEJ (${list.length})</div>
 						<button class="btn btn-xs btn-primary tm-new-package">+ Pakej Baharu</button>
 					</div>
 					${list.length ? `
-					<table class="table table-condensed" style="margin:0;font-size:12.5px">
+					<table class="table table-condensed" style="margin:0;font-size:12.5px;background:#fff">
 						<thead><tr><th>Pakej</th><th>Template</th><th>Status</th>
 							<th>Offer</th><th>Harga dari</th><th></th></tr></thead>
 						<tbody>${list.map((p) => `
@@ -455,14 +513,13 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 		function render_dates_section(offers, trip) {
 			const list = (offers?.offers || []);
 			return `
-				<div class="tm-section" style="border:1px solid #eee;border-radius:8px;
-					padding:12px;margin-bottom:10px;background:#fff">
+				<div>
 					<div style="display:flex;align-items:center;margin-bottom:8px">
 						<div style="font-weight:700;flex:1">🗓️ TARIKH PERJALANAN (${list.length})</div>
 						<button class="btn btn-xs btn-primary tm-new-offer">+ Offer Baharu</button>
 					</div>
 					${list.length ? `
-					<table class="table table-condensed" style="margin:0;font-size:12.5px">
+					<table class="table table-condensed" style="margin:0;font-size:12.5px;background:#fff">
 						<thead><tr><th>Berangkat</th><th>Pulang</th><th>Pakej</th>
 							<th>Editorial</th><th>Operasional</th><th>Occupy</th><th></th></tr></thead>
 						<tbody>${list.map((o) => `
@@ -551,7 +608,6 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 						<tr data-booking="${esc(b.name)}">
 							<td><strong>${esc(b.name)}</strong></td>
 							<td>${esc(b.customer_name || '')}</td>
-							<td>${esc(b.trip_name || '')}</td>
 							<td style="text-align:right">${money(b.total_amount)}</td>
 							<td>${badge(b.status, BKG_COLOR[b.status] || C.gray)}</td>
 							<td style="white-space:nowrap">${next_status_options(b.status)}</td>
@@ -559,12 +615,11 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 				});
 			});
 			return `
-				<div class="tm-section" style="border:1px solid #eee;border-radius:8px;
-					padding:12px;background:#fff">
+				<div>
 					<div style="font-weight:700;margin-bottom:8px">💰 JUALAN TRIP INI (${shown})</div>
 					${shown ? `
-					<table class="table table-condensed table-hover" style="margin:0;font-size:12.5px">
-						<thead><tr><th>Booking</th><th>Customer</th><th>Trip</th>
+					<table class="table table-condensed table-hover" style="margin:0;font-size:12.5px;background:#fff">
+						<thead><tr><th>Booking</th><th>Customer</th>
 							<th style="text-align:right">Jumlah</th><th>Status</th><th>Tindakan</th></tr></thead>
 						<tbody>${rows}</tbody>
 					</table>` : '<p style="color:#999;font-size:12.5px">Tiada booking untuk trip ini.</p>'}
@@ -598,11 +653,11 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 				|| '<span style="color:#bbb">—</span>';
 		}
 
-		// ════════════ INDEKS TAB: JUALAN (semua trip) ════════════
+		// ── INDEKS: JUALAN (semua trip) ──
 		const SALES_STATUSES = ['Pending', 'Accepted', 'Processing', 'Confirmed', 'Completed'];
 
 		async function load_sales() {
-			$body.html(`
+			$pane.html(`
 				<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
 					${SALES_STATUSES.map((s) =>
 						`<button class="btn btn-xs tm-sale ${state.sales_status === s ? 'btn-primary' : 'btn-default'}"
@@ -611,12 +666,12 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 				<div class="tm-sales"><div style="color:#999;padding:30px;text-align:center">
 					<div class="spinner-border spinner-border-sm"></div></div></div>
 			`);
-			$(wrapper).find('.tm-sale').on('click', function () {
+			$pane.find('.tm-sale').on('click', function () {
 				state.sales_status = $(this).data('s'); load_sales();
 			});
 
 			const data = await hub('get_booking_kanban', {});
-			const $box = $body.find('.tm-sales').empty();
+			const $box = $pane.find('.tm-sales').empty();
 			const cols = data?.columns || {};
 			let rows = '';
 			let shown = 0;
@@ -625,7 +680,7 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 					shown++;
 					const match = state.sales_status === s;
 					rows += `
-						<tr style="${match ? '' : 'opacity:.45'}">
+						<tr data-booking="${esc(b.name)}" style="${match ? '' : 'opacity:.45'}">
 							<td><strong>${esc(b.name)}</strong></td>
 							<td>${esc(b.customer_name || '')}</td>
 							<td>${esc(b.trip_name || '')}</td>
@@ -646,7 +701,7 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 				</table>` : '<p style="color:#999;padding:30px;text-align:center">Tiada booking.</p>'}
 			`);
 			$box.find('.tm-next').on('click', function () {
-				const booking = $(this).closest('tr').find('td').first().text().trim();
+				const booking = $(this).closest('tr').data('booking');
 				const next = $(this).data('next');
 				frappe.confirm(`Tukar status booking ${booking} → "${next}"?`, async () => {
 					try {
@@ -658,9 +713,9 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 			});
 		}
 
-		// ════════════ INDEKS TAB: RINGKASAN ════════════
+		// ── INDEKS: RINGKASAN ──
 		async function load_summary() {
-			$body.html('<div style="color:#999;padding:30px;text-align:center">…</div>');
+			$pane.html('<div style="color:#999;padding:30px;text-align:center">…</div>');
 			const [ready, cross] = await Promise.all([
 				tcc('get_readiness_summary', {}),
 				isManager ? api('cross_check_structure', { limit: 500 }).catch(() => null) : Promise.resolve(null),
@@ -668,7 +723,7 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 			const s = ready?.summary || { ready: 0, warning: 0, error: 0 };
 			const trips = Object.values(ready?.trips || {});
 			const problemTrips = trips.filter((t) => t.level === 'error').slice(0, 15);
-			$body.html(`
+			$pane.html(`
 				<div style="display:flex;gap:12px;margin-bottom:16px">
 					<div class="panel panel-default" style="flex:1;padding:14px;text-align:center">
 						<h2 style="margin:0;color:${C.green}">${s.ready || 0}</h2><div>Ready</div></div>
