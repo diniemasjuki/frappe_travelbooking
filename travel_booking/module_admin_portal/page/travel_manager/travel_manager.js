@@ -314,6 +314,80 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 			});
 		}
 
+		// ── F5: dialog Kuota & Harga (prasyarat flag — isi allotment tanpa DocType) ──
+		function commercial_dialog(offer, onDone) {
+			api('get_offer_commercial', { offer }).then((data) => {
+				const inv = data?.inventory || [];
+				const prs = data?.prices || [];
+				const d = new frappe.ui.Dialog({
+					title: 'Kuota & Harga — ' + offer, size: 'large',
+				});
+				d.$body.html(`
+					<div style="font-weight:700;margin:4px 0 6px">Inventori
+						<span style="font-weight:400;color:#999;font-size:12px">
+							(allotment boleh edit; sold read-only)</span></div>
+					<table class="table table-condensed" style="font-size:12.5px">
+						<thead><tr><th>Kunci</th><th style="width:110px">Allotment</th>
+							<th>Sold</th><th>Available</th></tr></thead>
+						<tbody>${inv.map((r) => `
+							<tr>
+								<td>${esc(r.inventory_key)}</td>
+								<td><input class="form-control form-control-sm tm-alloc"
+									data-name="${esc(r.name)}" data-key="${esc(r.inventory_key)}"
+									type="number" min="0" value="${r.allotment || 0}"></td>
+								<td>${r.sold || 0}</td>
+								<td>${r.available ?? ((r.allotment || 0) - (r.sold || 0))}</td>
+							</tr>`).join('')}</tbody>
+					</table>
+					<div style="font-weight:700;margin:14px 0 6px">Harga Matriks
+						<span style="font-weight:400;color:#999;font-size:12px">
+							(price + aktif boleh edit)</span></div>
+					${prs.length ? `
+					<table class="table table-condensed" style="font-size:12.5px">
+						<thead><tr><th>Kunci</th><th>Umur</th><th>Currency</th>
+							<th style="width:130px">Harga</th><th>Aktif</th></tr></thead>
+						<tbody>${prs.map((r) => `
+							<tr>
+								<td style="font-size:11px">${esc(r.price_key)}</td>
+								<td>${esc(r.age_option || '—')}</td>
+								<td>${esc(r.currency || '')}</td>
+								<td><input class="form-control form-control-sm tm-price"
+									data-name="${esc(r.name)}" type="number" min="0"
+									step="0.01" value="${r.price || 0}"></td>
+								<td><input type="checkbox" class="tm-active"
+									data-name="${esc(r.name)}" ${r.active ? 'checked' : ''}></td>
+							</tr>`).join('')}</tbody>
+					</table>` : '<p style="color:#999;font-size:12.5px">Tiada baris harga.</p>'}
+				`);
+				d.set_primary_action(__('Simpan'), async () => {
+					const invRows = [];
+					d.$body.find('.tm-alloc').each(function () {
+						invRows.push({
+							name: $(this).data('name'),
+							inventory_key: $(this).data('key'),
+							allotment: parseInt($(this).val() || 0, 10),
+						});
+					});
+					const priceRows = [];
+					d.$body.find('.tm-price').each(function () {
+						const nm = $(this).data('name');
+						const active = d.$body.find(`.tm-active[data-name="${nm}"]`).is(':checked');
+						priceRows.push({
+							name: nm, price: parseFloat($(this).val() || 0), active,
+						});
+					});
+					try {
+						await api('save_offer_inventory', { offer, rows: JSON.stringify(invRows) });
+						await api('save_offer_prices', { offer, rows: JSON.stringify(priceRows) });
+						frappe.show_alert({ message: 'Kuota & harga disimpan', indicator: 'green' });
+						d.hide();
+						onDone && onDone();
+					} catch (e) { /* frappe dah papar */ }
+				});
+				d.show();
+			});
+		}
+
 		function next_status_options(status) {
 			const flow = {
 				Pending: ['Accepted', 'Cancelled'],
@@ -447,14 +521,17 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 							<td>${o.occupancy_pct != null
 								? o.occupancy_pct + '% ' + (o.max_pax ? `(${o.current_pax || 0}/${o.max_pax})` : '')
 								: '∞'}</td>
-							<td style="white-space:nowrap">
-								${isManager && o.status_editorial !== 'Active'
-									? `<button class="btn btn-xs btn-success tm-offer-act"
-										data-offer="${esc(o.name)}" data-act="Active">Aktif</button>` : ''}
-								${isManager && o.status_editorial === 'Active'
-									? `<button class="btn btn-xs btn-warning tm-offer-act"
-										data-offer="${esc(o.name)}" data-act="Cancelled">Batal</button>` : ''}
-							</td>
+								<td style="white-space:nowrap">
+									<button class="btn btn-xs btn-default tm-commercial"
+										data-offer="${esc(o.name)}"
+										title="Kuota & harga">Kuota/Harga</button>
+									${isManager && o.status_editorial !== 'Active'
+										? `<button class="btn btn-xs btn-success tm-offer-act"
+											data-offer="${esc(o.name)}" data-act="Active">Aktif</button>` : ''}
+									${isManager && o.status_editorial === 'Active'
+										? `<button class="btn btn-xs btn-warning tm-offer-act"
+											data-offer="${esc(o.name)}" data-act="Cancelled">Batal</button>` : ''}
+								</td>
 						</tr>`).join('')}</tbody>
 				</table>` : '<p style="color:#999;font-size:12.5px;margin:0">Belum ada tarikh — cipta offer.</p>');
 
@@ -498,6 +575,9 @@ frappe.pages['travel-manager'].on_page_load = function (wrapper) {
 			});
 			$body.find('.tm-new-offer').on('click', () =>
 				offer_dialog(trip, () => load_trip_directory(trip)));
+			$body.find('.tm-commercial').on('click', function () {
+				commercial_dialog($(this).data('offer'), () => load_trip_directory(trip));
+			});
 			$body.find('.tm-offer-act').on('click', function () {
 				const offer = $(this).data('offer');
 				const act = $(this).data('act');

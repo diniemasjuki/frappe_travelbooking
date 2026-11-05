@@ -237,3 +237,83 @@ def set_offer_status(offer: str, status: str) -> dict:
 	doc.status_editorial = status
 	doc.save()
 	return {"status": "ok", "name": doc.name, "status_now": doc.status_editorial}
+
+
+@frappe.whitelist()
+def get_offer_commercial(offer: str) -> dict:
+	"""Inventori + harga offer untuk dialog Kuota & Harga (Travel Manager)."""
+	_require_product_admin()
+	if not frappe.db.exists("Package Offer", offer):
+		frappe.throw(_("Offer not found."), frappe.DoesNotExistError)
+	inventory = frappe.get_all(
+		"Offer Inventory", filters={"parent": offer},
+		fields=["name", "inventory_key", "allotment", "sold", "available"],
+		order_by="inventory_key asc",
+	)
+	prices = frappe.get_all(
+		"Offer Price", filters={"parent": offer},
+		fields=["name", "price_key", "opt1", "opt2", "opt3", "age_option",
+				"currency", "price", "active"],
+		order_by="price_key asc",
+	)
+	return {"inventory": inventory, "prices": prices}
+
+
+@frappe.whitelist()
+def save_offer_inventory(offer: str, rows: str) -> dict:
+	"""Kemaskini allotment per baris inventori — prasyarat utama flag
+	use_package_offers (staf isi kuota tanpa buka DocType).
+	Lock baris offer; validasi allotment >= sold; available dikira semula."""
+	_require_product_admin()
+	import json as _json
+	data = _json.loads(rows or "[]")
+	if not isinstance(data, list):
+		frappe.throw(_("Invalid rows."))
+
+	# LOCK baris offer — sama susunan dengan gate booking (P1/C3)
+	frappe.db.sql("SELECT name FROM `tabPackage Offer` WHERE name = %s FOR UPDATE",
+				  (offer,))
+	updated = 0
+	for r in data:
+		name = r.get("name")
+		if not name or not frappe.db.exists(
+				"Offer Inventory", {"name": name, "parent": offer}):
+			continue
+		allot = int(r.get("allotment") or 0)
+		row = frappe.db.get_value("Offer Inventory", name,
+								  ["sold", "allotment"], as_dict=True)
+		sold = int(row.sold or 0)
+		if allot < sold:
+			frappe.throw(
+				_("Allotment for {0} cannot be less than sold ({1}).").format(
+					r.get("inventory_key") or name, sold)
+			)
+		frappe.db.set_value("Offer Inventory", name,
+			{"allotment": allot, "available": allot - sold},
+			update_modified=False)
+		updated += 1
+	return {"status": "ok", "updated": updated}
+
+
+@frappe.whitelist()
+def save_offer_prices(offer: str, rows: str) -> dict:
+	"""Kemaskini harga matriks offer (price per baris; active toggle)."""
+	_require_product_admin()
+	import json as _json
+	data = _json.loads(rows or "[]")
+	if not isinstance(data, list):
+		frappe.throw(_("Invalid rows."))
+	updated = 0
+	for r in data:
+		name = r.get("name")
+		if not name or not frappe.db.exists(
+				"Offer Price", {"name": name, "parent": offer}):
+			continue
+		price = float(r.get("price") or 0)
+		if price < 0:
+			frappe.throw(_("Price cannot be negative."))
+		active = 1 if r.get("active", 1) else 0
+		frappe.db.set_value("Offer Price", name,
+			{"price": price, "active": active}, update_modified=False)
+		updated += 1
+	return {"status": "ok", "updated": updated}
