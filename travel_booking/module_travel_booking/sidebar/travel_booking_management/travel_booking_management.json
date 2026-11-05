@@ -5,7 +5,7 @@
  "doctype": "Sidebar",
  "header_icon": "folder-open",
  "idx": 0,
- "modified": "2026-11-05 09:00:01.000000",
+ "modified": "2026-11-05 08:21:40.411348",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Travel Booking Management",
@@ -725,7 +725,7 @@
    "open_in_new_tab": 1,
    "show_arrow": 0,
    "type": "Link",
-   "url": "/app/trip-manager"
+   "url": "/app/travel-manager"
   },
   {
    "child": 1,

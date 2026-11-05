@@ -66,13 +66,16 @@ def _gate_status_change(status: str):
 
 
 @frappe.whitelist()
-def get_packages_list(search: str = None, status: str = None, limit: int = 50) -> dict:
-	"""Senarai pakej untuk Travel Manager — ringkas, dengan metrik jualan."""
+def get_packages_list(search: str = None, status: str = None, limit: int = 50, trip: str = None) -> dict:
+	"""Senarai pakej untuk Travel Manager — ringkas, dengan metrik jualan.
+	`trip` = tapis ikut trip (hierarki Trip-first)."""
 	_require_product_admin()
 	limit = max(1, min(cint(limit) or 50, 200))
 	filters = {}
 	if status:
 		filters["status"] = status
+	if trip:
+		filters["trip"] = trip
 	if search:
 		filters["package_name"] = ["like", "%" + search + "%"]
 
@@ -185,13 +188,17 @@ def set_package_status(package: str, status: str) -> dict:
 
 
 @frappe.whitelist()
-def get_offers_list(package: str = None, upcoming: int = 1, limit: int = 100) -> dict:
-	"""Senarai offer — semua pakej atau satu; dengan % occupy."""
+def get_offers_list(package: str = None, upcoming: int = 1, limit: int = 100, trip: str = None) -> dict:
+	"""Senarai offer — semua/satu pakej/ikut trip; dengan % occupy.
+	`trip` = offers semua pakej yang link trip tersebut."""
 	_require_product_admin()
 	limit = max(1, min(cint(limit) or 100, 500))
 	filters = {}
 	if package:
 		filters["package"] = package
+	if trip:
+		trip_packages = frappe.get_all("Travel Package", filters={"trip": trip}, pluck="name")
+		filters["package"] = ["in", trip_packages] if trip_packages else ["", ""]
 	if cint(upcoming):
 		filters["departure_date"] = [">=", frappe.utils.today()]
 	offers = frappe.get_all(
