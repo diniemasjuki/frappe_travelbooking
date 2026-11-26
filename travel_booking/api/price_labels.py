@@ -7,7 +7,7 @@ from frappe import _
 
 
 @frappe.whitelist(allow_guest=True)
-def get_price_category_config(trip_type="non_cruise"):
+def get_price_category_config(trip_type: str = "non_cruise"):
     """DEPRECATED: Use price_config.fetch_price_labels instead."""
     frappe.throw(
         _("This endpoint is deprecated. Please use price_config.fetch_price_labels."),

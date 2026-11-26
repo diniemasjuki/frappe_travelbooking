@@ -12,7 +12,9 @@
    BOOK NOW WIZARD — /booknow
    Sistem flow & rules sama dengan /booking, tema Rarecation
    (gold #C9A84C, dark #1E1C18, cream #F7F5F0).
-   5 langkah: Select Date → Rooms → Billing → Payment → Confirm.
+   5 langkah: Rooms & Passengers → Add-ons → Billing →
+   Payment → Confirmation. Add-on dicaj sebagai order BERASINGAN
+   (SO sendiri) — jumlahnya tak masuk Total trip.
  ============================================================ #}
 
 {# ── Hide site header/footer for wizard page (full-screen checkout feel) ── #}
@@ -38,8 +40,8 @@ if ('serviceWorker' in navigator) {
 </script>
 
 {# ── HERO BANNER — SATU template element untuk semua step.
-   suffix: "" (Step 1), "2", "3", "4". second_id: id baris kedua banner —
-   bnwBannerGroupName (Step 1) atau bnwBannerSummary{N} (Step 2-4);
+   suffix: "" (Step 1), "2"…"5". second_id: id baris kedua banner —
+   bnwBannerGroupName (Step 1) atau bnwBannerSummary{N} (Step 2-5);
    booknow.js isi kandungan ikut id ni. Banner render full-width
    (direct child section, LUAR .bnw-container); container dalaman
    .bnw-hero-inner yang align kandungan. #}
@@ -64,11 +66,11 @@ if ('serviceWorker' in navigator) {
 
 <main class="bnw-main">
 
-  {# ── STEP INDICATOR (4 steps for booknow — no trip selection) ── #}
+  {# ── STEP INDICATOR (5 steps — Rooms → Add-ons → Billing → Payment → Confirm) ── #}
   <nav class="bnw-steps-nav">
     <div class="bnw-container" style="text-align:center;">
       <a href="/trips">
-        <img src="/assets/travel_booking/img/logo-horizontal.png" alt="Rarecation" style="max-height:36px;width:auto;margin: 20px auto 15px auto;" 
+        <img src="/assets/travel_booking/img/logo-horizontal.png" alt="Rarecation" style="max-height:36px;width:auto;margin: 20px auto 15px auto;"
         onerror=" this.style.display='none'; this.nextElementSibling.style.display='flex'; ">
         <span class="rc-logo-fallback">rare<em>cation</em></span>
       </a>
@@ -82,16 +84,21 @@ if ('serviceWorker' in navigator) {
         <li class="bnw-step-line"></li>
         <li class="bnw-step" data-step="2">
           <span class="bnw-step-num">2</span>
-          <span class="bnw-step-label">Billing Info</span>
+          <span class="bnw-step-label">Add-ons</span>
         </li>
         <li class="bnw-step-line"></li>
         <li class="bnw-step" data-step="3">
           <span class="bnw-step-num">3</span>
-          <span class="bnw-step-label">Payment</span>
+          <span class="bnw-step-label">Billing Info</span>
         </li>
         <li class="bnw-step-line"></li>
         <li class="bnw-step" data-step="4">
           <span class="bnw-step-num">4</span>
+          <span class="bnw-step-label">Payment</span>
+        </li>
+        <li class="bnw-step-line"></li>
+        <li class="bnw-step" data-step="5">
+          <span class="bnw-step-num">5</span>
           <span class="bnw-step-label">Confirm</span>
         </li>
       </ol>
@@ -123,7 +130,7 @@ if ('serviceWorker' in navigator) {
         </div>
 
         {# RIGHT: Summary Panel — kad ni RUJUKAN canonical: struktur sama
-           dipaparkan di Step 2 & 3, pecahan bilik/tetamu dibawa ke Step 4 #}
+           dipaparkan di Step 2-4, pecahan bilik/tetamu dibawa ke Step 5 #}
         <div class="bnw-summary-col">
           <div class="bnw-summary-card">
             <h4 class="bnw-summary-title">Payment Summary</h4>
@@ -161,11 +168,87 @@ if ('serviceWorker' in navigator) {
   </section>
 
   {# ════════════════════════════════════════════════════════ #}
-  {# STEP 2: BILLING DETAILS + OTP                          #}
+  {# STEP 2: ADD-ONS (optional — order berasingan)              #}
   {# ════════════════════════════════════════════════════════ #}
   <section class="bnw-section" id="bnwStep2">
 
     {{ bnw_hero_banner('2', 'bnwBannerSummary2') }}
+
+    <div class="bnw-container">
+
+      <div class="bnw-page-header">
+        <h1>Add-ons</h1>
+        <p>Enhance your trip with optional extras — add-ons are billed as a separate order</p>
+      </div>
+
+      <div class="bnw-grid-two-col">
+
+        {# LEFT: Add-on Catalog — kad dirender oleh booknow.js
+           (renderAddonCatalog) daripada get_wizard_addons. Skeleton
+           semasa fetch, empty-state bila tiada addon untuk trip ni. #}
+        <div class="bnw-rooms-col">
+          <div class="bnw-card-header">
+            <h3>Available Add-ons</h3>
+            <span class="bnw-capacity-hint" id="bnwAddonPaxHint" style="display:none"></span>
+          </div>
+
+          <div id="bnwAddonList" class="bnw-addon-list">
+            <div class="bnw-addon-skeleton"></div>
+            <div class="bnw-addon-skeleton"></div>
+            <div class="bnw-addon-skeleton"></div>
+          </div>
+        </div>
+
+        {# RIGHT: Summary Panel — bilik/guest (sama Step 1) + Trip
+           Total + anggaran deposit + baris addon terpilih dengan jumlah
+           berasingan (add-on TIDAK masuk Total trip). #}
+        <div class="bnw-summary-col">
+          <div class="bnw-summary-card">
+            <h4 class="bnw-summary-title">Payment Summary</h4>
+
+            <div class="bnw-order-line">
+              <span>Total Guests</span>
+              <span id="bnwAddonSummaryGuests">0</span>
+            </div>
+            <div class="bnw-order-lines" id="bnwAddonSummaryLines"></div>
+
+            <div class="bnw-totals" id="bnwAddonTotalsBox">
+              <div class="bnw-total-row bnw-total-row-grand">
+                <span>Trip Total</span>
+                <strong id="bnwAddonSummaryGrand">RM 0</strong>
+              </div>
+              <div class="bnw-total-row bnw-total-row-muted">
+                <span id="bnwAddonSummaryDepositLabel">Deposit (20%)</span>
+                <span id="bnwAddonSummaryDeposit">RM 0</span>
+              </div>
+            </div>
+
+            {# Baris addon terpilih (dirender oleh renderAddonRowsInto) #}
+            <div id="bnwAddonSummaryBox" style="display:none"></div>
+          </div>
+        </div>
+
+      </div>{# /.bnw-grid-two-col #}
+
+      {# Add-on ialah langkah PILIHAN — Continue sentiasa aktif. #}
+      <div class="bnw-form-actions">
+        <button class="bnw-btn bnw-btn-ghost" id="bnwAddonBack" type="button">
+          <i class="ti ti-arrow-left"></i> Back
+        </button>
+        <button class="bnw-btn bnw-btn-primary" id="bnwAddonNext" type="button">
+          Continue <i class="ti ti-arrow-right"></i>
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  {# ════════════════════════════════════════════════════════ #}
+  {# STEP 3: BILLING DETAILS + OTP                              #}
+  {# ════════════════════════════════════════════════════════ #}
+  <section class="bnw-section" id="bnwStep3">
+
+    {{ bnw_hero_banner('3', 'bnwBannerSummary3') }}
 
     <div class="bnw-container">
 
@@ -310,7 +393,8 @@ if ('serviceWorker' in navigator) {
         </div>{# /.bnw-bill-col #}
 
         {# RIGHT COLUMN: Payment Summary — struktur & format SAMA dengan kad
-           Step 1; info yang sama dibawa ke Step 3 & skrin pengesahan #}
+           Step 1; info yang sama dibawa ke Step 4 & skrin pengesahan.
+           Baris addon (dari Step 2) dipaparkan sebagai blok berasingan. #}
         <div class="bnw-summary-col">
           <div class="bnw-summary-card">
             <h4 class="bnw-summary-title">Payment Summary</h4>
@@ -331,17 +415,20 @@ if ('serviceWorker' in navigator) {
               <span id="bnwBookingDepositLabel">Deposit (20%)</span>
               <span id="bnwBookingDeposit">RM 0</span>
             </div>
+
+            {# Baris addon terpilih (dirender oleh renderAddonRowsInto) #}
+            <div id="bnwBookingAddonBox" style="display:none"></div>
           </div>
         </div>
 
       </div>{# /.bnw-grid-two-col #}
 
-      {# STEP 2: Form Actions — full width, outside grid #}
+      {# STEP 3: Form Actions — full width, outside grid #}
       <div class="bnw-form-actions">
-        <button class="bnw-btn bnw-btn-ghost" id="bnwStep2Back" type="button">
+        <button class="bnw-btn bnw-btn-ghost" id="bnwStep3Back" type="button">
           <i class="ti ti-arrow-left"></i> Back
         </button>
-        <button class="bnw-btn bnw-btn-primary" id="bnwStep2Next" disabled>
+        <button class="bnw-btn bnw-btn-primary" id="bnwStep3Next" disabled>
           Continue <i class="ti ti-arrow-right"></i>
         </button>
       </div>
@@ -350,11 +437,11 @@ if ('serviceWorker' in navigator) {
   </section>
 
   {# ════════════════════════════════════════════════════════ #}
-  {# STEP 3: PAYMENT                                       #}
+  {# STEP 4: PAYMENT                                            #}
   {# ════════════════════════════════════════════════════════ #}
-  <section class="bnw-section" id="bnwStep3">
+  <section class="bnw-section" id="bnwStep4">
 
-    {{ bnw_hero_banner('3', 'bnwBannerSummary3') }}
+    {{ bnw_hero_banner('4', 'bnwBannerSummary4') }}
 
     <div class="bnw-container">
 
@@ -550,9 +637,9 @@ if ('serviceWorker' in navigator) {
 
         </div>{# /.bnw-pay-col #}
 
-        {# RIGHT COLUMN: Payment Summary — kad yang sama dengan Step 1 & 2
+        {# RIGHT COLUMN: Payment Summary — kad yang sama dengan Step 1 & 3
            (Total Guests + bilik/guest + Total + Deposit), dengan tambahan
-           baris diskaun & voucher/referral khas Step 3 #}
+           baris diskaun & voucher/referral khas Step 4 + blok addon #}
         <div class="bnw-summary-col">
           <div class="bnw-summary-card">
             <h4 class="bnw-summary-title">Payment Summary</h4>
@@ -627,13 +714,17 @@ if ('serviceWorker' in navigator) {
               <span id="bnwOrderDeposit">RM 0</span>
             </div>
 
+            {# Baris addon terpilih (dirender oleh renderAddonRowsInto) —
+               dicaj sebagai order berasingan, TIDAK masuk Total di atas. #}
+            <div id="bnwOrderAddonBox" style="display:none"></div>
+
           </div>{# /.bnw-summary-card #}
         </div>{# /.bnw-summary-col #}
 
       </div>{# /.bnw-grid-two-col #}
 
       <div class="bnw-form-actions">
-        <button class="bnw-btn bnw-btn-ghost" id="bnwStep3Back" type="button">
+        <button class="bnw-btn bnw-btn-ghost" id="bnwStep4Back" type="button">
           <i class="ti ti-arrow-left"></i> Back
         </button>
         <button class="bnw-btn bnw-btn-primary bnw-btn-cta" id="bnwPayNowBtn">
@@ -647,11 +738,11 @@ if ('serviceWorker' in navigator) {
   </section>
 
   {# ════════════════════════════════════════════════════════ #}
-  {# STEP 4: CONFIRMATION                                  #}
+  {# STEP 5: CONFIRMATION                                       #}
   {# ════════════════════════════════════════════════════════ #}
-  <section class="bnw-section" id="bnwStep4">
+  <section class="bnw-section" id="bnwStep5">
 
-    {{ bnw_hero_banner('4', 'bnwBannerSummary4') }}
+    {{ bnw_hero_banner('5', 'bnwBannerSummary5') }}
 
     <div class="bnw-container">
 
@@ -662,6 +753,9 @@ if ('serviceWorker' in navigator) {
         <div class="bnw-confirm-ref" id="bnwConfirmRef">RCXXXXXX</div>
         <div id="bnwConfirmStatusBadge" style="margin:8px 0 4px"></div>
         <div id="bnwPaymentWarning"></div>
+        {# Blok Add-ons (dirender oleh renderAddonConfirmBox) — baris
+           terpilih + jumlah berasingan, atau amaran bila order addon gagal. #}
+        <div id="bnwAddonConfirmBox"></div>
         <div class="bnw-confirm-details" id="bnwConfirmDetails"></div>
         <p class="bnw-confirm-email" id="bnwConfirmEmail"></p>
         <div class="bnw-confirm-actions" id="bnwConfirmActions">

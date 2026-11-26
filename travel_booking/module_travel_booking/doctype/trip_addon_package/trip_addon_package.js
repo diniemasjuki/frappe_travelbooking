@@ -1,71 +1,68 @@
 // Copyright (c) 2026, WargaPrihatin and contributors
 // For license information, please see license.txt
 
-// Child table Trip Scoping — FILTER DEPENDENT berantai:
-//   trip → group_date (filter ikut trip yang dipilih)
-//        → trip_package (filter ikut group date yang dipilih; fallback ikut trip)
+// Child table Trip Scoping — FILTER DEPENDENT berantai (RECONDITION
+// Nov 2026: Trip Group Date → Travel Date, Trip Package → Package Offer):
+//   trip → travel_date (filter ikut trip yang dipilih)
+//        → package_offer (filter ikut travel date yang dipilih; fallback
+//          ikut trip)
 //
-// Tanpa ni, dropdown group date / package memaparkan SEMUA rekod merentasi
-// trip — user boleh pilih kombinasi yang tak konsisten (cth group date
+// Tanpa ni, dropdown travel date / offer memaparkan SEMUA rekod merentasi
+// trip — user boleh pilih kombinasi yang tak konsisten (cth travel date
 // trip lain daripada trip yang dipilih dalam row yang sama).
 
 frappe.ui.form.on("Trip Addon Package", {
 	setup(frm) {
-		// Group Date: hanya TGD Active bagi trip yang dipilih dalam row.
-		frm.set_query("group_date", "trip_scoping", function (doc, cdt, cdn) {
+		// Travel Date: hanya TD Active (status_editorial) bagi trip yang
+		// dipilih dalam row.
+		frm.set_query("travel_date", "trip_scoping", function (doc, cdt, cdn) {
 			const row = locals[cdt][cdn];
-			const filters = { status: "Active" };
+			const filters = { status_editorial: "Active" };
 			if (row.trip) filters.trip = row.trip;
 			return { filters: filters };
 		});
 
-		// Trip Package: hubungan Package↔Group Date many-to-many (child
-		// table) — link filter biasa tak boleh; guna query custom. Kalau
-		// group date belum dipilih tapi trip ada → fallback senarai pakej
-		// trip tersebut.
-		frm.set_query("trip_package", "trip_scoping", function (doc, cdt, cdn) {
+		// Package Offer: offer dipaut terus kepada travel date (field
+		// travel_date) — query custom menapis offer ikut TD/trip row.
+		// Kalau travel date belum dipilih tapi trip ada → fallback senarai
+		// offer trip tersebut.
+		frm.set_query("package_offer", "trip_scoping", function (doc, cdt, cdn) {
 			const row = locals[cdt][cdn];
-			if (row.group_date) {
-				return {
-					query:
-						"travel_booking.api.addon_manager.search_trip_packages_by_group_date",
-					filters: { group_date: row.group_date, trip: row.trip },
-				};
-			}
-			if (row.trip) {
-				return { filters: { trip_link: row.trip, status: "Active" } };
-			}
-			return { filters: { status: "Active" } };
+			return {
+				query:
+					"travel_booking.api.addon_manager.search_package_offers_by_travel_date",
+				filters: { travel_date: row.travel_date || "", trip: row.trip || "" },
+			};
 		});
 	},
 });
 
 frappe.ui.form.on("Trip Scoping", {
 	trip(frm, cdt, cdn) {
-		// Trip bertukar → padan group date & package lama row ni (stale).
+		// Trip bertukar → padam travel date & offer lama row ni (stale).
 		const row = locals[cdt][cdn];
-		if (row.group_date || row.group_date_name) {
-			frappe.model.set_value(cdt, cdn, "group_date", "");
-			frappe.model.set_value(cdt, cdn, "group_date_name", "");
+		if (row.travel_date || row.travel_date_name) {
+			frappe.model.set_value(cdt, cdn, "travel_date", "");
+			frappe.model.set_value(cdt, cdn, "travel_date_name", "");
 		}
-		if (row.trip_package || row.package_title) {
-			frappe.model.set_value(cdt, cdn, "trip_package", "");
-			frappe.model.set_value(cdt, cdn, "package_title", "");
+		if (row.package_offer || row.offer_name) {
+			frappe.model.set_value(cdt, cdn, "package_offer", "");
+			frappe.model.set_value(cdt, cdn, "offer_name", "");
 		}
 	},
 
-	group_date(frm, cdt, cdn) {
+	travel_date(frm, cdt, cdn) {
 		const row = locals[cdt][cdn];
-		// Group date bertukar → pakej lama (mungkin untuk tarikh lain) dibuang.
-		if (row.trip_package || row.package_title) {
-			frappe.model.set_value(cdt, cdn, "trip_package", "");
-			frappe.model.set_value(cdt, cdn, "package_title", "");
+		// Travel date bertukar → offer lama (untuk tarikh lain) dibuang.
+		if (row.package_offer || row.offer_name) {
+			frappe.model.set_value(cdt, cdn, "package_offer", "");
+			frappe.model.set_value(cdt, cdn, "offer_name", "");
 		}
-		// Auto-isi trip kalau masih kosong — TGD tahu trip dia; elak user
-		// perlu pilih semula (dan elak row trip kosong + group date terisi).
-		if (row.group_date && !row.trip) {
+		// Auto-isi trip kalau masih kosong — Travel Date tahu trip dia; elak
+		// user perlu pilih semula (dan elak row trip kosong + TD terisi).
+		if (row.travel_date && !row.trip) {
 			frappe.db
-				.get_value("Trip Group Date", row.group_date, "trip")
+				.get_value("Travel Date", row.travel_date, "trip")
 				.then((r) => {
 					if (r && r.message && r.message.trip) {
 						frappe.model.set_value(cdt, cdn, "trip", r.message.trip);

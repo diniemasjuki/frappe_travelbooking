@@ -16,14 +16,14 @@ class TripPriceCategory(Document):
 
 		capacity: DF.Int
 		category_code: DF.Data | None
+		category_group: DF.Literal["", "Cabin", "Suite", "Villa", "Room", "Addon"]
 		category_name: DF.Data
 		description: DF.SmallText | None
 		gred: DF.Rating
-		is_a_cruise: DF.Check
 		max_capacity: DF.Int
+		price_category: DF.Literal["Cruise", "Tour", "Hotel", "Transport", "Meal", "Flight"]
 		read_more_url: DF.Data | None
 		room_profile: DF.AttachImage | None
-		room_type: DF.Literal["", "Cabin", "Suite", "Villa", "Room"]
 		youtube_url: DF.Data | None
 	# end: auto-generated types
 

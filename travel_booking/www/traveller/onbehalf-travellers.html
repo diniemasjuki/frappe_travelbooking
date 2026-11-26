@@ -1,18 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>{% if slot_res %}Traveller Details{% else %}Manage Travellers (On-Behalf){% endif %} — {{ site_name or 'Rarecation' }} Portal</title>
-  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800;900&family=Rubik:wght@300;400;500;600;700;800;900&family=Satisfy&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') }}"/>
-  <link rel="stylesheet" href="/assets/travel_booking/css/traveller.css?v={{ asset_v('css/traveller.css') }}"/>
+  {% with tv_title_raw = ("Traveller Details" if slot_res else "Manage Travellers (On-Behalf)") %}
+  {% include "templates/includes/traveller_head.html" %}
+  {% endwith %}
   <link rel="stylesheet" href="/assets/travel_booking/css/trip_detail.css?v={{ asset_v('css/trip_detail.css') }}"/>
-  {# Widget telefon format antarabangsa (intl-tel-input) — corak sama
-     dengan guest_passport.html. #}
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/css/intlTelInput.min.css"/>
 </head>
 <body class="tv-page">

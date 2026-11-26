@@ -55,12 +55,34 @@
   // ke search_packages_by_date bila user pilih tarikh.
 
   var gdSel = document.getElementById("rcDetailGroupDate");
+  // #rcDetailPackage TAK WUJUD pada page cruise (seksyen "Choose Package"
+  // dibuang dari booking card — pakej dipilih via modal Change Date).
   var pkgSel = document.getElementById("rcDetailPackage");
   var metaDurationEl = document.getElementById("rcMetaDuration");
   var cabinsEl = document.getElementById("rcDetailCabins");
   var bookBtn = document.getElementById("rcDetailBookBtn");
   var shareBtn = document.getElementById("rcDetailShareBtn");
-  if (!gdSel || !pkgSel) return;
+  if (!gdSel) return;
+
+  // ── Seksyen showcase (layout utama, bukan sidebar) ──
+  // #rcDateCards — kad per departure date (sinkron dengan radio sidebar);
+  // #rcCabinCards — kad kategori kabin (render dari get_booking_details).
+  var dateCardsEl = document.getElementById("rcDateCards");
+  // Seksyen "Other Categories" selepas FAQ (cruise) — shell server-render;
+  // JS papar bila ada kategori travel-date LAIN selain kategori terpilih.
+  var otherCatsSection = document.getElementById("rcOtherCatsSection");
+  var otherCatsEl = document.getElementById("rcOtherCats");
+  var cabinSection = document.getElementById("rcCabinsSection");
+  var cabinCardsEl = document.getElementById("rcCabinCards");
+
+  // Seksi addon matrix offer → chip inklusi (padanan
+  // utils/catalog_extras._INCLUSION_SECTIONS).
+  var INCLUSION_META = {
+    flight: { icon: "ti-plane", label: "Flight" },
+    hotel: { icon: "ti-bed", label: "Hotel" },
+    transport: { icon: "ti-bus", label: "Transport" },
+    meal: { icon: "ti-tools-kitchen-2", label: "Meals" },
+  };
 
   // ── Parse ?trip_group_date=RC...&trip_package=TP...&sp=... from URL ──
   // 'sp' ialah affiliate referral code (Sales Partner) — dipasang oleh pautan
@@ -70,10 +92,34 @@
   var _wishPkg = "", _wishGd = "", _sp = "";
   try {
     var qs = new URLSearchParams(window.location.search);
-    _wishGd = qs.get("trip_group_date") || "";
-    _wishPkg = qs.get("trip_package") || "";
+    // ?date=<tgd|travel_date> — alias ringkas untuk deep-link kad pakej
+    // khas homepage / chips tarikh kad trip (?trip_group_date= kekal
+    // dibaca untuk pautan lama; share My Trip kini jana ?date=/?package=).
+    _wishGd = qs.get("date") || qs.get("trip_group_date") || "";
+    _wishPkg = qs.get("package") || qs.get("trip_package") || "";
     _sp = (qs.get("sp") || "").trim().toUpperCase();
   } catch (_e) {}
+
+  // Selaraskan param tarikh/pakej pada URL semasa (history.replaceState —
+  // tanpa reload). Param LAIN (utm_*, sp/affiliate, dsb.) kekal — hanya
+  // date/package yang diset/dibuang, param legacy trip_group_date/
+  // trip_package dibersihkan supaya tiada konflik bila page di-reload.
+  function syncUrlParams(params) {
+    try {
+      var cur = new URLSearchParams(window.location.search);
+      Object.keys(params).forEach(function (k) {
+        if (params[k]) cur.set(k, params[k]);
+        else cur.delete(k);
+      });
+      cur.delete("trip_group_date");
+      cur.delete("trip_package");
+      var qsStr = cur.toString();
+      var next = window.location.pathname
+        + (qsStr ? "?" + qsStr : "")
+        + (window.location.hash || "");
+      window.history.replaceState({}, "", next);
+    } catch (_e) { /* URL sync tak boleh ganggu paparan */ }
+  }
 
   // Format tarikh pusat (Travel Website → window.RC_DATE_FORMAT).
   var _RC_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -100,22 +146,17 @@
     return d.innerHTML;
   }
 
-  // ── Pakej union untuk sesuatu tarikh ──
-  // Cruise: semua pakej dari SEMUA TGD yang berkongsi sailing (peta
-  // sailing_tgds) — sama logik dengan populatePackages(). Non-cruise: pakej
-  // TGD terus. Guna untuk (a) union pakej ikut sailing, (b) kesan tarikh
-  // yang ada pilihan penerbangan (ikon pesawat dalam date selector).
+  // ── Pakej untuk sesuatu tarikh ──
+  // SATU pilihan tarikh = SATU Travel Date / TGD (kunci = ID dokumen) —
+  // pakej diambil terus dari trip_packages[kunci]. Tiada union merentasi
+  // tarikh: union sailing lama mencampurkan Travel Date berbeza yang
+  // berkongsi sailing, union departure pula mencampurkan Travel Date
+  // berbeza yang berkongsi tarikh berlepas (cth dua sailing durasi
+  // berbeza berlepas hari yang sama).
+  // Guna juga untuk kesan tarikh yang ada pilihan penerbangan (ikon
+  // pesawat dalam date selector).
   function pkgsForDate(gdData) {
     var preloaded = DATA.trip_packages || {};
-    if (is_cruise) {
-      var sail = gdData.sailing_start || gdData.departure_date || "";
-      var tgdList = (DATA.sailing_tgds || {})[sail] || [];
-      var pkgs = [];
-      tgdList.forEach(function (t) {
-        (preloaded[t.name] || []).forEach(function (p) { pkgs.push(p); });
-      });
-      return pkgs;
-    }
     return preloaded[gdData.name] || [];
   }
   // Tarikh ada pilihan "cruise/flight" bila SESUATU pakej dalam tarikh itu
@@ -144,6 +185,9 @@
   // group_date datang dari API response (package's trip_group_date),
   // BUKAN dari date radio — ini memastikan data consistency.
   var _selectedPkg = "";
+  // URL sync ditahan semasa BOOT (auto-select pakej pertama pada load
+  // bukan navigasi user — URL kekal bersih); aktif selepas init.
+  var _suppressUrlSync = true;
   var _selectedPkgGd = "";
   var _selectedPkgData = null;  // pkg_dict varian terpilih — sumber blok meta
 
@@ -190,11 +234,61 @@
   }
 
   // ════ STEP 2: Populate date radios from DATA.group_dates ════
-  // Cruise: sailing_start → sailing_end
-  // Non-cruise: departure_date → return_date
-  // >1 tarikh: senarai radio inline diganti BUTANG TRIGGER + POPUP MODAL
-  // date selector (filter bulan + ikon pesawat pada tarikh yang ada pilihan
-  // penerbangan). 1 tarikh: radio inline seperti sedia ada.
+  // Default tarikh (tiada deep-link): tarikh BASIC package terdekat ikut
+  // departure date — group_dates disusun kronologi oleh server, jadi
+  // basic pertama = terdekat. Fallback index 0 bila semua tarikh special.
+  function defaultBasicDateIdx() {
+    for (var i = 0; i < groupDatesData.length; i++) {
+      if (!groupDatesData[i].is_special) return i;
+    }
+    return 0;
+  }
+
+  // ── Default kategori cruise (Travel Website → default_cruise_category)
+  // Tanpa deep-link: bila trip cruise ada ≥2 tarikh & kategori default
+  // wujud dalam tarikh trip — pilih tarikh TERDEKAT (kronologi pertama)
+  // dalam kategori itu. Kategori tiada dalam trip / <2 tarikh / bukan
+  // cruise → fallback tarikh basic terdekat (defaultBasicDateIdx).
+  function defaultCruiseCategoryIdx() {
+    var defCat = DATA.default_cruise_category || "";
+    if (TRIP_TYPE !== "cruise" || !defCat || groupDatesData.length < 2) {
+      return defaultBasicDateIdx();
+    }
+    for (var i = 0; i < groupDatesData.length; i++) {
+      if ((groupDatesData[i].trip_category || "") === defCat) return i;
+    }
+    return defaultBasicDateIdx();
+  }
+
+  // ── Tapisan kategori tarikh (cruise + deep-link ?date= sahaja) ──
+  // Tarikh membawa kategori trip (Travel Date.trip_category). Deep-link
+  // ke satu tarikh: pilihan tukar tarikh dikunci pada kategori tarikh ITU
+  // — senarai tarikh papar kategori sama sahaja; bila tiada tarikh lain
+  // dalam kategori itu, butang change date disembunyikan (tiada pilihan
+  // bermakna). Tanpa deep-link (browse biasa) / bukan cruise / tarikh
+  // terpilih tiada kategori / id deep-link lapuk → null = semua tarikh
+  // (tingkah laku sedia ada).
+  function categoryFilterIdxs() {
+    if (TRIP_TYPE !== "cruise" || !_wishGd) return null;
+    var selIdx = -1;
+    groupDatesData.forEach(function (g, i) {
+      if (g.name === _wishGd) selIdx = i;
+    });
+    if (selIdx < 0) return null; // deep-link lapuk → semua tarikh
+    var cat = (groupDatesData[selIdx] || {}).trip_category || "";
+    if (!cat) return null; // tarikh tiada kategori → tiada tapisan
+    var idxs = [];
+    groupDatesData.forEach(function (g, i) {
+      if ((g.trip_category || "") === cat) idxs.push(i);
+    });
+    return idxs;
+  }
+  // Index tarikh boleh dipapar dalam UI (semua bila tiada tapisan).
+  function visibleDateIdxs() {
+    return categoryFilterIdxs()
+      || groupDatesData.map(function (_, i) { return i; });
+  }
+
   function populateDates() {
     gdSel.innerHTML = "";
     if (!groupDatesData.length) {
@@ -202,16 +296,31 @@
       return;
     }
 
-    var multi = groupDatesData.length > 1;
+    // Deep-link kategori aktif → kira bilangan tarikh DALAM kategori
+    // sahaja (radio hidden tetap dibina untuk SEMUA tarikh — sumber
+    // state + lookup pakej tak berubah).
+    var multi = visibleDateIdxs().length > 1;
     _allRadios = [];
     _dateMeta = [];
+
+    // Default tarikh: deep-link ?date= (bila sah) → jika tiada, tarikh
+    // BASIC package terdekat ikut departure date (group_dates sudah susun
+    // kronologi oleh server — basic pertama = terdekat). Fallback index 0
+    // bila semua tarikh special.
+    var _wishIdx = -1;
+    if (_wishGd) {
+      groupDatesData.forEach(function (g, i) { if (g.name === _wishGd) _wishIdx = i; });
+    }
+    var _defaultIdx = _wishIdx >= 0 ? _wishIdx : defaultCruiseCategoryIdx();
 
     groupDatesData.forEach(function (gdData, idx) {
       var radioId = "gd_" + idx;
 
-      // value = actual dates (for SQL query: sailing_start:sailing_end or departure_date:return_date)
-      var startDate = gdData.sailing_start || gdData.departure_date;
-      var endDate = is_cruise ? gdData.sailing_end : gdData.return_date;
+      // value = actual dates (for SQL query: departure_date:return_date —
+      // cruise turut guna departure date selepas grouping berubah dari
+      // sailing date; fallback sailing bila departure kosong)
+      var startDate = gdData.departure_date || gdData.sailing_start;
+      var endDate = gdData.return_date || (is_cruise ? gdData.sailing_end : "");
       var dateValue = startDate + ":" + (endDate || "");
 
       var radio = document.createElement("input");
@@ -221,16 +330,13 @@
       radio.value = dateValue;
       radio.setAttribute("data-gd-id", gdData.name);
       radio.className = "rc-date-radio";
-      if (_wishGd && gdData.name === _wishGd) radio.checked = true;
-      else if (!_wishGd && idx === 0) radio.checked = true;
+      if (idx === _defaultIdx) radio.checked = true;
 
       // Tarikh diformat ikut konfigurasi Travel Website (window.RC_DATE_FORMAT
       // dari base_travel.html) — bukan ISO mentah.
       var dateText = _fmtWebDate(startDate);
-      if (is_cruise && gdData.sailing_end) {
-        dateText += " → " + _fmtWebDate(gdData.sailing_end);
-      } else if (gdData.return_date) {
-        dateText += " → " + _fmtWebDate(gdData.return_date);
+      if (endDate) {
+        dateText += " → " + _fmtWebDate(endDate);
       }
       var seatsHtml = "";
       if (gdData.seats_left != null) {
@@ -254,12 +360,33 @@
     });
 
     if (multi) {
-      renderDateTrigger();
-      renderDateModal();
+      // Cruise: teks bold tarikh terpilih (tiada butang + tiada popup
+      // sidebar — #rcDateModal dibina hanya bila ada trigger). Tour:
+      // trigger + popup date selector kekal.
+      if (TRIP_TYPE === "cruise") {
+        renderChosenDateLabel();
+      } else {
+        renderDateTrigger();
+        renderDateModal();
+      }
+      updateDateTriggerLabel();
+    } else if (TRIP_TYPE === "cruise") {
+      // Cruise 1 tarikh: teks bold juga (konsisten — tiada butang date di
+      // booking card cruise).
+      renderChosenDateLabel();
       updateDateTriggerLabel();
     } else {
-      renderInlineDateLabel(0);
+      // Tour 1 tarikh: label inline tarikh terpilih (tingkah laku sedia ada).
+      renderInlineDateLabel(_defaultIdx);
     }
+
+    // Kad showcase tarikh (seksyen "Dates & Packages") — selari dengan
+    // radio/popup sidebar; klik kad ⇄ selectDate() sync dua arah.
+    renderDateCards();
+
+    // Seksyen "Other Categories" selepas FAQ — kategori lain selain
+    // tarikh terpilih (hidden bila tiada).
+    renderOtherCats();
 
     // Auto-select first date → AJAX fetch packages
     populatePackages();
@@ -313,6 +440,19 @@
     gdSel.appendChild(_dateTrigger);
   }
 
+  // ── Cruise: tarikh terpilih = teks BOLD statik (TIADA butang trigger) ──
+  // Butang "select date" dibuang daripada booking card cruise — penukaran
+  // tarikh hanya melalui modal Change Date (kad showcase). Struktur span
+  // .rc-date-trigger-text dikekalkan supaya updateDateTriggerLabel() sama
+  // guna bila tarikh bertukar.
+  function renderChosenDateLabel() {
+    _dateTrigger = document.createElement("div");
+    _dateTrigger.className = "rc-date-chosen";
+    _dateTrigger.innerHTML =
+      '<strong><span class="rc-date-trigger-text"></span></strong>';
+    gdSel.appendChild(_dateTrigger);
+  }
+
   function updateDateTriggerLabel() {
     if (!_dateTrigger) return;
     var meta = _dateMeta[checkedDateIndex()] || { dateText: "", seatsHtml: "" };
@@ -320,14 +460,387 @@
       esc(meta.dateText) + meta.seatsHtml;
   }
 
-  // Pilih tarikh (dari modal) → sync radio hidden → refresh trigger + pakej
+  // Pilih tarikh (dari modal / popup sidebar) → sync radio hidden →
+  // refresh trigger + information card + pakej. Bila URL sedia bawa param
+  // date/package, URL semasa turut dikemas kini (?date=).
   function selectDate(idx) {
     Array.prototype.forEach.call(_allRadios, function (r, i) {
       r.checked = i === idx;
     });
     updateDateTriggerLabel();
     markModalActiveItem();
+    // URL sync SENTIASA pada navigasi user (params lain kekal): tarikh
+    // kini + kosongkan package lama — auto-select pakej tarikh baharu
+    // akan isi semula (syncUrlParams buang key bila value kosong).
+    syncUrlParams({
+      date: (groupDatesData[idx] || {}).name || "",
+      package: "",
+    });
+    renderDateCards();
+    // Kategori tarikh terpilih mungkin berubah — seksyen Other Categories
+    // di-render semula (kategori baru hilang daripada senarai).
+    renderOtherCats();
     populatePackages();
+  }
+
+  // ── Seksyen "Dates & Packages" — kad "selected departure" + penukar
+  // pakej satu-langkah. Booking card sidebar kini paparan sahaja (tarikh
+  // bold, tiada pemilih pakej), jadi kad INI ialah permukaan interaktif
+  // tarikh/pakej untuk page cruise:
+  //   header  : eyebrow "Selected Departure" + chip Trip Category + seats
+  //   hero    : tarikh (besar) + badge duration
+  //   sailing : blok sailing date/kapal/port (cruise)
+  //   pakej   : BUTANG per pakej — row aktif = pakej terpilih; klik terus
+  //             selectPackage() (tanpa buka modal)
+  //   footer  : "Change Date (N)" bila ada pilihan bermakna; hint terkunci
+  //             bila deep-link kategori pin tarikh tanpa sibling
+  // Penukaran tarikh kekal melalui modal (senarai tapisan kategori). ──
+  function renderDateCards() {
+    if (!dateCardsEl) return;
+    dateCardsEl.innerHTML = "";
+    if (!groupDatesData.length) {
+      dateCardsEl.innerHTML = '<p class="rc-muted">No dates available.</p>';
+      return;
+    }
+    var idx = checkedDateIndex();
+    var gdInfo = groupDatesData[idx] || {};
+    var metaInfo = _dateMeta[idx] || { dateText: "", seatsHtml: "" };
+
+    var durInfo = fmtDuration(gdInfo.total_days, gdInfo.total_nights);
+
+    // Header: KIRI = eyebrow "Selected Departure" + tarikh hero di bawahnya;
+    // KANAN-ATAS = stack badge [kategori → duration → seats] (chip kategori
+    // float top-right, duration bawahnya — arahan pemilik, Nov 2026).
+    var headLeft = '<span class="rc-datecard-eyebrow">Selected Departure</span>'
+      + '<span class="rc-datecard-date">' + esc(metaInfo.dateText) + '</span>';
+    var topRight = "";
+    if (gdInfo.trip_category) {
+      topRight += '<span class="rc-datecard-cat"><i class="ti ti-tag"></i> '
+        + esc(gdInfo.trip_category) + '</span>';
+    }
+    if (durInfo) {
+      topRight += '<span class="rc-datecard-duration"><i class="ti ti-clock-2"></i> '
+        + esc(durInfo) + '</span>';
+    }
+    if (metaInfo.seatsHtml) {
+      topRight += '<span class="rc-datecard-seats">' + metaInfo.seatsHtml + '</span>';
+    }
+
+    // Chips inklusi pakej khas (badge "Special Package" DIBUANG — chips
+    // flight/hotel/transport/meal kekal sebagai maklumat inklusi).
+    var headChips = "";
+    if (gdInfo.is_special) {
+      (gdInfo.inclusions || []).forEach(function (k) {
+        var inc = INCLUSION_META[k];
+        if (inc) {
+          headChips += '<span class="rc-datecard-chip"><i class="ti ' + inc.icon + '"></i> ' + esc(inc.label) + '</span>';
+        }
+      });
+    }
+
+    // Seksyen Actual Sailing Date — hanya bila sailing date tersedia
+    // (trip cruise): tarikh pelayaran sebenar + info kapal & port
+    // embarkasi/disembarkasi. Bila tiada sailing (pakej darat), seksyen
+    // ini tidak dipapar. (Wrapper col vestigial dibuang — blok penuh.)
+    var sailHtml = "";
+    if (gdInfo.sailing_start) {
+      var sailShip = "";
+      if (gdInfo.sailing_label && gdInfo.sailing_label.indexOf("·") >= 0) {
+        sailShip = gdInfo.sailing_label.split("·").pop().trim();
+      }
+      var sailDates = _fmtWebDate(gdInfo.sailing_start)
+        + (gdInfo.sailing_end ? " → " + _fmtWebDate(gdInfo.sailing_end) : "");
+      var ports = [];
+      if (gdInfo.embarkation_port) ports.push(gdInfo.embarkation_port);
+      if (gdInfo.disembarkation_port) ports.push(gdInfo.disembarkation_port);
+      sailHtml =
+        '<div class="rc-sailinfo">'
+        + '<div class="rc-sailinfo-title"><i class="ti ti-ship"></i> Sailing Date</div>'
+        + '<div class="rc-sailinfo-dates">' + esc(sailDates) + '</div>'
+        + (ports.length
+          ? '<div class="rc-sailinfo-meta"><i class="ti ti-anchor"></i> '
+            + esc(ports[0]) + (ports[1] ? " → " + esc(ports[1]) : "")
+            + '</div>'
+          : "")
+        + (sailShip ? '<div class="rc-sailinfo-meta"><i class="ti ti-ship"></i> ' + esc(sailShip) + '</div>' : '')
+        + '</div>';
+    }
+
+    // Pakej tarikh ini — BUTANG pilih terus (satu langkah, tanpa modal).
+    // Row aktif = pakej terpilih semasa (padan _selectedPkg + TGD-nya —
+    // varian pakej sama nama boleh wujud pada TGD berlainan).
+    var pkgsInfo = (DATA.trip_packages || {})[gdInfo.name] || [];
+    var pkgRows = pkgsInfo.map(function (p) {
+      var type = (p.package_type || "").trim() || p.package_name || p.name;
+      var cruiseOnly = !!p.is_cruise_only;
+      var dep = cruiseOnly ? (p.sailing_start || p.departure_date) : (p.departure_date || p.sailing_start);
+      var ret = cruiseOnly ? (p.sailing_end || p.return_date) : (p.return_date || p.sailing_end);
+      var metaBits = [];
+      if (dep) metaBits.push('<span><i class="ti ti-plane-departure"></i> ' + esc(_fmtWebDate(dep)) + '</span>');
+      if (ret) metaBits.push('<span><i class="ti ti-plane-arrival"></i> ' + esc(_fmtWebDate(ret)) + '</span>');
+      var d = pkgDuration(p);
+      if (d) metaBits.push('<span><i class="ti ti-clock-2"></i> ' + esc(d) + '</span>');
+      var curBadge = (p.currency && p.currency !== LISTING_CURRENCY)
+        ? ' <span class="rc-pkg-badge rc-pkg-badge-cur">' + esc(p.currency_symbol || p.currency) + " " + esc(p.currency) + '</span>'
+        : "";
+      var isActive = _selectedPkg === p.name && _selectedPkgGd === p.trip_group_date;
+      return '<button type="button" class="rc-dtpkg-row'
+        + (isActive ? ' rc-dtpkg-row-active' : '')
+        + '" aria-pressed="' + (isActive ? "true" : "false") + '">'
+        + '<span class="rc-dtpkg-name">' + esc(type) + curBadge + '</span>'
+        + (metaBits.length ? '<span class="rc-dtpkg-meta">' + metaBits.join("") + '</span>' : '')
+        + '</button>';
+    }).join("");
+
+    // Footer kad: butang "Change Date" + kiraan tarikh boleh dipapar
+    // (ikut tapisan kategori). Bila tiada pilihan bermakna:
+    //   - deep-link kategori terpinned tanpa sibling → hint terkunci
+    //     (jelaskan kenapa tiada butang)
+    //   - trip memang 1 tarikh sahaja → tiada footer (modal 1 item = bising)
+    var _catIdxs = categoryFilterIdxs();
+    var _visCount = visibleDateIdxs().length;
+    var showChangeBtn = _visCount > 1;
+    var showLocked = !!_catIdxs && _catIdxs.length <= 1;
+    var footerHtml = showChangeBtn
+      ? '<div class="rc-dtpkg-footer">'
+        +   '<button type="button" class="rc-datecard-change">'
+        +     '<i class="ti ti-calendar-month"></i> Change Date'
+        +     '<span class="rc-datecard-count">' + _visCount + '</span>'
+        +   '</button>'
+        + '</div>'
+      : (showLocked
+        ? '<div class="rc-dtpkg-footer"><p class="rc-datecard-locked">'
+          +   '<i class="ti ti-lock"></i> Date pinned — no other departures in this category'
+          + '</p></div>'
+        : "");
+
+    // Blok pakej (radio select): papar HANYA bila tarikh ini ada LEBIH
+    // DARI 1 pakej. Satu pakej → auto-select senyap tanpa seksyen (tiada
+    // maklumat pakej dipapar); tiada pakej → tiada seksyen.
+    var pkgBlockHtml = pkgsInfo.length > 1
+      ? '<div class="rc-dtpkg-block">'
+        +   '<div class="rc-dtpkg-blocktitle"><i class="ti ti-luggage"></i> '
+        +     'Packages (' + pkgsInfo.length + ')</div>'
+        +   pkgRows
+        + '</div>'
+      : "";
+
+    var info = document.createElement("article");
+    info.className = "rc-datecard-info";
+    info.innerHTML =
+      '<span class="rc-datecard-head">'
+      +   '<span class="rc-datecard-headleft">' + headLeft + '</span>'
+      +   (topRight ? '<span class="rc-datecard-topright">' + topRight + '</span>' : '')
+      + '</span>'
+      + sailHtml
+      + (headChips ? '<span class="rc-datecard-inclusions">' + headChips + '</span>' : '')
+      + pkgBlockHtml
+      + footerHtml;
+    var changeBtn = info.querySelector(".rc-datecard-change");
+    if (changeBtn) {
+      changeBtn.addEventListener("click", function () {
+        openChangeDateModal();
+      });
+    }
+    // Pilih pakej terus dari kad (satu langkah) — selectPackage sync state
+    // + URL (?package=) + highlight row (card re-render dalam hook-nya).
+    // Row ikut SUSUNAN pkgsInfo — tiada data-attr interpolasi diperlukan.
+    Array.prototype.forEach.call(
+      info.querySelectorAll(".rc-dtpkg-row"),
+      function (rowBtn, i) {
+        var p = pkgsInfo[i];
+        if (!p) return;
+        rowBtn.addEventListener("click", function () {
+          selectPackage(p.name, p.trip_group_date, p);
+        });
+      }
+    );
+    dateCardsEl.appendChild(info);
+  }
+
+  // ── Seksyen "Other Categories" (selepas FAQ, cruise sahaja) ──
+  // Kategori travel-date LAIN selain kategori tarikh TERPILIH — cermun
+  // DateCards + modal Change Date yang merangkumi kategori semasa.
+  // >1 kategori lain → tab pill (label + kiraan tarikh); 1 → senarai
+  // terus dengan eyebrow nama kategori. Tiada kategori lain → seksyen
+  // kekal hidden. Tarikh TANPA kategori tidak digroup di sini (masih
+  // boleh dicapai melalui modal Change Date tanpa tapisan).
+  var _lastCatTab = "";  // tab aktif terakhir — dikekalkan merentasi render
+  function renderOtherCats() {
+    if (!otherCatsSection || !otherCatsEl) return;
+    var curCat = (groupDatesData[checkedDateIndex()] || {}).trip_category || "";
+    // Kategori ikut kemunculan pertama (group_dates sudah kronologi —
+    // kategori tersusun ikut tarikh berlepas terawalnya).
+    var seen = {};
+    var cats = [];
+    groupDatesData.forEach(function (g) {
+      var c = g.trip_category || "";
+      if (!c || seen[c]) return;
+      seen[c] = 1;
+      cats.push(c);
+    });
+    var others = cats.filter(function (c) { return c !== curCat; });
+    if (!others.length) {
+      otherCatsSection.hidden = true;
+      otherCatsEl.innerHTML = "";
+      return;
+    }
+    otherCatsSection.hidden = false;
+
+    // Tab aktif: tab terakhir user (kalau masih wujud), else kategori
+    // lain pertama. Bila kategori terpilih berubah, tab lama mungkin
+    // jadi kategori semasa — fallback ke tab pertama.
+    var activeCat = (_lastCatTab && others.indexOf(_lastCatTab) >= 0)
+      ? _lastCatTab
+      : others[0];
+    _lastCatTab = activeCat;
+
+    // Senarai tarikh per kategori — susunan kronologi kekal (filter
+    // groupDatesData tanpa ubah susunan; index = index penuh senarai).
+    function catListHtml(cat) {
+      var rows = "";
+      groupDatesData.forEach(function (g, idx) {
+        if ((g.trip_category || "") !== cat) return;
+        var meta = _dateMeta[idx] || { dateText: "", seatsHtml: "" };
+        var pkgsCount = ((DATA.trip_packages || {})[g.name] || []).length;
+        var dur = fmtDuration(g.total_days, g.total_nights);
+        var metaBits = [];
+        if (meta.seatsHtml) metaBits.push('<span class="rc-catdate-seats">' + meta.seatsHtml + '</span>');
+        if (dur) metaBits.push('<span><i class="ti ti-clock-2"></i> ' + esc(dur) + '</span>');
+        metaBits.push('<span><i class="ti ti-luggage"></i> '
+          + pkgsCount + (pkgsCount === 1 ? " package" : " packages") + '</span>');
+        rows +=
+          '<button type="button" class="rc-catdate-item" data-idx="' + idx + '"'
+          + ' aria-label="Select departure in ' + esc(cat) + '">'
+          +   '<span class="rc-catdate-date">' + esc(meta.dateText) + '</span>'
+          +   (g.is_special
+            ? '<span class="rc-catdate-flag" title="Special Package">'
+              + '<i class="ti ti-star-filled"></i></span>'
+            : "")
+          +   '<span class="rc-catdate-meta">' + metaBits.join("") + '</span>'
+          +   '<span class="rc-catdate-go"><i class="ti ti-chevron-right"></i></span>'
+          + '</button>';
+      });
+      return '<div class="rc-catlist" data-cat="' + esc(cat) + '"'
+        + (cat === activeCat ? '' : ' hidden') + '>' + rows + '</div>';
+    }
+
+    var html = "";
+    if (others.length > 1) {
+      html += '<div class="rc-cattabs">';
+      others.forEach(function (cat) {
+        var count = groupDatesData.filter(function (g) {
+          return (g.trip_category || "") === cat;
+        }).length;
+        html += '<button type="button" class="rc-cattab'
+          + (cat === activeCat ? ' rc-cattab-active' : '')
+          + '" data-cat="' + esc(cat) + '"'
+          + ' aria-pressed="' + (cat === activeCat ? "true" : "false") + '">'
+          + esc(cat) + ' <span class="rc-cattab-count">' + count + '</span>'
+          + '</button>';
+      });
+      html += '</div>';
+    } else {
+      html += '<span class="rc-catlist-eyebrow">' + esc(others[0]) + '</span>';
+    }
+    others.forEach(function (cat) { html += catListHtml(cat); });
+    otherCatsEl.innerHTML = html;
+
+    // Tab click — toggel senarai (client-side sahaja; pilihan tarikh
+    // tidak berubah sehingga row tarikh diklik).
+    Array.prototype.forEach.call(
+      otherCatsEl.querySelectorAll(".rc-cattab"),
+      function (tab) {
+        tab.addEventListener("click", function () {
+          var cat = tab.getAttribute("data-cat");
+          _lastCatTab = cat;
+          Array.prototype.forEach.call(
+            otherCatsEl.querySelectorAll(".rc-cattab"), function (t) {
+              var on = t === tab;
+              t.classList.toggle("rc-cattab-active", on);
+              t.setAttribute("aria-pressed", on ? "true" : "false");
+            });
+          Array.prototype.forEach.call(
+            otherCatsEl.querySelectorAll(".rc-catlist"), function (l) {
+              var on = l.getAttribute("data-cat") === cat;
+              if (on) l.removeAttribute("hidden");
+              else l.setAttribute("hidden", "");
+            });
+        });
+      });
+
+    // Row click — pilih tarikh itu (selectDate sync radio + URL ?date= +
+    // DateCards) dan gulung ke booking panel supaya user nampak kesan.
+    var bookingCard = document.getElementById("rcBookingCard");
+    Array.prototype.forEach.call(
+      otherCatsEl.querySelectorAll(".rc-catdate-item"),
+      function (row) {
+        row.addEventListener("click", function () {
+          selectDate(parseInt(row.getAttribute("data-idx"), 10));
+          if (bookingCard && bookingCard.scrollIntoView) {
+            bookingCard.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        });
+      });
+  }
+
+  // ── Bootstrap modal helpers (fallback: toggle class legacy jika
+  //    bootstrap bundle gagal dimuat) ──
+  // Markup modal mesti struktur BS: .modal.fade > .modal-dialog >
+  // .modal-content.rc-datemodal-card (skin jenama kekal di css).
+  function rcModalInstance(modalEl) {
+    if (window.bootstrap && window.bootstrap.Modal) {
+      return window.bootstrap.Modal.getOrCreateInstance(modalEl);
+    }
+    return null;
+  }
+  function rcShowModal(modalEl) {
+    var inst = rcModalInstance(modalEl);
+    if (inst) { inst.show(); return; }
+    modalEl.classList.add("rc-datemodal-show"); // fallback legacy
+  }
+  function rcHideModal(modalEl, onHidden) {
+    var inst = rcModalInstance(modalEl);
+    if (inst) {
+      if (onHidden) {
+        modalEl.addEventListener("hidden.bs.modal", function h() {
+          modalEl.removeEventListener("hidden.bs.modal", h);
+          onHidden();
+        });
+      }
+      inst.hide();
+      return;
+    }
+    modalEl.classList.remove("rc-datemodal-show"); // fallback legacy
+    if (onHidden) onHidden();
+  }
+  // Bangun cangkang modal BS + pulangkan { modal, dialog, card }.
+  // contentElClass = class visual kad (skin jenama di css).
+  function rcBuildModal(id, contentElClass) {
+    var modal = document.createElement("div");
+    modal.id = id;
+    modal.className = "modal fade rc-datemodal";
+    modal.tabIndex = -1;
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-hidden", "true");
+
+    var dialog = document.createElement("div");
+    dialog.className = "modal-dialog modal-dialog-centered";
+
+    var card = document.createElement("div");
+    card.className = "modal-content " + contentElClass;
+
+    var closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "rc-datemodal-close";
+    closeBtn.setAttribute("data-bs-dismiss", "modal");
+    closeBtn.setAttribute("aria-label", "Close");
+    closeBtn.innerHTML = "&times;";
+
+    dialog.appendChild(card);
+    modal.appendChild(dialog);
+    return { modal: modal, dialog: dialog, card: card, closeBtn: closeBtn };
   }
 
   function markModalActiveItem() {
@@ -344,43 +857,261 @@
   function openDateModal() {
     if (!_dateModal) return;
     markModalActiveItem();
-    _dateModal.classList.add("rc-datemodal-show");
+    rcShowModal(_dateModal);
   }
 
   function closeDateModal() {
-    if (_dateModal) _dateModal.classList.remove("rc-datemodal-show");
+    if (_dateModal) rcHideModal(_dateModal);
+  }
+
+  // ── Modal "Change Date" (dibuka dari butang Change Date kad showcase) ──
+  // TARIKH SAHAJA — tiada logik pakej (pakej dipilih pada row kad Dates &
+  // Packages; peraturan kategori deep-link terus mengawal set tarikh via
+  // visibleDateIdxs). LIST VIEW dua-bahagian (skrin lebar):
+  //   kiri  — rail menegak pilihan bulan-tahun ("All Months" + setiap
+  //           bulan, dengan kiraan tarikh);
+  //   kanan — hasil tapisan bulan terpilih (baris tarikh, skin datemodal).
+  // Skrin kecil (<641px): dropdown tapis + senarai (susunan menegak).
+  // Klik item → selectDate (state page + URL ?date=) dan modal tutup
+  // terus. Modal seluas wrap container (sedikit lebih kecil).
+  var _changeModal = null;
+
+  function openChangeDateModal() {
+    closeChangeDateModal();
+    var shell = rcBuildModal("rcChangeModal", "rc-datemodal-card rc-changemodal-card");
+    shell.dialog.classList.add("rc-changemodal-dialog");
+    var modal = shell.modal;
+    var card = shell.card;
+    card.appendChild(shell.closeBtn);
+
+    // ── Data tarikh boleh papar (peraturan kategori sedia ada sahaja) ──
+    var selIdx = checkedDateIndex();
+    var selCat = (groupDatesData[selIdx] || {}).trip_category || "";
+    function parseYMD(iso) {
+      var m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return null;
+      var d = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    function pad2(n) { return (n < 10 ? "0" : "") + n; }
+    var items = visibleDateIdxs().map(function (idx) {
+      var gd = groupDatesData[idx] || {};
+      var meta = _dateMeta[idx] || { dateText: "", seatsHtml: "", startIso: "" };
+      var start = parseYMD(gd.departure_date || gd.sailing_start || meta.startIso);
+      if (!start) start = parseYMD(meta.startIso);
+      if (!start) return null;
+      var end = parseYMD(gd.return_date || (is_cruise ? gd.sailing_end : "")) || start;
+      return {
+        idx: idx, gd: gd, meta: meta,
+        ymKey: start.getFullYear() + "-" + pad2(start.getMonth() + 1),
+      };
+    }).filter(Boolean);
+    if (!items.length) return;  // tiada tarikh sah — jangan buka modal kosong
+
+    // Label dewasa (price_adult) — dari PRICE_LABELS (Travel Settings);
+    // fallback sama seperti getDefaultPriceLabels().
+    var adultCfg = PRICE_LABELS.find(function (l) { return l.price_key === "price_adult"; });
+    var adultLabel = (adultCfg && adultCfg.display_label)
+      || (TRIP_TYPE === "cruise" ? "Main Adult" : "Adult");
+    function fmtSym(sym, a) {
+      a = Number(a) || 0;
+      return (sym || "") + " " + Math.round(a).toLocaleString(undefined, {
+        maximumFractionDigits: 0,
+      });
+    }
+    // Baris harga "from" per tarikh (price_adult termurah offer tarikh
+    // itu — server new_catalog.get_trip_detail_new). Promo Travel Price
+    // Rule → badge label + harga asal strikethrough. Tarikh tanpa harga
+    // (trip legacy fallback) → tiada baris.
+    function priceLineHtml(it) {
+      var gd = it.gd;
+      if (gd.price_from == null || !(Number(gd.price_from) > 0)) return "";
+      var sym = gd.price_from_symbol || gd.price_from_currency || "";
+      var orig = (gd.price_from_original != null
+          && Number(gd.price_from_original) > Number(gd.price_from))
+        ? '<s class="rc-price-was">' + esc(fmtSym(sym, gd.price_from_original)) + '</s>'
+        : "";
+      var promo = gd.price_from_promo_label
+        ? '<span class="rc-promo-badge"><i class="ti ti-rosette-discount"></i> '
+          + esc(gd.price_from_promo_label) + '</span>'
+        : "";
+      return '<span class="rc-changemodal-itemprice">'
+        + '<span class="rc-changemodal-itemprice-label">' + esc(adultLabel) + '</span>'
+        + '<span class="rc-changemodal-itemprice-value">from <b>'
+        + esc(fmtSym(sym, gd.price_from)) + '</b>' + orig + '</span>'
+        + promo
+        + '</span>';
+    }
+
+    var months = [];
+    items.forEach(function (it) {
+      if (months.indexOf(it.ymKey) < 0) months.push(it.ymKey);
+    });
+    months.sort();
+
+    // ── Header: kiri = title + subtitle (nama trip); KANAN-ATAS = badge
+    // kategori (float top-right — selari kad Dates & Packages) ──
+    var head = document.createElement("div");
+    head.className = "rc-changemodal-head";
+    var headLeft = document.createElement("div");
+    headLeft.className = "rc-changemodal-headleft";
+    var title = document.createElement("h3");
+    title.className = "rc-datemodal-title";
+    title.textContent = "Change Date";
+    headLeft.appendChild(title);
+    if (DATA.trip_name) {
+      var subtitle = document.createElement("p");
+      subtitle.className = "rc-changemodal-subtitle";
+      subtitle.textContent = DATA.trip_name;
+      headLeft.appendChild(subtitle);
+    }
+    head.appendChild(headLeft);
+    if (selCat) {
+      var catBadge = document.createElement("span");
+      catBadge.className = "rc-datecard-cat rc-changemodal-cat";
+      catBadge.innerHTML = '<i class="ti ti-tag"></i> ' + esc(selCat);
+      head.appendChild(catBadge);
+    }
+    card.appendChild(head);
+
+    // ── List view: rail bulan (kiri) + hasil tapisan (kanan) ──
+    var filterYm = "__all__";
+
+    var body = document.createElement("div");
+    body.className = "rc-changemodal-body";
+
+    // Dropdown tapis — SKRIN KECIL sahaja (CSS sembunyikan pada ≥641px)
+    var filter = document.createElement("div");
+    filter.className = "rc-changemodal-filter";
+    var sel = document.createElement("select");
+    sel.className = "rc-changemodal-select";
+    sel.setAttribute("aria-label", "Filter by departure month");
+    sel.appendChild(new Option("All months", "__all__"));
+    months.forEach(function (ym) {
+      var parts = ym.split("-");
+      sel.appendChild(new Option(
+        _RC_MONTHS_FULL[parseInt(parts[1], 10) - 1] + " " + parts[0], ym));
+    });
+    filter.appendChild(sel);
+
+    // Dua kolum: rail menegak (kiri) + senarai tarikh (kanan)
+    var columns = document.createElement("div");
+    columns.className = "rc-changemodal-columns";
+
+    var rail = document.createElement("div");
+    rail.className = "rc-changemodal-rail";
+    function railBtn(value, label, count) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "rc-changemodal-railbtn";
+      btn.setAttribute("data-ym", value);
+      btn.setAttribute("aria-pressed", "false");
+      btn.innerHTML = '<span class="rc-changemodal-railbtn-label">' + esc(label) + '</span>'
+        + '<span class="rc-changemodal-railbtn-count">' + count + '</span>';
+      btn.addEventListener("click", function () {
+        filterYm = value;
+        applyFilter();
+      });
+      return btn;
+    }
+    rail.appendChild(railBtn("__all__", "All Months", items.length));
+    months.forEach(function (ym) {
+      var parts = ym.split("-");
+      var count = items.filter(function (it) { return it.ymKey === ym; }).length;
+      rail.appendChild(railBtn(ym,
+        _RC_MONTHS_FULL[parseInt(parts[1], 10) - 1] + " " + parts[0], count));
+    });
+
+    var list = document.createElement("div");
+    list.className = "rc-datemodal-list rc-changemodal-dates";
+    items.forEach(function (it) {
+      var item = document.createElement("button");
+      item.type = "button";
+      item.className = "rc-datemodal-item"
+        + (it.idx === selIdx ? " rc-datemodal-item-active" : "");
+      item.setAttribute("data-idx", it.idx);
+      item.setAttribute("data-month", it.ymKey);
+      item.innerHTML =
+        '<span class="rc-datemodal-item-text"><b class="rc-datemodal-item-date">'
+        + esc(it.meta.dateText) + '</b>' + it.meta.seatsHtml + '</span>'
+        + (it.gd.is_special
+          ? '<span class="rc-changemodal-flag"><i class="ti ti-star-filled"></i></span>'
+          : "")
+        + priceLineHtml(it);
+      item.addEventListener("click", function () {
+        selectDate(it.idx);
+        closeChangeDateModal();
+      });
+      list.appendChild(item);
+    });
+
+    columns.appendChild(rail);
+    columns.appendChild(list);
+    body.appendChild(filter);
+    body.appendChild(columns);
+    card.appendChild(body);
+
+    function applyFilter() {
+      Array.prototype.forEach.call(
+        rail.querySelectorAll(".rc-changemodal-railbtn"), function (btn) {
+          var on = btn.getAttribute("data-ym") === filterYm;
+          btn.classList.toggle("rc-changemodal-railbtn-active", on);
+          btn.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+      sel.value = filterYm;
+      Array.prototype.forEach.call(
+        list.querySelectorAll(".rc-datemodal-item"), function (item) {
+          item.style.display =
+            filterYm === "__all__" || item.getAttribute("data-month") === filterYm
+              ? "" : "none";
+        });
+    }
+    sel.addEventListener("change", function () {
+      filterYm = sel.value;
+      applyFilter();
+    });
+    applyFilter();
+
+    document.body.appendChild(modal);
+    _changeModal = modal;
+    rcShowModal(modal);
+  }
+
+  function closeChangeDateModal() {
+    if (_changeModal) {
+      var _m = _changeModal;
+      _changeModal = null;
+      rcHideModal(_m, function () {
+        if (window.bootstrap && window.bootstrap.Modal && _m.parentNode) {
+          window.bootstrap.Modal.getInstance(_m).dispose();
+        }
+        if (_m.parentNode) _m.parentNode.removeChild(_m);
+      });
+    }
   }
 
   function renderDateModal() {
     var existing = document.getElementById("rcDateModal");
     if (existing) existing.parentNode.removeChild(existing);
 
-    var modal = document.createElement("div");
-    modal.id = "rcDateModal";
-    modal.className = "rc-datemodal";
-    modal.setAttribute("role", "dialog");
-    modal.setAttribute("aria-modal", "true");
-
-    var card = document.createElement("div");
-    card.className = "rc-datemodal-card";
-
-    var closeBtn = document.createElement("button");
-    closeBtn.type = "button";
-    closeBtn.className = "rc-datemodal-close";
-    closeBtn.innerHTML = "&times;";
-    closeBtn.setAttribute("aria-label", "Close");
-    closeBtn.addEventListener("click", closeDateModal);
+    var shell = rcBuildModal("rcDateModal", "rc-datemodal-card");
+    var modal = shell.modal;
+    var card = shell.card;
+    card.appendChild(shell.closeBtn);
 
     var title = document.createElement("h3");
     title.className = "rc-datemodal-title";
-    title.textContent = is_cruise ? "Choose Sailing Date" : "Choose Departure Date";
+    title.textContent = "Choose Departure Date";
 
     // ── Filter bulan: chip "All" + bulan unik (sisih kronologi) ──
     var filters = document.createElement("div");
     filters.className = "rc-datemodal-filters";
     var months = [];
     var _seenMonth = {};
-    _dateMeta.forEach(function (meta) {
+    // Bulan dari tarikh BOLEH PAPAR sahaja (deep-link kategori → bulan
+    // kategori itu; tanpa tapisan = semua bulan seperti sedia ada).
+    visibleDateIdxs().forEach(function (idx) {
+      var meta = _dateMeta[idx];
       var key = monthKey(meta.startIso);
       if (key && !_seenMonth[key]) {
         _seenMonth[key] = 1;
@@ -414,7 +1145,11 @@
     var list = document.createElement("div");
     list.className = "rc-datemodal-list";
     var anyFlight = false;
-    _dateMeta.forEach(function (meta, idx) {
+    // Deep-link kategori aktif → butang tarikh kategori sama SAHAJA
+    // (data-idx kekal index penuh — selectDate/markModalActiveItem tak
+    // berubah). Tanpa tapisan: semua tarikh seperti sedia ada.
+    visibleDateIdxs().forEach(function (idx) {
+      var meta = _dateMeta[idx];
       if (meta.hasFlight) anyFlight = true;
       var item = document.createElement("button");
       item.type = "button";
@@ -437,7 +1172,6 @@
       list.appendChild(item);
     });
 
-    card.appendChild(closeBtn);
     card.appendChild(title);
     // Filter bulan hanya bila tarikh merentasi >1 bulan (selain "All" tak
     // berguna bila semua tarikh dalam bulan sama).
@@ -452,28 +1186,19 @@
       card.appendChild(legend);
     }
 
-    modal.appendChild(card);
-    modal.addEventListener("click", function (e) {
-      if (e.target === modal) closeDateModal();
-    });
     document.body.appendChild(modal);
     _dateModal = modal;
   }
 
-  // Esc menutup popup date selector (overlay click ditangani dalam modal)
-  document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") closeDateModal();
-  });
-
   // ════ STEP 3: Load packages for selected date ════
-  // CRUISE: radio tarikh mewakili SAILING date (di-dedupe pelayan) — pakej
-  // di-union dari SEMUA TGD yang berkongsi sailing itu (peta DATA.sailing_tgds),
-  // dan setiap pakej kekal bawa trip_group_date SEBENAR pautannya. Ini
-  // memastikan pakej Cruise Only dibawa bersama TGD Cruise Only (bukan TGD
-  // Cruise + Flight yang disimpan semasa dedupe).
-  // Non-cruise: pakej diambil terus dari TGD radio (tiada dedupe).
+  // SATU radio tarikh = SATU Travel Date / TGD (ID dokumen) — pakej
+  // diambil terus dari trip_packages[kunci tarikh]. Varian pakej (fly
+  // cruise / cruise only / durasi berbeza) dalam Travel Date yang sama
+  // dipapar sebagai butang pakej sendiri; Travel Date lain — walaupun
+  // berkongsi tarikh berlepas atau sailing — kekal pilihan tarikh
+  // berasingan.
   function populatePackages() {
-    pkgSel.innerHTML = '<p class="rc-muted">Loading packages…</p>';
+    if (pkgSel) pkgSel.innerHTML = '<p class="rc-muted">Loading packages…</p>';
     _selectedPkg = "";
     _selectedPkgGd = "";
     _selectedPkgData = null;
@@ -483,26 +1208,16 @@
 
     var dateValue = getSelectedDateValue();
     if (!dateValue) {
-      pkgSel.innerHTML = '<p class="rc-muted">Pick a date first.</p>';
+      if (pkgSel) pkgSel.innerHTML = '<p class="rc-muted">Pick a date first.</p>';
       return;
     }
 
     var gdId = getSelectedGroupDateId();
     var preloaded = DATA.trip_packages || {};
 
-    var pkgs = null;
-    if (is_cruise) {
-      // Union pakej semua TGD yang berkongsi sailing_start — TANPA dedupe
-      // ikut nama pakej. Satu pakej boleh dipaut ke beberapa TGD dalam
-      // sailing yang sama (tarikh berlepas penerbangan berbeza), jadi setiap
-      // varian (pakej × TGD) dipapar sebagai butang sendiri dengan tarikh
-      // "Departs" masing-masing — user pilih tarikh penerbangan terus dari
-      // senarai butang, menggantikan popup pilihan departure di Book Now.
-      var sailStart = dateValue.split(":")[0];
-      pkgs = pkgsForDate({ sailing_start: sailStart });
-    } else {
-      pkgs = preloaded[gdId] || null;
-    }
+    // Pakej terus dari kunci tarikh terpilih (Travel Date / TGD) —
+    // satu tarikh = satu kumpulan berlepas; tiada union merentasi tarikh.
+    var pkgs = preloaded[gdId] || null;
 
     if (pkgs && pkgs.length) {
       renderPackageButtons(pkgs);
@@ -526,18 +1241,28 @@
         renderPackageButtons(pkgs);
       })
       .catch(function () {
-        pkgSel.innerHTML = '<p class="rc-muted">Couldn\x27t load packages. Please try again.</p>';
+        if (pkgSel) pkgSel.innerHTML = '<p class="rc-muted">Couldn\x27t load packages. Please try again.</p>';
       });
   }
 
   function renderPackageButtons(pkgs) {
-    pkgSel.innerHTML = "";
-    if (!pkgs || !pkgs.length) {
-      pkgSel.innerHTML = '<p class="rc-muted">No packages available for this date.</p>';
+    // Cruise (pkgSel null): butang pakej TIDAK dirender — auto-select di
+    // bawah tetap jalan supaya Price Info + Book Now terus hidup; penukaran
+    // pakej melalui modal Change Date. Tour (pkgSel ada): seperti sedia ada.
+    if (pkgSel) {
+      pkgSel.innerHTML = "";
+      if (!pkgs || !pkgs.length) {
+        pkgSel.innerHTML = '<p class="rc-muted">No packages available for this date.</p>';
+        return;
+      }
+    } else if (!pkgs || !pkgs.length) {
       return;
     }
     pkgs.forEach(function (p) {
       _pkgMap[p.name + "|" + p.trip_group_date] = p;
+      // Cruise: tiada butang pakej dirender (pkgSel null) — _pkgMap sahaja
+      // diperlukan untuk lookup state pakej.
+      if (!pkgSel) return;
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "rc-pkg-btn";
@@ -563,24 +1288,36 @@
       if (p.currency && p.currency !== LISTING_CURRENCY) {
         labelHtml += ' <span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;background:rgba(0,0,0,.06);vertical-align:middle;">' + esc(p.currency_symbol || p.currency) + " " + esc(p.currency) + '</span>';
       }
-      // Meta varian dipapar DALAM setiap butang — departure/return, duration,
-      // ground arrangement. Susunan ikut reka bentuk rujukan:
+      // [BUANG Nov 2026] Badge "Ground Arrangement Included/Not Included"
+      // — dibuang daripada baris pakej (arahan pemilik); info GA tidak
+      // lagi dipaparkan pada pemilih pakej.
+      // Meta varian dipapar DALAM setiap butang — departure/return, duration.
+      // Susunan ikut reka bentuk rujukan:
       //   [radio]  Tajuk pakej (bold)
       //            Departure          29 Sep 2026
       //            Return             12 Oct 2026
       //            Duration           1D/10N
-      //            Ground Arrangement Not Included
-      btn.innerHTML = '<span><div class="rc-pkg-title">' + labelHtml + '</div>' + pkgMetaHtml(p) + '</span>';
+      btn.innerHTML = '<span><div class="rc-pkg-head"><div class="rc-pkg-title">' + labelHtml + '</div></div>' + pkgMetaHtml(p) + '</span>';
       btn.addEventListener("click", function () { selectPackage(p.name, p.trip_group_date, p); });
       pkgSel.appendChild(btn);
     });
+    // (auto-select di bawah jalan untuk tour DAN cruise)
     var _wishMatch = _wishPkg
       ? pkgs.find(function (p) { return p.name === _wishPkg && (!_wishGd || p.trip_group_date === _wishGd); })
       : null;
     if (!_wishMatch && _wishPkg) {
       _wishMatch = pkgs.find(function (p) { return p.name === _wishPkg; });
     }
-    var _initPkg = _wishMatch || pkgs[0];
+    // Kekalkan pilihan semasa bila ia masih sah dalam senarai pakej tarikh
+    // ini — penting selepas fetch populatePackages selesai LEBIH LAMBAT
+    // dari pilihan user dalam modal Change Date (elak auto-select pkgs[0]
+    // menulis guli pilihan yang baru dibuat).
+    var _selMatch = (_selectedPkg && _selectedPkgGd)
+      ? pkgs.find(function (p) {
+          return p.name === _selectedPkg && p.trip_group_date === _selectedPkgGd;
+        })
+      : null;
+    var _initPkg = _wishMatch || _selMatch || pkgs[0];
     _wishPkg = "";  // consume wish — only apply once
     selectPackage(_initPkg.name, _initPkg.trip_group_date, _initPkg);
   }
@@ -593,11 +1330,22 @@
     _selectedPkg = name;
     _selectedPkgGd = gd;
     _selectedPkgData = p || _pkgMap[name + "|" + gd] || null;
-    Array.prototype.forEach.call(pkgSel.querySelectorAll(".rc-pkg-btn"), function (b) {
-      var match = b.getAttribute("data-value") === name
-        && b.getAttribute("data-gd-id") === (gd || "");
-      b.classList.toggle("rc-pkg-active", match);
-    });
+    if (pkgSel) {
+      Array.prototype.forEach.call(pkgSel.querySelectorAll(".rc-pkg-btn"), function (b) {
+        var match = b.getAttribute("data-value") === name
+          && b.getAttribute("data-gd-id") === (gd || "");
+        b.classList.toggle("rc-pkg-active", match);
+      });
+    }
+    // URL sync SENTIASA pada navigasi user (?package= — ?date= dipastikan
+    // sepadan; params lain kekal). DITAHAN semasa boot (auto-select awal
+    // bukan navigasi — URL kekal bersih).
+    if (!_suppressUrlSync) {
+      syncUrlParams({
+        date: (_selectedPkgData && _selectedPkgData.trip_group_date) || gd || "",
+        package: name,
+      });
+    }
     // MULTI-COMPANY: currency pakej = currency yang dicaj. Tukar simbol
     // harga kabin + nota "Charged in" ikut pakej yang dipilih.
     var pkgData = _selectedPkgData || {};
@@ -607,7 +1355,49 @@
       if (note) note.textContent = "Charged in " + pkgData.currency;
     }
     updateMetaDuration();
+    // Kad showcase: highlight row pakej aktif (pilih terus dari kad —
+    // render semula supaya .rc-dtpkg-row-active ikut pilihan terkini).
+    renderDateCards();
     loadCabins();
+    refreshItinerary();
+  }
+
+  // ── Itinerary efektif (Nov 2026) — bila tarikh/pakej dipilih, timeline
+  // bertukar kepada itinerary EFektif pilihan itu (warisan Trip ← Travel
+  // Date ← Package Offer — model overwrite per aras). Server render fragmen
+  // dengan include YANG SAMA dengan page (1:1 markup); swap #rcItinList +
+  // re-wire collapsible. Render awal (template Trip) dikekalkan bila trip
+  // tiada override langsung / tarikh legacy tanpa Travel Date. ──
+  var _itinHost = document.getElementById("rcItinList");
+  var _itinOriginal = _itinHost ? _itinHost.innerHTML : "";
+  var _itinSeq = 0;
+
+  function refreshItinerary() {
+    if (!_itinHost || !DATA.use_package_offers || !DATA.has_itinerary_override) return;
+    var gd = groupDatesData.find(function (g) { return g.name === _selectedPkgGd; });
+    var td = (gd && gd.travel_date) || "";
+    var offer = (_selectedPkgData && _selectedPkgData.offer) || "";
+    if (!td) {
+      // Tarikh legacy (tiada Travel Date) / tiada pilihan — kekal Trip.
+      _itinHost.innerHTML = _itinOriginal;
+      if (window.RCItinInit) window.RCItinInit();
+      return;
+    }
+    var url = "/api/method/travel_booking.api.package_catalog.get_effective_itinerary"
+      + "?trip=" + encodeURIComponent(DATA.trip_master || "")
+      + "&travel_date=" + encodeURIComponent(td);
+    if (offer) url += "&offer=" + encodeURIComponent(offer);
+    var seq = ++_itinSeq;
+    fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (res) {
+        if (seq !== _itinSeq) return;  // pilihan telah bertukar — abaikan
+        var msg = res && res.message;
+        if (!msg || !msg.html) return;
+        _itinHost.innerHTML = msg.html;
+        if (window.RCItinInit) window.RCItinInit();
+      })
+      .catch(function () { /* senyap — kekal paparan sedia ada */ });
   }
 
   // ── Meta pakej per VARIAN — dipapar dalam SETIAP butang pakej ──
@@ -655,7 +1445,6 @@
     if (dur) {
       html += _metaRow("Duration", dur);
     }
-    html += _metaRow("Ground Arrangement", p.ground_arrangement ? "Included" : "Not Included", p.ground_arrangement ? "rc-pkg-included" : "rc-pkg-not-included");
     html += '</div>';
     return html;
   }
@@ -677,6 +1466,14 @@
     var url = "/api/method/travel_booking.api.pricing.get_booking_details"
       + "?trip_group_date=" + encodeURIComponent(gd)
       + "&trip_package=" + encodeURIComponent(pkg);
+    // F5 struktur baharu: pakej terpilih ialah Package Offer dengan Price
+    // Matrix tersendiri — hantar package_offer supaya server baca mod
+    // offer (harga matrix + tarikh Travel Date). trip_package legacy
+    // mungkin kosong untuk offer identiti-sendiri.
+    var _selOffer = (_selectedPkgData && _selectedPkgData.offer) || "";
+    if (DATA.use_package_offers && _selOffer) {
+      url += "&package_offer=" + encodeURIComponent(_selOffer);
+    }
     fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
       .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
       .then(function (res) {
@@ -690,10 +1487,20 @@
   }
 
   function renderCabins(data) {
+    // Showcase "Cabin Categories" khusus trip CRUISE — trip darat/tour
+    // sembunyikan terus (ringkasan harga sidebar kekal).
+    if (!is_cruise) {
+      cabinsEl.className = "rc-cabins-empty";
+      cabinsEl.innerHTML = "";
+      if (cabinSection) cabinSection.hidden = true;
+      return;
+    }
     var cabins = (data && data.cabins) || [];
     if (!cabins.length) {
       cabinsEl.className = "rc-cabins-empty";
       cabinsEl.innerHTML = '<p class="rc-muted">No room options for this package.</p>';
+      // Sembunyikan showcase kabin bila pakej tiada room options.
+      if (cabinSection) cabinSection.hidden = true;
       return;
     }
     var priceMap = {};
@@ -734,25 +1541,189 @@
       var minPrice = priceMap[cfg.price_key];
       // Auto-hide price category if price is null or zero (0 = not applicable)
       if (minPrice != null && minPrice > 0) {
+        var note = (cfg.display_note || "").replace(/<[^>]+>/g, "").trim();
         html += '<div class="rc-price-row">';
-        html += '<div class="rc-price-label">' + esc(cfg.display_label) + '</div>';
-        var note = (cfg.display_note || "").replace(/<[^>]+>/g, "");
+        html += '<div class="rc-price-label">' + esc(cfg.display_label);
+        if (note) {
+          // Nota harga: caption DISEMBUNYIKAN — jadi tooltip berhias dari
+          // butang "?" selepas label (papar bila hover / butang focus).
+          // Nota dibawa sebagai <span> DALAM butang (bukan atribut) supaya
+          // esc() content-escape cukup — tiada isu attribute-escape.
+          html += '<button type="button" class="rc-price-info"'
+            + ' aria-label="More info: ' + esc(cfg.display_label) + '"'
+            + ' title="">?'
+            + '<span class="rc-price-note rc-price-tip">' + esc(note) + '</span>'
+            + '</button>';
+        }
+        html += '</div>';
         // Travel Price Rule: harga promo + strikethrough harga asal.
         var origPrice = origPriceMap[cfg.price_key];
         var slash = (origPrice != null && Number(origPrice) > Number(minPrice))
           ? ' <s class="rc-price-was">' + fmt(origPrice) + '</s>'
           : "";
         html += '<div class="rc-price-value">from ' + fmt(minPrice) + slash + '</div>';
-        if (note.trim()) {
-          html += '<div class="rc-price-note">' + esc(note.trim()) + '</div>';
-        }
         html += '</div>';
       }
     });
     html += '</div>';
     cabinsEl.className = "rc-cabins-summary";
     cabinsEl.innerHTML = html;
+    // Showcase "Cabin Categories" — kad penuh per room category (img,
+    // kapasiti, harga per guest type) di layout utama.
+    renderCabinCards(cabins);
   }
+
+  // ── Kad Kategori Kabin (seksyen showcase) — KHUSUS trip CRUISE (trip
+  // darat/tour sembunyikan seksyen; ringkasan harga sidebar kekal). Kad
+  // per room category: gambar room, kapasiti, harga per guest type (bukan
+  // MIN merentasi kategori). Kad dikumpul ikut Category Group
+  // (Cabin/Suite/Villa/Room) — bila ada >1 group, tab bar dipapar untuk
+  // tukar antara group. Tiada CTA — tempahan melalui kad booking sahaja. ──
+  var _CABIN_GROUP_ORDER = ["Cabin", "Suite", "Villa", "Room", "Addon"];
+
+  function renderCabinCards(cabins) {
+    if (!cabinCardsEl) return;
+    cabinCardsEl.innerHTML = "";
+    var tabsHost = document.getElementById("rcCabinTabs");
+    if (!tabsHost) {
+      tabsHost = document.createElement("div");
+      tabsHost.id = "rcCabinTabs";
+      tabsHost.className = "rc-cabin-tabs";
+      cabinCardsEl.parentNode.insertBefore(tabsHost, cabinCardsEl);
+    }
+    tabsHost.innerHTML = "";
+    // Gate cruise: trip bukan-cruise / tiada kabin → seksyen tersembunyi.
+    if (!is_cruise || !cabins.length) {
+      tabsHost.hidden = true;
+      if (cabinSection) cabinSection.hidden = true;
+      return;
+    }
+    if (cabinSection) cabinSection.hidden = false;
+    tabsHost.hidden = true;
+    var labels = PRICE_LABELS.length ? PRICE_LABELS : getDefaultPriceLabels();
+
+    // Kumpul Category Group unik (fallback "Cabin" bila kosong) — susun
+    // kanonik Cabin→Suite→Villa→Room; group luar senarai kekal di hujung.
+    var groups = [];
+    var _seenGrp = {};
+    cabins.forEach(function (c) {
+      var g = (c.category_group || "").trim() || "Cabin";
+      if (!_seenGrp[g]) { _seenGrp[g] = 1; groups.push(g); }
+    });
+    groups.sort(function (a, b) {
+      var ia = _CABIN_GROUP_ORDER.indexOf(a); if (ia < 0) ia = 99;
+      var ib = _CABIN_GROUP_ORDER.indexOf(b); if (ib < 0) ib = 99;
+      return ia - ib;
+    });
+
+    cabins.forEach(function (c) {
+      var grp = (c.category_group || "").trim() || "Cabin";
+      var pr = c.pricing || {};
+      var opr = c.original_pricing || {};
+      var priceRows = labels.map(function (cfg) {
+        var v = pr[cfg.price_key];
+        if (v == null || Number(v) <= 0) return "";
+        var o = opr[cfg.price_key];
+        var slash = (o != null && Number(o) > Number(v))
+          ? ' <s class="rc-price-was">' + fmt(o) + '</s>'
+          : "";
+        return '<div class="rc-cabin-price-row"><span>' + esc(cfg.display_label)
+          + '</span><b>' + fmt(v) + slash + '</b></div>';
+      }).join("");
+
+      var cap = c.capacity || c.max_capacity;
+      var desc = c.description ? String(c.description).replace(/<[^>]+>/g, "").trim() : "";
+      if (desc.length > 140) desc = desc.slice(0, 140) + "…";
+
+      var card = document.createElement("article");
+      card.className = "rc-cabin-card";
+      card.setAttribute("data-group", grp);
+      // Baki kabin kolam kontrak sailing (cruise ber-schedule) — badge
+      // pada kad showcase: "Sold Out" bila kategori tak boleh dijual
+      // (kolam habis / kategori tak dikonfigur dlm cabin_rates),
+      // "N cabins left" bila hampir penuh. Inventori mengira KABIN bukan
+      // penumpang. Kolam besar / offer darat (null) → tiada badge.
+      var seatsBadge = "";
+      if (!c.is_available) {
+        seatsBadge = '<span class="rc-cabin-seats rc-cabin-seats--out"><i class="ti ti-ban"></i> Sold Out</span>';
+      } else if (c.pool_cabins_left != null && c.pool_cabins_left <= 5) {
+        seatsBadge = '<span class="rc-cabin-seats rc-cabin-seats--low'
+          + (c.pool_cabins_left <= 3 ? " rc-cabin-seats--crit" : "")
+          + '"><i class="ti ti-alert-circle"></i> ' + esc(String(c.pool_cabins_left))
+          + (c.pool_cabins_left === 1 ? " cabin left" : " cabins left") + '</span>';
+      }
+      card.innerHTML =
+        '<div class="rc-cabin-media">'
+        +   '<img src="' + esc(c.room_image || "/assets/travel_booking/img/defaultaroya.jpg")
+        +     '" alt="' + esc(c.room_name || c.room_category || "Cabin") + '" loading="lazy"'
+        +     ' onerror="this.src=\'/assets/travel_booking/img/defaultaroya.jpg\'"/>'
+        +   (cap ? '<span class="rc-cabin-cap"><i class="ti ti-users"></i> ' + esc(String(cap)) + ' pax</span>' : '')
+        + '</div>'
+        + '<div class="rc-cabin-body">'
+        +   '<h3 class="rc-cabin-name">' + esc(c.room_name || c.room_category || "") + '</h3>'
+        +   seatsBadge
+        +   (priceRows ? '<div class="rc-cabin-prices">' + priceRows + '</div>' : '')
+        +   (desc ? '<p class="rc-cabin-desc">' + esc(desc) + '</p>' : '')
+        +   '<button type="button" class="rc-cabin-reserve"'
+        +     (!c.is_available ? " disabled" : "")
+        +     ' aria-label="Reserve ' + esc(c.room_name || c.room_category || "cabin") + '">'
+        +     '<i class="ti ti-calendar-check"></i> Reserve'
+        +   '</button>'
+        + '</div>';
+      // Reserve — aliran Book Now + pra-pilih kategori kabin kad ini
+      // sebagai BILIK PERTAMA di wizard /booknow.
+      card.querySelector(".rc-cabin-reserve").addEventListener("click", function () {
+        reserveCabin(c);
+      });
+      // >1 group: semua kad dipapar awal — tab "All" aktif secara default.
+      cabinCardsEl.appendChild(card);
+    });
+
+    // Tab bar — hanya bila ada >1 Category Group. Tab "All" dahulu
+    // (default aktif — papar SEMUA group); tab group lain tapis ikut group.
+    if (groups.length > 1) {
+      tabsHost.hidden = false;
+      var tabAll = document.createElement("button");
+      tabAll.type = "button";
+      tabAll.className = "rc-cabin-tab rc-cabin-tab-active";
+      tabAll.textContent = "All";
+      tabAll.setAttribute("data-group", "__all__");
+      tabAll.addEventListener("click", function () {
+        Array.prototype.forEach.call(tabsHost.querySelectorAll(".rc-cabin-tab"), function (t) {
+          t.classList.remove("rc-cabin-tab-active");
+        });
+        tabAll.classList.add("rc-cabin-tab-active");
+        Array.prototype.forEach.call(cabinCardsEl.querySelectorAll(".rc-cabin-card"), function (card) {
+          card.classList.remove("rc-cabin-card-hidden");
+        });
+      });
+      tabsHost.appendChild(tabAll);
+      groups.forEach(function (g) {
+        var tab = document.createElement("button");
+        tab.type = "button";
+        tab.className = "rc-cabin-tab";
+        tab.textContent = g;
+        tab.setAttribute("data-group", g);
+        tab.addEventListener("click", function () {
+          Array.prototype.forEach.call(tabsHost.querySelectorAll(".rc-cabin-tab"), function (t) {
+            t.classList.remove("rc-cabin-tab-active");
+          });
+          tab.classList.add("rc-cabin-tab-active");
+          Array.prototype.forEach.call(cabinCardsEl.querySelectorAll(".rc-cabin-card"), function (card) {
+            card.classList.toggle("rc-cabin-card-hidden", card.getAttribute("data-group") !== g);
+          });
+        });
+        tabsHost.appendChild(tab);
+      });
+    }
+  }
+
+  // Fokus widget booking — mobile: buka drawer; desktop: scroll ke kad.
+  // PENTING: bar ialah position:fixed — offsetParent sentiasa null, jadi
+  // keterlihatan disemak melalui getComputedStyle (display:none di desktop,
+  // css trip_detail.css; ditunjukkan pada breakpoint ≤640px).
+  // [Nov 2026] CTA "Reserve" kad kabin dibuang — handler kekal untuk
+  // consumer lain yang mungkin fokus ke kad booking.
 
   function updateBookLink() {
     var ready = !!(_selectedPkg && _selectedPkgGd);
@@ -795,25 +1766,38 @@
   }
 
   function closeShareModal(overlay) {
-    overlay.classList.remove("rc-share-modal-show");
-    setTimeout(function () { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 300);
+    rcHideModal(overlay, function () {
+      if (window.bootstrap && window.bootstrap.Modal && overlay.parentNode) {
+        window.bootstrap.Modal.getInstance(overlay).dispose();
+      }
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    });
   }
 
   function showShareModal(shareUrl, qrUri) {
     var existing = document.getElementById("rcShareModal");
     if (existing) existing.parentNode.removeChild(existing);
 
+    // Cangkang Bootstrap modal — kandungan kad share jenama di dalam.
     var overlay = document.createElement("div");
     overlay.id = "rcShareModal";
-    overlay.className = "rc-share-modal";
+    overlay.className = "modal fade rc-share-modal";
+    overlay.tabIndex = -1;
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-hidden", "true");
+
+    var dialog = document.createElement("div");
+    dialog.className = "modal-dialog modal-dialog-centered";
 
     var card = document.createElement("div");
-    card.className = "rc-share-card";
+    card.className = "modal-content rc-share-card";
 
     var closeBtn = document.createElement("button");
     closeBtn.className = "rc-share-close";
+    closeBtn.setAttribute("data-bs-dismiss", "modal");
+    closeBtn.setAttribute("aria-label", "Close");
     closeBtn.innerHTML = "&times;";
-    closeBtn.addEventListener("click", function () { closeShareModal(overlay); });
 
     var title = document.createElement("h3");
     title.className = "rc-share-title";
@@ -847,12 +1831,10 @@
     if (qrUri) card.appendChild(qrWrap);
     card.appendChild(urlEl);
     card.appendChild(copyBtn);
-    overlay.appendChild(card);
-    overlay.addEventListener("click", function (ev) {
-      if (ev.target === overlay) closeShareModal(overlay);
-    });
+    dialog.appendChild(card);
+    overlay.appendChild(dialog);
     document.body.appendChild(overlay);
-    setTimeout(function () { overlay.classList.add("rc-share-modal-show"); }, 10);
+    rcShowModal(overlay);
   }
 
   function shareWish(e) {
@@ -860,9 +1842,23 @@
     var gd = _selectedPkgGd, pkg = _selectedPkg;
     if (!gd || !pkg) return;
 
+    // Pautan share: ?date=/?package= (param lama trip_group_date/
+    // trip_package dibersihkan). Param LAIN pada URL semasa — utm_*, sp/
+    // affiliate, dsb. — KEKAL dengan nilainya supaya atribusi marketing
+    // tidak hilang melalui pautan share.
+    var shareQs;
+    try {
+      shareQs = new URLSearchParams(window.location.search);
+    } catch (_e) {
+      shareQs = new URLSearchParams();
+    }
+    shareQs.set("date", gd);
+    shareQs.set("package", pkg);
+    shareQs.delete("trip_group_date");
+    shareQs.delete("trip_package");
+    var shareQsStr = shareQs.toString();
     var longUrl = window.location.origin + window.location.pathname
-      + "?trip_group_date=" + encodeURIComponent(gd)
-      + "&trip_package=" + encodeURIComponent(pkg);
+      + (shareQsStr ? "?" + shareQsStr : "");
 
     var origText = shareBtn.textContent;
     shareBtn.textContent = "Generating…";
@@ -905,20 +1901,41 @@
       return;
     }
 
-    var sailingStart = "";
+    var departureStart = "";
     if (is_cruise) {
-      // Sailing yang dipilih user — direkodkan dalam cart untuk
-      // reverse-trace di /booknow.
-      sailingStart = (getSelectedDateValue() || "").split(":")[0];
+      // Tarikh berlepas yang dipilih user (kumpulan ikut departure date —
+      // bukan sailing lagi) — direkodkan dalam cart untuk reverse-trace
+      // di /booknow.
+      departureStart = (getSelectedDateValue() || "").split(":")[0];
     }
 
-    proceedToBookNow(gd, pkg, sailingStart);
+    proceedToBookNow(gd, pkg, departureStart);
   }
 
-  function proceedToBookNow(gd, pkg, sailingStart) {
+  // ── Reserve dari kad kabin (showcase Cabin Categories) ──
+  // Aliran SAMA dengan Book Now (addToCart → proceedToBookNow) — tambah
+  // room_category kabin kad ini untuk pra-pilih BILIK PERTAMA di wizard
+  // /booknow (initRooms baca bnw_cart.room_category — sah + available).
+  function reserveCabin(cabin) {
+    var gd = _selectedPkgGd;
+    var pkg = _selectedPkg || null;
+    if (!gd || !pkg) {
+      gdSel.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    var departureStart = is_cruise
+      ? (getSelectedDateValue() || "").split(":")[0]
+      : "";
+    proceedToBookNow(gd, pkg, departureStart, cabin.room_category);
+  }
+
+  function proceedToBookNow(gd, pkg, departureStart, roomCategory) {
     // Cari package data dari button attributes untuk label/currency
-    var pkgBtn = pkgSel.querySelector(".rc-pkg-btn[data-value='" + pkg + "']");
-    var pkgLabel = pkgBtn ? pkgBtn.textContent : "";
+    // (pkgSel null pada cruise — fallback label dari varian terpilih).
+    var pkgBtn = pkgSel ? pkgSel.querySelector(".rc-pkg-btn[data-value='" + pkg + "']") : null;
+    var pkgLabel = pkgBtn
+      ? pkgBtn.textContent
+      : ((_selectedPkgData && (_selectedPkgData.package_type || _selectedPkgData.package_name)) || "");
 
     // package_variant = "package_name:group_date" (combined format)
     var package_variant = pkg + ":" + gd;
@@ -930,7 +1947,7 @@
       trip_type: TRIP_TYPE,
       package_variant: package_variant,                 // "TP260817:RC2621"
       group_date: gd,                                   // backward compat
-      sailing_start: sailingStart || "",                // cruise: sailing yang dipilih (untuk reverse-trace di /booknow)
+      departure_date: departureStart || "",             // cruise: tarikh berlepas dipilih (untuk reverse-trace di /booknow)
       package_name: pkg,                                // backward compat
       package_label: pkgLabel,
       // Currency native pakej yang dipilih (paksi multi-company) — wizard
@@ -938,6 +1955,15 @@
       package_currency: ((_pkgMap[pkg + "|" + gd] || {}).currency) || LISTING_CURRENCY,
       package_currency_symbol: SYM,
       company_currency: DATA.company_symbol || "RM",
+      // F5 struktur baharu — identiti Package Offer untuk laluan tulis
+      // baharu (confirm_booking baca Price Matrix offer bila flag ON).
+      // Kosong untuk pakej legacy (cart lama tak terjejas).
+      offer: ((_selectedPkgData && _selectedPkgData.offer) || ""),
+      travel_package: ((_selectedPkgData && _selectedPkgData.travel_package) || ""),
+      // Reserve dari kad kabin (showcase Cabin Categories): kategori kabin
+      // pra-pilih untuk BILIK PERTAMA di wizard /booknow (initRooms baca
+      // medan ni — sah + available; kosong = Book Now biasa).
+      room_category: roomCategory || "",
       affiliate_code: _sp,                              // rambat ke /booknow
       added_at: new Date().toISOString()
     };
@@ -983,6 +2009,9 @@
   // populateDates() → auto-select first date → populatePackages() (AJAX) → selectPackage() → loadCabins()
   loadPriceLabels().then(function() {
     populateDates();
+    // Boot selesai (auto-select awal synchronize state tanpa URL) —
+    // navigasi user selepas ini dikemas kini ke URL (?date=/?package=).
+    _suppressUrlSync = false;
     if (bookBtn) {
       bookBtn.addEventListener("click", addToCart);
     }
@@ -992,40 +2021,20 @@
   });
 })();
 
-// ── FAQ accordion (single-open) ──
-(function () {
-  "use strict";
-  var faq = document.getElementById("rcFaq");
-  if (!faq) return;
-  faq.addEventListener("click", function (e) {
-    var btn = e.target.closest(".rc-faq-q");
-    if (!btn) return;
-    var item = btn.parentElement;
-    var ans = btn.nextElementSibling;
-    var open = btn.getAttribute("aria-expanded") === "true";
-    Array.prototype.forEach.call(faq.querySelectorAll(".rc-faq-q"), function (q) {
-      q.setAttribute("aria-expanded", "false");
-      if (q.parentElement) q.parentElement.classList.remove("is-open");
-      var a = q.nextElementSibling;
-      if (a) a.style.maxHeight = null;
-    });
-    if (!open) {
-      btn.setAttribute("aria-expanded", "true");
-      item.classList.add("is-open");
-      if (ans) ans.style.maxHeight = ans.scrollHeight + "px";
-    }
-  });
-})();
+// ── FAQ accordion — DIMIGRASI ke Bootstrap accordion (markup accordion
+// dalam trip.html; single-open diurus data-bs-parent). Tiada JS custom.
 
 // ── Itinerary collapsible — teks more/hide kecil di bucu kanan bawah kad
 // + butang global Collapse all / Expand all di header seksyen.
 // querySelectorAll (bukan querySelector) supaya itinerary bersegmen cruise —
 // beberapa <ol class="rc-itinerary"> — semuanya dapat handler.
-// Lalai: semua hari open (terbuka). ──
+// Lalai: semua hari open (terbuka).
+// [Nov 2026] initItin() boleh dipanggil SEMULA: bila timeline diswap
+// kepada itinerary efektif (tarikh/pakej dipilih pada widget booking),
+// elemen baharu perlu wiring — elemen yang sudah wired (data-itin-wired)
+// tidak disentuh lagi. ──
 (function () {
   "use strict";
-  var days = document.querySelectorAll(".rc-itin-day");
-  if (!days.length) return;
   var allBtn = document.getElementById("rcItinToggleAll");
 
   function daySet(li, open) {
@@ -1039,6 +2048,7 @@
 
   function syncAllBtn() {
     if (!allBtn) return;
+    var days = document.querySelectorAll(".rc-itin-day");
     var allOpen = true;
     Array.prototype.forEach.call(days, function (li) {
       if (!li.classList.contains("rc-itin-open")) allOpen = false;
@@ -1050,42 +2060,51 @@
     if (icon) icon.className = "ti " + (allOpen ? "ti-chevrons-up" : "ti-chevrons-down");
   }
 
-  Array.prototype.forEach.call(days, function (li) {
-    var head = li.querySelector(".rc-itin-head");
-    var btn = li.querySelector(".rc-itin-toggle");
-    if (!head && !btn) return;
-    li.classList.add("rc-itin-open");
-    if (btn) btn.textContent = "hide";
-    if (head) {
-      head.setAttribute("role", "button");
-      head.setAttribute("tabindex", "0");
-      head.setAttribute("aria-expanded", "true");
-    }
-    function toggle() {
-      daySet(li, !li.classList.contains("rc-itin-open"));
-      syncAllBtn();
-    }
-    if (head) {
-      head.addEventListener("click", toggle);
-      head.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          toggle();
-        }
-      });
-    }
-    if (btn) btn.addEventListener("click", toggle);
-  });
+  function initItin() {
+    var days = document.querySelectorAll(".rc-itin-day:not([data-itin-wired])");
+    Array.prototype.forEach.call(days, function (li) {
+      li.setAttribute("data-itin-wired", "1");
+      var head = li.querySelector(".rc-itin-head");
+      var btn = li.querySelector(".rc-itin-toggle");
+      if (!head && !btn) return;
+      li.classList.add("rc-itin-open");
+      if (btn) btn.textContent = "hide";
+      if (head) {
+        head.setAttribute("role", "button");
+        head.setAttribute("tabindex", "0");
+        head.setAttribute("aria-expanded", "true");
+      }
+      function toggle() {
+        daySet(li, !li.classList.contains("rc-itin-open"));
+        syncAllBtn();
+      }
+      if (head) {
+        head.addEventListener("click", toggle);
+        head.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle();
+          }
+        });
+      }
+      if (btn) btn.addEventListener("click", toggle);
+    });
+  }
 
   if (allBtn) {
     allBtn.addEventListener("click", function () {
       var expand = allBtn.getAttribute("aria-expanded") !== "true";
-      Array.prototype.forEach.call(days, function (li) {
-        daySet(li, expand);
-      });
+      Array.prototype.forEach.call(
+        document.querySelectorAll(".rc-itin-day"),
+        function (li) { daySet(li, expand); });
       syncAllBtn();
     });
   }
+
+  initItin();
+  // Dipanggil selepas swap #rcItinList (itinerary efektif) oleh widget
+  // booking di atas — rujuk refreshItinerary().
+  window.RCItinInit = initItin;
 })();
 
 // ── Sticky booking panel (position:sticky bottom — trip_detail.css) ──

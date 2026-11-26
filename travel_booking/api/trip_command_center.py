@@ -107,7 +107,10 @@ def get_trips_list(search: str = None, status: str = None, is_cruise: str = None
 			params.append(int(is_cruise))
 
 		if search:
-			where_conditions.append('t.trip_name LIKE %s')
+			# Padankan trip_name ATAU docname (cth. TRIP2649) — halaman
+			# directory & dialog travel date mencari ikut docname.
+			where_conditions.append('(t.trip_name LIKE %s OR t.name LIKE %s)')
+			params.append('%' + search + '%')
 			params.append('%' + search + '%')
 
 		where_clause = ''
@@ -120,8 +123,10 @@ def get_trips_list(search: str = None, status: str = None, is_cruise: str = None
 			SELECT
 				t.name,
 				t.trip_name,
+				t.trip_organizer,
 				t.route,
 				t.published,
+				t.featured_trip,
 				t.status,
 				t.is_a_cruise_trip,
 				t.trip_image,
@@ -158,7 +163,8 @@ def get_trips_list(search: str = None, status: str = None, is_cruise: str = None
 
 			{where_clause}
 
-			GROUP BY t.name, t.trip_name, t.route, t.published, t.status,
+			GROUP BY t.name, t.trip_name, t.trip_organizer, t.route,
+			         t.published, t.featured_trip, t.status,
 			         t.is_a_cruise_trip, t.trip_image, t.creation, t.modified
 
 			ORDER BY t.creation DESC
@@ -181,8 +187,10 @@ def get_trips_list(search: str = None, status: str = None, is_cruise: str = None
 			trip_dict = {
 				'name': t.name,
 				'trip_name': t.trip_name or '',
+				'trip_organizer': t.trip_organizer or '',
 				'route': t.route or '',
 				'published': t.published,
+				'featured': int(t.featured_trip or 0),
 				'status': t.status or 'Active',
 				'is_a_cruise_trip': t.is_a_cruise_trip,
 				'image': t.trip_image or '',
@@ -410,15 +418,9 @@ def _build_website_settings() -> dict:
 		'cruise_hero_tag': wc.cruise_hero_tag or '',
 		'cruise_hero_title': wc.cruise_hero_title or '',
 		'cruise_hero_intro': wc.cruise_hero_intro or '',
-		'cruise_hero_search_label': wc.cruise_hero_search_label or 'Search Cruises',
-		'cruise_hero_stats': get_child_table('cruise_hero_stats', has_active=False),
 
-		# Featured Section
-		'cruise_featured_tag': wc.cruise_featured_tag or '',
-		'cruise_featured_title': wc.cruise_featured_title or '',
-		'cruise_featured_subtitle': wc.cruise_featured_subtitle or '',
-		'cruise_featured_cta_label': wc.cruise_featured_cta_label or 'View All Cruises',
-		'cruise_featured_cta_url': wc.cruise_featured_cta_url or '/cruises',
+		# Trip Listing Sections (dynamic homepage product sections)
+		'cruise_trip_sections': get_child_table('cruise_trip_sections'),
 
 		# Why Choose Us Section
 		'cruise_whyus_tag': wc.cruise_whyus_tag or '',
@@ -558,7 +560,7 @@ def _empty_website_settings() -> dict:
 		'whatsapp': '',
 		# Cruise (copy empty section + overrides)
 		**{f'cruise_{k}': v for k, v in empty_section.items()},
-		**{'cruise_hero_search_label': 'Search Cruises', 'cruise_featured_cta_label': 'View All Cruises', 'cruise_featured_cta_url': '/cruises'},
+		**{'cruise_trip_sections': []},
 		# Tour (copy empty section + overrides)
 		**{f'tour_{k}': v for k, v in empty_section.items()},
 		**{'tour_hero_search_label': 'Search Tours', 'tour_featured_cta_label': 'View All Tours', 'tour_featured_cta_url': '/tours'},

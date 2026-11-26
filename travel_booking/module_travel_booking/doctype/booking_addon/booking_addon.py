@@ -26,8 +26,8 @@ class BookingAddon(Document):
 		return_date: DF.Date | None
 		status: DF.Literal["Pending", "Confirmed", "Cancelled"]
 		total_amount: DF.Currency
-		trip_date: DF.Link | None
-		trip_package: DF.Link | None
+		travel_date: DF.Link | None
+		package_offer: DF.Link | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Booking Addon"

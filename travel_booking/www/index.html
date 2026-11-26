@@ -19,14 +19,24 @@
 #  Content akan diisi oleh get_context() function dari index.py.
 #  Function tu akan panggil context builder yang betul (cruise/tour/etc)
 #  dan semua variable akan tersedia di sini.
+#
+#  NOTA MIGRASI BOOTSTRAP 5: index.py lakukan internal redirect ke
+#  /cruise atau /tour (ikut domain) — markup di bawah hanya laluan
+#  FALLBACK bila redirect gagal. Layout kini = Bootstrap (container /
+#  row / col / card / form-select / form-control / btn) seperti pilot
+#  cruise.html & tour.html. Blok jenama kongsi (rc-section,
+#  rc-section-header, rc-tag, rc-stat, rc-hero-tag/intro, rc-card-*,
+#  rc-price-*) datang daripada rc-theme.css yang dimuatkan oleh
+#  base_travel.html. Hero di sini TIDAK memuatkan cruise.css/tour.css,
+#  jadi bg hero diberi utility Bootstrap (bg-dark text-white).
 #}
 
-{# === CRUISE HOMEPAGE === %}
+{# === CRUISE HOMEPAGE === #}
 {% if page_type == "cruise" %}
-<section class="rc-cruise-hero">
+<section class="rc-cruise-hero bg-dark text-white">
   <div class="rc-hero-bg"{% if hero_background %} style="background-image: url('{{ hero_background }}')"{% endif %}></div>
   <div class="rc-hero-overlay"></div>
-  <div class="rc-hero-content">
+  <div class="rc-hero-content container py-5">
     {% if hero_tag %}<span class="rc-hero-tag">{{ hero_tag }}</span>{% endif %}
     {% if hero_title %}<h1>{{ hero_title|safe }}</h1>{% endif %}
     {% if hero_intro %}<div class="rc-hero-intro">{{ hero_intro|safe }}</div>{% endif %}
@@ -34,31 +44,37 @@
     {% if show_search_widget | default(true) %}
     <form class="rc-hero-search" action="/trips" method="get">
       <input type="hidden" name="cruise" value="1"/>
-      <div class="rc-search-grid">
-        <label class="rc-search-field">
-          <i class="ti ti-map-pin"></i>
-          <select name="destination">
-            <option value="">Where to?</option>
-            {% for d in destinations %}
-            <option value="{{ d.name }}">{{ d.destination_name }}{% if d.destination_country %}, {{ d.destination_country }}{% endif %}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <label class="rc-search-field">
-          <i class="ti ti-calendar-event"></i>
-          <input type="date" name="date_from" placeholder="Departure"/>
-        </label>
-        <button type="submit" class="rc-search-btn">
-          <i class="ti ti-search"></i> {{ search_label or "Search Cruises" }}
-        </button>
+      <div class="row g-2 justify-content-center">
+        <div class="col-12 col-md-5">
+          <label class="rc-search-field">
+            <i class="ti ti-map-pin"></i>
+            <select name="destination" class="form-select" aria-label="Destination">
+              <option value="">Where to?</option>
+              {% for d in destinations %}
+              <option value="{{ d.name }}">{{ d.destination_name }}{% if d.destination_country %}, {{ d.destination_country }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="rc-search-field">
+            <i class="ti ti-calendar-event"></i>
+            <input type="date" name="date_from" placeholder="Departure" class="form-control"/>
+          </label>
+        </div>
+        <div class="col-12 col-md-3">
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="ti ti-search"></i> {{ search_label or "Search Cruises" }}
+          </button>
+        </div>
       </div>
     </form>
     {% endif %}
     
     {% if hero_stats %}
-    <div class="rc-hero-stats">
+    <div class="d-flex justify-content-center flex-wrap gap-3 gap-md-5 mt-4">
       {% for stat in hero_stats %}
-      <div class="rc-stat">
+      <div class="rc-stat text-center">
         <strong>{{ stat.stat_value }}</strong>
         <span>{{ stat.stat_label }}</span>
       </div>
@@ -70,27 +86,34 @@
 
 {% if featured_items %}
 <section class="rc-section rc-featured">
-  <div class="rc-container">
+  <div class="container">
     <div class="rc-section-header">
       {% if featured_tag %}<span class="rc-tag">{{ featured_tag }}</span>{% endif %}
       {% if featured_title %}<h2>{{ featured_title }}</h2>{% endif %}
       {% if featured_subtitle %}<p>{{ featured_subtitle }}</p>{% endif %}
     </div>
     
-    <div class="rc-cruise-grid">
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
       {% for item in featured_items %}
-      <article class="rc-cruise-card">
-        <a class="rc-cruise-img" href="{{ item.route }}">
-          <img src="{{ item.trip_image }}" alt="{{ item.trip_name }}" loading="lazy"
-               onerror="this.src='/assets/travel_booking/img/defaultaroya.jpg'"/>
-          <span class="rc-cruise-badge">{{ item.days_nights }}</span>
-        </a>
-        <div class="rc-cruise-info">
-          <h3><a href="{{ item.route }}">{{ item.trip_name }}</a></h3>
-          {% if item.organizer %}<p><i class="ti ti-user"></i> {{ item.organizer }}</p>{% endif %}
-          <p class="rc-price">From {% if item.get("price_formatted_was") %}<s class="rc-price-was">{{ item.get("price_formatted_was") }}</s> {% endif %}<strong>{{ item.price_formatted }}</strong>{% if item.get("promo_label") %} <span class="rc-promo-badge">{{ item.get("promo_label") }}</span>{% endif %}</p>
-        </div>
-      </article>
+      <div class="col">
+        <article class="card h-100">
+          <a class="rc-card-media" href="{{ item.route }}">
+            <img src="{{ item.trip_image }}" alt="{{ item.trip_name }}" loading="lazy"
+                 onerror="this.src='/assets/travel_booking/img/defaultaroya.jpg'"/>
+            <span class="badge rc-badge-cat">{{ item.days_nights }}</span>
+          </a>
+          <div class="card-body d-flex flex-column gap-2">
+            <h3 class="card-title rc-card-title mb-0"><a href="{{ item.route }}">{{ item.trip_name }}</a></h3>
+            {% if item.organizer %}<p class="rc-card-dest mb-0"><i class="ti ti-user"></i> {{ item.organizer }}</p>{% endif %}
+            <p class="rc-card-price mb-0">
+              <span class="rc-price-label">From</span>
+              {% if item.get("price_formatted_was") %}<s class="rc-price-was">{{ item.get("price_formatted_was") }}</s>{% endif %}
+              <span class="rc-price-value">{{ item.price_formatted }}</span>
+              {% if item.get("promo_label") %} <span class="badge rounded-pill rc-card-promo-badge">{{ item.get("promo_label") }}</span>{% endif %}
+            </p>
+          </div>
+        </article>
+      </div>
       {% endfor %}
     </div>
   </div>
@@ -98,12 +121,12 @@
 {% endif %}
 
 
-{# === TOUR HOMEPAGE === %}
+{# === TOUR HOMEPAGE === #}
 {% elif page_type == "tour" %}
-<section class="rc-tour-hero">
+<section class="rc-tour-hero bg-dark text-white">
   <div class="rc-hero-bg"{% if hero_background %} style="background-image: url('{{ hero_background }}')"{% endif %}></div>
   <div class="rc-hero-overlay"></div>
-  <div class="rc-hero-content">
+  <div class="rc-hero-content container py-5">
     {% if hero_tag %}<span class="rc-hero-tag">{{ hero_tag }}</span>{% endif %}
     {% if hero_title %}<h1>{{ hero_title|safe }}</h1>{% endif %}
     {% if hero_intro %}<div class="rc-hero-intro">{{ hero_intro|safe }}</div>{% endif %}
@@ -111,31 +134,37 @@
     {% if show_search_widget | default(true) %}
     <form class="rc-hero-search" action="/trips" method="get">
       <input type="hidden" name="cruise" value="0"/>
-      <div class="rc-search-grid">
-        <label class="rc-search-field">
-          <i class="ti ti-map-pin"></i>
-          <select name="destination">
-            <option value="">Where to?</option>
-            {% for d in destinations %}
-            <option value="{{ d.name }}">{{ d.destination_name }}{% if d.destination_country %}, {{ d.destination_country }}{% endif %}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <label class="rc-search-field">
-          <i class="ti ti-calendar-event"></i>
-          <input type="date" name="date_from" placeholder="Departure"/>
-        </label>
-        <button type="submit" class="rc-search-btn">
-          <i class="ti ti-search"></i> {{ search_label or "Search Tours" }}
-        </button>
+      <div class="row g-2 justify-content-center">
+        <div class="col-12 col-md-5">
+          <label class="rc-search-field">
+            <i class="ti ti-map-pin"></i>
+            <select name="destination" class="form-select" aria-label="Destination">
+              <option value="">Where to?</option>
+              {% for d in destinations %}
+              <option value="{{ d.name }}">{{ d.destination_name }}{% if d.destination_country %}, {{ d.destination_country }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <div class="col-12 col-md-4">
+          <label class="rc-search-field">
+            <i class="ti ti-calendar-event"></i>
+            <input type="date" name="date_from" placeholder="Departure" class="form-control"/>
+          </label>
+        </div>
+        <div class="col-12 col-md-3">
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="ti ti-search"></i> {{ search_label or "Search Tours" }}
+          </button>
+        </div>
       </div>
     </form>
     {% endif %}
     
     {% if hero_stats %}
-    <div class="rc-hero-stats">
+    <div class="d-flex justify-content-center flex-wrap gap-3 gap-md-5 mt-4">
       {% for stat in hero_stats %}
-      <div class="rc-stat">
+      <div class="rc-stat text-center">
         <strong>{{ stat.stat_value }}</strong>
         <span>{{ stat.stat_label }}</span>
       </div>
@@ -147,27 +176,34 @@
 
 {% if featured_items %}
 <section class="rc-section rc-featured">
-  <div class="rc-container">
+  <div class="container">
     <div class="rc-section-header">
       {% if featured_tag %}<span class="rc-tag">{{ featured_tag }}</span>{% endif %}
       {% if featured_title %}<h2>{{ featured_title }}</h2>{% endif %}
       {% if featured_subtitle %}<p>{{ featured_subtitle }}</p>{% endif %}
     </div>
     
-    <div class="rc-tour-grid">
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
       {% for item in featured_items %}
-      <article class="rc-tour-card">
-        <a class="rc-tour-img" href="{{ item.route }}">
-          <img src="{{ item.trip_image }}" alt="{{ item.trip_name }}" loading="lazy"
-               onerror="this.src='/assets/travel_booking/img/defaultaroya.jpg'"/>
-          <span class="rc-tour-badge">{{ item.days_nights }}</span>
-        </a>
-        <div class="rc-tour-info">
-          <h3><a href="{{ item.route }}">{{ item.trip_name }}</a></h3>
-          {% if item.organizer %}<p><i class="ti ti-user"></i> {{ item.organizer }}</p>{% endif %}
-          <p class="rc-price">From {% if item.get("price_formatted_was") %}<s class="rc-price-was">{{ item.get("price_formatted_was") }}</s> {% endif %}<strong>{{ item.price_formatted }}</strong>{% if item.get("promo_label") %} <span class="rc-promo-badge">{{ item.get("promo_label") }}</span>{% endif %}</p>
-        </div>
-      </article>
+      <div class="col">
+        <article class="card h-100">
+          <a class="rc-card-media" href="{{ item.route }}">
+            <img src="{{ item.trip_image }}" alt="{{ item.trip_name }}" loading="lazy"
+                 onerror="this.src='/assets/travel_booking/img/defaultaroya.jpg'"/>
+            <span class="badge rc-badge-cat">{{ item.days_nights }}</span>
+          </a>
+          <div class="card-body d-flex flex-column gap-2">
+            <h3 class="card-title rc-card-title mb-0"><a href="{{ item.route }}">{{ item.trip_name }}</a></h3>
+            {% if item.organizer %}<p class="rc-card-dest mb-0"><i class="ti ti-user"></i> {{ item.organizer }}</p>{% endif %}
+            <p class="rc-card-price mb-0">
+              <span class="rc-price-label">From</span>
+              {% if item.get("price_formatted_was") %}<s class="rc-price-was">{{ item.get("price_formatted_was") }}</s>{% endif %}
+              <span class="rc-price-value">{{ item.price_formatted }}</span>
+              {% if item.get("promo_label") %} <span class="badge rounded-pill rc-card-promo-badge">{{ item.get("promo_label") }}</span>{% endif %}
+            </p>
+          </div>
+        </article>
+      </div>
       {% endfor %}
     </div>
   </div>
@@ -175,12 +211,14 @@
 {% endif %}
 
 
-{# === DEFAULT / FALLBACK === %}
+{# === DEFAULT / FALLBACK === #}
 {% else %}
-<section style="text-align:center; padding: 100px 20px;">
-  <h1>Welcome</h1>
-  <p>Domain-based virtual hosting is active.</p>
-  <p><a href="/trips">View All Trips</a></p>
+<section class="text-center py-5">
+  <div class="container">
+    <h1>Welcome</h1>
+    <p>Domain-based virtual hosting is active.</p>
+    <a href="/trips" class="btn btn-primary">View All Trips</a>
+  </div>
 </section>
 {% endif %}
 

@@ -19,11 +19,11 @@
     <div class="rc-filter-row">
       <label class="rc-field rc-field-search">
         <i class="ti ti-search"></i>
-        <input type="text" name="q" value="{{ active.q or '' }}" placeholder="Search trips…"/>
+        <input type="text" name="q" value="{{ active.q or '' }}" placeholder="Search trips…" class="form-control"/>
       </label>
       <label class="rc-field">
         <span class="rc-field-label">Destination</span>
-        <select name="destination">
+        <select name="destination" class="form-select">
           <option value="">All destinations</option>
           {% for d in options.destinations %}
           <option value="{{ d.name }}" {% if active.destination == d.name %}selected{% endif %}>{{ d.destination_name }}{% if d.destination_country %} — {{ d.destination_country }}{% endif %}</option>
@@ -32,7 +32,7 @@
       </label>
       <label class="rc-field">
         <span class="rc-field-label">Item group</span>
-        <select name="item_group">
+        <select name="item_group" class="form-select">
           <option value="">All groups</option>
           {% for g in options.item_groups %}
           <option value="{{ g }}" {% if active.item_group == g %}selected{% endif %}>{{ g }}</option>
@@ -41,7 +41,7 @@
       </label>
       <label class="rc-field">
         <span class="rc-field-label">Type</span>
-        <select name="cruise">
+        <select name="cruise" class="form-select">
           <option value="" {% if not active.cruise %}selected{% endif %}>Cruise &amp; Trips</option>
           <option value="1" {% if active.cruise == '1' %}selected{% endif %}>Cruise only</option>
           <option value="0" {% if active.cruise == '0' %}selected{% endif %}>Trips only</option>
@@ -51,15 +51,15 @@
     <div class="rc-filter-row">
       <label class="rc-field rc-field-date">
         <span class="rc-field-label">From</span>
-        <input type="date" name="date_from" value="{{ active.date_from or '' }}"/>
+        <input type="date" name="date_from" value="{{ active.date_from or '' }}" class="form-control"/>
       </label>
       <label class="rc-field rc-field-date">
         <span class="rc-field-label">To</span>
-        <input type="date" name="date_to" value="{{ active.date_to or '' }}"/>
+        <input type="date" name="date_to" value="{{ active.date_to or '' }}" class="form-control"/>
       </label>
       <label class="rc-field">
         <span class="rc-field-label">Sort by</span>
-        <select name="sort">
+        <select name="sort" class="form-select">
           <option value="date" {% if (active.sort or 'date') == 'date' %}selected{% endif %}>Departure date</option>
           <option value="price" {% if active.sort == 'price' %}selected{% endif %}>Price (low to high)</option>
           <option value="duration" {% if active.sort == 'duration' %}selected{% endif %}>Duration (longest)</option>
@@ -70,8 +70,8 @@
          kalau tak param ?currency= hilang dan listing fallback ke default. #}
       <input type="hidden" name="currency" value="{{ currency or '' }}"/>
       <div class="rc-filter-actions">
-        <button type="submit" class="rc-btn-primary"><i class="ti ti-search"></i> Search</button>
-        <a href="/trips" class="rc-btn-ghost">Reset</a>
+        <button type="submit" class="btn btn-primary"><i class="ti ti-search"></i> Search</button>
+        <a href="/trips" class="btn btn-outline-secondary">Reset</a>
       </div>
     </div>
   </form>
@@ -81,21 +81,23 @@
     <span>{{ trips|length }} trip{{ 's' if trips|length != 1 else '' }} found</span>
   </div>
 
-  {# ── Grid card ── #}
+  {# ── Grid card (Bootstrap row/col — 1 / 2 / 3 lajur) ── #}
   {% if trips %}
-  <div class="rc-trip-grid">
+  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
     {% for t in trips %}
+    <div class="col">
       {% with gds = trip_group_dates.get(t.name, []) %}
         {% include "templates/includes/trip_card.html" %}
       {% endwith %}
+    </div>
     {% endfor %}
   </div>
   {% else %}
-  <div class="rc-empty">
-    <i class="ti ti-mood-empty"></i>
+  <div class="text-center py-5 text-body-secondary">
+    <i class="ti ti-mood-empty d-block fs-1 text-secondary"></i>
     <h3>No trips match your filters</h3>
     <p>Try widening your dates or clearing some filters.</p>
-    <a href="/trips" class="rc-btn-primary">Clear filters</a>
+    <a href="/trips" class="btn btn-primary">Clear filters</a>
   </div>
   {% endif %}
 </section>

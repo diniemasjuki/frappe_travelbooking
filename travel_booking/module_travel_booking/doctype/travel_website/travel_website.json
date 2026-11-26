@@ -33,27 +33,29 @@
   "cruise_menu_section",
   "cruise_menu",
   "cruise_hero_section",
+  "cruise_banners",
+  "cruise_slide_cta_label",
+  "cruise_brand_section",
   "column_break_kaot",
   "cruise_logo",
   "cruise_favicon",
+  "column_break_yphl",
   "cruise_nav_cta_label",
   "cruise_nav_cta_url",
-  "column_break_yphl",
+  "cruise_hero_fallback_section",
+  "cruise_hero_background",
+  "cruise_hero_tag",
   "cruise_hero_title",
   "cruise_hero_intro",
-  "cruise_hero_background",
-  "cruise_hero_search_label",
-  "cruise_hero_tag",
-  "section_break_dflq",
-  "cruise_hero_stats",
-  "cruise_featured_section",
-  "cruise_featured_cb",
-  "cruise_featured_tag",
-  "cruise_featured_cta_label",
-  "cruise_featured_cta_url",
-  "column_break_kefd",
-  "cruise_featured_title",
-  "cruise_featured_subtitle",
+  "cruise_search_section",
+  "cruise_search_destination_label",
+  "cruise_search_month_label",
+  "cruise_search_cb",
+  "cruise_search_all_destinations",
+  "cruise_search_all_months",
+  "cruise_search_btn_label",
+  "cruise_trip_sections_section",
+  "cruise_trip_sections",
   "cruise_whyus_section",
   "column_break_zglw",
   "cruise_whyus_tag",
@@ -74,6 +76,8 @@
   "cruise_testi_subtitle",
   "section_break_ngxj",
   "cruise_testimonials",
+  "cruise_booking_section",
+  "default_cruise_category",
   "cruise_cta_section",
   "cruise_cta_tag",
   "cruise_cta_icon",
@@ -290,6 +294,18 @@
    "label": "Cruise Homepage"
   },
   {
+   "fieldname": "cruise_booking_section",
+   "fieldtype": "Section Break",
+   "label": "Cruise Booking"
+  },
+  {
+   "description": "Kategori tarikh DEFAULT untuk trip cruise (master Trip Category) — page detail tanpa ?date= pra-pilih tarikh TERDEKAT dalam kategori ini. Kosong → tarikh terdekat seperti sedia ada.",
+   "fieldname": "default_cruise_category",
+   "fieldtype": "Link",
+   "label": "Default Travel Date Category",
+   "options": "Trip Category"
+  },
+  {
    "fieldname": "cruise_menu_section",
    "fieldtype": "Section Break",
    "label": "Cruise Main Menu"
@@ -326,10 +342,10 @@
    "label": "Cruise Favicon"
   },
   {
+   "description": "The large banner at the top of the /cruise homepage. Each row below is one slide with its own image, caption and button. Click Add Row to add a slide.",
    "fieldname": "cruise_hero_section",
    "fieldtype": "Section Break",
-   "hide_border": 1,
-   "label": "Hero Section"
+   "label": "Hero Slider"
   },
   {
    "fieldname": "cruise_hero_tag",
@@ -350,55 +366,86 @@
    "description": "Background image for the Cruise hero section. Recommended size: 1920x1080px. Will be displayed with dark overlay for text readability.",
    "fieldname": "cruise_hero_background",
    "fieldtype": "Attach Image",
-   "label": "Hero Background Image"
+   "label": "Hero Background Image",
+   "make_attachment_public": 1
   },
   {
-   "default": "Search Cruises",
-   "fieldname": "cruise_hero_search_label",
-   "fieldtype": "Data",
-   "label": "Hero Search Button Label"
-  },
-  {
-   "fieldname": "cruise_hero_stats",
+   "description": "Shown from the lowest Sort Order first. Inactive slides stay saved but are hidden.",
+   "fieldname": "cruise_banners",
    "fieldtype": "Table",
-   "label": "Hero Stats",
-   "options": "Website Stat"
+   "label": "Slides",
+   "options": "Website Banner Slide"
   },
   {
-   "fieldname": "cruise_featured_section",
-   "fieldtype": "Section Break",
-   "label": "Featured Cruises — Section Header"
-  },
-  {
-   "fieldname": "cruise_featured_tag",
+   "default": "Explore",
+   "description": "Used on slides that have a Button URL but no Button Label of their own. If this is also empty, the button says Explore.",
+   "fieldname": "cruise_slide_cta_label",
    "fieldtype": "Data",
-   "label": "Section Tag"
+   "label": "Default Button Label"
   },
   {
-   "fieldname": "cruise_featured_title",
-   "fieldtype": "Small Text",
-   "label": "Section Title"
+   "fieldname": "cruise_brand_section",
+   "fieldtype": "Section Break",
+   "label": "Logo, Favicon & Nav Button"
   },
   {
-   "fieldname": "cruise_featured_subtitle",
-   "fieldtype": "Small Text",
-   "label": "Section Subtitle"
+   "collapsible": 1,
+   "description": "Shown as one static banner only when the Slides table above is empty. The Background Image and Intro Paragraph are also used as the social-share preview image and the search-engine description.",
+   "fieldname": "cruise_hero_fallback_section",
+   "fieldtype": "Section Break",
+   "label": "Fallback Banner (when there are no slides)"
   },
   {
-   "fieldname": "cruise_featured_cb",
+   "fieldname": "cruise_search_section",
+   "fieldtype": "Section Break",
+   "hide_border": 1,
+   "label": "Search Bar — Labels"
+  },
+  {
+   "default": "Destination",
+   "fieldname": "cruise_search_destination_label",
+   "fieldtype": "Data",
+   "label": "Destination Field Label"
+  },
+  {
+   "default": "Sailing Month",
+   "fieldname": "cruise_search_month_label",
+   "fieldtype": "Data",
+   "label": "Sailing Month Field Label"
+  },
+  {
+   "fieldname": "cruise_search_cb",
    "fieldtype": "Column Break"
   },
   {
-   "default": "View All Cruises",
-   "fieldname": "cruise_featured_cta_label",
+   "default": "All destinations",
+   "fieldname": "cruise_search_all_destinations",
    "fieldtype": "Data",
-   "label": "Section CTA Label"
+   "label": "Destination Placeholder"
   },
   {
-   "default": "/cruises",
-   "fieldname": "cruise_featured_cta_url",
+   "default": "All months",
+   "fieldname": "cruise_search_all_months",
    "fieldtype": "Data",
-   "label": "Section CTA URL"
+   "label": "Sailing Month Placeholder"
+  },
+  {
+   "default": "Search",
+   "fieldname": "cruise_search_btn_label",
+   "fieldtype": "Data",
+   "label": "Search Button Label"
+  },
+  {
+   "fieldname": "cruise_trip_sections_section",
+   "fieldtype": "Section Break",
+   "label": "Trip Listing Sections"
+  },
+  {
+   "description": "Seksyen listing trip pada homepage /cruise — satu baris = satu seksyen (header + grid kad trip ikut kategori Travel Date). Susunan ikut Position Sequence; baris tidak aktif tidak dipaparkan.",
+   "fieldname": "cruise_trip_sections",
+   "fieldtype": "Table",
+   "label": "Trip Listing Sections",
+   "options": "Website Trip Listing Section"
   },
   {
    "fieldname": "cruise_whyus_section",
@@ -810,10 +857,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "section_break_dflq",
-   "fieldtype": "Section Break"
-  },
-  {
    "fieldname": "column_break_zglw",
    "fieldtype": "Column Break"
   },
@@ -878,10 +921,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "column_break_kefd",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "column_break_kxkh",
    "fieldtype": "Column Break"
   },
@@ -942,7 +981,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-09-09 13:24:42.166463",
+ "modified": "2026-11-25 02:59:23.418889",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Travel Website",

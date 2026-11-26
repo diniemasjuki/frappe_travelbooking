@@ -12,6 +12,8 @@
 
 import frappe
 from frappe import _
+from frappe.rate_limiter import rate_limit
+from frappe.utils import add_days, add_to_date, cint, flt, getdate, now_datetime
 import json
 import random
 from datetime import date as datetime_date  # untuk delivery date comparison
@@ -28,8 +30,12 @@ from travel_booking.api._helpers import (
 )
 from travel_booking.api.pricing import (
     _get_pricing_map,
+    _get_offer_pricing_map,
+    _get_offer_addon_totals,
+    _apply_addon_totals,
     _price_selection,
     _validate_selection_capacity,
+    _validate_guest_list,
 )
 from travel_booking.api.price_rule import (
     apply_price_rules,
@@ -40,11 +46,16 @@ from travel_booking.api.so_helpers import (
     _create_customer,
     _upsert_customer_billing_address,
     _build_so_items,
+    _build_item_specs,
+    _so_items_from_specs,
+    _write_booking_items,
     _get_or_create_travel_item,
     _create_manual_payment_entry,
     _create_payment_url,
     _resolve_booking_from_so,
     _get_all_booking_sales_orders,
+    _link_booking_sales_order,
+    _unlink_booking_sales_order,
     _get_primary_so,
     _compute_payment_status,
     _activate_booking,
@@ -114,6 +125,178 @@ def get_b2b_discount_percent(trip_package: str):
     }
 
 
+# ══════════════════════════════════════════════
+# FASA A (G1): TERMA BAYARAN DEPOSIT/BAKI
+# ══════════════════════════════════════════════
+
+def _effective_payment_terms(package_offer=None):
+    """Fasa A (G1): deposit % + hari final payment BERKESAN untuk satu booking.
+
+    Keutamaan: medan Package Offer (kawalan komersial per-departure — selari
+    amalan cruise line: deposit & final-payment due berbeza ikut sailing)
+    → fallback Travel Settings (global). Medan offer kosong/0 TIDAK
+    mematikan fallback global (offer ialah override, bukan pintu mati).
+
+    Kembali (deposit_percent: float, final_payment_days: int)."""
+    deposit_pct = 0.0
+    final_days = 0
+    if package_offer and frappe.db.exists("Package Offer", package_offer):
+        vals = frappe.db.get_value(
+            "Package Offer", package_offer,
+            ["deposit_percent", "final_payment_days"], as_dict=True,
+        )
+        if vals:
+            deposit_pct = float(vals.deposit_percent or 0)
+            final_days = cint(vals.final_payment_days)
+    if deposit_pct <= 0:
+        deposit_pct = float(
+            frappe.db.get_single_value("Travel Settings", "default_deposit_percent") or 0
+        )
+    if final_days <= 0:
+        final_days = cint(frappe.db.get_single_value(
+            "Travel Settings", "default_final_payment_days") or 0)
+    return deposit_pct, final_days
+
+
+def _compute_schedule_rows(grand_total, deposit_pct, final_days,
+                           departure_date, transaction_date):
+    """Fasa A (G1): kira baris payment_schedule SO (PURE — ujian hermetik,
+    tiada akses DB).
+
+    Peraturan industri cruise (RCI/MSC/NCL/Costa/Disney — rujuk dokumen
+    reka bentuk §1.2): deposit semasa booking; BAKI lengkap N hari sebelum
+    berlepas; booking yang dibuat DALAM tetingkap final payment
+    (departure − N ≤ hari ni) = bayar penuh serta-merta (satu baris).
+
+    Kembali senarai dict {description, due_date, payment_amount}:
+      []                    → terma tidak lengkap (deposit 0% = ciri mati,
+                              kelakuan pra-Fasa A: SO kekal jadual single
+                              immediate ERPNext)
+      [Full Payment]        → dalam tetingkap final / deposit ≥ jumlah
+      [Deposit, Balance]    → normal
+
+    Kekangan ERPNext yang dihormati di sini (PaymentScheduleService):
+      - jumlah payment_amount MESTI == grand_total (validate_payment_
+        schedule_amount, toleransi 0.1) → baris baki = grand − deposit,
+        bukan pembundaran bebas;
+      - due_date ≥ transaction_date (validate_payment_schedule_dates);
+      - tiada due_date pendua (guard cantum baris)."""
+    grand_total = float(grand_total or 0)
+    deposit_pct = float(deposit_pct or 0)
+    final_days = cint(final_days)
+    if grand_total <= 0 or deposit_pct <= 0:
+        return []
+    today = getdate(transaction_date)
+    deposit = flt(round(grand_total * deposit_pct / 100.0, 2), 2)
+
+    full_row = [{"description": "Full Payment", "due_date": str(today),
+                 "payment_amount": flt(grand_total, 2)}]
+    if deposit >= grand_total:
+        return full_row
+
+    departure = getdate(departure_date) if departure_date else None
+    if not departure or final_days <= 0:
+        # Tarikh berlepas tiada / terma baki tidak dikonfigur — deposit
+        # sahaja tak cukup untuk menjamin tarikh akhir; kekal bayar penuh.
+        return full_row
+    balance_due = add_days(departure, -final_days)
+    if getdate(balance_due) <= today:
+        # Dalam tetingkap final payment — industri: full payment semasa
+        # booking (elak baris baki berdue hari yang sama / terlepas).
+        return full_row
+    return [
+        {"description": "Deposit", "due_date": str(today),
+         "payment_amount": deposit},
+        {"description": "Balance Payment", "due_date": str(balance_due),
+         "payment_amount": flt(round(grand_total - deposit, 2), 2)},
+    ]
+
+
+def _deposit_or_full(deposit_pct: float, final_days: int,
+                     departure_date, amount: float) -> float:
+    """Fasa 1 (1c/1d): deposit minimum ATAU bayaran penuh, mengikut
+    peraturan _compute_schedule_rows (satu sumber kebenaran terma):
+
+      - deposit dimatikan (0%) / deposit ≥ jumlah → PENUH (jadual SO
+        kembali kepada single immediate ERPNext yang menuntut penuh
+        serta-merta);
+      - terma baki tidak lengkap (tiada tarikh berlepas / final days 0)
+        → PENUH;
+      - DALAM tetingkap final payment (departure − N ≤ hari ini) →
+        PENUH serta-merta (peraturan industri cruise);
+      - selain itu → deposit.
+
+    `amount` ialah asas kiraan laluan panggil (net payable di checkout,
+    gross/net SO di laluan bayaran) — hanya peratusan & tetingkap yang
+    disatukan di sini, bukan asas gross-vs-net (kekalan per laluan).
+    """
+    amount = round(float(amount or 0), 2)
+    if amount <= 0:
+        return 0.0
+    deposit_pct = float(deposit_pct or 0)
+    deposit = round(amount * (deposit_pct / 100), 2)
+    if deposit_pct <= 0 or deposit >= amount:
+        return amount
+    if not departure_date or not int(final_days or 0):
+        # Terma baki tidak lengkap (tiada tarikh berlepas / final days 0)
+        # — deposit sahaja tak cukup menjamin tarikh akhir; kekal penuh
+        # (selari _compute_schedule_rows).
+        return amount
+    balance_due = add_days(getdate(departure_date), -int(final_days))
+    if getdate(balance_due) <= getdate(frappe.utils.today()):
+        return amount
+    return deposit
+
+
+def _minimum_first_payment_amount(booking_name: str,
+                                  base_amount: float) -> float | None:
+    """Fasa 1 (1c): deposit minimum BERKESAN bagi bayaran PERTAMA booking
+    — satukan gate yang sebelum ini berbeza antara laluan (confirm_booking
+    guna global sahaja, portal guna global, Stripe guna global pada setiap
+    intent, admin tiada gate langsung).
+
+    Terma di-resolve daripada Booking: Package Offer (override komersial
+    per-departure) → Travel Settings (global), melalui _effective_payment_
+    terms; peraturan tetingkap final payment menyusut _deposit_or_full.
+    Pulangkan None bila booking tidak dijumpai — caller kekal dengan
+    tingkah lalu lamanya.
+    """
+    if not booking_name or not frappe.db.exists("Booking", booking_name):
+        return None
+    b = frappe.db.get_value("Booking", booking_name,
+                            ["package_offer", "departure_date"], as_dict=True)
+    if not b:
+        return None
+    deposit_pct, final_days = _effective_payment_terms(b.get("package_offer"))
+    return _deposit_or_full(deposit_pct, final_days, b.get("departure_date"),
+                            base_amount)
+
+
+def _assert_booking_payable(booking_name: str) -> None:
+    """Fasa 1 (1f): halang cipta bayaran baharu untuk booking yang sudah
+    tamat hayatnya — 'Cancelled' / 'Abandoned'.
+
+    Sebelum ini laluan portal, Stripe dan pay-link admin hanya menyemak
+    baki SO + pemilikan; SO booking terbiar/terbatal kekal submitted &
+    berbaki, jadi customer masih boleh membayar (dan auto-invoice boleh
+    tercetus melalui _maybe_auto_invoice_so yang hanya menyemak SO) untuk
+    booking yang tidak lagi sah. booking_name kosong / Booking tak wujud
+    (SO luar aplikasi) tidak disekat.
+    """
+    if not booking_name:
+        return
+    status = frappe.db.get_value("Booking", booking_name, "status")
+    if status in ("Cancelled", "Abandoned"):
+        frappe.throw(
+            _("This booking is {0}. New payments are no longer accepted.").format(status),
+            title="Booking Not Active",
+        )
+
+
+
+# [BUANG Nov 2026] _release_offer_quota — kapasiti kini kolam
+# cabin_rates schedule (occupancy = kiraan live Booking Reservation
+# disegerak hooks); cancel reservasi mengosongkan kuota automatik.
 def _price_rules_json(applied_price_info, rule_ctx):
 	"""Snapshot JSON Travel Price Rule yang menang, untuk field Booking
 	.applied_price_rules (audit trail promosi pada masa booking)."""
@@ -122,6 +305,7 @@ def _price_rules_json(applied_price_info, rule_ctx):
 
 
 @frappe.whitelist(allow_guest=True)
+@rate_limit(key="ip", limit=15, seconds=3600)
 def confirm_booking(trip_group_date: str, selections: str, billing: str,
                     payment_type: str = "Full Payment", payment_method: str = "Online Payment",
                     receipt: str = None, voucher_code: str = "", affiliate_code: str = "", amount_paid: float = None,
@@ -130,11 +314,69 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
                     booking_number: str = None, on_behalf: bool = False,
                     terms_accepted: bool = False, terms_reference: str = "",
                     customer_message: str = "",
-                    travel_package: str = None, package_offer: str = None):
+                    travel_package: str = None, package_offer: str = None,
+                    addons: str = ""):
+    """Endpoint portal /booknow (allow_guest + rate limit per-IP).
+
+    Delegasi penuh kepada _confirm_booking_impl() — corak _impl yang sama
+    dengan stripe_checkout.py (create_payment_intent → _impl). Endpoint
+    desk (travel_booking.api.desk_booking.create_desk_booking, role-gated)
+    juga memanggil impl yang sama TANPA rate-limit per-IP: staf pejabat
+    berkongsi IP awam, jadi had 15 booking/jam per-IP portal tidak sesuai
+    untuk laluan dalaman. Satu sumber kebenaran — seluruh pengiraan harga,
+    kapasiti & diskaun kekal di dalam impl.
+    """
+    return _confirm_booking_impl(
+        trip_group_date=trip_group_date, selections=selections, billing=billing,
+        payment_type=payment_type, payment_method=payment_method,
+        receipt=receipt, voucher_code=voucher_code,
+        affiliate_code=affiliate_code, amount_paid=amount_paid,
+        trip_package=trip_package, sales_persons=sales_persons,
+        bank_transfer_ref=bank_transfer_ref, bank_transfer_date=bank_transfer_date,
+        bank_transfer_note=bank_transfer_note, booking_number=booking_number,
+        on_behalf=on_behalf, terms_accepted=terms_accepted,
+        terms_reference=terms_reference, customer_message=customer_message,
+        travel_package=travel_package, package_offer=package_offer,
+        addons=addons,
+    )
+
+
+def _confirm_booking_impl(trip_group_date: str, selections: str, billing: str,
+                    payment_type: str = "Full Payment", payment_method: str = "Online Payment",
+                    receipt: str = None, voucher_code: str = "", affiliate_code: str = "", amount_paid: float = None,
+                    trip_package: str = None, sales_persons: str = None, bank_transfer_ref: str = None,
+                    bank_transfer_date: str = "", bank_transfer_note: str = "",
+                    booking_number: str = None, on_behalf: bool = False,
+                    terms_accepted: bool = False, terms_reference: str = "",
+                    customer_message: str = "",
+                    travel_package: str = None, package_offer: str = None,
+                    addons: str = ""):
+    """Pipelines penuh penciptaan booking — panggilan dalaman TANPA
+    decorator (dipanggil oleh confirm_booking portal & endpoint desk).
+    Lihat docstring confirm_booking untuk konteks endpoint."""
     if isinstance(selections, str):
         selections = json.loads(selections)
     if isinstance(billing, str):
         billing = json.loads(billing)
+    # ── WIZARD ADDONS (Step 2 /booknow) ──────────────────────────────────
+    # lines = JSON [{"addon_package": "AP-xxx", "qty": 2}] — pilihan addon
+    # customer semasa wizard. Di-re-price + re-validate SEPENUHNYA
+    # server-side di bawah (harga/qty client tak pernah dipercayai);
+    # layak hanya untuk pax bukan-infant (main_guests + extra_beds).
+    if isinstance(addons, str) and addons.strip():
+        addons = json.loads(addons)
+    addons = addons or []
+    if not isinstance(addons, list):
+        addons = []
+
+    # Bilangan pax LAYAK untuk addon per-pax: pax bayar penuh + pax katil
+    # tambahan (cruise: Main Guest + Extra Bed; tour: Adult + Children —
+    # kedua-duanya dipetakan ke main_guests/extra_beds dalam SO). Infant
+    # dilangkau — selari _assign_unassigned_addon_items().
+    _eligible_pax = sum(
+        int(s.get("main_guests", 0) or 0) + int(s.get("extra_beds", 0) or 0)
+        for s in (selections or [])
+    )
 
     # ── F5: STRUKTUR BAHARU (flag use_package_offers) ────────────────────
     # Bila flag ON + travel_package/package_offer dihantar: RESOLVE ke nama
@@ -144,18 +386,66 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # (FOR UPDATE) dijalankan dahulu. Medan baharu Booking.travel_package/
     # package_offer + potongan Offer Inventory di-stamp SELEPAS booking
     # berjaya (rujuk sebelum return). Flag OFF → laluan 100% lama.
-    use_new_structure = bool(travel_package and package_offer)
+    # [Nov 2026] package_offer sahaja memadai untuk cabang struktur baharu —
+    # offer identiti-sendiri (standalone) TIADA travel_package (Travel
+    # Package deprecated); offer warisan tetap menghantarnya. Client lama
+    # (tanpa package_offer) terus laluan legacy.
+    #
+    # [Fasa 0 — stabilisasi] offer_mode/offer_identity WAJIB di-init untuk
+    # SEMUA laluan: client legacy (tanpa package_offer) / flag OFF tidak
+    # melalui blok struktur baharu di bawah, tetapi kedua-dua pemboleh ubah
+    # dirujuk tanpa syarat kemudian (Trip info, pricing, price rule,
+    # kapasiti, currency pakej). Tanpa init ini laluan legacy crash
+    # UnboundLocalError pada rujukan pertama offer_mode.
+    offer_identity = None
+    offer_mode = False
+    use_new_structure = bool(package_offer)
     if use_new_structure:
         from travel_booking.utils.flags import use_package_offers
         use_new_structure = use_package_offers()
     if use_new_structure:
-        from travel_booking.utils.offer_factory import (
-            resolve_legacy_from_offer, check_offer_capacity,
+        from travel_booking.utils.offer_factory import check_offer_capacity
+        # OFFER-MODE (Nov 2026 — Travel Package deprecated): offer dengan
+        # currency = harga TERUS pada Price Matrix (tiada Trip Package).
+        # Offer warisan (tanpa currency) kekal pricing legacy.
+        offer_identity = frappe.db.get_value(
+            "Package Offer", package_offer,
+            ["currency", "offer_name", "legacy_tgd", "legacy_trip_package",
+             "travel_date"],
+            as_dict=True)
+        offer_mode = bool(offer_identity and offer_identity.currency)
+        if offer_mode:
+            # OFFER-MODE: td dibina daripada Travel Date di blok Trip info
+            # di bawah (tiada resolusi legacy pakej). NORMALISASI
+            # trip_group_date kepada anchor warisan supaya rantaian legacy
+            # kekal sah: Booking.trip_date → reservasi date_selection →
+            # trip_cruise_schedule → kolam cabin_rates (occupancy).
+            # Anchor = legacy_tgd OFFER (offer migrasi v40) ATAU legacy_tgd
+            # TRAVEL DATE (shadow TGD offer identiti-sendiri); kosong bila
+            # kedua-duanya tiada (field tak wajib).
+            trip_group_date = (offer_identity.legacy_tgd or frappe.db.get_value(
+                "Travel Date", offer_identity.travel_date, "legacy_tgd") or "")
+            # trip_package (Link Trip Package pada Booking) MESTI nama
+            # warisan yang sah — nilai client untuk offer identiti-sendiri
+            # ialah nama OFF-... yang akan gagal validasi Link. Nilai
+            # server-authoritative dari provenance offer; None bila tiada.
+            trip_package = (offer_identity.legacy_trip_package or None)
+        else:
+            from travel_booking.utils.offer_factory import resolve_legacy_from_offer
+            trip_group_date, trip_package = resolve_legacy_from_offer(
+                package_offer, travel_package
+            )
+        # Fasa C: kuota partner — baris inventori yang di-reserve untuk
+        # partner lain tidak boleh dimakan oleh booking saluran ini.
+        # Actor di-resolve awal UNTUK GATE sahaja (idempoten, berasaskan
+        # sesi — resolve semula di bawah jalan biasa). PENTING: normalize
+        # on_behalf di sini juga (form POST hantar "true"/"false" string —
+        # kedua-duanya truthy mentah; mirror semantik resolve di bawah).
+        gate_actor = resolve_booking_actor() if _as_bool(on_behalf) else None
+        check_offer_capacity(
+            package_offer, selections,
+            partner=(gate_actor.get("partner") if gate_actor else None),
         )
-        trip_group_date, trip_package = resolve_legacy_from_offer(
-            package_offer, travel_package
-        )
-        check_offer_capacity(package_offer, selections)
 
     email = billing.get("email", "").strip().lower()
 
@@ -372,45 +662,128 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # berbeza ikut currency pakej yang ditempah). Customer.default_currency
     # dibiarkan sebagaimana ada.
 
-    # Trip info
-    td = frappe.db.get_value("Trip Group Date", trip_group_date,
-                             ["trip", "trip_group_name", "departure_date",
-                              "max_participants", "current_participants", "status"],
-                             as_dict=True)
-    if not td:
-        frappe.throw("Trip Group Date not found.")
+    # Trip info — OFFER-MODE: sumber = Travel Date (offer travel_date) +
+    # Trip; legacy: Trip Group Date. (Travel Package deprecated Nov 2026 —
+    # offer baharu tiada legacy_tgd lagi.)
+    if offer_mode:
+        # [Nov 2026] max_pax/current_pax dibuang patch v55 — kapasiti =
+        # kolam cabin_rates schedule (td.max_participants=0 → unlimited).
+        offer_row = frappe.db.get_value("Package Offer", package_offer,
+                                 ["travel_date", "offer_name",
+                                  "departure_date", "return_date",
+                                  "sailing_start", "sailing_end",
+                                  "cruise_schedule"],
+                                 as_dict=True)
+        if not offer_row:
+            frappe.throw("Package Offer not found.")
+        # Tarikh & trip datang DARIPADA Travel Date — bukan salinan medan
+        # offer (satu sumber kebenaran, selari dengan Package
+        # Offer.validate yang mewarisi medan yang sama).
+        td_info = frappe.db.get_value(
+            "Travel Date", offer_row.travel_date,
+            ["trip", "departure_date"], as_dict=True)
+        if not td_info:
+            frappe.throw("Travel Date {0} not found.".format(
+                offer_row.travel_date))
+        td = frappe._dict(
+            trip=td_info.trip,
+            trip_group_name=offer_row.offer_name or offer_row.travel_date,
+            departure_date=td_info.departure_date,
+            # Gate peringkat trip = unlimited — penghad sebenar ialah kolam
+            # cabin_rates schedule (check_offer_capacity, FOR UPDATE).
+            max_participants=0,
+            current_participants=0,
+            status="Active",
+        )
+    else:
+        td = frappe.db.get_value("Trip Group Date", trip_group_date,
+                                 ["trip", "trip_group_name", "departure_date",
+                                  "return_date", "sailing_start", "sailing_end",
+                                  "is_cruise_only", "is_a_cruise_trip",
+                                  "max_participants", "current_participants", "status"],
+                                 as_dict=True)
+        if not td:
+            frappe.throw("Trip Group Date not found.")
     _trip = frappe.db.get_value("Trip", td.trip, ["trip_name", "is_a_cruise_trip"], as_dict=True) or {}
     trip_name = _trip.trip_name or ""
     # is_cruise: model harga/kapasiti bercabang slot (cruise) vs umur (non-cruise)
     # di _validate_selection_capacity, _build_so_items, validate_voucher & pax_type.
     is_cruise = bool(_trip.is_a_cruise_trip)
 
-    if not trip_package:
+    if not trip_package and not offer_mode:
         frappe.throw("Please select a package first.")
 
-    # Backend pricing (dari Trip Package yang dipilih)
-    pricing_map = _get_pricing_map(trip_package)
+    # Backend pricing — offer-mode: dari OFFER PRICE (harga terus pada
+    # offer); legacy: dari Trip Package Price.
+    pricing_map = (_get_offer_pricing_map(package_offer)
+                   if offer_mode else _get_pricing_map(trip_package))
 
     # Travel Price Rule (promosi price-slash): harga jualan berkesan =
     # harga promo. SO dibina atas harga NET (promo) — harga runcit asal
     # di-snapshot sebagai retail_total/price_rule_discount pada Booking
     # (selari model "SO net rate" yang dipilih untuk feature ni). B2B %
     # dan voucher/referral dikira ATAS harga promo (eff map).
-    rule_ctx = resolve_ctx(trip_package, trip_group_date)
+    if offer_mode:
+        # ctx daripada Travel Date + identiti offer (scoping pakej/tarikh
+        # legacy tidak terpakai untuk offer identiti-sendiri).
+        rule_ctx = {
+            "trip": td.trip,
+            "trip_group_date": None,
+            "trip_package": None,
+            "currency": offer_identity.currency,
+            "departure_date": td.departure_date,
+        }
+    else:
+        rule_ctx = resolve_ctx(trip_package, trip_group_date)
     eff_pricing_map, applied_price_info = apply_price_rules(pricing_map, rule_ctx)
+
+    # ── Surcaj ADDON (offer-mode) — Total pakej = promo(base) + Σ addon ──
+    # Kedua-dua map dibawa surcaj supaya like-for-like:
+    #   grand_total (SO)  = Σ (promo(base) + addon) × qty   — harga dicaj
+    #   retail_total      = Σ (base asal  + addon) × qty    — snapshot pra-
+    #   promo; price_rule_discount kekal = simpanan rule SAHAJA.
+    # GUARD aliasing: bila tiada rule aktif, apply_price_rules pulangkan
+    # objek map YANG SAMA — tambah sekali sahaja (elok surcaj dobel).
+    if offer_mode:
+        _addon_totals = _get_offer_addon_totals(package_offer)
+        if _addon_totals:
+            if eff_pricing_map is not pricing_map:
+                _apply_addon_totals(eff_pricing_map, _addon_totals)
+            _apply_addon_totals(pricing_map, _addon_totals)
 
     # Sahkan had kapasiti server-side sebelum kira harga — cruise guna model
     # SLOT (Main Guest/Extra Bed/Infant), non-cruise guna model UMUR
     # (Adult/Children/Infant). cabin_info_map dari Trip Price Category.
-    cabin_info_rows = frappe.db.sql("""
-        SELECT tpp.pricing_for_class AS room_category,
-               tpc.capacity, tpc.max_capacity
-        FROM `tabTrip Package Price` tpp
-        JOIN `tabTrip Price Category` tpc ON tpc.name = tpp.pricing_for_class
-        WHERE tpp.parent = %s AND tpp.parenttype = 'Trip Package'
-    """, trip_package, as_dict=True)
+    if offer_mode:
+        # [Nov 2026] sumber kategori = Price Matrix offer (baris Offer
+        # Price legacy telah dibuang patch v55) — resolve kod kanonik v47
+        # → docname, corak yang sama dengan _get_offer_pricing_map.
+        cabin_info_rows = frappe.db.sql("""
+            SELECT DISTINCT tpc.name AS room_category,
+                   tpc.capacity, tpc.max_capacity
+            FROM `tabTrip Package Price` tpp
+            JOIN `tabTrip Price Category` tpc
+              ON tpc.name = COALESCE(
+                  (SELECT tc.name FROM `tabTrip Price Category` tc
+                   WHERE tc.category_code = tpp.pricing_for_class),
+                  tpp.pricing_for_class)
+            WHERE tpp.parent = %s AND tpp.parenttype = 'Package Offer'
+              AND tpp.parentfield = 'price_matrix'
+        """, package_offer, as_dict=True)
+    else:
+        cabin_info_rows = frappe.db.sql("""
+            SELECT tpp.pricing_for_class AS room_category,
+                   tpc.capacity, tpc.max_capacity
+            FROM `tabTrip Package Price` tpp
+            JOIN `tabTrip Price Category` tpc ON tpc.name = tpp.pricing_for_class
+            WHERE tpp.parent = %s AND tpp.parenttype = 'Trip Package'
+        """, trip_package, as_dict=True)
     cabin_info_map = {r.room_category: r for r in cabin_info_rows}
     _validate_selection_capacity(selections, cabin_info_map, is_cruise)
+    # Itemized guests (Stage 1 wizard — additive): kalau dihantar, mesti
+    # konsisten dengan kaunter agregat di atas. Klien lama tanpa 'guests'
+    # langsung tidak terkesan (konsistensi di-skip dalam validator).
+    _validate_guest_list(selections, is_cruise)
 
     # Jumlah pax booking NI (Main Guest + Extra Bed + Infant) — diguna untuk
     # (a) gate overbooking trip-level di bawah, dan (b) di-set sebagai
@@ -444,7 +817,8 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         existing_pax = frappe.db.sql("""
             SELECT COALESCE(SUM(b.booked_pax), 0)
             FROM `tabBooking` b
-            WHERE b.trip_date = %s AND b.status != 'Cancelled'
+            WHERE b.trip_date = %s
+              AND b.status NOT IN ('Cancelled', 'Abandoned')
         """, trip_group_date)[0][0] or 0
         seats_left = max_pax - int(existing_pax or 0)
         if incoming_pax > seats_left:
@@ -474,7 +848,13 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         else:
             s["room_privacy"] = ""
 
-    so_items    = _build_so_items(selections, eff_pricing_map, trip_name, td.trip_group_name, is_cruise)
+    # ── FASA 0 (booking-centric): specs per-traveller = SUMBER STRUKTUR
+    # TUNGGAL ── SO items dijana daripadanya (agregat pax_type + qty,
+    # output seragam dengan _build_so_items asal) dan baris Booking Item
+    # ditulis selepas booking.insert() — dua representasi yang sama
+    # sentiasa sepadan. Kaunter kuota/seat kekal baca Booking Reservation.
+    item_specs = _build_item_specs(selections, eff_pricing_map, is_cruise)
+    so_items   = _so_items_from_specs(item_specs, trip_name, td.trip_group_name)
     grand_total = sum(float(it["rate"]) * int(it["qty"]) for it in so_items)  # NET — harga promo
 
     # Harga runcit asal (sebelum price rule) — snapshot untuk komisen
@@ -591,7 +971,8 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # SO/bil. SO tetap dalam company currency company berkenaan dengan
     # conversion_rate=1.0 — tiada conversion accounting. Kalau pakej
     # tiada currency (data lama), fallback company default.
-    package_currency = frappe.db.get_value("Trip Package", trip_package, "currency")
+    package_currency = (offer_identity.currency if offer_mode else
+                        frappe.db.get_value("Trip Package", trip_package, "currency"))
     if not package_currency:
         package_currency = get_company_currency()
     so_currency, so_company, so_price_list, so_conversion_rate = \
@@ -721,6 +1102,41 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
 
         so = frappe.get_doc(so_payload)
         so.insert(ignore_permissions=True)
+
+        # FASA A (G1): jadual bayaran deposit/baki — baris dibina SELEPAS
+        # insert (grand_total hanya muktamad selepas kira cukai/diskaun B2B)
+        # tetapi SEBELUM submit (PaymentScheduleService ERPNext menghormati
+        # baris sedia ada — ia hanya bina bila jadual kosong; validate jumlah
+        # baris == grand_total dipenuhi oleh _compute_schedule_rows).
+        # Due date baki berpaut tarikh berlepas TGD (departure − N hari) —
+        # sesuatu yang Payment Terms Template ERPNext TIDAK dapat models
+        # (termanya berpaut tarikh invois, bukan tarikh acara).
+        # deposit_pct=0 (settings & offer) → baris kosong → SO kekal
+        # kelakuan lama (single immediate row auto ERPNext).
+        try:
+            _deposit_pct, _final_days = _effective_payment_terms(
+                package_offer if use_new_structure else None)
+            _sched = _compute_schedule_rows(
+                so.grand_total, _deposit_pct, _final_days,
+                td.departure_date, so.transaction_date)
+            if _sched:
+                # Kosongkan baris immediate auto-ERPNext dari insert()
+                # validate (set_payment_schedule bina 1 baris penuh bila
+                # jadual kosong + tiada template) — kalau tidak, jumlah
+                # baris jadi 2× grand_total dan submit ditolak.
+                so.payment_schedule = []
+                for _row in _sched:
+                    so.append("payment_schedule", _row)
+        except Exception as e:
+            # Jadual ialah nilai tambah, bukan gate — kegagalan bina jadual
+            # TIDAK patut gagalkan booking (SO submit terus tanpa jadual,
+            # kelakuan pra-Fasa A). Log untuk semakan.
+            frappe.log_error(
+                title="SO Payment Schedule Build Error",
+                message="Failed to build payment schedule for SO " +
+                        str(so.name) + ": " + str(e),
+            )
+
         so.flags.ignore_permissions = True
         so.submit()
 
@@ -746,8 +1162,13 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # SECURITY FIX (v2): Deposit calc server-side sahaja
     # amount_paid dari client DIABAIKAN — compute deposit dari settings
     # ══════════════════════════════════════════════
-    default_deposit_percent = float(settings.default_deposit_percent or 20)
-    std_deposit    = round(net_total * (default_deposit_percent / 100), 2)
+    # Fasa 1 (1c): terma deposit BERKESAN — Package Offer (override
+    # komersial per-departure) → Travel Settings (global), SELARI jadual
+    # SO yang dibina _compute_schedule_rows. Sebelum ini caj pertama
+    # sentiasa peratusan GLOBAL walaupun jadual SO offer menyatakan
+    # peratusan berbeza — deposit ditcaj tidak sepadan dengan jadual.
+    deposit_percent, final_payment_days = _effective_payment_terms(package_offer)
+    std_deposit    = round(net_total * (deposit_percent / 100), 2)
     online_min = float(getattr(settings, "online_payment_min_amount", 0) or 0)
 
     # Online Payment mustahil bila jumlah penuh trip sendiri < min gateway
@@ -763,12 +1184,18 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
 
     # Ignore client-supplied amount_paid — compute server-side based on payment_type
     if payment_type == "Deposit":
-        deposit_amount = std_deposit
-        # Online Payment: Stripe ada min charge per currency — bila deposit
-        # biasa lebih rendah dari min gateway, angkat deposit ke min gateway
-        # (di-cap pada net payable) supaya caj Stripe mencukupi dan guard di
-        # create_payment_intent tak reject. Deposit biasa sentiasa menjadi
-        # asas (tak pernah kurang dari std_deposit).
+        # Fasa 1 (1d): tetingkap final payment — booking DALAM N hari
+        # sebelum berlepas mesti bayar PENUH serta-merta (selari
+        # _compute_schedule_rows yang melipat jadual SO kepada satu baris
+        # Full Payment). Sebelum ini checkout masih terima deposit sahaja
+        # walaupun jadual SO offer sudah menyatakan full payment.
+        deposit_amount = _deposit_or_full(
+            deposit_percent, final_payment_days,
+            td.departure_date, net_total)
+        # Online Payment: Stripe ada min charge per currency — bila jumlah
+        # (deposit / full) lebih rendah dari min gateway, angkat ke min
+        # gateway (di-cap pada net payable) supaya caj Stripe mencukupi dan
+        # guard di create_payment_intent tak reject.
         if payment_method == "Online Payment" and online_min and deposit_amount < online_min:
             deposit_amount = min(online_min, net_total)
     else:
@@ -778,7 +1205,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     if deposit_amount < std_deposit and abs(deposit_amount - net_total) > 0.01:
         frappe.throw(
             _("Minimum deposit is {0}% ({1}) of total ({2}).").format(
-                default_deposit_percent,
+                deposit_percent,
                 frappe.utils.fmt_currency(std_deposit),
                 frappe.utils.fmt_currency(net_total)
             ),
@@ -803,16 +1230,54 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         deposit_amount + voucher_discount + referral_discount,
     ), 2)
 
-    # Semua booking mula sebagai "Pending" (belum bayar langsung). Bila
-    # bayaran PERTAMA masuk (Partially Paid atau Paid), status auto-tukar
-    # ke "Accepted" (rujuk _recompute_booking_status()). Reservation TIDAK
+    # Semua booking mula sebagai "Pending" (belum bayar langsung). Status
+    # auto-tukar ke "Accepted" SEBAIK BAYARAN MELAMPAUI DEPOSIT MINIMA
+    # (paid >= deposit % × total — rujuk _recompute_booking_status()). Reservation TIDAK
     # dicipta di sini — dicipta bila payment_status jadi "Paid" (melalui
     # hook Payment Entry). Flight & stateroom di-assign admin secara manual
     # kemudian (isian tu yang trigger status "Processing").
+    # Tarikh ringkas untuk kiraan snapshot total_days/night di payload.
+    _dep = (offer_row.departure_date if offer_mode else td.departure_date)
+    _ret = (offer_row.return_date if offer_mode else td.return_date)
+    departure_d, return_d = _dep, _ret
+
     booking = frappe.get_doc({
         "doctype":        "Booking",
         "trip_date":      trip_group_date,
         "trip_package":   trip_package,
+        # Sambungan penuh Booking → Trip (link + tajuk paparan). Dahulu
+        # hanya diisi oleh kod versi lama — booking struktur baharu (F5
+        # offer-mode) kekal kosong, jadual Booking "tak connected" pada
+        # Desk. td.trip sah kedua-dua mod (offer-mode resolve dari Travel
+        # Date — satu sumber kebenaran).
+        "trip_name":      td.trip,
+        "trip_title":     trip_name,
+        # ── SNAPSHOT OPERASIONAL (dahulu fetch_from TGD/Trip Package —
+        # medan legasi kini deprecated/disorok, jadi nilai di-stamp
+        # eksplisit di sini supaya booking baharu kedua-dua mod sentiasa
+        # lengkap & tak bergantung pada fetch rantaian legasi).
+        # offer-mode: terus daripada OFFER (satu sumber kebenaran tarikh/
+        # sailing — synced Travel Date.sync_to_offers). legacy: TGD.
+        "departure_date": (offer_row.departure_date if offer_mode else td.departure_date),
+        "return_date":    (offer_row.return_date if offer_mode else td.return_date),
+        "is_a_cruise_trip": bool(_trip.is_a_cruise_trip),
+        # is_cruise_only: TGD satu-satunya sumber (Travel Date/offer tiada
+        # medan ni) — offer-mode guna TGD ANCHOR (trip_group_date telah
+        # dinormalisasi kepada anchor warisan di atas).
+        "is_cruise_only": bool(frappe.db.get_value(
+            "Trip Group Date", trip_group_date, "is_cruise_only") or 0),
+        "cruise_start":   (offer_row.sailing_start if offer_mode else td.sailing_start),
+        "cruise_end":     (offer_row.sailing_end if offer_mode else td.sailing_end),
+        "package_type":   (offer_row.offer_name if offer_mode else
+                           (frappe.db.get_value("Trip Package", trip_package,
+                                                "package_type") if trip_package else "")),
+        # total_days/night dikira daripada tarikh (tahan terhadap medan
+        # sumber kosong) — hari termasuk hari kedua-dua belah, malam
+        # = beza tarikh.
+        "total_days":     ((frappe.utils.date_diff(return_d, departure_d) + 1)
+                           if (return_d and departure_d) else 0),
+        "total_night":    (frappe.utils.date_diff(return_d, departure_d)
+                           if (return_d and departure_d) else 0),
         "customer":       customer_name,
         "status":         "Pending",
         "payment_status": "Pending",
@@ -849,6 +1314,18 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         # dan menentukan kelayakan cashback Manual Transfer semasa
         # bayaran baki dibuat kemudian.
         "checkout_method":      checkout_method,
+        # FASA A (G2): tarikh akhir HOLD untuk "Held Booking" (Pay Later) —
+        # industri cruise: courtesy hold 24-72 jam, tamat tempoh = option
+        # ditarik (job harian expire_held_bookings cancel booking + pulang
+        # kuota offer). Kosong untuk kaedah lain / ciri dimatikan
+        # (hold_expiry_hours=0). Boleh dilanjutkan admin di Desk.
+        "hold_expires_on": (
+            add_to_date(now_datetime(), hours=cint(
+                frappe.db.get_single_value("Travel Settings", "hold_expiry_hours")
+            )) if (checkout_method == "Held Booking" and cint(
+                frappe.db.get_single_value("Travel Settings", "hold_expiry_hours")
+            ) > 0) else None
+        ),
         # SNAPSHOT email & phone pada masa booking dicipta — SENGAJA bukan
         # field virtual/live (beza dari property get_cust_phone yang
         # live-compute dari Contact). Nilai diambil TERUS dari borang
@@ -905,16 +1382,26 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     })
     booking.insert(ignore_permissions=True)
 
-    # SO utama dikaitkan SEMATA-MATA melalui Sales Order.custom_booking (one-
-    # standard: SO rujuk Booking, bukan dua-hala). SO dicipta SEBELUM Booking
-    # wujud, jadi baru boleh diisi sekarang selepas booking.name ada.
-    # PENTING: link ini MESTI ditulis SEBELUM _ensure_portal_user() di bawah —
+    # SO utama didaftarkan pada REGISTRI Booking.sales_orders ([Nov 2026]
+    # menggantikan Sales Order.custom_booking — arah rujukan dibalikkan:
+    # Booking memiliki senarai SO-nya; SO bebas daripada link ke Booking).
+    # SO dicipta SEBELUM Booking wujud, jadi baru boleh didaftarkan sekarang
+    # selepas booking.name ada.
+    # PENTING: registri MESTI ditulis SEBELUM _ensure_portal_user() di bawah —
     # fungsi tu frappe.db.commit() (cipta User baru), jadi jika langkah lewat
     # gagal & rollback (cth Payment Entry), booking yang dah ter-commit kerana
-    # commit separa tu akan kekal TANPA link custom_booking (booking yatim,
+    # commit separa tu akan kekal TANPA SO berdaftar (booking yatim,
     # order_summary/total_amount jadi kosong). Dengan urutan ni, link tersimpan
     # dalam commit separa yang sama.
-    frappe.db.set_value("Sales Order", so.name, "custom_booking", booking.name)
+    _link_booking_sales_order(booking.name, so.name, "Main Booking")
+
+    # ── FASA 0 (booking-centric): baris Booking Item per traveller ──
+    # Ditulis dalam transaksi yang sama dengan booking.insert() (commit
+    # pertama selepas ini ialah _ensure_portal_user di bawah). Link
+    # room_category tervalidasi DI SINI — masalah data (kategori direname
+    # terus di DB) gagal lebih awal & jelas semasa confirm, bukan senyap
+    # semasa aktivasi reservation (rujuk guard _activate_booking).
+    _write_booking_items(booking.name, so.name, item_specs, so_currency)
 
     # Portal access — cipta User serentak dengan Booking (bukan lazy-created
     # bila customer minta login link). Kalau email ni dah ada User (returning
@@ -1006,16 +1493,102 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
 
     frappe.db.commit()
 
+    # ── WIZARD ADDONS (Step 2 /booknow) ──────────────────────────────────
+    # Order addon (Booking Addon + SO addon + baris) dicipta SELEPAS
+    # booking utama & pembayaran utama settle, dalam currency SO utama
+    # (company paksi currency yang sama). Kegagalan di sini TIDAK BOLEH
+    # gugurkan booking yang dah berjaya — rollback transaksi addon sahaja
+    # (booking utama dah commit di atas), log, dan maklum kepada customer
+    # melalui addons_error (paparan warning di skrin confirmation wizard).
+    #
+    # Kaedah bayaran:
+    #   Manual Transfer → PE DRAFT atas resit/ref yang SAMA (admin verify
+    #                     kedua-dua PE sekali); Pay Later / Online → SO
+    #                     addon kekal Pending, boleh dibayar kemudian
+    #                     melalui portal (sesi Stripe hanya tutup SO utama
+    #                     — lipat addon ke dalam sesi sama akan
+    #                     over-allocate SO utama & rosak rekonsiliasi
+    #                     webhook).
+    if use_new_structure:
+        # F5: stamp rujukan struktur baharu + tolak stok Offer Inventory
+        # [Nov 2026] tiada lagi tolak stok Offer Inventory / snapshot —
+        # kapasitas = kolam cabin_rates schedule (occupancy dikira semula
+        # daripada Booking Reservation oleh hooks sync_cabin_availability;
+        # cancel mengosongkan kuota automatik melalui kiraan semula).
+        # DIPINDAH SEBELUM blok addon — Booking Addon.package_offer
+        # fetch dari Booking.package_offer semasa insert; tanpa stamp awal
+        # order addon wizard akan tercatat tanpa identiti offer.
+        frappe.db.set_value("Booking", booking.name, {
+            "travel_package": travel_package,
+            "package_offer": package_offer,
+            # Link terus ke Travel Date struktur baharu (offer-mode).
+            # Booking.offer → offer.travel_date melalui medan ni — tak
+            # perlu lompat shadow TGD (trip_date) untuk rujukan tarikh.
+            "travel_date": (offer_identity.travel_date if offer_mode else None),
+        })
+
+    addons_created = False
+    addon_order_name = None
+    addon_total = 0.0
+    addons_error = ""
+    if addons:
+        if is_b2b:
+            # Selari gate portal (_price_hidden_for): SO addon dibilkan
+            # kepada Customer partner — end-customer B2B tidak boleh
+            # menempah addon sendiri.
+            addons_error = ("Add-ons for this booking are managed by your "
+                            "travel agent. Please contact your agent to add extras.")
+        else:
+            try:
+                from travel_booking.api.addon_manager import (
+                    _validate_addon_lines, _create_addon_order,
+                )
+                # Konteks offer untuk scoping addon (RECONDITION Nov 2026):
+                # Booking.package_offer sebenar baru di-stamp di PENGHUJUNG
+                # confirm_booking (selepas blok ni), jadi salinan dict
+                # diperkaya dengan offer semasa supaya
+                # _booking_offer_context() nampak identiti offer pada
+                # laluan struktur baharu — terutama offer identiti-sendiri
+                # (tiada provenance warisan untuk fallback).
+                _addon_ctx = frappe._dict(booking.as_dict())
+                if package_offer:
+                    _addon_ctx.package_offer = package_offer
+                if travel_package:
+                    _addon_ctx.travel_package = travel_package
+                _validated_addon_lines = _validate_addon_lines(
+                    _addon_ctx, addons, so_currency, eligible_pax=_eligible_pax,
+                )
+                if _validated_addon_lines:
+                    _addon_result = _create_addon_order(
+                        _addon_ctx, _validated_addon_lines,
+                        payment_method=payment_method,
+                        receipt=receipt,
+                        bank_transfer_ref=bank_transfer_ref,
+                    )
+                    addons_created = True
+                    addon_order_name = _addon_result.get("addon_order")
+                    addon_total = float(_addon_result.get("grand_total") or 0)
+            except Exception as _addon_err:
+                # Order + SO utama sudah commit — rollback hanya buang
+                # kerja separuh siap order addon (jika ada).
+                frappe.db.rollback()
+                addons_error = str(_addon_err) or "Add-on order could not be created."
+                frappe.log_error(
+                    title="Wizard Addon Order Failed",
+                    message=("Booking " + str(booking.name) + " (booking_number " +
+                             str(booking.booking_number) + "): " + str(_addon_err)),
+                )
+
     # Telegram "NEW TRIP BOOKING" — trigger EKSPLISIT di sini, BUKAN event
-    # after_insert standard. Punca: SO utama dicipta DAHULU tanpa link
-    # (booking.name belum wujud masa tu), dan `Sales Order.custom_booking`
-    # hanya ditulis SELEPAS booking.insert() selesai — jadi hook
-    # after_insert (yang berlaku DALAM insert()) terbakar ketika
-    # order_summary/total_amount (property yang resolve SO melalui
-    # custom_booking) masih kosong/0, dan notifikasi terhantar data tak
+    # after_insert standard. Punca: SO utama dicipta DAHULU tanpa pautan
+    # (booking.name belum wujud masa tu), dan pendaftaran SO pada registri
+    # Booking.sales_orders hanya berlaku SELEPAS booking.insert() selesai —
+    # jadi hook after_insert (yang berlaku DALAM insert()) terbakar ketika
+    # order_summary/total_amount (property yang resolve SO melalui registri)
+    # masih kosong/0, dan notifikasi terhantar data tak
     # lengkap. Notifikasi dikonfigur dengan event Method =
     # "booking_created" supaya hook standard tak fire; ia hanya fire di
-    # sini — selepas custom_booking ditulis & SEMUA transaksi committed
+    # sini — selepas registri ditulis & SEMUA transaksi committed
     # (stripe URL / PE manual / voucher), jadi booking yang gagal di
     # langkah lewat tak sempat diumumkan.
     try:
@@ -1043,15 +1616,10 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         _send_status_email(booking.name, "Pending",
                            email_override=billing.get("email", ""))
 
-    if use_new_structure:
-        # F5: stamp rujukan struktur baharu + tolak stok Offer Inventory
-        # (DALAM transaksi yang sama dengan penciptaan booking/SO)
-        frappe.db.set_value("Booking", booking.name, {
-            "travel_package": travel_package,
-            "package_offer": package_offer,
-        })
-        from travel_booking.utils.offer_factory import apply_offer_booking
-        apply_offer_booking(package_offer, selections)
+    # NOTE: stamp travel_package/package_offer (use_new_structure) dibuat
+    # lebih awal — sebelum blok WIZARD ADDONS — supaya Booking Addon yang
+    # dicipta membawa identiti offer dari mula (field package_offer pada
+    # Booking Addon fetch dari Booking.package_offer semasa insert).
 
     return {
         "success":        True,
@@ -1074,6 +1642,14 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         "cashback_amount":  round(net_total * (cashback_percent / 100), 2) if cashback_percent > 0 else 0,
         "voucher_discount":  round(voucher_discount, 2),
         "referral_discount": round(referral_discount, 2),
+        # ── Wizard addons (Step 2 /booknow) ── addons_created=True bila
+        # order addon berjaya dicipta bersama booking; addons_error
+        # diisi (dan addons_created=False) bila order gagal — booking
+        # utama KEKAL sah, wizard papar warning + pautan portal.
+        "addons_created":    addons_created,
+        "addon_order":       addon_order_name,
+        "addon_total":       round(addon_total, 2),
+        "addons_error":      addons_error,
     }
 
 
@@ -1090,7 +1666,7 @@ def _recompute_booking_status(so_name, exclude_current=False, fire_flows=True):
     """Kira semula field STORED booking (payment_status, prog_payment,
     pre_discount_total, booked_pax) dari GABUNGAN SEMUA SO yang berkaitan
     booking (SO utama + SO addon seperti excursion/servis tambahan yang admin
-    create berasingan, dikaitkan melalui Sales Order.custom_booking).
+    create berasingan, didaftarkan pada registri Booking.sales_orders).
 
     Dipanggil dari hook Payment Entry (submit/cancel) DAN hook Sales Order
     (on_update/on_update_after_submit/on_cancel/on_trash — rujuk
@@ -1109,8 +1685,10 @@ def _recompute_booking_status(so_name, exclude_current=False, fire_flows=True):
     tetapi tak lagi stale bila SO diedit.
 
     PENTING (flow status baharu):
-    - "Pending" -> "Accepted": auto, sebaik bayaran PERTAMA masuk (Partially
-      Paid atau Paid) — booking baru mula sebagai "Pending" (belum bayar).
+    - "Pending" -> "Accepted": auto, SEBAIK BAYARAN MELAMPAUI DEPOSIT
+      MINIMA (paid >= deposit % × total — offer → fallback Travel
+      Settings; deposit 0% → bayaran pertama memadai). Booking baru mula
+      sebagai "Pending"; bayaran kecil BAWAH deposit kekal Pending.
     - "Accepted" -> "Processing"/"Confirmed": TIDAK berlaku di sini —
       peralihan ni kini MANUAL sepenuhnya (admin pilih terus value baharu
       di field status Booking di Desk; rujuk on_booking_update()).
@@ -1239,13 +1817,26 @@ def _recompute_booking_status(so_name, exclude_current=False, fire_flows=True):
     if b.status == "Cancelled":
         return  # sticky — status tak berubah walau bayaran berubah
 
-    # Pending -> Accepted: auto, sebaik bayaran PERTAMA masuk. Email
-    # "Accepted" dihantar HANYA pada transisi ni (bila status memang
-    # "Pending" sebelum ni) — bukan setiap kali _recompute dipanggil.
+    # Pending -> Accepted: auto, SEBAIK BAYARAN MELAMPAUI DEPOSIT MINIMA
+    # (Nov 2026 — keputusan produk): transisi hanya bila jumlah dibayar
+    # >= deposit % × total booking. Deposit % daripada offer booking →
+    # fallback Travel Settings (SAMA sumber dengan jadual Deposit pada
+    # Payment Schedule yang confirm_booking jana — jadi had status
+    # sentiasa sepadan dengan "Deposit" yang customer lihat di billing).
+    # Deposit % 0/tiada ditetapkan → kekal behavior lama: bayaran pertama
+    # sahaja sudah memadai.
+    # Email "Accepted" dihantar HANYA pada transisi sebenar (bila status
+    # memang "Pending" sebelum ni) — bukan setiap kali _recompute dipanggil.
     if new_payment_status in ("Partially Paid", "Paid") and b.status == "Pending":
-        frappe.db.set_value("Booking", b.name, "status", "Accepted")
-        if fire_flows:
-            _send_status_email(b.name, "Accepted")
+        deposit_pct, _final_days = _effective_payment_terms(
+            frappe.db.get_value("Booking", b.name, "package_offer"))
+        deposit_due = 0.0
+        if deposit_pct and total > 0:
+            deposit_due = min(round(total * float(deposit_pct) / 100, 2), total)
+        if paid + 0.005 >= deposit_due:
+            frappe.db.set_value("Booking", b.name, "status", "Accepted")
+            if fire_flows:
+                _send_status_email(b.name, "Accepted")
 
     # Reservation dicipta sebaik payment_status mula ada sebarang bayaran —
     # TIDAK bergantung pada status booking (Processing/Confirmed kini
@@ -1294,7 +1885,7 @@ def _recompute_booking_status(so_name, exclude_current=False, fire_flows=True):
 
     # Room sharing — traveller tambahan (rujuk api/cabin_sharing.py):
     # bila SO traveller tambahan (SO bukan primary booking + item
-    # TRAVEL-PKG, dipaut melalui custom_booking sahaja) dibayar PENUH,
+    # TRAVEL-PKG, didaftarkan pada registri booking sahaja) dibayar PENUH,
     # cipta slot Booking Reservation dalam cabin sasaran. Bukan SO
     # traveller tambahan → no-op. Exception ditangkap supaya Payment
     # Entry tetap direkodkan (corak sama dengan _activate_booking di atas).
@@ -1363,8 +1954,64 @@ def _cancel_booking_cascade(booking_doc):
                 message="Booking " + booking_doc.name + " cancelled but SO " + so_name +
                 " has payment RM" + str(so.advance_paid) + ". Refund & cancel SO requires manual action.")
 
+    # Booking Addon order (dicipta bersama wizard /booknow) — cancel order
+    # + baris yang belum dibayar supaya kuota stok & had per-booking dikira
+    # semula untuk booking pengganti (re-confirm wizard). SO addon sudah
+    # di-cancel oleh loop SO di atas. Import lazily — addon_manager
+    # bergantung pada modul api yang bergantung pada modul ini.
+    try:
+        from travel_booking.api.addon_manager import _cancel_addon_orders_for_booking
+        _cancel_addon_orders_for_booking(booking_doc.name)
+    except Exception as e:
+        frappe.log_error(
+            title="Booking Cancel - Addon Orders",
+            message="Gagal cancel addon orders untuk booking " +
+                    booking_doc.name + ": " + str(e),
+        )
+
+    # Booking Item (Fasa 0 booking-centric) — baris komersial per traveller
+    # ditutup supaya pembaca (katalog addon, edit state) tak lagi mengira
+    # booking ini. Status Cancelled = terminal untuk pembaca sedia ada.
+    try:
+        for item in frappe.get_all(
+                "Booking Item",
+                filters={"booking": booking_doc.name, "status": ["!=", "Cancelled"]},
+                pluck="name"):
+            frappe.db.set_value("Booking Item", item, "status", "Cancelled",
+                                update_modified=False)
+    except Exception as e:
+        frappe.log_error(
+            title="Booking Cancel - Booking Items",
+            message="Gagal cancel Booking Items untuk booking " +
+                    booking_doc.name + ": " + str(e),
+        )
+
+    # Permohonan pembatalan terbuka (portal) — tutup automatik: booking
+    # dibatalkan melalui saluran lain (Desk / cascade ini sendiri).
+    try:
+        if frappe.db.exists("DocType", "Booking Cancellation Request"):
+            for req_name in frappe.get_all(
+                    "Booking Cancellation Request",
+                    filters={"booking": booking_doc.name, "status": "Requested"},
+                    pluck="name"):
+                frappe.db.set_value("Booking Cancellation Request", req_name, {
+                    "status": "Closed",
+                    "decided_by": frappe.session.user,
+                    "decision_reason":
+                        "Booking was cancelled through another channel.",
+                })
+    except Exception as e:
+        frappe.log_error(
+            title="Booking Cancel - Close Cancellation Requests",
+            message="Gagal tutup permohonan pembatalan untuk booking " +
+                    booking_doc.name + ": " + str(e),
+        )
+
     if total_paid > 0:
         frappe.db.set_value("Booking", booking_doc.name, "payment_status", "Request Refund")
+
+    # [BUANG Nov 2026] release kuota offer — cancel reservasi
+    # mengosongkan kuota automatik melalui hook kiraan semula.
 
 
 def _cancel_payment_requests_for_so(so_name: str) -> None:
@@ -1420,10 +2067,23 @@ def on_payment_entry_cancel(doc, method=None):
             _recompute_booking_status(ref.reference_name)
 
 
+def on_sales_order_trash(doc, method=None):
+    """Hook Sales Order on_trash — buang SO daripada registri
+    Booking.sales_orders SEBELUM recompute snapshot (row yatim pada child
+    table menghalang padam Booking & mengotorkan kiraan). Selepas unlink,
+    jalankan semakan yang sama dengan perubahan SO lain.
+    """
+    booking_name = _resolve_booking_from_so(doc.name)
+    if booking_name:
+        _unlink_booking_sales_order(booking_name, doc.name)
+    on_sales_order_change(doc, method)
+
+
 def on_sales_order_change(doc, method=None):
     """Hook: Sales Order on_update / on_update_after_submit / on_cancel /
     on_trash (rujuk hooks.py doc_events) — pastikan Booking yang dipaut
-    melalui Sales Order.custom_booking SENTIASA selari dengan SO bila
+    (melalui registri Booking.sales_orders — [Nov 2026] menggantikan
+    Sales Order.custom_booking) SENTIASA selari dengan SO bila
     admin edit terus di Desk: ubah pax/rate item, tambah/kurang item,
     apply diskaun tambahan, cancel atau padam SO.
 
@@ -1433,12 +2093,13 @@ def on_sales_order_change(doc, method=None):
     selepas edit (kes sebenar: booking RIUQRXL2610 — SO dikurangkan 2 pax
     → 1 pax tapi Pre-Discount Total kekal harga lama).
 
-    SO tanpa custom_booking (SO biasa bukan booking travel) → balik awal,
-    kosong sifar. Pada on_cancel/on_trash, SO disingkirkan secara eksplisit
-    daripada agregat (row masih docstatus 1 / masih wujud semasa event
-    berjalan — rujuk _recompute_booking_status exclude_current).
+    SO yang tak berdaftar pada mana-mana booking (SO biasa bukan booking
+    travel) → balik awal, kosong sifar. Pada on_cancel/on_trash, SO
+    disingkirkan secara eksplisit daripada agregat (row masih docstatus 1 /
+    masih wujud semasa event berjalan — rujuk _recompute_booking_status
+    exclude_current).
     """
-    if not getattr(doc, "custom_booking", None):
+    if not _resolve_booking_from_so(doc.name):
         return
     _recompute_booking_status(
         doc.name,
@@ -1490,7 +2151,12 @@ def on_booking_update(doc, method=None):
     if not old or old.status == doc.status:
         return  # tiada perubahan status — tak perlu buat apa-apa
 
-    if doc.status == "Cancelled":
+    if doc.status in ("Cancelled", "Abandoned"):
+        # Fasa 1 (1e): 'Abandoned' turut menjalankan cascade — booking
+        # terbiar mesti menarik SO/PR belum bayar dan melepaskan voucher,
+        # sama seperti pembatalan. Selamat untuk Abandoned kerana ia
+        # bermaksud tiada bayaran langsung (payment_status Pending):
+        # semua SO adalah unpaid → dibatalkan, tiada laluan refund.
         _cancel_booking_cascade(doc)
     elif doc.status == "Completed":
         # Sebar ke reservation (Booking Completed → reservation Completed;
@@ -1579,9 +2245,10 @@ def mark_abandoned_pending_bookings(booking_name=None):
     sentuh apa-apa (lalai selamat untuk site baharu).
 
     'Abandoned' tiada Email Template sendiri (tiada dalam STATUS_TEMPLATE_MAP
-    di email_service.py) — tiada emel dihantar. Status dikemas kini terus di
-    DB seperti mark_completed_trips() (frappe.db.set_value tidak picu
-    doc_events, jadi tiada cascade/emel sampingan). booking_name (opsyenal)
+    di email_service.py) — tiada emel dihantar. Fasa 1 (1e): status
+    dikemas kini melalui save() supaya on_booking_update menjalankan
+    _cancel_booking_cascade (cancel SO/PR belum bayar + lepas voucher) —
+    laluan sama dengan expire_held_bookings. booking_name (opsyenal)
     untuk test/panggil manual terhadap satu booking sahaja.
     """
     days = frappe.utils.cint(
@@ -1611,10 +2278,22 @@ def mark_abandoned_pending_bookings(booking_name=None):
     count_abandoned = 0
     for b in bookings:
         try:
-            # Syarat 4 — Abandoned → payment_status 'Canceled' (set terus di
-            # DB, selari dengan status; db.set_value tak picu doc_events).
-            frappe.db.set_value("Booking", b.name,
-                {"status": "Abandoned", "payment_status": "Canceled"})
+            # Fasa 1 (1e): Abandoned melalui save() supaya doc_events
+            # on_booking_update menjalankan _cancel_booking_cascade —
+            # laluan SAMA dengan cancel manual admin & expire_held_
+            # bookings. Sebelum ini db.set_value sahaja: SO kekal
+            # submitted tanpa bayaran, Payment Request Stripe yatim
+            # kekal aktif, voucher tidak dilepaskan, dan gate TGD legacy
+            # masih mengira pax booking terbiar.
+            doc = frappe.get_doc("Booking", b.name)
+            if doc.status != "Pending" or doc.payment_status != "Pending":
+                continue  # bayaran masuk antara query & proses — hormati
+            doc.status = "Abandoned"
+            doc.save(ignore_permissions=True)
+            # Syarat 4 — Abandoned → payment_status 'Canceled' (validate()
+            # Booking turut memaksa nilai ini semasa save; set semula di
+            # sini selari corak expire_held_bookings).
+            frappe.db.set_value("Booking", b.name, "payment_status", "Canceled")
             count_abandoned += 1
         except Exception as e:
             frappe.log_error(
@@ -1626,6 +2305,129 @@ def mark_abandoned_pending_bookings(booking_name=None):
         frappe.db.commit()
 
     return {"abandoned": count_abandoned, "total": len(bookings)}
+
+
+def expire_held_bookings():
+    """Scheduled task (harian, rujuk hooks.py scheduler_events) — FASA A (G2):
+    tamatkan tempahan "Held Booking" (Pay Later) yang sudah lepas tarikh
+    akhir pegangannya (Booking.hold_expires_on — di-set semasa confirm_booking
+    ikut Travel Settings.hold_expiry_hours, industri cruise: courtesy hold
+    24-72 jam).
+
+    Kenapa job berasingan dari mark_abandoned_pending_bookings: hold adalah
+    PEGANGAN TEMPAT BERHARGA — tamat tempoh mesti menarik option SEPENUHNYA,
+    bukan sekadar tukar status: status -> 'Cancelled' melalui save() supaya
+    on_booking_update menjalankan _cancel_booking_cascade (cancel SO belum
+    bayar + Payment Request Stripe yatim). [Nov 2026] kuota kabin dikira
+    live daripada Booking Reservation — cancel mengosongkan tempat
+    automatik melalui hook kiraan semula.
+
+    Booking yang sudah ada bayaran TIDAK tersentuk — _recompute_booking_
+    status telah menaikkannya ke 'Accepted' sebelum tempoh hold tamat.
+    Ciri dimatikan bila hold_expiry_hours = 0/kosong (booking Pay Later tanpa
+    stamp hanya akan ter-abandon oleh mark_abandoned_pending_bookings
+    seperti kelakuan lama)."""
+    hours = cint(frappe.db.get_single_value("Travel Settings", "hold_expiry_hours"))
+    if hours <= 0:
+        return {"expired": 0, "total": 0, "disabled": True}
+
+    now = now_datetime()
+    bookings = frappe.get_all("Booking", filters={
+        "status": "Pending",
+        "payment_status": "Pending",
+        "checkout_method": "Held Booking",
+        "hold_expires_on": ["<=", now],
+    }, pluck="name")
+
+    count = 0
+    for name in bookings:
+        try:
+            b = frappe.get_doc("Booking", name)
+            if b.status != "Pending" or b.payment_status != "Pending":
+                continue  # bayaran masuk antara query & proses — hormati
+            # Pending -> Cancelled melalui save() supaya doc_events
+            # on_booking_update menjalankan cascade (SO/PR/voucher/reservasi)
+            # — laluan yang SAMA dengan cancel manual admin di Desk.
+            b.status = "Cancelled"
+            b.save(ignore_permissions=True)
+            frappe.db.set_value("Booking", name, "payment_status", "Canceled")
+            count += 1
+        except Exception as e:
+            frappe.log_error(
+                title="Booking Hold-Expire Error",
+                message="Failed to expire held booking " + name + ": " + str(e),
+            )
+
+    if count:
+        frappe.db.commit()
+
+    return {"expired": count, "total": len(bookings)}
+
+
+def send_payment_schedule_reminders():
+    """Scheduled task (harian, rujuk hooks.py scheduler_events) — FASA A (G4):
+    peringatan bayaran BAKI ikut baris 'Balance Payment' pada Sales Order
+    payment_schedule (dibina oleh _compute_schedule_rows semasa
+    confirm_booking — deposit + baki berdue N hari sebelum berlepas).
+
+    Ambang amalan cruise: T-30 / T-7 / T-1 hari sebelum due date baki.
+    SATU emel sahaja bagi setiap ambang per booking — dedup melalui
+    Booking.payment_reminders_sent ({days_left: tarikh hantar}), jadi job
+    harian tidak spam. SO yang sudah settle (advance_paid >= grand_total),
+    booking terminal (Cancelled/Abandoned/Completed), dan baris single
+    full-payment (idx=1, tiada baki berjadual) dilangkau.
+
+    Gate: Travel Settings.enable_payment_reminders (lalai aktif)."""
+    if not frappe.db.get_single_value("Travel Settings", "enable_payment_reminders"):
+        return {"sent": 0, "total": 0, "disabled": True}
+
+    today = frappe.utils.today()
+    rows = frappe.db.sql("""
+        SELECT b.name AS booking, ps.due_date, ps.payment_amount
+        FROM `tabPayment Schedule` ps
+        INNER JOIN `tabSales Order` so ON so.name = ps.parent
+        INNER JOIN `tabBooking Sales Order` reg
+          ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+        INNER JOIN `tabBooking` b ON b.name = reg.parent
+        WHERE so.docstatus = 1
+          AND ps.parenttype = 'Sales Order'
+          AND ps.idx > 1
+          AND ps.due_date IS NOT NULL
+          AND b.status NOT IN ('Cancelled', 'Abandoned', 'Completed')
+          AND b.payment_status NOT IN ('Paid', 'Canceled', 'Refunded')
+          AND (so.advance_paid + 0.1) < so.grand_total
+          AND DATEDIFF(ps.due_date, %(today)s) IN (30, 7, 1)
+    """, {"today": today}, as_dict=True)
+
+    sent = 0
+    for r in rows:
+        days_left = (getdate(r.due_date) - getdate(today)).days
+        key = str(days_left)
+        raw_log = frappe.db.get_value("Booking", r.booking, "payment_reminders_sent")
+        try:
+            sent_log = json.loads(raw_log) if raw_log else {}
+        except (ValueError, TypeError):
+            sent_log = {}
+        if key in sent_log:
+            continue
+        try:
+            from travel_booking.api.email_service import _send_payment_reminder_email
+            _send_payment_reminder_email(
+                r.booking, r.due_date, float(r.payment_amount or 0), days_left)
+            sent_log[key] = today
+            frappe.db.set_value("Booking", r.booking,
+                                "payment_reminders_sent", json.dumps(sent_log))
+            sent += 1
+        except Exception as e:
+            frappe.log_error(
+                title="Payment Reminder Error",
+                message="Reminder failed for booking " + r.booking + ": " + str(e),
+            )
+
+    if sent:
+        frappe.db.commit()
+
+    return {"sent": sent, "candidates": len(rows)}
 
 
 def reconcile_missing_invoices():
@@ -1643,8 +2445,9 @@ def reconcile_missing_invoices():
     rows = frappe.db.sql("""
         SELECT so.name
         FROM `tabSales Order` so
-        WHERE so.custom_booking IS NOT NULL AND so.custom_booking != ''
-          AND so.docstatus = 1
+        INNER JOIN `tabBooking Sales Order` reg
+          ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+        WHERE so.docstatus = 1
           AND so.advance_paid >= so.grand_total - 0.001
           AND NOT EXISTS (
               SELECT 1 FROM `tabSales Invoice Item` sii

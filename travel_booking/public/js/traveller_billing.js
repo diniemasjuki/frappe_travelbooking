@@ -16,6 +16,7 @@
 (function () {
   var BOOKING_REF = _pageData.booking_ref || '';
   var allOrders = [];
+  var paymentSchedule = []; // Fasa A (G1): jadual Deposit/Balance booking ini
   var _bankSettings = null; // cache for get_payment_settings() response
 
   // mode "onbehalf" = page /traveller/onbehalf-billing (manager mengurus
@@ -233,6 +234,11 @@
         data = await API_PM('get_all_so_payments', { booking_number: BOOKING_REF });
       }
       allOrders = data.orders || [];
+      // Fasa A (G1): jadual Deposit/Balance — disertakan kedua-dua endpoint
+      // (mod onbehalf: get_booking_so_payments; mod self: get_all_so_payments
+      // bila booking_number dihantar). Tiada jadual (booking pra-Fasa A) =
+      // kad tidak dipapar.
+      paymentSchedule = (data && data.payment_schedule) || [];
 
       // ── B2B end-customer: server pulangkan payload kosong + flag ──
       // (SO dibilkan kepada partner; billing bukan urusan traveller).
@@ -288,6 +294,55 @@
   }
 
   /* ══════════════════════════════════════════════════
+     Fasa A (G1): KAD JADUAL BAYARAN — Deposit / Balance
+     Tarikh akhir baki selari emel reminder T-30/T-7/T-1.
+     ══════════════════════════════════════════════════ */
+  function renderScheduleCard() {
+    if (!paymentSchedule.length) return '';
+    function fmtAmt(n, cur) {
+      return (cur ? cur + ' ' : '') + Number(n || 0).toLocaleString(
+        undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function fmtDue(d) {
+      if (!d) return '—';
+      var dt = new Date(d);
+      if (isNaN(dt.getTime())) return _esc(d);
+      return dt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var trs = paymentSchedule.map(function (r) {
+      var outstanding = parseFloat(r.outstanding || 0);
+      var overdue = outstanding > 0.009 && r.due_date && new Date(r.due_date) < today;
+      var cellStyle = overdue ? 'color:var(--c-danger-text,#991B1B);font-weight:600;' : '';
+      return '<tr>' +
+        '<td style="padding:8px 10px 8px 0;">' + _esc(r.description || 'Payment') + '</td>' +
+        '<td style="padding:8px 10px 8px 0;' + cellStyle + '">' + fmtDue(r.due_date) + '</td>' +
+        '<td style="padding:8px 10px 8px 0;text-align:right;white-space:nowrap;">' + fmtAmt(r.payment_amount, r.currency) + '</td>' +
+        '<td style="padding:8px 0;text-align:right;white-space:nowrap;' + cellStyle + '">' +
+          (outstanding > 0.009 ? fmtAmt(outstanding, r.currency) : '<span style="color:var(--c-success-text,#0F6E56);">✓ Paid</span>') +
+        '</td>' +
+      '</tr>';
+    }).join('');
+    return (
+      '<div class="tv-card" style="margin-bottom:16px;">' +
+        '<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--c-muted,#B0AC9F);margin-bottom:4px;">Payment Schedule</div>' +
+        '<div style="font-size:12px;color:var(--c-muted,#7D7A70);margin-bottom:10px;">' +
+          'Please complete the balance payment before its due date to secure your cabins.' +
+        '</div>' +
+        '<div style="overflow-x:auto;">' +
+        '<table style="width:100%;font-size:13px;border-collapse:collapse;min-width:420px;">' +
+          '<thead><tr>' +
+            '<th style="text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--c-muted,#B0AC9F);padding:0 10px 6px 0;">Term</th>' +
+            '<th style="text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--c-muted,#B0AC9F);padding:0 10px 6px 0;">Due Date</th>' +
+            '<th style="text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--c-muted,#B0AC9F);padding:0 10px 6px 0;">Amount</th>' +
+            '<th style="text-align:right;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--c-muted,#B0AC9F);padding:0 0 6px;">Outstanding</th>' +
+          '</tr></thead><tbody>' + trs + '</tbody>' +
+        '</table></div>' +
+      '</div>'
+    );
+  }
+
+  /* ══════════════════════════════════════════════════
      RENDER BILLING PAGE — Single Sales Order Detail View
      4 sequential cards: Billing Info → Items → Transactions → Payment
      ══════════════════════════════════════════════════ */
@@ -316,6 +371,10 @@
 
     // Back link — TOP (before content)
     html += '<div style="margin-bottom:16px;">' + backLink + '</div>';
+
+    // Fasa A (G1): kad jadual bayaran (Deposit / Balance due date) — hanya
+    // pada paparan penuh (bukan tampilan single-SO ?bill=).
+    if (!targetBill) html += renderScheduleCard();
 
     // Card 1: Billing Information (full width)
     html += renderBillingInfo(so);

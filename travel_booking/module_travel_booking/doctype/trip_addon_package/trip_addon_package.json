@@ -130,7 +130,7 @@
   },
   {
    "collapsible": 1,
-   "description": "Tentukan trip, tarikh berlepas (Group Date), dan/atau pakej mana addon ini ditawarkan. Biarkan kosong jika addon terpakai untuk semua trip/date (bergantung pada Applicable To setting di Trip Addon).",
+   "description": "Tentukan trip, tarikh berlepas (Travel Date), dan/atau Package Offer mana addon ini ditawarkan. Biarkan kosong jika addon terpakai untuk semua trip/date (bergantung pada Applicable To setting di Trip Addon).",
    "fieldname": "trip_scoping_section",
    "fieldtype": "Section Break",
    "label": "Trip & Date Scoping"
@@ -138,7 +138,7 @@
   {
    "fieldname": "trip_scoping",
    "fieldtype": "Table",
-   "label": "Applicable Trips / Dates / Packages",
+   "label": "Applicable Trips / Travel Dates / Offers",
    "options": "Trip Scoping"
   },
   {
@@ -250,7 +250,7 @@
    "link_fieldname": "name"
   }
  ],
- "modified": "2026-09-11 07:41:45.386131",
+ "modified": "2026-11-16 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Trip Addon Package",

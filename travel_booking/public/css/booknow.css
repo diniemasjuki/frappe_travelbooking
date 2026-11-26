@@ -138,7 +138,6 @@ body:has(.bnw-main) .rc-public-main {
 
 @media (max-width: 700px) {
   .bnw-step-label { display: none; }
-  .bw-step-line { width: 16px; }
 }
 
 /* ══════════════════════════════════════════
@@ -220,7 +219,6 @@ body:has(.bnw-main) .rc-public-main {
   margin-bottom: 28px;
   color: #fff;
 }
-.bnw-trip-banner--compact { padding: 16px 22px; margin-bottom: 30px; }
 
 /* Hero banner (semua step) — full width edge-to-edge dengan gambar
    cover trip sebagai background. Gambar disuntik JS melalui CSS var
@@ -365,33 +363,6 @@ body:has(.bnw-main) .rc-public-main {
   max-width: 220px;
 }
 
-.bnw-select-wrap {
-  position: relative;
-}
-.bnw-select {
-  width: 100%;
-  padding: 15px 20px 15px 20px;
-  border: 1.5px solid var(--bnw-border);
-  border-radius: var(--bnw-radius-sm);
-  font-family: var(--font-body);
-  font-size: 15px;
-  color: var(--bnw-text);
-  background: var(--bnw-cream);
-  appearance: none;
-  cursor: pointer;
-  outline: none;
-  transition: border-color .2s;
-}
-.bnw-select:focus { border-color: var(--bnw-gold); }
-.bnw-select-icon {
-  position: absolute;
-  right: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--bnw-text-muted);
-  pointer-events: none;
-  font-size: 18px;
-}
 
 /* Email status indicator */
 .bnw-input-status-wrap { position: relative; }
@@ -451,11 +422,6 @@ body:has(.bnw-main) .rc-public-main {
   border: 1px solid rgba(21,101,192,.15);
 }
 /* Success notice - green variant for verified state */
-.bnw-notice-success {
-  background: rgba(46,125,50,.07);
-  color: #2e7d32;
-  border: 1px solid rgba(46,125,50,.15);
-}
 .bnw-notice i { flex-shrink: 0; font-size: 18px; margin-top: 1px; }
 
 /* ══════════════════════════════════════════
@@ -499,7 +465,6 @@ body:has(.bnw-main) .rc-public-main {
   border-color: var(--bnw-text-muted);
   color: var(--bnw-text);
 }
-.bnw-btn-full { width: 100%; }
 .bnw-btn-sm {
   padding: 8px 16px;
   font-size: 13px;
@@ -565,56 +530,8 @@ body:has(.bnw-main) .rc-public-main {
 /* ══════════════════════════════════════════
    STEP 0: TRIP PREVIEW & DATE GRID
    ══════════════════════════════════════════ */
-.bnw-trip-preview {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 18px;
-  background: var(--bnw-cream);
-  border-radius: var(--bnw-radius-sm);
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-.bnw-preview-badge {
-  background: var(--bnw-gold);
-  color: var(--bnw-dark);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  padding: 4px 10px;
-  border-radius: 999px;
-}
-.bnw-preview-route {
-  font-family: var(--font-heading);
-  font-weight: 500;
-  font-size: 14px;
-  color: var(--bnw-dark);
-}
-.bnw-preview-duration {
-  font-size: 13px;
-  color: var(--bnw-text-muted);
-}
 
 /* Date/Package Grid */
-.bnw-date-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 10px;
-}
-.bnw-date-card {
-  border: 2px solid var(--bnw-border);
-  border-radius: var(--bnw-radius-sm);
-  padding: 14px 16px;
-  cursor: pointer;
-  text-align: center;
-  transition: all .2s ease;
-  background: var(--bnw-white);
-}
-.bnw-date-card:hover {
-  border-color: var(--bnw-gold-border);
-  box-shadow: 0 2px 10px rgba(201,168,76,.1);
-}
 .bnw-date-card.selected {
   border-color: var(--bnw-gold);
   background: var(--bnw-gold-light);
@@ -624,32 +541,6 @@ body:has(.bnw-main) .rc-public-main {
   cursor: not-allowed;
   pointer-events: none;
 }
-.bnw-date-card .date-main {
-  font-family: var(--font-heading);
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--bnw-dark);
-  display: block;
-}
-.bnw-date-card .date-sub {
-  font-size: 12px;
-  color: var(--bnw-text-muted);
-  margin-top: 4px;
-  display: block;
-}
-.bnw-date-card .date-badge {
-  display: inline-block;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  padding: 2px 8px;
-  border-radius: 999px;
-  margin-top: 6px;
-}
-.date-badge-available { background: #e8f5e9; color: #2e7d32; }
-.date-badge-limited { background: #fff3e0; color: #e65100; }
-.date-badge-soldout { background: #fce4ec; color: #c62828; }
 
 /* ══════════════════════════════════════════
    STEP 1: TWO-COLUMN LAYOUT (ROOMS + SUMMARY)
@@ -723,12 +614,6 @@ body:has(.bnw-main) .rc-public-main {
   box-shadow: var(--bnw-shadow);
 }
 .bnw-cabin-card.collapsed .bnw-cabin-body { display: none; }
-.cabin-title{
-    padding: 5px 20px;
-    color: var(--bnw-cream);
-    width: 100%;
-    background: #000;
-}
 .bnw-cabin-header {
   display: flex;
   align-items: center;
@@ -739,13 +624,6 @@ body:has(.bnw-main) .rc-public-main {
   user-select: none;
 }
 .bnw-cabin-header:hover { background: var(--bnw-gold-hover); }
-.bnw-cabin-num {
-  font-family: var(--font-heading);
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--bnw-gold);
-  margin-right: 12px;
-}
 .bnw-cabin-type {
   font-family: var(--font-heading);
   font-size: 15px;
@@ -758,13 +636,6 @@ body:has(.bnw-main) .rc-public-main {
     font-size: 15px;
     color: var(--bnw-dark);
     margin: 0 15px;
-}
-.bnw-cabin-price {
-  font-family: var(--font-heading);
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--bnw-dark);
-  white-space: nowrap;
 }
 .bnw-cabin-remove {
   background: var(--bnw-gold);
@@ -779,339 +650,182 @@ body:has(.bnw-main) .rc-public-main {
 }
 .bnw-cabin-remove:hover { opacity: 1; }
 
-.bnw-cabin-body {
-  padding: 20px;
-  border-top: 1px solid var(--bnw-border);
-}
 
 /* Cabin type info block */
-.bnw-cabin-info {
-  display: flex;
-  flex-direction: column;
-  padding: 0 20px;
-  margin-bottom:20px;
-}
 /* Cabin Name Title */
-.bnw-cabin-title {
-  font-family: var(--font-heading);
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--bnw-gold);
-  margin: 0;
-  line-height: 1.3;
-}
 
 /* Header Row: Title + More Info Button */
-.bnw-cabin-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
- border-radius: 0px 0px 10px 10px;
-}
 
 /* More Info Button (float-right, new tab) */
-.bnw-cabin-info-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  /* padding: 8px 16px; */
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--bnw-white);
-  background: transparent;
-  /* border: 1.5px solid var(--bnw-white); */
-  border-radius: 20px;
-  text-decoration: none;
-  transition: all 0.15s ease;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.bnw-cabin-info-btn:hover {
-  /* background: var(--bnw-gold); */
-  color: var(--bnw-gold);
-}
-.bnw-cabin-info-btn i {
-  font-size: 14px;
-}
-.bnw-cabin-img {
-  width: 100%;
-  height: 330px;
-  object-fit: cover;
-  background: var(--bnw-cream);
-  border-radius: 10px 10px 0px 0px;
-  opacity:0.9;
-}
 /* ── Cabin video placeholder (gambar sebagai poster, klik → embed YT) ── */
-.bnw-cabin-media {
-  position: relative;
+
+/* ── Itemized guest rows (satu baris per guest — menggantikan stepper) ── */
+/* Layout: [Guest N] [slot badge] [kategori] [kadar →] [buang/kunci].
+   Kaunter agregat kekal di-derive JS (syncRoomCounters) — CSS ini untuk
+   paparan baris itemized Stage 1 sahaja. */
+.bnw-guests {
+  display: flex;
+  flex-direction: column;
+  padding: 0 20px 20px 20px;
   width: 100%;
-  border-radius: 10px 10px 0 0;
-  overflow: hidden;
-  cursor: pointer;
 }
-.bnw-cabin-media .bnw-cabin-img {
-  display: block;
-  opacity: 0.9;
-  transition: opacity 0.2s ease;
-}
-.bnw-cabin-media:hover .bnw-cabin-img {
-  opacity: 1;
-}
-.bnw-cabin-play {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 64px;
-  height: 64px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: rgba(30, 28, 24, 0.72);
-  color: #fff;
+.bnw-guest-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease;
-  z-index: 2;
-}
-.bnw-cabin-play i {
-  font-size: 30px;
-  margin-left: 4px; /* optical centering untuk icon play segitiga */
-}
-.bnw-cabin-media:hover .bnw-cabin-play {
-  background: var(--bnw-gold);
-  transform: translate(-50%, -50%) scale(1.06);
-}
-.bnw-cabin-media .bnw-cabin-iframe {
-  border: 0;
-  display: block;
-}
-.bnw-cabin-desc {
-  font-size: 13px;
-  color: var(--bnw-text-muted);
-  line-height: 1.5;
-  flex: 1;
-  min-height: 44px;
-  overflow: hidden;
-  position: relative;
-}
-.bnw-cabin-desc.clamped {
-  max-height: 42px;
-}
-.bnw-cabin-desc.clamped::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  left: 0;
-  height: 18px;
-  background: linear-gradient(transparent, var(--bnw-white));
-}
-.bnw-read-more {
-  color: var(--bnw-gold);
-  font-weight: 600;
-  cursor: pointer;
-  font-size: 12px;
-  text-decoration: underline;
-}
-
-/* Stepper (passenger counter) */
-/* ── Horizontal Row Layout (full-width) ── */
-.bnw-steppers {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 0 20px;
-  width: 100%;
-  padding-bottom:20px; 
-}
-.bnw-stepper {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
+  gap: 10px;
   width: 100%;
   border-bottom: 1px solid var(--bnw-border);
-  padding: 16px 0;
-  padding-bottom:0;
+  padding: 14px 0;
 }
-.bnw-stepper:last-child {
-  border-bottom: none;
+.bnw-guest-row:last-of-type {
+  padding-bottom: 16px;
 }
-
-/* Row: Label + Price | Controls */
-.bnw-stepper-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 5px;
-  width: 100%;
+.bnw-guest-no {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--bnw-dark);
+  white-space: nowrap;
 }
-
-/* Col 1: Label + Price (flexible) */
-.bnw-stepper-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  line-height: 1.1;
+/* Badge slot (cruise sahaja): Main Berth / Extra Bed / Infant */
+.bnw-guest-slot {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--bnw-text-muted);
+  border: 1px solid var(--bnw-border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
 }
-.bnw-stepper-label {
-    display: inline-block;
-    width: fit-content;
-    font-size: 15px;
-    color: #c9a84c;
-    font-weight: 600;
-    margin-right: 5px;
-    text-transform: uppercase;
+.bnw-guest-slot--extra {
+  color: #8a6d1f;
+  border-color: var(--bnw-gold-border);
+  background: rgba(201,168,76,.08);
 }
-.bnw-stepper-label-text {
-  line-height: 1.3;
+.bnw-guest-slot--infant {
+  color: var(--bnw-text-muted);
+  background: var(--bnw-border);
 }
-.bnw-stepper-rate {
-    display: inline-block;
-    width: fit-content;
-    font-size: 20px;
-    font-weight: 500;
-    color: #1E1C18;
-    letter-spacing: -0.5px;
+/* Kategori umur — pilih (baris 2+) vs statik (Guest 1 / infant) */
+.bnw-guest-cat {
+  border: 1.5px solid var(--bnw-border);
+  border-radius: 8px;
+  background: var(--bnw-white);
+  color: var(--bnw-text);
+  font-size: 14px;
+  font-family: inherit;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: border-color .15s ease;
 }
-
-/* Col 2: Stepper controls (fixed 120px) */
-.bnw-stepper-controls {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    width: fit-content;
-    flex-shrink: 0;
+.bnw-guest-cat:hover { border-color: var(--bnw-gold); }
+.bnw-guest-cat:focus { outline: none; border-color: var(--bnw-gold); }
+.bnw-guest-cat--static {
+  border: 1.5px dashed var(--bnw-border);
+  border-radius: 8px;
+  color: var(--bnw-text-muted);
+  font-size: 14px;
+  padding: 6px 10px;
+  cursor: default;
 }
-
-/* Col 3: Note/Tooltip text (full width below) */
-.bnw-stepper-note {
-    font-size: 12px;
-    color: var(--bnw-text-muted);
-    margin-top: 10px;
-    padding: 0px 0px 15px 0px;
-    background: #ffffff;
-    border-radius: 0px;
-    width: 100%;
+/* Kadar baris — sama saiz dengan kadar stepper lama */
+.bnw-guest-rate {
+  margin-left: auto;
+  font-size: 20px;
+  font-weight: 500;
+  color: #1E1C18;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+  text-align: right;
 }
-.bnw-stepper-note p {
-  margin: 0;
+/* Nota "adult fare" pada baris child cruise (kategori = data sahaja) */
+.bnw-guest-childnote {
+  font-size: 11px;
+  color: var(--bnw-text-muted);
+  border: 1px dashed var(--bnw-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
 }
-.bnw-stepper-note p:last-child {
-  margin-bottom: 0;
-}
-.bnw-stepper-btn {
+/* Butang buang baris (Guest 1 dikunci — ikon lok) */
+.bnw-guest-remove {
   width: 32px; height: 32px;
   border: 1.5px solid var(--bnw-border);
   border-radius: 50%;
   background: var(--bnw-white);
   color: var(--bnw-text);
-  font-size: 18px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all .15s ease;
+  flex-shrink: 0;
 }
-.bnw-stepper-btn:hover:not(:disabled) {
-  border-color: var(--bnw-gold);
-  color: var(--bnw-gold);
+.bnw-guest-remove:hover {
+  border-color: #c0392b;
+  color: #c0392b;
 }
-.bnw-stepper-btn:disabled {
-  opacity: .3;
-  cursor: not-allowed;
-}
-.bnw-stepper-val {
-  font-family: var(--font-heading);
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--bnw-dark);
-  min-width: 28px;
-  text-align:center;
-}
-
-/* ── Tooltip (info circle + bubble) ── */
-.bnw-tooltip {
-  position: relative;
-  display: inline-flex;
+.bnw-guest-lock {
+  width: 32px; height: 32px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  cursor: help;
-  margin-left: 4px;
-  vertical-align: middle;
-}
-.bnw-tooltip > i {
-  font-size: 14px;
   color: var(--bnw-text-muted);
-  transition: color 0.15s ease;
+  opacity: .55;
+  flex-shrink: 0;
 }
-.bnw-tooltip:hover > i,
-.bnw-tooltip:focus > i {
+/* Butang tambah — Add Guest / Add Extra Bed Guest / Add Infant */
+.bnw-guest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 16px;
+}
+.bnw-btn-add-guest {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1.5px solid var(--bnw-gold);
   color: var(--bnw-gold);
+  background: var(--bnw-white);
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all .15s ease;
 }
-/* Tooltip bubble - HIDDEN by default, shown on hover/focus */
-.bnw-tooltip-bubble {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--bnw-dark);
-  color: var(--bnw-white);
+.bnw-btn-add-guest:hover:not(:disabled) {
+  background: rgba(201,168,76,.1);
+}
+.bnw-btn-add-guest:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+.bnw-btn-add-guest--infant {
+  border-color: var(--bnw-border);
+  color: var(--bnw-text-muted);
+}
+.bnw-btn-add-guest--infant:hover:not(:disabled) {
+  background: var(--bnw-border);
+}
+/* Nota dasar umur (Travel Settings price labels) di bawah baris guest */
+.bnw-guest-note {
   font-size: 12px;
-  line-height: 1.5;
-  padding: 10px 14px;
-  border-radius: 8px;
-  width: max-content;
-  max-width: 240px;
-  white-space: normal;
-  z-index: 100;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.2s ease, visibility 0.2s ease;
-  pointer-events: none;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  color: var(--bnw-text-muted);
+  margin-top: 10px;
+  width: 100%;
 }
-/* Small arrow below tooltip */
-.bnw-tooltip-bubble::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 6px solid transparent;
-  border-top-color: var(--bnw-dark);
-}
-/* Show on hover/focus */
-.bnw-tooltip:hover .bnw-tooltip-bubble,
-.bnw-tooltip:focus .bnw-tooltip-bubble {
-  opacity: 1;
-  visibility: visible;
+.bnw-guest-note p {
+  margin: 0;
 }
 
+/* ── Tooltip (info circle + bubble) — DIBUANG (class tak digunakan) ── */
+
 /* Cabin type dropdown inside room card */
-.bnw-cabin-select-wrap {
-  margin-bottom: 16px;
-}
-.bnw-cabin-select {
-  width: 100%;
-  padding: 12px 38px 12px 14px;
-  border: 1.5px solid var(--bnw-border);
-  border-radius: var(--bnw-radius-sm);
-  font-family: var(--font-body);
-  font-size: 14px;
-  color: var(--bnw-text);
-  background: var(--bnw-white);
-  appearance: none;
-  cursor: pointer;
-  outline: none;
-}
-.bnw-cabin-select:focus { border-color: var(--bnw-gold); }
 
 /* ══════════════════════════════════════════
    SUMMARY PANEL (Step 1 + Step 3)
@@ -1141,9 +855,6 @@ body:has(.bnw-main) .rc-public-main {
 .bnw-order-cabin-title {
     font-weight: 600;
     font-size: larger;
-}
-.bnw-order-guest-detail {
-    color: var(--bnw-text-muted);
 }
 .bnw-order-line {
   display: flex;
@@ -1340,8 +1051,8 @@ body:has(.bnw-main) .rc-public-main {
 }
 
 /* Room Privacy checkbox (cabin cruise SOLO — total penghuni 1 pax).
-   Satu baris checkbox di BAWAH kad cabin (selepas .bnw-steppers) —
-   panel inset 20px (sejajar dgn .bnw-field / .bnw-steppers) atas latar
+   Satu baris checkbox di BAWAH kad cabin (selepas .bnw-guests) —
+   panel inset 20px (sejajar dgn .bnw-field / .bnw-guests) atas latar
    cream — idiom sama seperti .bnw-bank-details. Checked = minta kami
    carikan roommate ("Open Sharing"); unchecked = Private (default). */
 .bnw-privacy {
@@ -1436,7 +1147,6 @@ body:has(.bnw-main) .rc-public-main {
   font-size: 14px;
   color: var(--bnw-dark);
 }
-.bnw-order-sub { font-size: 13px; color: var(--bnw-text-muted); }
 
 /* Discount rows */
 .bnw-discount-row {
@@ -1587,9 +1297,6 @@ body:has(.bnw-main) .rc-public-main {
 }
 
 /* Status badges for confirmation */
-.bnw-status-pending { background: #fff3e0; color: #e65100; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-.bnw-status-accepted { background: #e8f5e9; color: #2e7d32; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-.bnw-status-confirmed { background: #e3f2fd; color: #1565c0; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 
 /* ══════════════════════════════════════════
    LOADING OVERLAY
@@ -1648,24 +1355,17 @@ body:has(.bnw-main) .rc-public-main {
   .bnw-form-actions { flex-direction: column-reverse; }
   .bnw-form-actions .bnw-btn { width: 100%; }
 
-  .bnw-date-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 
-  .bnw-steppers {
-    flex-direction: column;
+  .bnw-guests {
+    padding: 0 14px 16px 14px;
   }
-  .bnw-stepper {
+  .bnw-guest-row {
+    flex-wrap: wrap;
+    row-gap: 8px;
     padding: 12px 0;
   }
-  .bnw-stepper-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .bnw-stepper-info {
-    width: 100%;
-  }
-  .bnw-stepper-controls {
-    width: 100%;
-    justify-content: flex-end;
+  .bnw-guest-rate {
+    margin-left: auto;
   }
 
   .bnw-confirm-card { padding: 32px 20px; }
@@ -1681,7 +1381,8 @@ body:has(.bnw-main) .rc-public-main {
   .bnw-step-num { width: 24px; height: 24px; font-size: 11px; }
   .bnw-step-line { width: 12px; }
 
-  .bnw-steppers { grid-template-columns: 1fr; }
+  .bnw-guest-actions { flex-direction: column; align-items: stretch; }
+  .bnw-btn-add-guest { justify-content: center; }
 
   .bnw-otp-row { flex-direction: column; }
   .bnw-input-otp { max-width: 100%; }
@@ -1738,7 +1439,6 @@ body:has(.bnw-main) .rc-public-main {
   overflow-wrap: break-word;
 }
 /* Status line "No verification needed" semasa on-behalf aktif */
-.bnw-email-status--onbehalf { color: var(--bnw-gold-hover, #B8983F); }
 
 /* ══════════════════════════════════════════
    CABIN TYPE TRIGGER (pengganti dropdown select)
@@ -2056,6 +1756,66 @@ body:has(.bnw-main) .rc-public-main {
   vertical-align: -2px;
   margin-right: 3px;
   color: var(--bnw-gold);
+}
+/* Badge baki kolam kontrak sailing pada kad picker — "N left" (amber,
+   merah bila ≤3). Hanya dipapar utk kategori berkolam rendah
+   (pool_seats_left ≤ POOL_HINT_MAX, rujuk booknow.js). */
+.bnw-cpick-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(180, 83, 9, .1);
+  color: #9A5B12;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+.bnw-cpick-left .ti {
+  font-size: 13px;
+}
+.bnw-cpick-left--low {
+  background: rgba(185, 28, 28, .1);
+  color: #B12C1C;
+}
+/* Kategori yang dah habis kabin kolam — kad picker dimalapkan & butang
+   Select dilumpuhkan (rujuk buildCabinPickerList, booknow.js). */
+.bnw-cpick-card--blocked {
+  opacity: .55;
+}
+.bnw-cpick-select--blocked {
+  cursor: not-allowed;
+  background: rgba(185, 28, 28, .08);
+  color: #B12C1C;
+  border-color: rgba(185, 28, 28, .25);
+}
+/* Petunjuk baki kolam pada kad bilik (bawah steppers) — dikemas kini
+   live semasa stepper diklik (stepperRefreshers, rujuk booknow.js). */
+.bnw-pool-hint {
+  margin: 0 20px 14px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: var(--bnw-gold-light);
+  border: 1px solid var(--bnw-gold-border);
+  color: #8A6B22;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.bnw-pool-hint .ti {
+  font-size: 15px;
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+.bnw-pool-hint--low {
+  background: rgba(180, 83, 9, .1);
+  border-color: rgba(180, 83, 9, .3);
+  color: #9A5B12;
+}
+.bnw-pool-hint--empty {
+  background: rgba(185, 28, 28, .08);
+  border-color: rgba(185, 28, 28, .3);
+  color: #B12C1C;
 }
 .bnw-cpick-meta-price {
   font-size: 13px;
@@ -2561,3 +2321,288 @@ body:has(.bnw-main) .rc-public-main {
   margin: 10px 0 2px;
 }
 .bnw-terms-fulllink:hover { text-decoration: underline; }
+
+/* ═══════════════════════════════════════════════════════════
+   STEP 2: ADD-ONS (katalog wizard — kad addon, variant, stepper)
+   ═══════════════════════════════════════════════════════════ */
+.bnw-addon-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Skeleton loading — shimmer ringan semasa fetch katalog */
+.bnw-addon-skeleton {
+  height: 108px;
+  border-radius: var(--bnw-radius, 14px);
+  border: 1px solid var(--bnw-border);
+  background: linear-gradient(100deg, var(--bnw-white) 40%, #F3F0E9 50%, var(--bnw-white) 60%);
+  background-size: 200% 100%;
+  animation: bnw-skeleton-shimmer 1.4s infinite linear;
+}
+@keyframes bnw-skeleton-shimmer {
+  to { background-position: -200% 0; }
+}
+
+/* Empty / error state */
+.bnw-addon-empty {
+  border: 1px dashed var(--bnw-border);
+  border-radius: var(--bnw-radius, 14px);
+  padding: 42px 24px;
+  text-align: center;
+  color: var(--bnw-text-muted);
+  background: var(--bnw-white);
+}
+.bnw-addon-empty i {
+  font-size: 34px;
+  color: var(--bnw-gold);
+  display: block;
+  margin-bottom: 10px;
+}
+.bnw-addon-empty p {
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Kad addon — media (cover / icon) + body (tajuk, desc, variant) */
+.bnw-addon-card {
+  display: flex;
+  gap: 14px;
+  background: var(--bnw-white);
+  border: 1px solid var(--bnw-border);
+  border-radius: var(--bnw-radius, 14px);
+  padding: 14px;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.bnw-addon-card:hover {
+  border-color: var(--bnw-gold);
+  box-shadow: 0 4px 16px rgba(201, 168, 76, .12);
+}
+.bnw-addon-media {
+  width: 84px;
+  height: 84px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--bnw-cream);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bnw-addon-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.bnw-addon-media--icon i {
+  font-size: 30px;
+  color: var(--bnw-gold);
+}
+.bnw-addon-body {
+  flex: 1;
+  min-width: 0;
+}
+.bnw-addon-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.bnw-addon-title {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--bnw-dark);
+}
+.bnw-addon-type-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bnw-gold-light);
+  color: var(--bnw-dark);
+}
+.bnw-addon-desc {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--bnw-text-muted);
+}
+
+/* Variant (package) row — radio (multi-variant), nama, scope, harga, qty */
+.bnw-addon-variant {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--bnw-border);
+  border-radius: 10px;
+  background: var(--bnw-cream);
+  cursor: default;
+}
+.bnw-addon-variant--active {
+  border-color: var(--bnw-gold);
+  background: #FBF8EF;
+}
+.bnw-addon-variant[onclick] { cursor: pointer; }
+.bnw-addon-radio {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--bnw-border);
+  flex-shrink: 0;
+  transition: all .15s ease;
+}
+.bnw-addon-radio.is-on {
+  border-color: var(--bnw-gold);
+  border-width: 5px;
+}
+.bnw-addon-variant-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bnw-dark);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bnw-addon-variant-scope {
+  font-size: 11px;
+  color: var(--bnw-text-muted);
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.bnw-addon-variant-price {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--bnw-dark);
+  white-space: nowrap;
+}
+
+/* Stepper qty — kompak, selari pola stepper bilik */
+.bnw-addon-qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bnw-qty-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--bnw-border);
+  background: var(--bnw-white);
+  color: var(--bnw-dark);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all .15s ease;
+}
+.bnw-qty-btn i { font-size: 14px; }
+.bnw-qty-btn:hover:not(:disabled) {
+  border-color: var(--bnw-gold);
+  color: var(--bnw-gold);
+}
+.bnw-qty-btn:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+.bnw-qty-val {
+  min-width: 20px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--bnw-dark);
+}
+
+/* Baris jumlah addon dalam kad summary */
+.bnw-addon-total-row {
+  font-weight: 600;
+}
+.bnw-addon-total-row strong { color: var(--bnw-dark); }
+
+/* Blok addon pada skrin confirmation (Step 5) */
+.bnw-addon-confirm {
+  border: 1px solid var(--bnw-gold);
+  background: #FDFAF2;
+  border-radius: var(--bnw-radius-sm, 8px);
+  padding: 16px 20px;
+  margin: 16px 0;
+  text-align: left;
+}
+.bnw-addon-confirm h4 {
+  margin: 0 0 10px;
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--bnw-dark);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bnw-addon-confirm h4 i { color: var(--bnw-gold); }
+.bnw-addon-paylink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bnw-gold);
+  text-decoration: none;
+}
+.bnw-addon-paylink:hover { text-decoration: underline; }
+.bnw-addon-note {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--bnw-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bnw-addon-note i { color: #1B7A43; }
+
+/* Amaran order addon gagal (booking utama kekal sah) */
+.bnw-addon-warn {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  background: #FEF3C7;
+  border: 1px solid #F59E0B;
+  border-radius: var(--bnw-radius-sm, 8px);
+  padding: 14px 18px;
+  margin: 16px 0;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #78350F;
+}
+.bnw-addon-warn i {
+  font-size: 20px;
+  color: #B45309;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* 5 langkah — track perlu lebih padat pada skrin kecil */
+@media (max-width: 900px) {
+  .bnw-step { padding: 6px 8px; }
+  .bnw-step-label { font-size: 11.5px; }
+  .bnw-step-line { width: 14px; margin: 0 2px; }
+  .bnw-step-num { width: 24px; height: 24px; font-size: 12px; }
+}
+@media (max-width: 600px) {
+  .bnw-step-label { display: none; }
+  .bnw-step.active .bnw-step-label { display: inline; }
+  .bnw-addon-card { flex-direction: column; }
+  .bnw-addon-media { width: 100%; height: 130px; }
+}

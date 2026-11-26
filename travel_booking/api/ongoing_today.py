@@ -21,7 +21,8 @@
 #
 # Lihat juga:
 # - travel_booking/api/booking_hub.py     (pola role-guard + payment queue)
-# - travel_booking/api/manage_trip_booking.py (pola agregat SO custom_booking)
+# - travel_booking/api/manage_trip_booking.py (pola agregat SO via registri
+#   Booking.sales_orders)
 
 from __future__ import annotations
 
@@ -263,17 +264,21 @@ def _load_booking_context(trip: str):
 	booking_names = [b.name for b in bookings] or [""]
 
 	# Kewangan per booking (grand_total - advance_paid), SO terserah (docstatus=1).
+	# [Nov 2026] agregat ikut registri Booking.sales_orders — SO tidak lagi
+	# memegang link custom_booking ke Booking (kunci kumpulan = reg.parent).
 	so_agg = {
-		r.custom_booking: r
+		r.booking: r
 		for r in frappe.db.sql(
 			"""
-			SELECT so.custom_booking,
+			SELECT reg.parent AS booking,
 			       SUM(so.grand_total) AS gross,
 			       SUM(so.advance_paid) AS paid,
 			       SUM(so.grand_total) - SUM(so.advance_paid) AS balance
 			FROM `tabSales Order` so
-			WHERE so.docstatus = 1 AND so.custom_booking IS NOT NULL
-			GROUP BY so.custom_booking
+			INNER JOIN `tabBooking Sales Order` reg
+			    ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+			WHERE so.docstatus = 1
+			GROUP BY reg.parent
 			""",
 			as_dict=True,
 		)
@@ -283,14 +288,16 @@ def _load_booking_context(trip: str):
 	currencies: dict[str, str] = {}
 	for r in frappe.db.sql(
 		"""
-		SELECT so.custom_booking, so.currency
+		SELECT reg.parent AS booking, so.currency
 		FROM `tabSales Order` so
-		WHERE so.docstatus = 1 AND so.custom_booking IS NOT NULL
-		ORDER BY so.creation ASC
+		INNER JOIN `tabBooking Sales Order` reg
+		    ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+		WHERE so.docstatus = 1
+		ORDER BY reg.idx ASC, so.creation ASC
 		""",
 		as_dict=True,
 	):
-		currencies.setdefault(r.custom_booking, r.currency or "MYR")
+		currencies.setdefault(r.booking, r.currency or "MYR")
 
 	# Agregat reservation per booking.
 	placeholders = ",".join(["%s"] * len(booking_names))
@@ -575,7 +582,9 @@ def so_agg_paid(booking: str) -> bool:
 		frappe.db.sql(
 			"""
 			SELECT so.name FROM `tabSales Order` so
-			WHERE so.docstatus = 1 AND so.custom_booking = %s AND so.advance_paid > 0
+			INNER JOIN `tabBooking Sales Order` reg
+			    ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+			WHERE so.docstatus = 1 AND reg.parent = %s AND so.advance_paid > 0
 			LIMIT 1
 			""",
 			booking,

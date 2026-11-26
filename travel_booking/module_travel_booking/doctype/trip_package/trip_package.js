@@ -121,7 +121,7 @@ function set_filter_group_date(frm){
             frm.fields_dict['package_pricing'].grid.get_field('pricing_for_class').get_query = function(doc, cdt, cdn) {
                 return {
                     filters: {
-                        'is_a_cruise': true   // contoh field dalam TripPriceCategory
+                        'price_category': 'Cruise'
                     }
                 };
 
@@ -181,7 +181,7 @@ function set_filter_group_date(frm){
         frm.fields_dict['package_pricing'].grid.get_field('pricing_for_class').get_query = function(doc, cdt, cdn) {
             return {
                 filters: {
-                    'is_a_cruise': false   // contoh field dalam TripPriceCategory
+                    'price_category': 'Tour'
                 }
             };
         };

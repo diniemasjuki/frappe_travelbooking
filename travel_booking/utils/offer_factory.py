@@ -71,68 +71,111 @@ def inventory_keys_for(pkg):
 	return keys
 
 
+
+def _create_offer_standalone(values: dict) -> str:
+	"""Cipta offer TANPA Travel Package (mod standalone). Prasyarat:
+	values: travel_date (wajib), offer_name (nama pakej, wajib),
+	currency (wajib). [BUANG Nov 2026] seed komponen (Offer Component) —
+	field ditanggalkan; komponen aktif dibaca terus daripada
+	Trip.default_components. Inventori: satu baris bagi setiap kategori
+	rooming tarikh (allotment 0 — kolam kontrak dikongsi semua group
+	sailing sama). Harga: kosong."""
+	td = frappe.db.get_value(
+		"Travel Date", values["travel_date"],
+		["name", "trip", "departure_date", "return_date", "sailing_start",
+		 "sailing_end", "ship_name", "ship_code", "embarkation_port",
+		 "disembarkation_port", "cruise_schedule", "days_before_closure"],
+		as_dict=True)
+	if not td:
+		frappe.throw("Travel Date {} not found.".format(values["travel_date"]))
+	if not values.get("offer_name") or not values.get("currency"):
+		frappe.throw("Offer name and currency are required.")
+	data = {
+		"doctype": "Package Offer",
+		"naming_series": "OFF-.YYYY.-.####",
+		"package": None,
+		"offer_name": values["offer_name"],
+		"currency": values["currency"],
+		"travel_date": td.name,
+		"departure_date": td.departure_date,
+		"return_date": td.return_date,
+		"sailing_start": td.sailing_start, "sailing_end": td.sailing_end,
+		"ship_name": td.ship_name, "ship_code": td.ship_code,
+		"embarkation_port": td.embarkation_port,
+		"disembarkation_port": td.disembarkation_port,
+		"cruise_schedule": td.cruise_schedule,
+		"days_before_closure": td.days_before_closure,
+	}
+	offer = frappe.get_doc(data)
+	# [BUANG Nov 2026] seeding Offer Inventory — medan inventori per-variant
+	# ditanggalkan daripada Package Offer. Kapasiti cruise = Sailing
+	# Inventory kolam kongsi; kapasiti offer = max_pax/current_pax.
+	offer.insert(ignore_permissions=True, ignore_links=True)
+	return offer.name
+
+
 def create_offer(package: str, values: dict, inventory_seeds: dict = None) -> str:
 	"""Cipta Package Offer daripada Travel Package.
 
 	:param package: nama Travel Package
-	:param values: medan offer (departure_date wajib, dsb.) — status_editorial/
-	    status_operational boleh dihantar (patch migrasi); default Draft/Scheduled
-	:param inventory_seeds: {inventory_key: {"allotment": int, "sold": int}}
-	    (patch migrasi); tanpa seeds → allotment/sold = 0
+	:param values: medan offer. Dua mod:
+	    - MOD TRAVEL DATE (hierarki ERD, diutamakan): hantar `travel_date`
+	      (nama Travel Date) — tarikh/sailing/ship/port/cruise_schedule
+	      diambil DARIPADA Travel Date (satu sumber kebenaran; nilai lain
+	      dalam values untuk medan tersebut diabaikan).
+	    - MOD LEGACY: hantar `departure_date` terus (patch v40 / laluan
+	      lama) — kelakuan asal tidak berubah.
+	    status_editorial/status_operational boleh dihantar; default
+	    Draft/Scheduled.
+	:param inventory_seeds: TIDAK DIGUNAKAN lagi (Nov 2026 — medan
+	    inventori per-variant ditanggalkan; kekal untuk keserasian panggilan
+	    patch migrasi v40).
 	:return: nama offer yang dicipta
 	"""
+	values = dict(values or {})
+	if not package and values.get("travel_date"):
+		# MOD OFFER (Nov 2026 — Travel Package deprecated): offer identiti
+		# sendiri — nama + currency dihantar pemanggil; komponen disalin
+		# daripada Trip.default_components; HARGA diisi melalui Price
+		# Matrix (import schedule rates).
+		return _create_offer_standalone(values)
+
 	pkg = frappe.get_doc("Travel Package", package)
 	data = {
 		"doctype": "Package Offer",
 		"naming_series": "OFF-.YYYY.-.####",
 		"package": pkg.name,
 	}
-	data.update(values or {})
+	if values.get("travel_date"):
+		td = frappe.db.get_value(
+			"Travel Date", values["travel_date"],
+			["name", "trip", "departure_date", "return_date",
+			 "sailing_start", "sailing_end", "ship_name", "ship_code",
+			 "embarkation_port", "disembarkation_port",
+			 "cruise_schedule", "days_before_closure"], as_dict=True)
+		if not td:
+			frappe.throw(
+				"Travel Date {} not found.".format(values["travel_date"]))
+		# Tarikh & sailing HANYA daripada Travel Date — buang sebarang
+		# nilai bertindih yang dihantar pemanggil (elak drift).
+		for f in ("departure_date", "return_date", "sailing_start",
+				  "sailing_end", "ship_name", "ship_code",
+				  "embarkation_port", "disembarkation_port",
+				  "cruise_schedule", "days_before_closure"):
+			values.pop(f, None)
+			if td.get(f) is not None:
+				values[f] = td.get(f)
+	data.update(values)
 	offer = frappe.get_doc(data)
 
-	# Salin matriks harga templat → offer (override per-offer kemudian)
-	for t in (pkg.price_template or []):
-		if not t.active:
-			continue
-		offer.append("prices", {
-			"price_key": t.price_key,
-			"opt1": t.opt1, "opt2": t.opt2, "opt3": t.opt3,
-			"age_option": t.age_option,
-			"currency": t.currency or pkg.default_currency,
-			"price": t.price,
-			"active": 1,
-		})
+	# [BUANG Nov 2026] salinan matriks harga templat → Offer Price DAN
+	# janaan inventori per-variant — kedua-dua medan ditanggalkan daripada
+	# Package Offer. Harga = Price Matrix (import schedule rates); kapasiti
+	# = Sailing Inventory (cruise) / max_pax (darat).
 
-	# Jana inventori per kombinasi paksi inventory — salin harga templat yang
-	# sepadan JUGA sediakan allotment/sold dari seeds (patch migrasi)
-	seeds = inventory_seeds or {}
-	for key in inventory_keys_for(pkg):
-		seed = seeds.get(key, {})
-		offer.append("inventory", {
-			"inventory_key": key,
-			"allotment": int(seed.get("allotment") or 0),
-			"sold": int(seed.get("sold") or 0),
-		})
-
-	# Komponen selesai — cruise_tour + flight (kalau ada)
-	trip = None
-	for c in (pkg.components or []):
-		if c.component_type == "cruise_tour":
-			trip = c.trip
-	offer.append("components", {
-		"component_type": "cruise_tour",
-		"trip": trip,
-		"cruise_schedule": offer.get("cruise_schedule"),
-		"resolved_start": offer.departure_date,
-		"resolved_end": offer.return_date,
-	})
-	if offer.get("flight"):
-		offer.append("components", {
-			"component_type": "flight",
-			"flight": offer.flight,
-			"resolved_start": offer.departure_date,
-			"resolved_end": offer.departure_date,
-		})
+	# [BUANG Nov 2026] stamping komponen (Offer Component) — field
+	# ditanggalkan; komponen aktif dibaca terus daripada
+	# Trip.default_components.
 
 	offer.insert(ignore_permissions=True, ignore_links=True)
 	return offer.name
@@ -176,8 +219,9 @@ def seeds_from_allotment(pkg, old_package_name: str) -> dict:
 
 
 def sold_from_reservations(tgd_name: str, old_package_name: str = None) -> dict:
-	"""Sold per cabin UNTUK SATU keberangkatan (TGD lama) — kiraan reservasi
-	tak-cancelled melalui Booking.trip_date.
+	"""Sold per cabin UNTUK SATU keberangkatan (TGD lama) — kiraan KABIN
+	(reservasi tak-cancelled melalui Booking.trip_date, dikumpul ikut
+	room_id — tetamu berkongsi kabin tidak di-kira berasingan).
 
 	FILTER PENTING (bug v40 #1): reservasi MILIK SATU pakej — tanpa filter
 	`b.trip_package`, pakej FC dan CO yang sama-sama pilih TGD akan
@@ -190,7 +234,8 @@ def sold_from_reservations(tgd_name: str, old_package_name: str = None) -> dict:
 		package_filter = "AND b.trip_package = %(pkg)s"
 	rows = frappe.db.sql(
 		f"""
-		SELECT br.room_category AS cat, COUNT(*) AS n
+		SELECT br.room_category AS cat,
+		       COUNT(DISTINCT COALESCE(NULLIF(br.room_id, ''), br.name)) AS n
 		FROM `tabBooking Reservation` br
 		INNER JOIN `tabBooking` b ON b.name = br.booking
 		WHERE b.trip_date = %(tgd)s
@@ -217,106 +262,122 @@ def resolve_legacy_from_offer(offer_name: str, travel_package_name: str):
 	migrasi v39/v40)."""
 	offer = frappe.db.get_value(
 		"Package Offer", offer_name,
-		["legacy_tgd", "legacy_trip_package", "package"],
+		["legacy_tgd", "legacy_trip_package", "package", "currency"],
 		as_dict=True,
 	)
 	if not offer:
 		frappe.throw(f"Offer {offer_name} not found.", frappe.DoesNotExistError)
+	# RELAXED (Nov 2026 — Travel Package deprecated penuh): offer dengan
+	# identiti sendiri (currency) berjalan OFFER-MODE — pricing dari
+	# Offer Price, trip_package TIDAK diperlukan. legacy_tgd kekal wajib
+	# (TGD masih sumber tarikh/ops aliran legacy). Offer warisan (tanpa
+	# currency) kekal mewajibkan provenance penuh.
+	if offer.currency:
+		if not offer.legacy_tgd:
+			frappe.throw(
+				"Offer {0} tiada provenance TGD (legacy_tgd kosong) — "
+				"tarikh operasi tidak dapat diselesaikan.".format(offer_name))
+		return offer.legacy_tgd, None
 	pkg_legacy = frappe.db.get_value(
 		"Travel Package", travel_package_name, "legacy_trip_package"
 	)
 	if not offer.legacy_tgd or not pkg_legacy:
 		frappe.throw(
-			"Provenance legacy belum lengkap untuk struktur baharu ini "
-			"(legacy_tgd / legacy_trip_package kosong). Flag use_package_offers "
-			"tidak boleh digunakan untuk offer/pakej ini."
+			"Provenance legacy belum lengkap untuk offer warisan ini "
+			"(legacy_tgd / legacy_trip_package kosong, dan currency "
+			"tiada). Flag use_package_offers tidak boleh digunakan."
 		)
 	return offer.legacy_tgd, pkg_legacy
 
 
 def _selection_needs(selections) -> dict:
-	"""Jumlah pax per inventory_key daripada selections wizard.
-	pax = main_guests + extra_beds + infants; kabin daripada room_category
-	(docname Trip Price Category → category_code → 'cabin:CODE')."""
+	"""Bilangan KABIN per inventory_key daripada selections wizard.
+
+	Inventori cruise schedule (cabin_rates) mengira BILIK/KABIN, bukan
+	penumpang — setiap selection wizard = SATU kabin kategori
+	room_category (docname Trip Price Category → category_code →
+	'cabin:CODE'). Tetamu berkongsi kabin (room_id sama pada Booking
+	Reservation) — tambah infant/extra bed TIDAK mengambil kabin baharu.
+	Selection kosong (tiada tetamu) tidak dikira."""
 	needs: dict = {}
 	codes: dict = {}
 	for s in selections or []:
 		rc = s.get("room_category")
 		if not rc:
 			continue
+		guests = (int(s.get("main_guests", 0) or 0)
+				  + int(s.get("extra_beds", 0) or 0)
+				  + int(s.get("infants", 0) or 0))
+		if guests <= 0:
+			continue
 		if rc not in codes:
 			codes[rc] = frappe.db.get_value(
 				"Trip Price Category", rc, "category_code"
 			) or rc
 		key = "cabin:" + codes[rc]
-		pax = (int(s.get("main_guests", 0) or 0)
-			   + int(s.get("extra_beds", 0) or 0)
-			   + int(s.get("infants", 0) or 0))
-		needs[key] = needs.get(key, 0) + pax
+		needs[key] = needs.get(key, 0) + 1
 	return needs
 
 
-def check_offer_capacity(offer_name: str, selections):
-	"""F5 gate kapasiti — LOCK baris Package Offer (SELECT ... FOR UPDATE,
-	corak P1/C3) kemudian semak setiap inventory_key ada available cukup.
-	Dipanggil SEBELUM aliran legacy confirm_booking; lock kekal sehingga
-	transaksi commit — apply_offer_booking() yang seterusnya re-lock baris
-	yang sama (re-entrant, tiada deadlock)."""
+# ── GATE KAPASITI (Nov 2026 — konsolidasi tunggal) ────────────────────
+# Kolam kapasiti cruise = cabin_rates pada Trip Cruise Schedule
+# (child Trip Package Price): cabin_allotment (kontrak) − cabin_occupancy
+# (kiraan live Booking Reservation, disegerak hooks sync_cabin_availability).
+# [BUANG] Sailing Inventory (kolam selari), apply/release_offer_booking,
+# snapshot offer_inventory_snapshot — pembatalan reservasi mengosongkan
+# kuota secara automatik melalui kiraan semula hook.
+# Offer darat (tanpa schedule): tiada had per-variant — jualan terbuka.
+
+
+def check_offer_capacity(offer_name: str, selections, partner: str = None):
+	"""Gate kapasiti — LOCK baris Trip Cruise Schedule (SELECT ... FOR
+	UPDATE, serialise booking serentak) kemudian semak setiap kategori
+	pilihan ada tempat cukup pada kolam cabin_rates schedule. Dipanggil
+	SEBELUM aliran confirm_booking; lock kekal sehingga transaksi commit.
+	Partner reserve (Fasa C) dibuang bersama Sailing Inventory."""
+	schedule = frappe.db.get_value("Package Offer", offer_name, "cruise_schedule")
+	if isinstance(schedule, dict):
+		schedule = schedule.get("cruise_schedule")
+	if not schedule or not frappe.db.exists("Trip Cruise Schedule", schedule):
+		return  # offer darat — tiada kolam, jualan terbuka
+
+	# Serialise booking pada sailing ini (lock baris induk schedule).
 	frappe.db.sql(
-		"SELECT name FROM `tabPackage Offer` WHERE name = %s FOR UPDATE",
-		(offer_name,),
+		"SELECT name FROM `tabTrip Cruise Schedule` WHERE name = %s FOR UPDATE",
+		(schedule,),
 	)
 	needs = _selection_needs(selections)
-	inv = {
-		r.inventory_key: r
+	if not needs:
+		return
+
+	# Kolam: cabin_rates schedule — {docname kategori: (allotment, occupancy)}
+	pool = {
+		r.pricing_for_class: (int(r.cabin_allotment or 0),
+							  int(r.cabin_occupancy or 0))
 		for r in frappe.get_all(
-			"Offer Inventory", filters={"parent": offer_name},
-			fields=["name", "inventory_key", "allotment", "sold"],
+			"Trip Package Price",
+			filters={"parent": schedule, "parenttype": "Trip Cruise Schedule"},
+			fields=["pricing_for_class", "cabin_allotment", "cabin_occupancy"],
 		)
 	}
-	for key, pax in needs.items():
-		row = inv.get(key)
-		if row is None:
-			frappe.throw(f"Kabin '{key}' tiada dalam inventori offer ini.")
-		avail = int(row.allotment or 0) - int(row.sold or 0)
-		if avail < pax:
+	codes = {}
+	for cat_name in pool:
+		codes.setdefault(frappe.db.get_value(
+			"Trip Price Category", cat_name, "category_code") or cat_name,
+			cat_name)
+
+	for key, rooms in needs.items():
+		code = key.split(":", 1)[1] if ":" in key else key
+		cat_name = codes.get(code)
+		if not cat_name or cat_name not in pool:
 			frappe.throw(
-				f"{key}: hanya {avail} tempat tersedia (perlukan {pax}). "
-				"Sila kurangkan bilangan tetamu atau pilih kabin lain."
+				f"Kabin '{code}' tiada dalam kolam kategori sailing "
+				f"{schedule} — tak boleh dijual."
 			)
-
-
-def apply_offer_booking(offer_name: str, selections) -> int:
-	"""F5 tulis: tolak stok offer (sold += pax) atas LOCK yang sama.
-	Panggil SELEPAS booking berjaya dicipta, DALAM transaksi yang sama.
-	Kembalikan jumlah pax ditolak."""
-	frappe.db.sql(
-		"SELECT name FROM `tabPackage Offer` WHERE name = %s FOR UPDATE",
-		(offer_name,),
-	)
-	needs = _selection_needs(selections)
-	rows = frappe.get_all(
-		"Offer Inventory", filters={"parent": offer_name},
-		fields=["name", "inventory_key", "allotment", "sold"],
-	)
-	by_key = {r.inventory_key: r for r in rows}
-	total = 0
-	for key, pax in needs.items():
-		row = by_key.get(key)
-		if row is None:
-			continue  # sudah ditolak oleh check_offer_capacity di atas
-		new_sold = int(row.sold or 0) + pax
-		frappe.db.set_value(
-			"Offer Inventory", row.name,
-			{"sold": new_sold, "available": int(row.allotment or 0) - new_sold},
-			update_modified=False,
-		)
-		total += pax
-	if total:
-		offer = frappe.db.get_value(
-			"Package Offer", offer_name, ["current_pax"], as_dict=True
-		)
-		frappe.db.set_value("Package Offer", offer_name,
-			"current_pax", int(offer.current_pax or 0) + total,
-			update_modified=False)
-	return total
+		allotment, occupancy = pool[cat_name]
+		avail = allotment - occupancy
+		if avail < rooms:
+			frappe.throw(
+				f"{code}: hanya {max(0, avail)} kabin tinggal pada sailing "
+				f"(kolam kontrak dikongsi semua group) — perlukan {rooms} kabin."
+			)

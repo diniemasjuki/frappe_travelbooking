@@ -21,8 +21,7 @@
   "total_nights",
   "status",
   "trip_information_section",
-  "trip_link",
-  "trip_name",
+  "trip_name_cruise_company",
   "column_break_uiie",
   "trip_code",
   "schedule_code",
@@ -163,21 +162,12 @@
   },
   {
    "allow_in_quick_entry": 1,
-   "fieldname": "trip_link",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Trip",
-   "link_filters": "[[\"Trip\",\"is_a_cruise_trip\",\"=\",1]]",
-   "options": "Trip",
-   "search_index": 1
-  },
-  {
-   "fetch_from": "trip_link.trip_name",
-   "fieldname": "trip_name",
+   "description": "Trip Name to be provided by cruise company for every schedule",
+   "fieldname": "trip_name_cruise_company",
    "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Trip Name"
+   "in_list_view": 1,
+   "label": "Trip Name by Cruise Company",
+   "no_copy": 1
   },
   {
    "default": ".ship_code.YY.#",
@@ -194,7 +184,7 @@
   {
    "fieldname": "cabin_rates",
    "fieldtype": "Table",
-   "label": "Cabin Rates",
+   "label": "PRICE MATRIX | Room Category (Cabin Rates)",
    "options": "Trip Package Price"
   },
   {
@@ -243,11 +233,12 @@
  "is_calendar_and_gantt": 1,
  "links": [
   {
-   "link_doctype": "Trip Group Date",
-   "link_fieldname": "cruise_schedule"
+   "link_doctype": "Travel Date",
+   "link_fieldname": "cruise_schedule",
+   "group": "Travel Dates"
   }
  ],
- "modified": "2026-09-12 01:20:37.065737",
+ "modified": "2026-11-11 18:30:00.000000",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Trip Cruise Schedule",
@@ -283,7 +274,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
- "search_fields": "trip_link,trip_name",
+ "search_fields": "trip_code,trip_name_cruise_company",
  "show_title_field_in_link": 1,
  "sort_field": "creation",
  "sort_order": "DESC",

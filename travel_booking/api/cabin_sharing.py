@@ -2,11 +2,11 @@
 
 Senario: customer yang dah ada booking cruise aktif mahu tambah traveller
 ke cabin tertentu KEMUDIAN HARI, terus dari panel cabin di portal. Server
-cipta SO BAHARU untuk traveller tu dan dipaut ke booking sedia ada
-melalui Sales Order.custom_booking SAHAJA — TIADA custom field share
-pada Sales Order:
+cipta SO BAHARU untuk traveller tu dan didaftarkan pada booking sedia ada
+melalui registri Booking.sales_orders (child table "Booking Sales Order")
+SAHAJA — TIADA custom field share pada Sales Order:
 
-    existed Booking ──< Sales Order (via custom_booking)
+    existed Booking ──< Sales Order (via registri Booking.sales_orders)
           │
           └──< Booking Reservation (slot baharu di bawah Booking sama;
                 cabin ditentukan dari panel cabin → slot baharu auto
@@ -44,8 +44,8 @@ dibayar penuh — melalui _recompute_booking_status() (hook Payment Entry
 submit), corak yang sama dengan aktivasi booking utama. Idempotensi
 aktivasi melalui stamp Booking Reservation.sales_order (SO sumber
 slot) — di-stamp oleh _activate_share_traveller_reservation
-(satu booking boleh ada beberapa SO, semuanya dipaut ke
-Booking melalui Sales Order.custom_booking sahaja). Rekod traveller
+(satu booking boleh ada beberapa SO, semuanya didaftarkan pada
+Booking melalui registri Booking.sales_orders sahaja). Rekod traveller
 (Passport/dokumen) diisi selepas itu melalui flow sedia ada di
 /traveller/travellers (slot kosong → save_booking_traveller).
 
@@ -70,10 +70,16 @@ from travel_booking.api.addon_manager import _get_owned_booking, _price_hidden_f
 from travel_booking.api.constants import get_max_cabins
 from travel_booking.api.portal_booking import _portal_access
 from travel_booking.api.so_helpers import (
+    _booking_items_layout,
     _cabin_layout_from_so,
     _get_primary_so,
     _get_or_create_travel_item,
+    _item_spec,
+    _link_booking_sales_order,
+    _normalize_pax_type,
+    _resolve_booking_from_so,
     _resolve_so_currency_and_rate,
+    _write_booking_items,
 )
 from travel_booking.api.pricing import _get_pricing_map, _validate_selection_capacity
 from travel_booking.api.constants import DEFAULT_SELLING_PRICE_LIST, TRAVEL_ITEM_CODE
@@ -86,8 +92,113 @@ _EPS = 0.01
 # CONTEXT (shared oleh kedua-dua endpoint)
 # ══════════════════════════════════════════════
 
+def _booking_pricing_map(booking: frappe._dict) -> dict:
+    """Peta harga SEMASA untuk satu booking — cermin cabang pricing
+    confirm_booking (api/booking_engine.py:668-704):
+
+      - offer-mode (F5, Booking.package_offer + flag ON): Price Matrix
+        offer + price rule berkesan + surcaj addon offer (seperti harga
+        asal booking, like-for-like);
+      - legacy: Trip Package Price (tingkah laku lama).
+
+    FIX (Fasa 1a): _share_context sebelum ini hanya membaca peta legacy —
+    booking offer-mode dapat peta kosong dan harga traveller tambahan
+    menjadi salah/kosong.
+    """
+    offer_mode = False
+    if booking.get("package_offer"):
+        from travel_booking.utils.flags import use_package_offers
+        offer_mode = use_package_offers()
+    if not offer_mode:
+        return _get_pricing_map(booking.trip_package) if booking.trip_package else {}
+
+    from travel_booking.api.pricing import (
+        _get_offer_pricing_map,
+        _get_offer_addon_totals,
+        _apply_addon_totals,
+    )
+    from travel_booking.api.price_rule import apply_price_rules
+
+    pricing_map = _get_offer_pricing_map(booking.package_offer)
+    td = (frappe.db.get_value("Trip Group Date", booking.trip_date,
+                              ["trip", "departure_date"], as_dict=True)
+          if booking.trip_date else None)
+    rule_ctx = {
+        "trip": (td and td.trip) or None,
+        "trip_group_date": None,
+        "trip_package": None,
+        "currency": frappe.db.get_value("Package Offer", booking.package_offer, "currency"),
+        "departure_date": (td and td.departure_date) or None,
+    }
+    eff_map, _applied = apply_price_rules(pricing_map, rule_ctx)
+    # Surcaj addon offer — kedua-dua map (seperti booking_engine, guard
+    # aliasing: apply_price_rules pulangkan objek sama bila tiada rule).
+    addon_totals = _get_offer_addon_totals(booking.package_offer)
+    if addon_totals:
+        if eff_map is not pricing_map:
+            _apply_addon_totals(eff_map, addon_totals)
+        _apply_addon_totals(pricing_map, addon_totals)
+    return eff_map
+
+
+def _share_context_core(booking: frappe._dict) -> dict:
+    """Konteks perkongsian kabin untuk SATU booking — TANPA gate portal
+    (ownership/B2B). Dipakai oleh laluan portal (_share_context) DAN
+    laluan admin Fasa 1a (api/booking_edit.add_booking_pax).
+
+    `booking` = rekod/dict Booking (name, trip_date, trip_package,
+    package_offer, customer...). Guard kekal di sini: cruise + reservation
+    aktif + SO utama wujud (struktur, bukan kebenaran).
+    """
+    if not frappe.db.get_value("Booking", booking.name, "is_a_cruise_trip"):
+        frappe.throw("Additional traveller is only available for cruise bookings.")
+
+    # Slot mula wujud selepas bayaran pertama (_activate_booking). Tanpa
+    # reservation, cabin layout belum bermakna — jangan papar.
+    if not frappe.db.exists("Booking Reservation", {"booking": booking.name}):
+        frappe.throw("This booking is not active yet. Complete your first payment to add a traveller.")
+
+    so_name = _get_primary_so(booking.name)
+    if not so_name:
+        frappe.throw("Primary Sales Order not found for this booking.")
+
+    # Layout = cabin SO utama + cabin TAMBAHAN yang dicipta melalui
+    # create_new_cabin_order (SO tambahan, cabin_no melampaui layout
+    # utama). Gabungan ini penting supaya cabin baharu turut muncul dalam
+    # get_shareable_cabins (boleh terima traveller ke-2 dst.).
+    #
+    # FASA 0 (booking-centric): layout utama daripada Booking Item
+    # (sumber struktur) — fallback parse SO untuk booking lama
+    # pra-backfill / SO manual admin. Ekstra kabin kekal parse SO
+    # (kaunter penghunian sengaja baca sisi SO — pending belum ada
+    # reservation; Fasa 1 akan satukan).
+    primary_layout = _booking_items_layout(booking.name, [so_name])
+    if not primary_layout:
+        primary_layout = _cabin_layout_from_so(so_name)
+    layout = primary_layout + _extra_cabin_layout(booking.name, primary_layout)
+    primary_so = frappe.db.get_value(
+        "Sales Order", so_name,
+        ["name", "currency", "transaction_date"], as_dict=True)
+
+    trip_name, _departure = _trip_context(booking)
+    group_label = frappe.db.get_value("Trip Group Date", booking.trip_date, "trip_group_name") or ""
+
+    return {
+        "booking":        booking,
+        "booking_doc":    frappe.db.get_value("Booking", booking.name,
+                            ["booking_number", "trip_date"], as_dict=True),
+        "so_name":        so_name,
+        "so_currency":    primary_so.currency,
+        "layout":         layout,
+        "pricing_map":    _booking_pricing_map(booking),
+        "trip_name":      trip_name or "",
+        "group_label":    group_label,
+    }
+
+
 def _share_context(booking_number):
-    """Resolve booking + layout SO utama + harga pakej semasa.
+    """Resolve booking + layout SO utama + harga pakej semasa — LALUAN
+    PORTAL (gate ownership + B2B), kemudian terus ke _share_context_core.
 
     Throw (frappe.throw) kalau booking bukan cruise / tiada SO utama /
     reservation belum diaktifkan (booking masih belum bayar langsung).
@@ -106,44 +217,7 @@ def _share_context(booking_number):
             frappe.PermissionError,
         )
 
-    if not frappe.db.get_value("Booking", booking.name, "is_a_cruise_trip"):
-        frappe.throw("Additional traveller is only available for cruise bookings.")
-
-    # Slot mula wujud selepas bayaran pertama (_activate_booking). Tanpa
-    # reservation, cabin layout portal belum bermakna — jangan papar.
-    if not frappe.db.exists("Booking Reservation", {"booking": booking.name}):
-        frappe.throw("This booking is not active yet. Complete your first payment to add a traveller.")
-
-    so_name = _get_primary_so(booking.name)
-    if not so_name:
-        frappe.throw("Primary Sales Order not found for this booking.")
-
-    # Layout = cabin SO utama + cabin TAMBAHAN yang dicipta melalui
-    # create_new_cabin_order (SO tambahan, cabin_no melampaui layout
-    # utama). Gabungan ini penting supaya cabin baharu turut muncul dalam
-    # get_shareable_cabins (boleh terima traveller ke-2 dst.).
-    primary_layout = _cabin_layout_from_so(so_name)
-    layout = primary_layout + _extra_cabin_layout(booking.name, primary_layout)
-    primary_so = frappe.db.get_value(
-        "Sales Order", so_name,
-        ["name", "currency", "transaction_date"], as_dict=True)
-
-    pricing_map = _get_pricing_map(booking.trip_package) if booking.trip_package else {}
-
-    trip_name, _departure = _trip_context(booking)
-    group_label = frappe.db.get_value("Trip Group Date", booking.trip_date, "trip_group_name") or ""
-
-    return {
-        "booking":        booking,
-        "booking_doc":    frappe.db.get_value("Booking", booking.name,
-                            ["booking_number", "trip_date"], as_dict=True),
-        "so_name":        so_name,
-        "so_currency":    primary_so.currency,
-        "layout":         layout,
-        "pricing_map":    pricing_map,
-        "trip_name":      trip_name or "",
-        "group_label":    group_label,
-    }
+    return _share_context_core(booking)
 
 
 def _trip_context(booking):
@@ -222,7 +296,7 @@ def _next_cabin_no(booking_name, layout):
 
 def _share_so_lines(booking_name):
     """Semua baris SO traveller tambahan untuk satu booking — dikenalpasti
-    TANPA marker: berkaitan booking melalui Sales Order.custom_booking,
+    TANPA marker: berkaitan booking melalui registri Booking.sales_orders,
     BUKAN SO utama (primary = SO pertama booking), dan menjual item
     TRAVEL-PKG (SO addon menjual item berbeza). SO Cancelled (docstatus=2)
     dikecualikan. Status aktivasi setiap SO dibaca dari stamp
@@ -236,9 +310,11 @@ def _share_so_lines(booking_name):
                EXISTS(SELECT 1 FROM `tabBooking Reservation` br
                       WHERE br.sales_order = so.name) AS activated
         FROM `tabSales Order` so
+        INNER JOIN `tabBooking Sales Order` reg
+             ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
         JOIN `tabSales Order Item` soi
              ON soi.parent = so.name AND soi.parenttype = 'Sales Order'
-        WHERE so.custom_booking = %s
+        WHERE reg.parent = %s
           AND so.docstatus IN (0, 1)
           AND soi.item_code = %s
           AND so.name != %s
@@ -373,11 +449,18 @@ def _share_category_options(price, excess, occupancy=0, capacity=0, max_capacity
 
 @frappe.whitelist()
 def get_shareable_cabins(booking_number: str) -> dict:
-    """Senarai cabin booking yang BOLEH terima traveller tambahan, lengkap
-    dengan harga (solo: kredit lebihan single-supplement; multi-pax /
-    dah ada tambahan: kadar adult penuh). Paparan portal; pengiraan
-    SEMULA di server masa create order."""
+    """Senarai cabin booking yang BOLEH terima traveller tambahan —
+    LALUAN PORTAL (gate ownership/B2B). Pengiraan SEMULA di server masa
+    create order."""
     ctx = _share_context(booking_number)
+    return _shareable_cabins_core(ctx)
+
+
+def _shareable_cabins_core(ctx: dict) -> dict:
+    """Teras senarai cabin shareable + harga (solo: kredit lebihan
+    single-supplement; multi-pax / dah ada tambahan: kadar adult penuh).
+    Dipakai portal (get_shareable_cabins) DAN admin Fasa 1a
+    (booking_edit.get_booking_edit_state)."""
     booking = ctx["booking"]
     seats_left = _trip_seats_left(booking)
 
@@ -473,15 +556,19 @@ def _trip_seats_left(booking):
         extra += frappe.db.sql("""
             SELECT COALESCE(SUM(soi.qty), 0)
             FROM `tabSales Order` so
+            INNER JOIN `tabBooking Sales Order` reg
+                 ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
             JOIN `tabSales Order Item` soi
                  ON soi.parent = so.name AND soi.parenttype = 'Sales Order'
-            WHERE so.custom_booking IN %s
+            WHERE reg.parent IN %s
               AND so.docstatus IN (0, 1)
               AND soi.item_code = %s
               AND so.name != (
-                  SELECT so2.name FROM `tabSales Order` so2
-                  WHERE so2.custom_booking = so.custom_booking
-                  ORDER BY so2.creation ASC LIMIT 1)
+                  SELECT reg2.sales_order FROM `tabBooking Sales Order` reg2
+                  INNER JOIN `tabSales Order` so2
+                       ON so2.name = reg2.sales_order AND so2.docstatus != 2
+                  WHERE reg2.parent = reg.parent AND reg2.parenttype = 'Booking'
+                  ORDER BY reg2.idx ASC LIMIT 1)
               AND NOT EXISTS(SELECT 1 FROM `tabBooking Reservation` br
                              WHERE br.sales_order = so.name)
         """, (tuple(trip_booking_names), TRAVEL_ITEM_CODE))[0][0] or 0
@@ -504,22 +591,17 @@ _SHARE_CATEGORY_PAX_TYPES = {
 
 
 @frappe.whitelist()
-def create_additional_traveller_order(booking_number: str, cabin_no: int,
-                                      category: str = "main_adult") -> dict:
-    """Cipta SO BAHARU untuk 1 traveller tambahan dalam `cabin_no`.
+def _create_additional_traveller_order_core(ctx: dict, cabin_no: int, category: str) -> dict:
+    """Teras cipta SO traveller tambahan — dipakai laluan PORTAL
+    (create_additional_traveller_order, gate ownership/B2B melalui
+    _share_context) DAN laluan ADMIN Fasa 1a (api/booking_edit.
+    add_booking_pax, gate _require_access melalui _share_context_core).
 
-    `category` — kategori pax traveller: 'main_adult' (kadar adult; kredit
-    lebihan single-supplement bila cabin masih solo), 'extra_bed' (kadar
-    upper berth penuh) atau 'infant' (kadar infant penuh). Default
-    'main_adult' untuk caller lama.
-
-    SO dipaut ke booking sedia ada melalui custom_booking SAHAJA; cabin
-    + kategori dibawa dalam description item (sumber tunggal layout).
-    Harga dikira SEMULA di server (snapshot SO utama + Trip Package Price
-    semasa) — client tidak pernah menentukan harga. SO disubmit terus;
-    customer bayar melalui halaman billing portal yang sedia ada.
+    `ctx` = konteks _share_context_core(booking). `category` =
+    'main_adult' / 'extra_bed' / 'infant'. Harga dikira SEMULA di server
+    — client tidak pernah menentukan harga. SO disubmit terus; bayaran
+    melalui portal billing / link admin.
     """
-    ctx = _share_context(booking_number)
     booking = ctx["booking"]
 
     try:
@@ -535,8 +617,9 @@ def create_additional_traveller_order(booking_number: str, cabin_no: int,
     if not cabin:
         frappe.throw("Cabin not found in this booking.")
 
-    # Pengiraan semula (bukan percaya paparan get_shareable_cabins).
-    share = get_shareable_cabins(booking_number)
+    # Pengiraan semula (bukan percaya paparan) — teras ctx yang sama
+    # (kaunter penghunian dalam _shareable_cabins_core dibaca live).
+    share = _shareable_cabins_core(ctx)
     target = next((c for c in share["cabins"] if c["cabin_no"] == cabin_no), None)
     if not target or not target["eligible"]:
         frappe.throw("This cabin cannot accept an additional traveller right now.")
@@ -589,13 +672,19 @@ def create_additional_traveller_order(booking_number: str, cabin_no: int,
                         " | " + pax_type + " | " + fare_note),
     }
 
+    # FASA 0 (booking-centric): spec per-traveller untuk baris ini —
+    # pax_type ternormalisasi ("Main Guest (Additional)" → "Main Guest" +
+    # rate_basis "Additional"), unit_price = net rate SO.
+    _spec_pax_type, _spec_basis = _normalize_pax_type(pax_type)
+    item_specs = [_item_spec(room_category, cabin_no, _spec_pax_type, net_rate,
+                             rate_basis=_spec_basis)]
+
     _original_user = frappe.local.session.user
     frappe.local.session.user = "Administrator"
     try:
         so = frappe.get_doc({
             "doctype":                "Sales Order",
             "customer":               booking.customer,
-            "custom_booking":         booking.name,
             "company":                so_company,
             "transaction_date":       frappe.utils.today(),
             "delivery_date":          frappe.utils.today(),
@@ -609,12 +698,23 @@ def create_additional_traveller_order(booking_number: str, cabin_no: int,
         so.insert(ignore_permissions=True)
         so.flags.ignore_permissions = True
         so.submit()
+        # [Nov 2026] SO traveller tambahan didaftarkan pada REGISTRI
+        # Booking.sales_orders (menggantikan set field custom_booking —
+        # SO tidak lagi memegang link ke Booking).
+        _link_booking_sales_order(booking.name, so.name, "Split Bill")
+        # FASA 0 (booking-centric): baris Booking Item untuk traveller
+        # tambahan ini — ditulis SEBELUM commit/aktivasi supaya
+        # _activate_share_traveller_reservation (flip baca Booking Item)
+        # nampak barisnya serta-merta. unit_price = net rate SO (rekod
+        # komersial sepadan dengan apa yang dijual).
+        _write_booking_items(booking.name, so.name, item_specs, so_currency)
         frappe.db.commit()
     finally:
         frappe.local.session.user = _original_user
 
     # Net = 0 (lebihan melibihi kadar adult) — tak ada apa nak bayar;
     # aktifkan slot terus supaya flow tamat serta-merta.
+    _bn = ctx["booking_doc"].booking_number
     if net_rate <= _EPS:
         _activate_share_traveller_reservation(so.name)
         frappe.db.commit()
@@ -624,7 +724,7 @@ def create_additional_traveller_order(booking_number: str, cabin_no: int,
             "grand_total":    net_rate,
             "currency":       so_currency,
             "fully_covered":  True,
-            "travellers_url": "/traveller/travellers?ref=" + booking_number,
+            "travellers_url": "/traveller/travellers?ref=" + _bn,
             "message":        "The single-supplement credit fully covers the additional traveller. Please fill in their details.",
         }
 
@@ -634,9 +734,32 @@ def create_additional_traveller_order(booking_number: str, cabin_no: int,
         "grand_total":    net_rate,
         "currency":       so_currency,
         "fully_covered":  False,
-        "billing_url":    "/traveller/billing?ref=" + booking_number + "&bill=" + so.name,
+        "billing_url":    "/traveller/billing?ref=" + _bn + "&bill=" + so.name,
         "message":        "Additional traveller order created. Please complete the payment to confirm their slot.",
     }
+
+
+@frappe.whitelist()
+def create_additional_traveller_order(booking_number: str, cabin_no: int,
+                                      category: str = "main_adult") -> dict:
+    """Cipta SO BAHARU untuk 1 traveller tambahan dalam `cabin_no` —
+    LALUAN PORTAL (gate ownership + B2B melalui _share_context).
+
+    `category` — kategori pax traveller: 'main_adult' (kadar adult; kredit
+    lebihan single-supplement bila cabin masih solo), 'extra_bed' (kadar
+    upper berth penuh) atau 'infant' (kadar infant penuh). Default
+    'main_adult' untuk caller lama.
+
+    SO didaftarkan pada booking sedia ada melalui registri
+    Booking.sales_orders sahaja; cabin
+    + kategori dibawa dalam description item (sumber tunggal layout).
+    Harga dikira SEMULA di server (peta harga semasa booking — offer-mode
+    ataupun legacy, rujuk _booking_pricing_map) — client tidak pernah
+    menentukan harga. SO disubmit terus; customer bayar melalui halaman
+    billing portal yang sedia ada.
+    """
+    ctx = _share_context(booking_number)
+    return _create_additional_traveller_order_core(ctx, cabin_no, category)
 
 
 # ══════════════════════════════════════════════
@@ -720,8 +843,9 @@ def create_new_cabin_order(booking_number: str, room_category: str,
     tunggal, sama dengan confirm_booking) + had tempat peringkat trip.
 
     Cabin baharu diberi cabin_no = (max cabin_no sedia ada) + 1. Corak
-    SO sama dengan create_additional_traveller_order: dipaut ke booking
-    melalui custom_booking, cabin + kategori dibawa dalam description
+    SO sama dengan create_additional_traveller_order: didaftarkan pada
+    booking melalui registri Booking.sales_orders, cabin + kategori
+    dibawa dalam description
     item — SATU baris setiap jenis pax. Baris main guest bila
     main_guests == 1 dikekal pax_type "Main Guest (Single)" supaya
     snapshot kadar solo kekal boleh dibaca oleh _extra_cabin_layout
@@ -798,31 +922,42 @@ def create_new_cabin_order(booking_number: str, room_category: str,
                             " | " + pax_type + " | " + fare_note),
         }
 
-    lines = []
+    # FASA 0 (booking-centric): specs per-traveller dibina SELARI dengan
+    # baris SO — pax_type ternormalisasi + rate_basis ikut akhiran label
+    # ("(Single)" → Single; baris baru tanpa akhiran → Standard).
+    lines, item_specs = [], []
+
+    def _line_and_specs(pax_type, label, qty, rate, fare_note):
+        lines.append(_line(pax_type, label, qty, rate, fare_note))
+        spec_pax_type, spec_basis = _normalize_pax_type(pax_type)
+        for _ in range(int(qty or 0)):
+            item_specs.append(_item_spec(room_category, cabin_no, spec_pax_type,
+                                         rate, rate_basis=spec_basis))
+
     if main_guests == 1:
-        lines.append(_line(
+        _line_and_specs(
             "Main Guest (Single)", "New Cabin & Traveller", 1, solo_rate,
             "new cabin, solo occupancy fare (single supplement included); "
             "twin-share rate " + frappe.utils.fmt_money(adult_rate, currency=so_currency) +
-            " applies to a second traveller added later"))
+            " applies to a second traveller added later")
     else:
-        lines.append(_line(
+        _line_and_specs(
             "Main Guest", "New Cabin Main Guest", main_guests, adult_rate,
             "new cabin, twin-share fare " +
             frappe.utils.fmt_money(adult_rate, currency=so_currency) +
-            " x " + str(main_guests) + " guest(s)"))
+            " x " + str(main_guests) + " guest(s)")
     if extra_beds:
-        lines.append(_line(
+        _line_and_specs(
             "Extra Bed", "New Cabin Extra Bed", extra_beds, upper_rate,
             "extra bed fare " +
             frappe.utils.fmt_money(upper_rate, currency=so_currency) +
-            " x " + str(extra_beds)))
+            " x " + str(extra_beds))
     if infants:
-        lines.append(_line(
+        _line_and_specs(
             "Infant", "New Cabin Infant", infants, infant_rate,
             "infant fare " +
             frappe.utils.fmt_money(infant_rate, currency=so_currency) +
-            " x " + str(infants)))
+            " x " + str(infants))
 
     grand_total = round(sum(float(l["rate"]) * int(l["qty"]) for l in lines), 2)
 
@@ -832,7 +967,6 @@ def create_new_cabin_order(booking_number: str, room_category: str,
         so = frappe.get_doc({
             "doctype":                "Sales Order",
             "customer":               booking.customer,
-            "custom_booking":         booking.name,
             "company":                so_company,
             "transaction_date":       frappe.utils.today(),
             "delivery_date":          frappe.utils.today(),
@@ -846,6 +980,14 @@ def create_new_cabin_order(booking_number: str, room_category: str,
         so.insert(ignore_permissions=True)
         so.flags.ignore_permissions = True
         so.submit()
+        # [Nov 2026] SO cabin baharu didaftarkan pada REGISTRI
+        # Booking.sales_orders (menggantikan set field custom_booking —
+        # SO tidak lagi memegang link ke Booking).
+        _link_booking_sales_order(booking.name, so.name, "Split Bill")
+        # FASA 0 (booking-centric): baris Booking Item untuk kabin baharu
+        # — sebelum commit/aktivasi supaya _activate_share_traveller_
+        # reservation (flip baca Booking Item) nampak barisnya serta-merta.
+        _write_booking_items(booking.name, so.name, item_specs, so_currency)
         frappe.db.commit()
     finally:
         frappe.local.session.user = _original_user
@@ -882,12 +1024,34 @@ def create_new_cabin_order(booking_number: str, room_category: str,
 # AKTIVASI SLOT (dipanggil dari _recompute_booking_status)
 # ══════════════════════════════════════════════
 
+def _share_plans_from_booking_items(so_name):
+    """[(room_category, cabin_no, pax_type, qty)] untuk SATU SO share
+    daripada Booking Item (Fasa 0 booking-centric — sumber struktur;
+    baris per-traveller jadi qty sentiasa 1, pax_type sedia
+    ternormalisasi tanpa akhiran "(Additional)").
+
+    Return None bila SO ini tiada baris Booking Item (SO lama
+    pra-backfill / SO manual admin) — caller fallback ke parse
+    description seperti sebelum ini.
+    """
+    rows = frappe.get_all(
+        "Booking Item",
+        filters={"sales_order": so_name, "status": ["!=", "Cancelled"]},
+        fields=["room_category", "cabin_no", "pax_type"],
+        order_by="idx asc",
+    )
+    if not rows:
+        return None
+    return [(r.room_category, int(r.cabin_no or 0), r.pax_type, 1) for r in rows]
+
+
 def _activate_share_traveller_reservation(so_name, force=False):
     """Bila SO traveller tambahan dibayar PENUH, cipta slot Booking
     Reservation dalam cabin sasaran (di bawah Booking yang SAMA).
 
     SO traveller tambahan dikenalpasti TANPA custom field: berkaitan
-    booking (custom_booking), BUKAN SO primary booking tu, dan menjual
+    booking (registri Booking.sales_orders), BUKAN SO primary booking
+    tu, dan menjual
     item TRAVEL-PKG. Idempoten melalui stamp Booking
     Reservation.sales_order — slot yang dicipta di-stamp dengan SO
     sumbernya, jadi panggilan semula (recompute berulang) tidak mendua
@@ -904,12 +1068,15 @@ def _activate_share_traveller_reservation(so_name, force=False):
     """
     so = frappe.db.get_value(
         "Sales Order", so_name,
-        ["name", "docstatus", "customer", "custom_booking",
+        ["name", "docstatus", "customer",
          "grand_total", "advance_paid"],
         as_dict=True)
-    if not so or not so.custom_booking or so.docstatus != 1:
+    # [Nov 2026] Booking diselesaikan melalui registri
+    # Booking.sales_orders (SO tidak lagi memegang link custom_booking).
+    booking_name = _resolve_booking_from_so(so_name)
+    if not so or not booking_name or so.docstatus != 1:
         return None
-    if so.name == _get_primary_so(so.custom_booking):
+    if so.name == _get_primary_so(booking_name):
         return None  # SO utama — pax dia diaktifkan oleh _activate_booking
     # Mesti menjual slot pax (TRAVEL-PKG) — SO addon menjual item lain.
     # SATU ATAU LEBIH baris: create_new_cabin_order menghasilkan satu
@@ -922,7 +1089,12 @@ def _activate_share_traveller_reservation(so_name, force=False):
         fields=["description", "qty"], order_by="idx")
     if not items:
         return None
-    if not frappe.db.exists("Booking Reservation", {"sales_order": so.name}):
+    # FIX (bug sedia ada, ditemui E2E Fasa 0): guard idempotensi ini
+    # tersongsang — ia return None bila stamp BELUM wujud (iaitu bila
+    # aktivasi sepatutnya BERLAKU), menjadikan aktivasi slot share tak
+    # pernah berjalan melalui hook bayaran. Betulan: berhenti hanya bila
+    # slot untuk SO ini DAH diaktifkan (stamp wujud).
+    if frappe.db.exists("Booking Reservation", {"sales_order": so.name}):
         return None  # dah diaktifkan
     if float(so.advance_paid or 0) < float(so.grand_total or 0) - _EPS:
         return None  # belum dibayar penuh
@@ -931,29 +1103,36 @@ def _activate_share_traveller_reservation(so_name, force=False):
     # gagal resolve ialah masalah data; log & batal keseluruhan (aktivasi
     # boleh diulang selepas data dibetulkan, idempoten melalui pautan
     # sales_order).
-    plans = []
-    for item in items:
-        parts = (item.description or "").split(" | ")
-        room_category = parts[2].strip() if len(parts) >= 5 else None
-        cabin_no = _cabin_no_from_description(item.description)
-        if not room_category or not cabin_no or not frappe.db.exists("Trip Price Category", room_category):
-            frappe.log_error(
-                "Share traveller SO " + str(so_name) + ": room_category/cabin tidak dapat "
-                "diresolve dari description item. Reservation perlu dibuat manual.",
-                "Share Traveller Activation Error")
-            return None
+    #
+    # FASA 0 (booking-centric): plans daripada Booking Item (sumber
+    # struktur; baris per-traveller qty=1, pax_type sedia ternormalisasi).
+    # None bila SO ini tiada baris item → fallback parse description
+    # (SO lama pra-backfill / SO manual admin).
+    plans = _share_plans_from_booking_items(so.name)
+    if plans is None:
+        plans = []
+        for item in items:
+            parts = (item.description or "").split(" | ")
+            room_category = parts[2].strip() if len(parts) >= 5 else None
+            cabin_no = _cabin_no_from_description(item.description)
+            if not room_category or not cabin_no or not frappe.db.exists("Trip Price Category", room_category):
+                frappe.log_error(
+                    "Share traveller SO " + str(so_name) + ": room_category/cabin tidak dapat "
+                    "diresolve dari description item. Reservation perlu dibuat manual.",
+                    "Share Traveller Activation Error")
+                return None
 
-        # Kategori pax dari segment 5 description — "Main Guest (Single)" /
-        # "Main Guest" / "Main Guest (Additional)" / "Extra Bed
-        # (Additional)" / "Infant (Additional)". Buang akhiran
-        # "(Additional)" supaya pax_type reservation seragam dengan slot
-        # booking utama; SO lama tanpa segmen berkenaan kekal "Main Guest".
-        res_pax_type = "Main Guest"
-        if len(parts) >= 5:
-            res_pax_type = parts[4].strip().replace(" (Additional)", "") or "Main Guest"
+            # Kategori pax dari segment 5 description — "Main Guest (Single)" /
+            # "Main Guest" / "Main Guest (Additional)" / "Extra Bed
+            # (Additional)" / "Infant (Additional)". Buang akhiran
+            # "(Additional)" supaya pax_type reservation seragam dengan slot
+            # booking utama; SO lama tanpa segmen berkenaan kekal "Main Guest".
+            res_pax_type = "Main Guest"
+            if len(parts) >= 5:
+                res_pax_type = parts[4].strip().replace(" (Additional)", "") or "Main Guest"
 
-        plans.append((room_category, cabin_no, res_pax_type,
-                      max(1, int(item.qty or 1))))
+            plans.append((room_category, cabin_no, res_pax_type,
+                          max(1, int(item.qty or 1))))
 
     created = []
     # Alamat billing Booking → default alamat slot share/additional
@@ -961,7 +1140,7 @@ def _activate_share_traveller_reservation(so_name, force=False):
     # copy sekali masa slot diaktifkan, tiada sync selepas itu).
     _addr_fields = ("cust_address_line1", "cust_city", "cust_postcode",
                     "cust_state", "cust_country")
-    booking_addr = frappe.db.get_value("Booking", so.custom_booking,
+    booking_addr = frappe.db.get_value("Booking", booking_name,
                                        list(_addr_fields), as_dict=True) or {}
     has_booking_addr = any((booking_addr.get(f) or "").strip() for f in _addr_fields)
     reservation_addr = {
@@ -976,7 +1155,7 @@ def _activate_share_traveller_reservation(so_name, force=False):
         for _ in range(qty):
             res = frappe.get_doc({
                 "doctype":         "Booking Reservation",
-                "booking":         so.custom_booking,
+                "booking":         booking_name,
                 "room_category":   room_category,
                 "cabin_no":        cabin_no,
                 "pax_type":        res_pax_type,
@@ -1011,7 +1190,7 @@ def _activate_share_traveller_reservation(so_name, force=False):
     # tukar room privacy KESELURUHAN penghuni cabin ni kepada "Private"
     # (pilihan "Open Sharing" lama tidak lagi berkaitan).
     frappe.db.set_value("Booking Reservation",
-                        {"booking": so.custom_booking, "cabin_no": cabin_no,
+                        {"booking": booking_name, "cabin_no": cabin_no,
                          "name": ["not in", created],
                          "status": ["!=", "Cancelled"]},
                         "room_privacy", "Private", update_modified=False)

@@ -259,7 +259,7 @@ def get_trip_bundle(trip: str) -> dict:
 			),
 			"price_categories": frappe.get_all(
 				"Trip Price Category",
-				fields=("name", "category_name", "room_type", "gred",
+				fields=("name", "category_name", "category_group", "gred",
 					"is_a_cruise", "category_code"),
 				order_by="category_name",
 			),
@@ -272,6 +272,88 @@ def get_trip_bundle(trip: str) -> dict:
 				order_by="sail_start",
 			),
 		},
+	}
+
+
+@frappe.whitelist()
+def room_categories(is_a_cruise: int = None, price_category: str = None) -> list:
+	"""Senarai kategori rooming (Trip Price Category) untuk wizard Trip Baharu.
+	Ditapis ikut price_category (Cruise/Tour/Hotel/Transport/Meal/Flight);
+	param lama `is_a_cruise` (1/0) dipetakan ke Cruise/Tour untuk
+	keserasian pemanggil sedia ada. Option_code paksi 'cabin' dalam Travel
+	Package = category_code (atau docname jika kod kosong) — selari dengan
+	peta jambatan offer_factory (cabin:CODE)."""
+	_require_manager()
+	filters = {}
+	if price_category:
+		filters["price_category"] = price_category
+	elif is_a_cruise is not None:
+		filters["price_category"] = "Cruise" if is_a_cruise else "Tour"
+	return frappe.get_all(
+		"Trip Price Category",
+		filters=filters,
+		fields=["name", "category_code", "category_group", "capacity",
+			"max_capacity", "gred"],
+		order_by="gred desc, name",
+	)
+
+
+@frappe.whitelist()
+def room_category_info(code: str = None, name: str = None) -> dict:
+	"""Maklumat PENUH satu kategori rooming (Trip Price Category) — untuk
+	modal info pada kad Rooming Categories (Travel Date view). Carian ikut
+	category_code dahulu (kunci kanonik v47), fallback nama kategori."""
+	_require_manager()
+	code = (code or "").strip()
+	name = (name or "").strip()
+	if not code and not name:
+		frappe.throw(_("Code or name is required."))
+	fields = ["name", "category_name", "category_code", "category_group",
+			  "capacity", "max_capacity", "gred", "description",
+			  "read_more_url", "youtube_url"]
+	cat = None
+	if code:
+		cat = frappe.db.get_value("Trip Price Category",
+								  {"category_code": code}, fields, as_dict=True)
+	if not cat and name:
+		cat = frappe.db.get_value("Trip Price Category",
+								  {"name": name}, fields, as_dict=True)
+	if not cat:
+		# Rekod ringkas (kategori tiada dalam master — jangan pecahkan UI).
+		return {"category_name": name or code, "category_code": code or ""}
+	return cat
+
+
+# Medan master Trip Price Category yang BOLEH dikemaskini melalui modal
+# edit Rooming Type (Travel Manager) — senarai putih; medan lain (cth.
+# price_category, room_profile) diurus di luar modal ini.
+ROOM_CATEGORY_FIELDS = (
+	"category_name", "category_code", "category_group",
+	"capacity", "max_capacity", "gred", "description",
+	"read_more_url", "youtube_url",
+)
+
+
+@frappe.whitelist(methods=["POST"])
+def save_room_category(name: str, values: dict) -> dict:
+	"""Kemaskini master Trip Price Category daripada modal info Rooming
+	Type (kad Room Categories, Travel Manager). Medan senarai putih
+	sahaja (ROOM_CATEGORY_FIELDS). Gate: Tour Manager sahaja — write
+	doctype; Tour Operator baca sahaja, System Manager tiada peranan
+	dalam senarai kebenaran doctype. doc.save() laksana validate + hooks."""
+	frappe.only_for("Tour Manager")
+	if not name or not frappe.db.exists("Trip Price Category", name):
+		frappe.throw(_("Trip Price Category {0} not found").format(name))
+	values = values or {}
+	doc = frappe.get_doc("Trip Price Category", name)
+	for f in ROOM_CATEGORY_FIELDS:
+		if f in values:
+			doc.set(f, values[f])
+	doc.save()
+	return {
+		"name": doc.name,
+		"category_name": doc.category_name,
+		"category_code": doc.category_code,
 	}
 
 
@@ -309,12 +391,15 @@ def save_trip(payload: dict) -> dict:
 		],
 	)
 
-	# itinerary: replace penuh — baris child table day-by-day
+	# itinerary: replace penuh — baris child table day-by-day.
+	# [FIX Nov 2026] segment mesti ikut — dahulunya tergugur, menyebabkan
+	# setiap save reset senyap Pre/Post-Cruise kepada default "Cruise".
 	doc.set(
 		"itinerary",
 		[
 			{
 				"day": row.get("day"),
+				"segment": row.get("segment"),
 				"day_title": row.get("day_title"),
 				"destination_point": row.get("destination_point"),
 				"meals": row.get("meals"),
@@ -491,3 +576,165 @@ def delete_doc(doctype: str, name: str) -> dict:
 
 	frappe.delete_doc(doctype, name)
 	return {"ok": True}
+
+
+# ── TRIP WEBSITE CONTENT (Travel Manager — view website, Nov 2026) ──
+# Urus kandungan tab Website doctype Trip TANPA akses terus borang Trip
+# (elak pengguna menyentuh medan operasi: status, organizer, components,
+# itinerary master dll). Skop = medan kandungan web + 5 child table
+# kandungan + galeri (rekod File dilampir pada Trip).
+
+WEBSITE_FIELDS = (
+	"title",
+	"route",
+	# [Nov 2026] status trip — boleh dikemas kini dari kad CONTENT halaman
+	# Website (row 2) tanpa akses borang Trip.
+	"status",
+	"published",
+	"trip_image",
+	"video_url",
+	"description",
+	"featured_trip",
+	# [BUANG Nov 2026] itinerary_title / itinerary_caption — medan SEO
+	# dipermudahkan (auto-fill) dan label laman web guna fallback template.
+	"meta_title",
+	"meta_description",
+	"meta_image",
+	"meta_noindex",
+)
+
+# child table → kolum yang dibenarkan disimpan (whitelist tegas).
+# [Nov 2026] segment dibuang daripada doctype Trip Itinerary.
+WEBSITE_CHILD_FIELDS = {
+	# [FIX Nov 2026] day_image ditambah — dahulunya tergugur pada
+	# round-trip (get_trip_website tak hantar → save_trip_website replace
+	# penuh → imej hari hilang senyap setiap kali Website tab disimpan).
+	"itinerary": ("day", "day_title", "destination_point",
+		"meals", "day_image", "description"),
+	"highlights": ("highlight",),
+	"features": ("included", "feature"),
+	"faqs": ("question", "answer"),
+	"facilities": ("facility", "icon"),
+}
+
+_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif")
+
+
+def _trip_gallery(trip: str) -> list:
+	"""Fail imej PUBLIC yang dilampir pada Trip (galeri web) — sumber sama
+	dengan field Attachment Gallery di Desk; fail private tidak dihantar
+	(URL /private/files/ perlu auth)."""
+	files = frappe.get_all(
+		"File",
+		filters={
+			"attached_to_doctype": "Trip",
+			"attached_to_name": trip,
+			"is_folder": 0,
+			"is_private": 0,
+		},
+		fields=["name", "file_url"],
+		order_by="creation asc",
+		limit_page_length=0,
+	)
+	return [
+		{"file_name": f.name, "file_url": f.file_url}
+		for f in files
+		if f.file_url and f.file_url.lower().endswith(_IMAGE_EXTS)
+	]
+
+
+@frappe.whitelist()
+def get_trip_website(trip: str) -> dict:
+	"""Baca penuh kandungan website satu Trip untuk halaman manage."""
+	_require_manager()
+	if not frappe.db.exists("Trip", trip):
+		frappe.throw(_("Trip {0} not found.").format(trip))
+
+	doc = frappe.get_doc("Trip", trip)
+	out = {"trip": trip, "trip_name": doc.trip_name,
+		"published": doc.published}
+	for f in WEBSITE_FIELDS:
+		out[f] = doc.get(f)
+	out["gallery"] = _trip_gallery(trip)
+	for key in WEBSITE_CHILD_FIELDS:
+		out[key] = [
+			{k: r.get(k) for k in WEBSITE_CHILD_FIELDS[key]}
+			for r in (doc.get(key) or [])
+		]
+	return out
+
+
+@frappe.whitelist()
+def save_trip_website(payload: dict) -> dict:
+	"""Simpan kandungan website Trip (scalar + child tables + kekal
+	galeri — galeri diurus melalui upload/remove endpoint berasingan).
+	Semua tulisan melalui doc.save() supaya validate() controller kekal
+	berjalan (cth. auto-slug route bila kosong)."""
+	_require_manager()
+	payload = payload or {}
+	trip = payload.get("trip")
+	if not trip or not frappe.db.exists("Trip", trip):
+		frappe.throw(_("Trip {0} not found.").format(trip))
+
+	doc = frappe.get_doc("Trip", trip)
+	for f in WEBSITE_FIELDS:
+		if f in payload:
+			# Checkbox HTML menghantar "0"/"1" — normalisasikan ke bool.
+			doc.set(f, payload[f] in (1, "1", True) if f in ("published", "featured_trip", "meta_noindex") else payload[f])
+
+	for key, cols in WEBSITE_CHILD_FIELDS.items():
+		if key in payload:
+			rows = []
+			for r in (payload.get(key) or []):
+				row = {}
+				for c in cols:
+					v = r.get(c)
+					if c == "day" and v not in (None, ""):
+						v = int(flt(v))
+					elif c == "included":
+						v = 1 if v in (1, "1", True) else 0
+					row[c] = v
+				rows.append(row)
+			doc.set(key, rows)
+
+	doc.save()
+	return {"ok": True, "route": doc.route}
+
+
+@frappe.whitelist()
+def remove_trip_gallery_file(trip: str, file_name: str) -> dict:
+	"""Buang SATU fail imej daripada galeri Trip — hanya rekod File yang
+	benar-benar dilampir pada trip itu (defence: user tak boleh padam fail
+	lain dengan menyebut nama sewenangnya)."""
+	_require_manager()
+	if not frappe.db.exists("Trip", trip):
+		frappe.throw(_("Trip {0} not found.").format(trip))
+	f = frappe.db.get_value(
+		"File", file_name,
+		["name", "attached_to_doctype", "attached_to_name", "file_url", "owner"],
+		as_dict=True,
+	)
+	if not f or f.attached_to_doctype != "Trip" or f.attached_to_name != trip:
+		frappe.throw(_("File is not attached to this trip."), frappe.PermissionError)
+	# Pemilik fail ATAU manager sahaja boleh buang.
+	if f.owner != frappe.session.user and "Tour Manager" not in frappe.get_roles():
+		frappe.throw(_("Only the file owner or a Tour Manager can remove this file."),
+			frappe.PermissionError)
+	frappe.delete_doc("File", f.name, ignore_permissions=True)
+	return {"ok": True, "gallery": _trip_gallery(trip)}
+
+
+@frappe.whitelist()
+def get_faq_templates() -> list:
+	"""Senarai FAQ template master (Trip FAQ Template — diurus di Desk)
+	untuk butang "📋 Dari Template" kad FAQ halaman Website. Endpoint
+	gated manager; bacaan melalui get_all (master content, bukan doc
+	user-specific)."""
+	_require_manager()
+	return frappe.get_all(
+		"Trip FAQ Template",
+		filters={"question": ("is", "set")},
+		fields=["question", "answer", "topic"],
+		order_by="topic asc, creation asc",
+		limit_page_length=0,
+	)

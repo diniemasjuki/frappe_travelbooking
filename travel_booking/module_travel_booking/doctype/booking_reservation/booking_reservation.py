@@ -19,11 +19,11 @@ TRAVELLER_STATUS_OPTIONS = (
 )
 
 # ══════════════════════════════════════════════
-# ALIRAN STATUS RESERVATION (auto kecuali Preparation Complete)
+# ALIRAN STATUS RESERVATION (auto kecuali Preparation Completed)
 # ══════════════════════════════════════════════
 #
 # Waiting Document → Document Completed → (Document Expired) →
-# Preparation Complete (manual admin, melekat) → Trip OnProgress →
+# Preparation Completed (manual admin, melekat) → Trip OnProgress →
 # Completed / Cancelled.
 #
 # Status dikira oleh compute_auto_status() ikut KEUTAMAAN:
@@ -42,7 +42,7 @@ TRAVELLER_STATUS_OPTIONS = (
 #                          lain (Incomplete / Open for Update)
 #
 # Status MELEKAT (tak diketuk automatik):
-#   - Preparation Complete — tanda manual admin bahawa persiapan slot ni
+#   - Preparation Completed — tanda manual admin bahawa persiapan slot ni
 #     siap. Hanya peristiwa "lebih kuat" yang mengatasi: Document Expired,
 #     Trip OnProgress, Completed, Cancelled (rujuk resolve_auto_status).
 #   - Completed / Cancelled — terminal; hanya kemaskini eksplisit (patch,
@@ -73,6 +73,7 @@ class BookingReservation(Document):
 
 		accomodation_info_sent: DF.Check
 		action_for_accomodation: DF.Literal["No"]
+		address_source: DF.Literal["", "From Booking", "Custom"]
 		affiliate: DF.ReadOnly | None
 		airline: DF.Link | None
 		aroya_guest_no: DF.Int
@@ -120,8 +121,13 @@ class BookingReservation(Document):
 		flight_itinerary: DF.TextEditor | None
 		flight_return_date: DF.Date | None
 		flight_ticket_type: DF.Data | None
+		guest_address_line1: DF.Data | None
+		guest_city: DF.Data | None
+		guest_country: DF.Link | None
 		guest_label: DF.Data | None
+		guest_postcode: DF.Data | None
 		guest_sequence: DF.Int
+		guest_state: DF.Data | None
 		is_a_cruise: DF.ReadOnly | None
 		is_cruise_only: DF.ReadOnly | None
 		naming_series: DF.Literal[".{booking}.-.#", "RES.YY.MM.###"]
@@ -136,6 +142,7 @@ class BookingReservation(Document):
 		room_category: DF.Link | None
 		room_id: DF.Data | None
 		room_privacy: DF.Literal["Private", "Open Sharing"]
+		sales_order: DF.Link | None
 		stateroom_no: DF.Data | None
 		status: DF.Literal["Waiting Document", "Document Completed", "Document Expired", "Preparation Completed", "Trip On Progress", "Completed", "Cancelled"]
 		total_days: DF.ReadOnly | None
@@ -251,12 +258,12 @@ class BookingReservation(Document):
 	# ALIRAN STATUS AUTO — teras & pembantu kongsi
 	# ══════════════════════════════════════════════
 
-	# Status MELEKAT: Preparation Complete ialah tanda manual admin
+	# Status MELEKAT: Preparation Completed ialah tanda manual admin
 	# ("persiapan slot ni siap") — pengiraan auto TIDAK menurunkannya
 	# semula ke status dokumen; hanya peristiwa lebih kuat yang mengatasi
 	# (Document Expired, Trip OnProgress, Completed, Cancelled — rujuk
 	# resolve_auto_status()). Completed/Cancelled pula terminal.
-	STICKY_STATUSES = ("Preparation Complete",)
+	STICKY_STATUSES = ("Preparation Completed",)
 
 	# Entri status Traveller yang dikira "dokumen siap". Pending
 	# Verification dikira siap kerana borang sudah lengkap — tinggal
@@ -266,7 +273,7 @@ class BookingReservation(Document):
 	def compute_auto_status(self) -> str | None:
 		"""Kira status yang SEPATUTNYA untuk reservation ni ikut aliran
 		auto. Pulangkan None hanya bila status semasa patut dikekalkan
-		(sudah terminal ATAU Preparation Complete masih relevan).
+		(sudah terminal ATAU Preparation Completed masih relevan).
 
 		Tarikh rujukan ialah departure/return Booking (fetch_from Trip
 		Group Date) — reservation ada snapshot departure_date/arrival_date
@@ -324,7 +331,7 @@ class BookingReservation(Document):
 		if tvl_status == "Open for Update":
 			return "Document Expired"
 
-		# Sticky: Preparation Complete kekal melainkan peristiwa lebih kuat
+		# Sticky: Preparation Completed kekal melainkan peristiwa lebih kuat
 		# di atas menangkapnya. Completed/Cancelled dikekalkan juga (terminal)
 		# bila tak ada rule yang mengatasi.
 		if self.status in self.STICKY_STATUSES or self.status in ("Completed", "Cancelled"):

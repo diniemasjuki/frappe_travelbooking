@@ -4,7 +4,7 @@
  "docstatus": 0,
  "doctype": "Page",
  "idx": 0,
- "modified": "2026-11-05 09:00:00",
+ "modified": "2026-11-05 04:35:00",
  "modified_by": "Administrator",
  "module": "Module Admin Portal",
  "name": "travel-manager",
@@ -28,6 +28,6 @@
  "shared_page": 0,
  "standard": "Yes",
  "style": null,
- "system_page": 1,
+ "system_page": 0,
  "title": "Travel Manager"
 }

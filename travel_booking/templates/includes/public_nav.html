@@ -6,6 +6,10 @@
    (singleton) — setiap homepage (cruise/tour) ada menu sendiri. Page
    bukan-homepage (trips, booking, dll.) guna menu cruise sebagai fallback.
 
+   STRUKTUR = Bootstrap navbar (navbar-expand-lg + collapse hamburger
+   di mobile; nav lama cuma wrap). Class hook `rc-public-nav` dikekalkan
+   (trip_detail.js). Identiti jenama dalam rc-theme.css (blok NAV AWAM).
+
    Variable jinja:
      active_nav — kunci nav halaman ini (cth "cruise", "tour", "trips").
                    Menentukan menu mana dipaparkan + highlight item aktif.
@@ -17,30 +21,43 @@
 {% set cta = wc['tour'].nav_cta if active_nav == 'tour' else wc['cruise'].nav_cta %}
 {# Logo priority: organizer_logo (trip detail) > page-specific logo > shared website_logo > default #}
 {% set header_logo = organizer_logo or (wc['tour'].logo if active_nav == 'tour' else wc['cruise'].logo) or wc.website_logo %}
-<nav class="rc-public-nav">
-  <div class="rc-nav-logo">
-    <a href="/">
+<nav class="rc-public-nav navbar navbar-expand-lg sticky-top bg-white">
+  <div class="container-fluid px-3 px-lg-4">
+    <a class="navbar-brand rc-nav-brand" href="/">
       <img src="{{ header_logo or '/assets/travel_booking/img/logo-horizontal.png' }}"
            alt="Rarecation"
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
       <span class="rc-logo-fallback">rare<em>cation</em></span>
     </a>
-  </div>
 
-  <div class="rc-nav-menu">
-    {% for item in nav_items %}
-    <a href="{{ item.url }}"{% if item.open_in_new_tab %} target="_blank" rel="noopener"{% endif %}
-       class="rc-nav-link{% if active_nav and item.active_nav_key == active_nav %} on{% endif %}">{{ item.label }}</a>
-    {% endfor %}
-  </div>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+            data-bs-target="#rcNavMenu" aria-controls="rcNavMenu"
+            aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
 
-  {# Right cluster — selector currency + CTA duduk sebelah-menepi.
-     Selector currency (paksi multi-company) hidup dalam MENUBAR untuk
-     semua page katalog (homepage cruise/tour, listing, trip detail) —
-     include auto-sembunyi bila page tiada context currency_options
-     (cth checkout/booknow) atau axis cuma ada satu currency. #}
-  <div class="rc-nav-right">
-    {% include "templates/includes/currency_selector.html" %}
-    <a href="{{ cta.url }}" class="rc-nav-btn">{{ cta.label }}</a>
+    <div class="collapse navbar-collapse" id="rcNavMenu">
+      {# Menu tengah — duduk menengah di ≥lg #}
+      <ul class="navbar-nav justify-content-lg-center flex-lg-grow-1">
+        {% for item in nav_items %}
+        <li class="nav-item">
+          <a href="{{ item.url }}"{% if item.open_in_new_tab %} target="_blank" rel="noopener"{% endif %}
+             class="nav-link{% if active_nav and item.active_nav_key == active_nav %} active{% endif %}">{{ item.label }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+
+      {# Right cluster — selector currency + CTA duduk sebelah-menepi.
+         Selector currency (paksi multi-company) hidup dalam MENUBAR untuk
+         semua page katalog (homepage cruise/tour, listing, trip detail) —
+         include auto-sembunyi bila page tiada context currency_options
+         (cth checkout/booknow) atau axis cuma ada satu currency. #}
+      <ul class="navbar-nav flex-row align-items-center gap-2 ms-lg-auto mb-2 mb-lg-0">
+        <li class="nav-item">{% include "templates/includes/currency_selector.html" %}</li>
+        <li class="nav-item ms-lg-1">
+          <a href="{{ cta.url }}" class="btn btn-dark rc-nav-cta">{{ cta.label }}</a>
+        </li>
+      </ul>
+    </div>
   </div>
 </nav>

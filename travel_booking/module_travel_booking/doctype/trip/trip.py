@@ -29,8 +29,6 @@ class Trip(Document):
 		highlights: DF.Table[TripHighlight]
 		is_a_cruise_trip: DF.Check
 		itinerary: DF.Table[TripItinerary]
-		itinerary_caption: DF.SmallText | None
-		itinerary_title: DF.Data | None
 		meta_description: DF.SmallText | None
 		meta_image: DF.AttachImage | None
 		meta_noindex: DF.Check
@@ -74,6 +72,7 @@ class Trip(Document):
 		# trip_categories) dah masuk context via as_dict().
 		import json
 
+		from travel_booking.utils.flags import use_package_offers
 		from travel_booking.utils.trip_catalog import get_trip_detail
 		from travel_booking.www.trips import _get_currency_filter
 
@@ -85,13 +84,27 @@ class Trip(Document):
 		group_dates_raw = d["group_dates"]
 		is_cruise = d["is_cruise"]
 
+		# F5 dwi-baca — flag struktur baharu disuntik ke rcDetailData
+		# supaya trip_detail.js tahu bila perlu hantar package_offer ke
+		# get_booking_details / cart Book Now.
+		context.use_package_offers = 1 if use_package_offers() else 0
+
+		# Kategori tarikh DEFAULT trip cruise (Travel Website → tab Cruise →
+		# Cruise Booking) — tanpa ?date=, page pra-pilih tarikh TERDEKAT
+		# dalam kategori ini (trip_detail.js defaultCruiseCategoryIdx).
+		# Kosong → tingkah laku sedia ada (tarikh basic terdekat).
+		context.default_cruise_category = (
+			frappe.db.get_single_value("Travel Website", "default_cruise_category")
+			or ""
+		)
+
 		context.group_dates = group_dates_raw
 		context.group_date_groups = d.get("group_date_groups") or []
 		context.trip_packages = d["trip_packages"]
-		# Peta sailing_start → SEMUA TGD (pré-dedupe) — untuk union pakej ikut
-		# sailing di trip_detail.js + resolusi TGD (pakej + sailing) semasa
-		# Book Now (termasuk popup bila ada >1 departure date).
-		context.sailing_tgds = d.get("sailing_tgds") or {}
+		# Peta departure date → SEMUA TGD (pré-dedupe) — untuk union pakej
+		# ikut tarikh berlepas di trip_detail.js + resolusi TGD (pakej +
+		# tarikh) semasa Book Now (termasuk popup bila ada >1 departure date).
+		context.departure_tgds = d.get("departure_tgds") or {}
 		context.starting_from_price = d["starting_from_price"]
 		# Travel Price Rule — harga asal (untuk strikethrough) + label promosi
 		# bila harga "from" yang menang betul-betul diskaun.
@@ -121,7 +134,7 @@ class Trip(Document):
 		# jinja ({{ get_company_symbol() }}) di template.
 		context.group_dates_json = json.dumps(context.group_dates)
 		context.trip_packages_json = json.dumps(d["trip_packages"])
-		context.sailing_tgds_json = json.dumps(context.sailing_tgds)
+		context.departure_tgds_json = json.dumps(context.departure_tgds)
 		context.trip_image = self.trip_image or "/assets/travel_booking/img/defaultaroya.jpg"
 		# Organizer (Link -> Trip Organizer): papar nama + logo, bukan ID.
 		context.organizer_name = (
@@ -133,62 +146,39 @@ class Trip(Document):
 			if self.trip_organizer else ""
 		)
 		# Itinerary day-by-day: resolve destination_point (Link) ke nama +
-		# negara master. Override child rows as_dict dengan dict enriched.
-		dp_names = list({
-			r.destination_point for r in (self.itinerary or []) if r.destination_point
-		})
-		dp_map: dict = {}
-		if dp_names:
-			for dp in frappe.db.get_values(
-				"Trip Destination Point", dp_names,
-				["name", "destination_name", "destination_country"],
-				as_dict=True,
-			):
-				dp_map[dp.name] = dp
-		itin_rows = [
-			{
-				"day": r.day,
-				"day_title": r.day_title or "",
-				"destination_point": r.destination_point or "",
-				"destination_name": (dp_map.get(r.destination_point, {}) or {}).get("destination_name") or r.destination_point or "",
-				"country": (dp_map.get(r.destination_point, {}) or {}).get("destination_country") or "",
-				"meals": r.meals or "",
-				"day_image": r.day_image or "",
-				"description": r.description or "",
-				# Segment kosong (trip lama) / nilai asing dianggap Cruise.
-				"segment": (r.get("segment") or "").strip() or "Cruise",
-			}
+		# negara master — helper KONGSI (utils/itinerary_resolver) supaya
+		# render awal page dan fragmen itinerary efektif
+		# (package_catalog.get_effective_itinerary — warisan Trip ←
+		# Travel Date ← Package Offer) bertukar tanpa perbezaan markup.
+		# [Nov 2026] segment dibuang — itinerary dirender FLAT.
+		from travel_booking.utils.itinerary_resolver import (
+			enrich_itinerary_rows,
+			has_active_itinerary_override, normalize_itinerary_row,
+		)
+		# [Nov 2026] Tarikh pada Day number — anchor Day 1 = departure
+		# TERAWAL group date trip ini (tarikh kalendar Day N = anchor +
+		# N−1 hari; web_date). Tiada group date → tiada tarikh dipapar.
+		gd_deps = sorted(gd.get("departure_date")
+			for gd in group_dates_raw if gd.get("departure_date"))
+		itin_rows = enrich_itinerary_rows([
+			normalize_itinerary_row(r)
 			for r in sorted(self.itinerary or [], key=lambda x: x.day or 0)
-		]
+		], anchor_date=(gd_deps[0] if gd_deps else None))
 		context.itinerary = itin_rows
 
-		# Segmented itinerary (cruise sahaja): hari penerbangan awal/lewat
-		# dipaparkan sebagai fasa Pre-Cruise → Cruise → Post-Cruise. Bukan
-		# cruise, atau semua hari dalam satu segment → template render flat
-		# seperti biasa (tiada header segment).
-		context.itinerary_segments = []
-		if self.is_a_cruise_trip:
-			segment_meta = {
-				"Pre-Cruise": {"label": "Pre-Cruise + Flight (Departure)", "icon": "ti-plane-departure"},
-				"Cruise": {"label": "Cruise · Onboard", "icon": "ti-ship"},
-				"Post-Cruise": {"label": "Post-Cruise + Flight (Return)", "icon": "ti-plane-arrival"},
-			}
-			grouped: dict = {}
-			for row in itin_rows:
-				seg = row["segment"] if row["segment"] in segment_meta else "Cruise"
-				grouped.setdefault(seg, []).append(row)
-			context.itinerary_segments = [
-				{
-					"key": seg,
-					"label": segment_meta[seg]["label"],
-					"icon": segment_meta[seg]["icon"],
-					"rows": grouped[seg],
-					"day_from": grouped[seg][0]["day"],
-					"day_to": grouped[seg][-1]["day"],
-				}
-				for seg in ("Pre-Cruise", "Cruise", "Post-Cruise")
-				if seg in grouped
-			]
+		# Struktur baharu (Nov 2026): Travel Date / Package Offer boleh
+		# pegang itinerary overwrite sendiri. has_itinerary_override →
+		# rcDetailData (trip_detail.js hanya fetch itinerary efektif bila
+		# betul-betul perlu); show_itinerary_section → seksyen timeline
+		# terus dirender walaupun template Trip kosong (swap client-side
+		# #rcItinList mengisinya bila tarikh dipilih).
+		context.has_itinerary_override = 0
+		context.show_itinerary_section = 0
+		if context.use_package_offers:
+			context.has_itinerary_override = 1 if has_active_itinerary_override(
+				self.name) else 0
+			if not itin_rows and context.has_itinerary_override:
+				context.show_itinerary_section = 1
 
 		# Gallery: cover (trip_image) + attachment gallery (tabFile, awam
 		# sahaja — is_private=0). Jadi slider hero di template; kalau kosong
@@ -401,8 +391,8 @@ class Trip(Document):
 					in_clause = ",".join(["%s"] * len(trips_tuple))
 					gd_rows = frappe.db.sql(
 						f"""
-						SELECT trip, total_days, total_nights, departure_date,
-						       sailing_start, max_participants, is_cruise_only
+					SELECT name, trip, total_days, total_nights, departure_date,
+					       sailing_start, max_participants, is_cruise_only
 						FROM `tabTrip Group Date`
 						WHERE trip IN ({in_clause})
 						  AND status='Active'
@@ -473,13 +463,13 @@ class Trip(Document):
 		Linked doctypes:
 		- Trip Package       (link: trip_link)
 		- Trip Group Date    (link: trip)
-		- Trip Cruise Schedule (link: trip_link)
+		- [BUANG Nov 2026] Trip Cruise Schedule — schedule tidak lagi
+		  link Trip; identitinya kini Trip Name by Cruise Company.
 		"""
 		new_name = self.trip_name
 		linked = [
 			("Trip Package", "trip_link"),
 			("Trip Group Date", "trip"),
-			("Trip Cruise Schedule", "trip_link"),
 		]
 
 		for doctype, link_field in linked:

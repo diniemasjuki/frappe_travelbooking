@@ -41,6 +41,7 @@ class Traveller(Document):
 		passport_no: DF.Data | None
 		phone: DF.Phone | None
 		postcode: DF.Data | None
+		special_needs: DF.Text | None
 		state: DF.Data | None
 		status: DF.Literal["Incomplete", "Pending Verification", "Verified", "Open for Update", "Expired"]
 		title: DF.Literal["Mr", "Mrs"]

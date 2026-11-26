@@ -83,6 +83,7 @@
         content.innerHTML = renderDetail(data);
         wireBillsModal();
         wireCustomerEditModal(data);
+        wireCancellationActions(data);
       }
     } catch (e) {
       if (loading) loading.style.display = 'none';
@@ -252,10 +253,30 @@
     html += '<div class="tv-info-label" style="margin-bottom:2px;">Booking Ref. No.</div>';
     html += '<div class="tv-th-ref" style="font-size:18px;">' + ref + '</div>';
     html += '</div>';
-    // Right: Status label + badge
+    // Right: Status label + badge + (pembatalan self-service)
     html += '<div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">';
     html += '<div class="tv-info-label" style="margin:0;">Booking Status</div>';
     html += '<span style="font-weight:700;font-size:16px;color:var(--text-primary);">' + _esc(status) + '</span>';
+
+    // ── Pembatalan self-service (portal_cancellation) ──
+    // Pending & unpaid → "Cancel Booking" terus; Accepted+ (atau Pending
+    // berbayar) → "Request Cancellation" (keputusan admin); permohonan
+    // terbuka → chip + Withdraw. Butang disembunyikan untuk B2B
+    // end-customer (price_hidden — urusan agent) dan status terminal.
+    var cr = b.cancellation_request || null;
+    var canCancel = !priceHidden && status === 'Pending' && !isPaid;
+    var canRequest = !priceHidden && !cr && (status === 'Accepted' || status === 'Processing' || status === 'Confirmed' || (status === 'Pending' && isPaid));
+    if (cr) {
+      html += '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-top:6px;">';
+      html += '<span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#FEF3C7;border:1px solid #F59E0B;color:#92400E;font-size:11.5px;font-weight:600;">';
+      html += '⏳ Cancellation requested — awaiting review</span>';
+      html += '<button type="button" id="tvWithdrawCancelBtn" class="tv-btn tv-btn--ghost tv-btn--sm" style="color:var(--text-secondary);">Withdraw Request</button>';
+      html += '</div>';
+    } else if (canCancel) {
+      html += '<button type="button" id="tvCancelBookingBtn" class="tv-btn tv-btn--sm" style="margin-top:6px;border:1px solid var(--c-danger,#dc3545);color:var(--c-danger,#dc3545);background:transparent;">✕ Cancel Booking</button>';
+    } else if (canRequest) {
+      html += '<button type="button" id="tvRequestCancelBtn" class="tv-btn tv-btn--ghost tv-btn--sm" style="margin-top:6px;color:var(--c-danger,#dc3545);">Request Cancellation</button>';
+    }
     html += '</div>';
     html += '</div>';
 
@@ -429,32 +450,56 @@
         : '<span>' + payPct + '% paid · ' + fmtDual(balance, soSym) + ' remaining to settle</span>';
       html += '<div class="tv-progress-label" style="justify-content:center;margin-bottom:0;">' + progressLabel + '</div>';
 
-      // Belum bayar langsung → amaran + pintasan bayar (level Full sahaja)
+      // Belum bayar langsung → amaran + pintasan bayar (level Full sahaja).
+      // Keputusan produk (Nov 2026): order Pending TANPA bayaran — slot
+      // kabin & pengurusan traveller BELUM aktif; customer diarahkan
+      // bayar dahulu (reservasi/slot hanya dicipta selepas bayaran
+      // pertama — rujuk cabang Pay Later confirm_booking).
       if (noPayment && canFull) {
         var payUrl = billingPageUrl() + '?ref=' + encodeURIComponent(ref);
         if (b.sales_order) payUrl += '&bill=' + encodeURIComponent(b.sales_order);
         html += '<div style="display:flex;align-items:flex-start;gap:10px;margin-top:14px;padding:10px 12px;border:1px solid var(--c-warning);background:var(--c-warning-bg);border-radius:10px;">';
         html += '<span style="font-size:15px;line-height:1.4;">🔒</span>';
-        html += '<div style="flex:1;min-width:0;font-size:12.5px;color:var(--text-secondary);line-height:1.5;">Payment required to unlock traveller &amp; add-on management. <a href="' + payUrl + '" style="font-weight:600;color:var(--c-warning-text);">Pay Now →</a></div>';
+        html += '<div style="flex:1;min-width:0;font-size:12.5px;color:var(--text-secondary);line-height:1.5;">Your booking is still <strong>Pending</strong> — cabin slots, traveller management &amp; add-ons activate after your first payment. <a href="' + payUrl + '" style="font-weight:600;color:var(--c-warning-text);">Pay Now →</a></div>';
         html += '</div>';
       }
       html += '</div>'; // payment card
     }
 
     // ── Card 3: Traveller Summary — status ringkas + pintasan ke page
-    //    /traveller/travellers. Dilock jika belum bayar (self mode).
-    if (!noPayment || isOnbehalf) {
+    //    /traveller/travellers. Keputusan produk (Nov 2026): order
+    //    Pending TANPA bayaran → slot BELUM aktif: butang "Manage
+    //    Travellers" diganti "Pay to Activate" (ke page billing) +
+    //    notis jelas. Sebelumnya kad nampak aktif walaupun belum bayar
+    //    (reservasi/slot hanya wujud selepas bayaran pertama).
+    //    On-behalf (manager) kekal nampak panel aktif.
+    if (true) {
       var roomLabel = isCruise ? 'Cabin' : 'Room';
+      var slotsLocked = noPayment && !isOnbehalf;
 
       html += '<div class="tv-card tv-animate-in">';
-      // Header: title + Manage Travellers (tahap Docs ke atas — server gate:
-      // save_booking_traveller dkk = "Docs". View nampak ringkasan sahaja).
+      // Header: title + butang (Manage Travellers bila slot aktif /
+      // tahap Docs ke atas — server gate: save_booking_traveller dkk =
+      // "Docs". View nampak ringkasan sahaja).
       html += '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">';
       html += '<h3 class="tv-card__title">👥 Traveller Summary</h3>';
-      if (canDocs) {
+      if (slotsLocked) {
+        // Slot belum aktif — CTA bayar, BUKAN manage travellers.
+        var lockPayUrl = billingPageUrl() + '?ref=' + encodeURIComponent(ref);
+        if (b.sales_order) lockPayUrl += '&bill=' + encodeURIComponent(b.sales_order);
+        html += '<a href="' + lockPayUrl + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;">🔒 Pay to Activate →</a>';
+      } else if (canDocs) {
         html += '<a href="' + travellersPageUrl() + '?ref=' + encodeURIComponent(ref) + '" class="tv-btn tv-btn--primary tv-btn--sm" style="text-decoration:none;white-space:nowrap;">Manage Travellers →</a>';
       }
       html += '</div>';
+
+      // Notis status slot bila belum aktif (Pending, tiada bayaran).
+      if (slotsLocked) {
+        html += '<div style="display:flex;align-items:flex-start;gap:10px;margin-top:14px;padding:10px 12px;border:1px solid var(--c-warning);background:var(--c-warning-bg);border-radius:10px;">';
+        html += '<span style="font-size:15px;line-height:1.4;">⏳</span>';
+        html += '<div style="flex:1;min-width:0;font-size:12.5px;color:var(--text-secondary);line-height:1.5;">Slots are <strong>not active yet</strong> — this booking is Pending. Cabin slots &amp; traveller management activate after your first payment.</div>';
+        html += '</div>';
+      }
 
       // Numeric tiles — status traveller
       html += '<div class="tv-num-row" style="margin-top:16px;">';
@@ -605,6 +650,111 @@
     if (!btn) return;
     var b = (data && data.booking) || {};
     btn.addEventListener('click', function () { openCustomerEditModal(b); });
+  }
+
+  /* ── Pembatalan self-service: Cancel (Pending) / Request (Accepted+) ──
+     Endpoint api/portal_cancellation.* — modal alasan wajib; selepas
+     tindakan berjaya, muat semula halaman (status / chip permohonan). */
+  function wireCancellationActions(data) {
+    var b = (data && data.booking) || {};
+    var ref = b.booking_number || BOOKING_REF;
+
+    function reload() { loadDetail(); }
+
+    function openReasonModal(opts) {
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      var modal = document.createElement('div');
+      modal.className = 'tv-card';
+      modal.style.cssText = 'max-width:440px;width:100%;padding:24px;';
+      modal.innerHTML =
+        '<h3 style="margin:0 0 8px 0;font-size:16px;">' + _esc(opts.title) + '</h3>' +
+        '<p style="font-size:12.5px;color:var(--text-secondary);line-height:1.6;margin:0 0 14px 0;">' +
+        _esc(opts.subtitle) + '</p>' +
+        '<textarea id="tv-cancel-reason" rows="4" maxlength="500" class="tv-input" style="width:100%;font-size:13px;" placeholder="' + _esc(opts.placeholder || 'Tell us why...') + '"></textarea>' +
+        (opts.danger
+          ? '<p style="font-size:11.5px;color:var(--c-danger-text);margin:8px 0 0 0;">⚠ This action cannot be undone.</p>'
+          : '') +
+        '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;">' +
+        '<button type="button" id="tv-cancel-no" class="tv-btn tv-btn--ghost tv-btn--sm">Keep Booking</button>' +
+        '<button type="button" id="tv-cancel-yes" class="tv-btn tv-btn--sm" style="background:' +
+        (opts.danger ? 'var(--c-danger,#dc3545)' : 'var(--c-gold,#B8860B)') +
+        ';color:#fff;border:none;">' + _esc(opts.confirmLabel) + '</button>' +
+        '</div>';
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+      function close() { overlay.remove(); }
+      overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
+      modal.querySelector('#tv-cancel-no').addEventListener('click', close);
+      modal.querySelector('#tv-cancel-yes').addEventListener('click', async function () {
+        var reason = (modal.querySelector('#tv-cancel-reason').value || '').trim();
+        if (!reason) {
+          modal.querySelector('#tv-cancel-reason').style.borderColor = 'var(--c-danger,#dc3545)';
+          modal.querySelector('#tv-cancel-reason').focus();
+          return;
+        }
+        this.disabled = true;
+        this.textContent = 'Processing...';
+        try {
+          await API_CN(opts.method, {
+            booking_number: ref, reason: reason,
+          });
+          showToast(opts.successMessage, 'success');
+          close();
+          reload();
+        } catch (e) {
+          this.disabled = false;
+          this.textContent = opts.confirmLabel;
+          alert(e.message || 'Action failed. Please try again.');
+        }
+      });
+    }
+
+    var cancelBtn = document.getElementById('tvCancelBookingBtn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function () {
+        openReasonModal({
+          title: 'Cancel Booking',
+          subtitle: 'Your booking is pending and has no payments — it will be cancelled immediately. Your traveller details and any unpaid orders will be released.',
+          placeholder: 'e.g. change of plans, found another date...',
+          confirmLabel: 'Cancel My Booking',
+          danger: true,
+          method: 'cancel_booking',
+          successMessage: 'Your booking has been cancelled.',
+        });
+      });
+    }
+
+    var reqBtn = document.getElementById('tvRequestCancelBtn');
+    if (reqBtn) {
+      reqBtn.addEventListener('click', function () {
+        openReasonModal({
+          title: 'Request Cancellation',
+          subtitle: 'Your booking has payments or is already accepted — our team will review your request and notify you by email. Your booking stays active until then.',
+          placeholder: 'Tell us why you need to cancel...',
+          confirmLabel: 'Submit Request',
+          method: 'request_cancellation',
+          successMessage: 'Cancellation request submitted — we will email you the decision.',
+        });
+      });
+    }
+
+    var wdBtn = document.getElementById('tvWithdrawCancelBtn');
+    if (wdBtn) {
+      wdBtn.addEventListener('click', async function () {
+        if (!confirm('Withdraw your cancellation request? Your booking will stay active.')) return;
+        this.disabled = true;
+        try {
+          await API_CN('withdraw_cancellation', {
+            booking_number: ref,
+          });
+          reload();
+        } catch (e) {
+          this.disabled = false;
+          alert(e.message || 'Failed to withdraw request.');
+        }
+      });
+    }
   }
 
   /* ── Senarai negara untuk modal "Edit Billing Info" ──

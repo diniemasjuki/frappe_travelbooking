@@ -51,6 +51,7 @@ def after_install():
 	_create_b2b_email_templates()
 	_seed_email_notification_settings()
 	_create_print_format()
+	_ensure_on_behalf_roles()
 
 
 # ══════════════════════════════════════════════
@@ -131,6 +132,36 @@ def _create_default_travel_settings():
 # ══════════════════════════════════════════════
 # 3b. TRAVEL WEBSITE — lalai (singleton)
 # ══════════════════════════════════════════════
+
+def _default_cruise_trip_sections():
+	"""Baris lalai Trip Listing Sections homepage cruise — satu seksyen
+	per Trip Category cruise (is_cruise_trip=1) yang wujud, mengikut
+	kronologi kategori. Tiada kategori cruise → tiada baris (homepage
+	kosong sehingga admin konfigurasi; selamat untuk install segar).
+	"""
+	sections = []
+	sort = 10
+	for cat in frappe.get_all(
+		"Trip Category",
+		filters={"is_cruise_trip": 1},
+		fields=["name", "description"],
+		order_by="creation asc",
+	):
+		sections.append({
+			"section_label": "Featured Voyages",
+			"section_title": cat.name,
+			"section_subtitle": (cat.description or "").strip(),
+			"travel_date_category": cat.name,
+			"max_listings": 6,
+			"cta_label": "View All Cruises",
+			"cta_url": "/cruises",
+			"sort_order": sort,
+			"is_active": 1,
+		})
+		sort += 10
+	return sections
+
+
 
 def _create_default_travel_website():
 	"""Travel Website adalah Single doctype (satu rekod). Seed dengan
@@ -244,17 +275,7 @@ def _create_default_travel_website():
 		"cruise_hero_tag": "✦ Set Sail on Extraordinary Voyages",
 		"cruise_hero_title": "Discover Your Perfect<br/><em>Cruise Adventure</em>",
 		"cruise_hero_intro": "Explore breathtaking destinations aboard world-class luxury liners. All-inclusive dining, entertainment, and unforgettable experiences await.",
-		"cruise_hero_search_label": "Search Cruises",
-		"cruise_hero_stats": [
-			{"stat_value": "500+", "stat_label": "Voyages", "sort_order": 1},
-			{"stat_value": "50+", "stat_label": "Destinations", "sort_order": 2},
-			{"stat_value": "98%", "stat_label": "Happy Travellers", "sort_order": 3},
-		],
-		"cruise_featured_tag": "Featured Voyages",
-		"cruise_featured_title": "Most Popular Cruises",
-		"cruise_featured_subtitle": "Hand-picked itineraries favoured by our seasoned travellers",
-		"cruise_featured_cta_label": "View All Cruises →",
-		"cruise_featured_cta_url": "/cruises",
+		"cruise_trip_sections": _default_cruise_trip_sections(),
 		"cruise_whyus_tag": "Why Choose Us",
 		"cruise_whyus_title": "The Rarecation Difference",
 		"cruise_whyus_subtitle": "Everything you need, all included — no hidden surprises",
@@ -364,10 +385,28 @@ def _create_email_templates():
 			"response_html": _TPL_COMPLETED,
 		},
 		{
+			# Pembatalan self-service portal (Pending terus / permohonan
+			# Approved admin) — dihantar oleh
+			# api.portal_cancellation._send_cancellation_email.
+			"name":    "Booking Cancelled",
+			"subject": "Booking Cancelled — {{ booking_number }}",
+			"use_html": 1,
+			"response_html": _TPL_CANCELLED,
+		},
+		{
 			"name":    "Payment Receipt",
 			"subject": "Payment Receipt — {{ booking_number }}",
 			"use_html": 1,
 			"response_html": _TPL_RECEIPT,
+		},
+		{
+			# Fasa A (G4) — scheduler send_payment_schedule_reminders (T-30/
+			# T-7/T-1 sebelum due date baki). Site sedia ada di-seed oleh
+			# patch v43_email_template_payment_reminder.
+			"name":    "Final Payment Reminder",
+			"subject": "Payment Due {{ due_date }} — {{ booking_number }}",
+			"use_html": 1,
+			"response_html": _TPL_PAYMENT_REMINDER,
 		},
 	]
 
@@ -607,6 +646,19 @@ _TPL_CONFIRMED = """\
 </div>
 """
 
+_TPL_CANCELLED = """\
+<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+  <h2 style="color: #B8860B;">Booking Cancelled — {{ booking_number }}</h2>
+  <p>Hi {{ first_name }},</p>
+  <p>Your booking for <strong>{{ trip_name }}{% if group_name %} · {{ group_name }}{% endif %}</strong> has been cancelled as requested.</p>
+  <p><strong>Reason:</strong> {{ cancellation_reason }}</p>
+  {% if payment_status == "Request Refund" %}
+  <p>Our team will process your refund and contact you regarding the refund details. No further action is needed from you at this time.</p>
+  {% endif %}
+  <p>If this was a mistake or you have any questions, please contact our support team.</p>
+</div>
+"""
+
 _TPL_COMPLETED = """\
 <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
   <h2 style="color: #B8860B;">Thank You for Travelling — {{ booking_number }}</h2>
@@ -635,6 +687,33 @@ _TPL_RECEIPT = """\
   </div>
   {% endif %}
   <p>A detailed PDF receipt is attached to this email for your records.</p>
+</div>
+"""
+
+# ── FASA A (G4): peringatan bayaran baki (T-30/T-7/T-1) ──────────────
+# Context: first_name, booking_number, trip_name, group_name, due_date,
+# balance_amount, currency, days_left, portal_url, grand_total,
+# advance_paid. Dihantar oleh scheduler
+# booking_engine.send_payment_schedule_reminders() — penerima contact bil.
+
+_TPL_PAYMENT_REMINDER = """\
+<div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+  <h2 style="color: #B8860B;">Payment Reminder — {{ booking_number }}</h2>
+  <p>Hi {{ first_name }},</p>
+  <p>This is a friendly reminder that the <strong>balance payment</strong> for your booking
+    <strong>{{ booking_number }}</strong>{% if trip_name %} — <strong>{{ trip_name }}{% if group_name %} &middot; {{ group_name }}{% endif %}</strong>{% endif %}
+    is due on <strong>{{ due_date }}</strong> ({{ days_left }} day{{ "s" if days_left != 1 else "" }} from now).</p>
+  <div style="background:#F5F3EE;border-radius:8px;padding:14px 18px;margin:16px 0;">
+    <div style="font-size:11px;color:#7D7A70;margin-bottom:6px;">Payment Summary</div>
+    <table style="width:100%;font-size:13px;border-collapse:collapse;">
+      <tr><td style="padding:3px 0;color:#7D7A70;">Outstanding Balance</td><td style="text-align:right;font-weight:600;">{{ currency }} {{ "%.2f"|format(balance_amount) }}</td></tr>
+      <tr><td style="padding:3px 0;color:#7D7A70;">Due Date</td><td style="text-align:right;font-weight:600;">{{ due_date }}</td></tr>
+    </table>
+  </div>
+  <p>To avoid automatic cancellation of your booking, please complete the payment before the due date.</p>
+  <p style="margin: 24px 0;">
+    <a href="{{ portal_url }}" style="display: inline-block; padding: 10px 28px; background: #B8860B; color: #fff; text-decoration: none; border-radius: 6px;">Pay Now</a>
+  </p>
 </div>
 """
 
@@ -732,8 +811,9 @@ _PF_PROFORMA_HTML = """\
       <td style="vertical-align:top;width:50%;padding:0;">
         <strong>Proforma No:</strong> {{ doc.name }}<br/>
         <strong>Date:</strong> {{ frappe.format_date(doc.transaction_date) }}<br/>
-        {% if doc.custom_booking %}
-        {% set booking_no = frappe.db.get_value("Booking", doc.custom_booking, "booking_number") %}
+        {% set _bk = frappe.db.get_value("Booking Sales Order", {"sales_order": doc.name, "parenttype": "Booking"}, "parent") %}
+        {% if _bk %}
+        {% set booking_no = frappe.db.get_value("Booking", _bk, "booking_number") %}
         {% if booking_no %}<strong>Booking Ref:</strong> {{ booking_no }}<br/>{% endif %}
         {% endif %}
         <strong>Currency:</strong> {{ doc.currency }}
@@ -786,3 +866,48 @@ _PF_PROFORMA_HTML = """\
   </p>
 </div>
 """
+
+
+# ══════════════════════════════════════════════
+# N. TRAVEL SETTINGS — seed role on-behalf (wizard booking desk)
+# ══════════════════════════════════════════════
+
+def _ensure_on_behalf_roles():
+	"""Seed Travel Settings.on_behalf_roles dengan role staf desk
+	(MANAGE_TRIP_ROLES → channel "Staff", akses Full / All Bookings) bagi
+	role yang BELUM berada dalam senarai.
+
+	Wrapper booking desk (travel_booking.api.desk_booking.create_desk_booking)
+	beringin confirm_booking melalui on_behalf=True — gate OTP dalam
+	booking_engine._confirm_booking_impl hanya dilangkau bila
+	resolve_booking_actor() jumpa role session user dalam senarai ni
+	(default seed sedia ada hanya Affiliate/Sales User). Tanpa seed, staf
+	desk (Tour Manager dsb.) gagal dengan mesej "email verification session
+	expired" walaupun sudah login desk.
+
+	Idempotent & hormati konfigurasi admin — role yang sudah berada dalam
+	senarai (pada mana-mana channel) TIDAK disentuh/didupkan. Site lama:
+	panggil melalui maintenance.ensure_default_records() selepas deploy.
+	"""
+	from travel_booking.api.manage_trip_booking import MANAGE_TRIP_ROLES
+
+	settings = frappe.get_doc("Travel Settings")
+	existing = {row.role for row in (settings.get("on_behalf_roles") or [])}
+	created = []
+	for role in MANAGE_TRIP_ROLES:
+		if role in existing:
+			continue
+		if not frappe.db.exists("Role", role):
+			# Role belum wujud pada site ni (cth site tanpa ERPNext penuh)
+			# — jangan buat baris rosak.
+			continue
+		settings.append("on_behalf_roles", {
+			"role": role,
+			"booking_channel": "Staff",
+			"access_level": "Full",
+			"access_scope": "All Bookings",
+		})
+		created.append(role)
+	if created:
+		settings.save(ignore_permissions=True)
+	return created

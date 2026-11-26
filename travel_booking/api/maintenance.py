@@ -43,9 +43,10 @@ def multi_currency_health_check():
       2. undeclared_company_currencies — Company lain dalam site yang
          currency-nya BELUM diisytiharkan dalam axis (booking tak boleh
          jalan untuk currency itu sehingga baris ditambah).
-      3. sos_outside_axis — Sales Order travel_booking (custom_booking
-         terisi) yang currency-nya tidak diisytiharkan dalam axis —
-         rekod sejarah dari model lama; jangan padam, cuma monitoring.
+      3. sos_outside_axis — Sales Order travel_booking (berdaftar pada
+         registri Booking.sales_orders) yang currency-nya tidak
+         diisytiharkan dalam axis — rekod sejarah dari model lama;
+         jangan padam, cuma monitoring.
     """
     frappe.only_for("System Manager")
 
@@ -107,8 +108,9 @@ def multi_currency_health_check():
         """
         SELECT so.name, so.currency, so.company
         FROM `tabSales Order` so
-        WHERE so.custom_booking IS NOT NULL
-          AND so.currency NOT IN %s
+        INNER JOIN `tabBooking Sales Order` reg
+            ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+        WHERE so.currency NOT IN %s
         LIMIT 50
         """,
         (tuple(declared) if declared else ("__none__",),),
@@ -147,8 +149,10 @@ def ensure_default_records():
     (after_install hanya jalan semasa pemasangan pertama).
 
     Buat masa ni: Print Format "Rarecation Proforma Invoice" (baru
-    diperkenalkan untuk page Billing portal). Idempotent — selamat
-    panggil berulang. Reuse helper install.py supaya satu sumber sahaja.
+    diperkenalkan untuk page Billing portal) + Email Template lalai
+    (cth "Booking Cancelled" — pembatalan self-service portal).
+    Idempotent — selamat panggil berulang. Reuse helper install.py
+    supaya satu sumber sahaja.
 
     Panggil selepas deploy versi multi-page portal:
       bench --site <site> console
@@ -159,6 +163,11 @@ def ensure_default_records():
 
     from travel_booking import install as _install
     _install._create_print_format()
+    _install._create_email_templates()
+    # Role on-behalf staf desk (channel "Staff") untuk gate OTP wizard
+    # booking desk — idempoten, role yang sudah dikonfigurasi admin
+    # tidak disentuh. Rujuk install._ensure_on_behalf_roles().
+    on_behalf_roles_seeded = _install._ensure_on_behalf_roles()
 
     from travel_booking.api.constants import PRINT_FORMAT_PROFORMA
     return {
@@ -166,6 +175,10 @@ def ensure_default_records():
         "proforma_print_format_created": bool(
             frappe.db.exists("Print Format", PRINT_FORMAT_PROFORMA)
         ),
+        "cancelled_email_template_created": bool(
+            frappe.db.exists("Email Template", "Booking Cancelled")
+        ),
+        "on_behalf_roles_seeded": on_behalf_roles_seeded,
         "message": "Default records ensured. New records (if any) have been created.",
     }
 
@@ -230,6 +243,100 @@ def list_packages_for_currency_review():
             "Booking is blocked on these until 'Price Review Required' is unchecked."
             if packages else
             "No packages awaiting review — all packages are bookable."
+        ),
+    }
+
+
+# ══════════════════════════════════════════════
+# PRICE ANOMALY REVIEW (peraturan relationship #3 — kualiti data price matrix)
+# ══════════════════════════════════════════════
+
+@frappe.whitelist()
+def offer_price_anomaly_report(min_adult_price: float = 500.0):
+    """Anomali harga pada Offer Price — READ-SAHJA (Nov 2026).
+
+    Peraturan relationship #3: price matrix berakar pada Trip Price Category.
+    Data yang rosak/tujuan-ujian pada matrix ni merosakkan kepercayaan pada
+    seluruh model harga sebelum cutover. Fungsi ini menandakan:
+
+      1. harga_keraguan — baris ADULT di bawah ambang (lalai 500) dalam
+         currency MYR/SGD (harga cruise sebenar tidak pernah serendah itu;
+         contoh sebenar dev: BC|ADULT MYR 200.00).
+      2. pakej_mencurigakan — Travel Package yang nama/formatnya seperti
+         data ujian (cth 'pakej 041 myr') yang masih dipakai offer AKTIF.
+      3. tanpa_jambatan — Variant Option axis 'cabin' tanpa
+         trip_price_category selepas patch v47 (patut kosong).
+      4. kunci_bukan_kod — inventory_key sailing / price_key yang masih
+         berbentuk nama penuh (bukan category_code kanonik).
+
+    Panggil: /api/method/travel_booking.api.maintenance.offer_price_anomaly_report
+    (System Manager sahaja). Semak & baiki di Travel Manager → Kuota & Harga.
+    """
+    frappe.only_for("System Manager")
+    min_adult_price = float(min_adult_price or 500.0)
+
+    # 1) Harga keraguan — ADULT terlalu rendah.
+    harga_keraguan = frappe.db.sql(
+        """
+        SELECT op.parent AS offer, o.package, o.cruise_schedule,
+               op.price_key, op.currency, op.price
+        FROM `tabOffer Price` op
+        JOIN `tabPackage Offer` o ON o.name = op.parent
+        WHERE op.age_option = 'ADULT'
+          AND op.currency IN ('MYR', 'SGD')
+          AND op.price > 0 AND op.price < %s
+        ORDER BY op.price ASC
+        LIMIT 100
+        """,
+        (min_adult_price,),
+        as_dict=True,
+    )
+
+    # 2) Pakej mencurigakan (nama seperti data ujian) pada offer aktif.
+    pakej_mencurigakan = frappe.db.sql(
+        """
+        SELECT DISTINCT o.package, p.package_name, COUNT(o.name) AS offers_aktif
+        FROM `tabPackage Offer` o
+        JOIN `tabTravel Package` p ON p.name = o.package
+        WHERE o.status_editorial = 'Active'
+          AND (p.package_name LIKE 'pakej %' OR p.package_name REGEXP '[0-9]{3}')
+        GROUP BY o.package, p.package_name
+        LIMIT 50
+        """,
+        as_dict=True,
+    )
+
+    # 3) Variant Option cabin tanpa jambatan kategori.
+    tanpa_jambatan = frappe.db.count("Variant Option", {
+        "axis_code": "cabin",
+        "trip_price_category": ["is", "not set"],
+    })
+
+    # 4) [BUANG Nov 2026] semakan kunci Sailing Inventory — doctype
+    # ditanggalkan (konsolidasi kolam ke cabin_rates schedule).
+    kunci_bukan_kod = []
+
+    return {
+        "status": "ok",
+        "ambang_harga_dewasa": min_adult_price,
+        "harga_keraguan": {
+            "count": len(harga_keraguan),
+            "rows": harga_keraguan,
+        },
+        "pakej_mencurigakan": {
+            "count": len(pakej_mencurigakan),
+            "rows": pakej_mencurigakan,
+        },
+        "variant_option_tanpa_jambatan": tanpa_jambatan,
+        "kunci_bukan_kod": {
+            "count": len(kunci_bukan_kod),
+            "rows": kunci_bukan_kod,
+        },
+        "message": (
+            "Data bersih — tiada anomali pada ambang semasa."
+            if not (harga_keraguan or pakej_mencurigakan or tanpa_jambatan
+                    or kunci_bukan_kod)
+            else "Semak baris bertanda & baiki di Travel Manager → Kuota & Harga sebelum cutover."
         ),
     }
 

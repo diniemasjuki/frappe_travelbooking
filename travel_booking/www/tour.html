@@ -9,15 +9,19 @@
 
 {% block page_content %}
 {# ============================================================
-   TOUR HOMEPAGE — /tour
+   TOUR HOMEPAGE — /tour  (MIGRASI BOOTSTRAP 5)
    International travel tours (non-cruise). Marketing copy comes
    from Travel Website config (wc.tour.*). Dynamic grids (featured
    tours, popular destinations) fetched by tour.py via trip_catalog.
+
+   Layout = Bootstrap: container / row / col / carousel / btn /
+   form-control. Blok jenama kongsi dalam rc-theme.css; spesifik
+   tour dalam tour.css (slim).
    ============================================================ #}
 {% set wc = get_website_config() %}
 {% set hp = wc.tour %}
 
-{# ── HERO SECTION ── #}
+{# ── HERO SECTION — statik + search widget ── #}
 <section class="rc-tour-hero">
   <div class="rc-hero-bg"{% if hp.hero.background %} style="background-image: url('{{ hp.hero.background }}')"{% endif %}></div>
   <div class="rc-hero-overlay"></div>
@@ -36,7 +40,7 @@
       <div class="rc-search-grid">
         <div class="rc-search-field rc-autocomplete" data-rc-autocomplete>
           <i class="ti ti-map-pin"></i>
-          <input type="text" class="rc-ac-input" placeholder="Where to?"
+          <input type="text" class="form-control rc-ac-input" placeholder="Where to?"
                  autocomplete="off" aria-label="Destination"
                  aria-autocomplete="list" aria-expanded="false"/>
           <input type="hidden" name="destination" value=""/>
@@ -44,17 +48,17 @@
         </div>
         <label class="rc-search-field">
           <i class="ti ti-calendar-event"></i>
-          <input type="date" name="date_from" placeholder="Departure"/>
+          <input type="date" class="form-control" name="date_from" placeholder="Departure"/>
         </label>
-        <button type="submit" class="rc-search-btn">
+        <button type="submit" class="btn btn-primary rc-search-btn">
           <i class="ti ti-search"></i> {{ hp.hero.search_label }}
         </button>
       </div>
     </form>
 
-    <div class="rc-hero-stats">
+    <div class="d-flex justify-content-center flex-wrap gap-3 gap-md-5">
       {% for stat in hp.hero.stats %}
-      <div class="rc-stat">
+      <div class="rc-stat text-center">
         <strong>{{ stat.stat_value }}</strong>
         <span>{{ stat.stat_label }}</span>
       </div>
@@ -65,7 +69,7 @@
 
 {# ── FEATURED TOURS ── #}
 <section class="rc-section rc-featured">
-  <div class="rc-container">
+  <div class="container">
     <div class="rc-section-header">
       <span class="rc-tag">{{ hp.featured.tag }}</span>
       <h2>{{ hp.featured.title|safe }}</h2>
@@ -73,11 +77,13 @@
     </div>
 
     {% if featured_tours %}
-    <div class="rc-trip-grid">
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
       {% for tour in featured_tours %}
-      {% with t = tour, gds = trip_group_dates.get(tour.name, []) %}
-      {% include "templates/includes/trip_card.html" %}
-      {% endwith %}
+      <div class="col">
+        {% with t = tour, gds = trip_group_dates.get(tour.name, []) %}
+        {% include "templates/includes/trip_card.html" %}
+        {% endwith %}
+      </div>
       {% endfor %}
     </div>
     {% else %}
@@ -85,31 +91,33 @@
       <i class="ti ti-mood-empty"></i>
       <h3>No featured tours yet</h3>
       <p>Check back soon for our curated journey selections.</p>
-      <a href="{{ hp.featured.cta_url }}" class="rc-btn-primary">Browse All Tours</a>
+      <a href="{{ hp.featured.cta_url }}" class="btn btn-primary">Browse All Tours</a>
     </div>
     {% endif %}
 
-    <div class="rc-section-cta">
-      <a href="{{ hp.featured.cta_url }}" class="rc-btn-outline">{{ hp.featured.cta_label }}</a>
+    <div class="text-center mt-4">
+      <a href="{{ hp.featured.cta_url }}" class="btn btn-outline-primary">{{ hp.featured.cta_label }}</a>
     </div>
   </div>
 </section>
 
 {# ── WHY TOUR WITH US ── #}
 <section class="rc-section rc-why-us">
-  <div class="rc-container">
+  <div class="container">
     <div class="rc-section-header rc-light">
       <span class="rc-tag rc-tag-outline">{{ hp.whyus.tag }}</span>
       <h2>{{ hp.whyus.title|safe }}</h2>
       <p>{{ hp.whyus.subtitle|safe }}</p>
     </div>
 
-    <div class="rc-benefits-grid">
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 position-relative">
       {% for b in hp.whyus.benefits %}
-      <div class="rc-benefit-card">
-        <div class="rc-benefit-icon"><i class="ti {{ b.icon }}"></i></div>
-        <h3>{{ b.title }}</h3>
-        <p>{{ b.description }}</p>
+      <div class="col">
+        <div class="rc-benefit-card">
+          <div class="rc-benefit-icon"><i class="ti {{ b.icon }}"></i></div>
+          <h3>{{ b.title }}</h3>
+          <p>{{ b.description }}</p>
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -118,7 +126,7 @@
 
 {# ── POPULAR DESTINATIONS ── #}
 <section class="rc-section rc-destinations">
-  <div class="rc-container">
+  <div class="container">
     <div class="rc-section-header">
       <span class="rc-tag">{{ hp.dest.tag }}</span>
       <h2>{{ hp.dest.title|safe }}</h2>
@@ -126,63 +134,83 @@
     </div>
 
     {% if popular_destinations %}
-    <div class="rc-dest-grid">
+    <div class="row row-cols-2 row-cols-lg-4 g-3 g-lg-4">
       {% for dest in popular_destinations %}
-      <a href="/tours?cruise=0&destination={{ dest.name | urlencode }}" class="rc-dest-card">
-        <div class="rc-dest-img" style="background-image:url('{{ dest.image or '/assets/travel_booking/img/defaultaroya.jpg' }}')">
-          <div class="rc-dest-overlay">
-            <h3>{{ dest.destination_name }}</h3>
-            <span>{{ dest.tour_count or '' }} Tours</span>
+      <div class="col">
+        <a href="/tours?cruise=0&destination={{ dest.name | urlencode }}" class="rc-dest-card">
+          <div class="rc-dest-img" style="background-image:url('{{ dest.image or '/assets/travel_booking/img/defaultaroya.jpg' }}')">
+            <div class="rc-dest-overlay">
+              <h3>{{ dest.destination_name }}</h3>
+              <span>{{ dest.tour_count or '' }} Tours</span>
+            </div>
           </div>
-        </div>
-      </a>
+        </a>
+      </div>
       {% endfor %}
     </div>
     {% endif %}
   </div>
 </section>
 
-{# ── TESTIMONIALS ── #}
+{# ── TESTIMONIALS → Bootstrap carousel (3 kad per slide desktop) ── #}
+{% set _testi = hp.testi.testimonials or [] %}
+{% if _testi %}
 <section class="rc-section rc-testimonials">
-  <div class="rc-container">
+  <div class="container">
     <div class="rc-section-header">
       <span class="rc-tag">{{ hp.testi.tag }}</span>
       <h2>{{ hp.testi.title|safe }}</h2>
       <p>{{ hp.testi.subtitle|safe }}</p>
     </div>
 
-    <div class="rc-testimonial-slider" id="rcTestimonialSlider">
-      <div class="rc-track">
-        {% for item in hp.testi.testimonials %}
-        <div class="rc-testi-card">
-          <div class="rc-testi-stars">{% for i in range(item.rating) %}★{% endfor %}</div>
-          <blockquote>"{{ item.quote }}"</blockquote>
-          <div class="rc-testi-author">
-            <strong>{{ item.author }}</strong>
-            {% if item.context_label %}<span>{{ item.context_label }}</span>{% endif %}
+    <div class="carousel slide rc-testimonial-slider" id="rcTestimonialSlider"
+         data-bs-ride="carousel" data-bs-interval="5000">
+      <div class="carousel-inner">
+        {% for batch in _testi | batch(3) %}
+        <div class="carousel-item{% if loop.first %} active{% endif %}">
+          <div class="row row-cols-1 row-cols-md-3 g-4">
+            {% for item in batch %}
+            <div class="col">
+              <div class="rc-testi-card">
+                <div class="rc-testi-stars">{% for i in range(item.rating) %}★{% endfor %}</div>
+                <blockquote>"{{ item.quote }}"</blockquote>
+                <div class="rc-testi-author">
+                  <strong>{{ item.author }}</strong>
+                  {% if item.context_label %}<span>{{ item.context_label }}</span>{% endif %}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
           </div>
         </div>
         {% endfor %}
       </div>
-      <div class="rc-slider-dots" id="rcSliderDots"></div>
+      {% if _testi | length > 3 %}
+      <div class="carousel-indicators">
+        {% for batch in _testi | batch(3) %}
+        <button type="button" data-bs-target="#rcTestimonialSlider" data-bs-slide-to="{{ loop.index0 }}"
+                {% if loop.first %}class="active" aria-current="true"{% endif %}
+                aria-label="Testimonial {{ loop.index }}"></button>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
   </div>
 </section>
+{% endif %}
 
 {# ── FINAL CTA BANNER ── #}
 <section class="rc-final-cta">
-  <div class="rc-cta-bg"></div>
-  <div class="rc-cta-glow"></div>
-  <div class="rc-container">
-    <div class="rc-cta-content">
+  <div class="container">
+    <div class="rc-cta-content text-center">
       <div class="rc-cta-icon"><i class="ti {{ hp.cta.icon }}"></i></div>
       <span class="rc-cta-tag">{{ hp.cta.tag }}</span>
       <h2>{{ hp.cta.title|safe }}</h2>
       <div class="rc-cta-body-text">{{ hp.cta.body|safe }}</div>
-      <div class="rc-cta-buttons">
-        <a href="{{ hp.cta.primary_url }}" class="rc-btn-primary rc-btn-lg">{{ hp.cta.primary_label }}</a>
+      <div class="rc-cta-buttons d-flex justify-content-center flex-wrap gap-3">
+        <a href="{{ hp.cta.primary_url }}" class="btn btn-primary btn-lg">{{ hp.cta.primary_label }}</a>
         {% if hp.cta.secondary_label %}
-        <a href="{{ hp.cta.secondary_url }}" class="rc-btn-outline rc-btn-lg rc-btn-light">{{ hp.cta.secondary_label }}</a>
+        <a href="{{ hp.cta.secondary_url }}" class="btn btn-outline-primary btn-lg">{{ hp.cta.secondary_label }}</a>
         {% endif %}
       </div>
     </div>

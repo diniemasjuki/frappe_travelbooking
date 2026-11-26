@@ -7,10 +7,14 @@ app_license = "mit"
 
 # Apps (desktop) screen + dock rail (v17 UI).
 # add_to_apps_screen: tile di apps screen — tanpa ni app tak muncul langsung
-# di desktop (lihat frappe.boot.get_app_data). route = workspace "Travel Booking".
-# Icon dock pula datang dari dock/travel_booking/travel_booking.json (Dock
-# standard, di-import oleh migrate) — bukan lagi fixture Desktop Icon lama.
-app_home = "/desk/manage-booking-app"
+# di desktop (lihat frappe.boot.get_app_data). route = Travel Manager —
+# direktori 1st-layer (app bar + breadcrumb). Booking Management kini VIEW
+# PENUH dalam page travel-manager (route 'booking' — v68, dipindah
+# daripada page berasingan yang dahulu menggantikan manage-booking-app
+# DEPREKAT). Icon dock pula datang dari
+# dock/travel_booking/travel_booking.json (Dock standard, di-import oleh
+# migrate) — bukan lagi fixture Desktop Icon lama.
+app_home = "/desk/travel-manager"
 
 add_to_apps_screen = [
 	{
@@ -28,9 +32,9 @@ use_json_request_body = True
 
 # Desk assets — paket generik senarai booking (window.TravelBookingBookingList):
 # satu komponen drop-in (data + toolbar + render + event) yang diguna semula
-# merentas section desk — kini tab Booking page Manage Booking App &
-# Manage Booking Group; section lain kelak cukup panggil create() pada
-# container masing-masing.
+# merentas section desk — kini tab Bookings view Booking Management
+# (travel-manager/booking, v68) & section booking travel_manager;
+# section lain kelak cukup panggil create() pada container masing-masing.
 #
 # ?v= — nginx hantar /assets dengan Cache-Control max-age=1 TAHUN, jadi
 # pelayar pengguna tidak akan ambil salinan baharu selepas bench build
@@ -38,7 +42,7 @@ use_json_request_body = True
 # ?v= (timestamp cukup) supaya semua klien fetch versi terkini.
 app_include_js = [
 	"/assets/travel_booking/js/search_box.js?v=20261026-1",
-	"/assets/travel_booking/js/booking_list.js?v=20261028-2",
+	"/assets/travel_booking/js/booking_list.js?v=20261125-1",
 ]
 app_include_css = [
 	"/assets/travel_booking/css/search_box.css?v=20261026-1",
@@ -89,6 +93,23 @@ after_install = "travel_booking.install.after_install"
 # Rujuk terus ke booking_engine.py (bukan booking.py re-export layer) untuk
 # elak overhead import modul yang tak diperlukan setiap kali hook berjalan.
 
+# Kanak-kanak & dokumen berpaut yang PASTI dibersihkan semasa Booking
+# dipadam — jangan biarkan mereka menyekat pemadaman Booking (link check
+# berjalan SEBELUM on_trash):
+#   - Booking Item / Booking Sales Order: child table Booking (cascade)
+#   - Booking Reservation / Voucher Usage: dipadam eksplisit dalam
+#     Booking.on_trash
+# Yang TIDAK disenarai (Booking Addon, Affiliate Commission, Booking
+# Cancellation Request, dsb.) KEKAL menyekat — aliran admin
+# (_delete_booking_linked_docs / bulk_delete_bookings) yang membersihkannya
+# supaya tiada rekod yatim.
+ignore_links_on_delete = [
+	"Booking Item",
+	"Booking Sales Order",
+	"Booking Reservation",
+	"Voucher Usage",
+]
+
 doc_events = {
 	"Payment Entry": {
 		"on_submit": "travel_booking.api.booking_engine.on_payment_entry_submit",
@@ -109,7 +130,8 @@ doc_events = {
 	"Address": {
 		"on_update": "travel_booking.api.billing_address_sync.on_billing_address_update",
 	},
-	# SO ialah sumber kebenaran harga booking (custom_booking → Booking).
+	# SO ialah sumber kebenaran harga booking (registri
+	# Booking.sales_orders — [Nov 2026] menggantikan SO.custom_booking).
 	# Setiap perubahan SO — edit item pax/rate di Desk (draft mahupun
 	# update-after-submit), diskaun tambahan, cancel, atau delete — mesti
 	# disegerak balik ke field snapshot Booking (pre_discount_total,
@@ -117,11 +139,14 @@ doc_events = {
 	# (dan gate overbooking SUM(booked_pax)) tak stale.
 	# on_update berjalan juga semasa insert (SO addon dicipta lepas booking
 	# wujud) — agregat booking terus berkembang ikut SO addon.
+	# on_trash ada handler berasingan — selain recompute snapshot, ia juga
+	# MEMBUANG baris registri Booking.sales_orders bagi SO dipadam (elak
+	# link yatim pada child table).
 	"Sales Order": {
 		"on_update": "travel_booking.api.booking_engine.on_sales_order_change",
 		"on_update_after_submit": "travel_booking.api.booking_engine.on_sales_order_change",
 		"on_cancel": "travel_booking.api.booking_engine.on_sales_order_change",
-		"on_trash": "travel_booking.api.booking_engine.on_sales_order_change",
+		"on_trash": "travel_booking.api.booking_engine.on_sales_order_trash",
 	},
 	# Sync occupancy & availability kabin pada Trip Cruise Schedule setiap
 	# kali reservasi berubah. Pemetaan: reservation.trip_cruise_schedule +
@@ -134,17 +159,24 @@ doc_events = {
 		"on_update": "travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
 		"after_delete": "travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
 	},
-	# on_update berjalan selepas insert & setiap save — sync Trip Group
-	# Date "Cruise Only" dengan schedule: update group date sedia ada,
-	# atau cipta baru jika belum ada (trip linked mesti wujud).
-	# recompute_cabin_availability: normalisasi occupancy & availability
-	# SEMUA kelas cabin_rates bila schedule disimpan (admin tambah/ganti
-	# baris → nilai terus selari dengan reservasi sebenar).
+	# on_update berjalan selepas insert & setiap save.
+	# [BUANG Nov 2026] sync_cruise_only_group_date — schedule tidak lagi
+	# sync ke Trip Group Date (struktur lama); pautan baharu ialah
+	# Travel Date.cruise_schedule. Tinggal recompute_cabin_availability:
+	# normalisasi occupancy & availability SEMUA kelas cabin_rates bila
+	# schedule disimpan (admin tambah/ganti baris → nilai terus selari
+	# dengan reservasi sebenar).
 	"Trip Cruise Schedule": {
 		"on_update": [
-			"travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cruise_only_group_date",
 			"travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.recompute_cabin_availability",
 		],
+	},
+	# Optimisasi imej PUBLIC yang di-upload (galeri web, cover, day image,
+	# meta OG) — resize max 1920px + mampat semula (utils/image_optimize.py).
+	# Fail private (passport, resit, dokumen) TIDAK disentuh. after_insert
+	# cukup — setiap upload/ganti fail = rekod File baharu.
+	"File": {
+		"after_insert": "travel_booking.utils.image_optimize.optimize_public_image",
 	},
 }
 
@@ -158,6 +190,16 @@ scheduler_events = {
 		# hari di Travel Settings (pending_abandoned_days) ditukar ke
 		# 'Abandoned'. Had 0 = ciri dimatikan (rujuk mark_abandoned_pending_bookings).
 		"travel_booking.api.booking_engine.mark_abandoned_pending_bookings",
+		# Fasa A (G2): tamatkan tempahan 'Held Booking' (Pay Later) yang
+		# lepas Booking.hold_expires_on — cancel penuh (cascade SO/PR
+		# melalui on_booking_update) + pulangkan kuota Offer Inventory
+		# melalui snapshot. Had 0 jam (Travel Settings) = dimatikan.
+		"travel_booking.api.booking_engine.expire_held_bookings",
+		# Fasa A (G4): emel peringatan bayaran baki T-30/T-7/T-1 sebelum
+		# due date baris 'Balance Payment' pada SO payment_schedule.
+		# Gate: Travel Settings.enable_payment_reminders (dedup log pada
+		# Booking.payment_reminders_sent).
+		"travel_booking.api.booking_engine.send_payment_schedule_reminders",
 		# Jaring SO booking fully-paid yang tertinggal Sales Invoice (auto-
 		# invois hook Payment Entry hanya dicuba SEKALI semasa submit — tanpa
 		# jaringan ni satu kegagalan = invois hilang selamanya).

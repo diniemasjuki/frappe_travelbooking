@@ -1,13 +1,13 @@
 {# ============================================================
    travel_booking/templates/includes/trip_card.html
-   
-   KOMPONEN TRIP CARD — Template boleh guna semula
-   
+
+   KOMPONEN TRIP CARD — Template boleh guna semula (Bootstrap card).
+
    Penggunaan:
      {% with t=trip_dict, gds=group_dates_list %}
      {% include "templates/includes/trip_card.html" %}
      {% endwith %}
-   
+
    Variable jinja (diperlukan):
      t   — dict trip dengan keys:
            • trip_name (str)        — Nama trip
@@ -17,22 +17,35 @@
            • trip_categories (str)  — Kategori/Item Group
            • destinations (list)    — Senarai {destination_name}
            • starting_from_price (float|None) — Harga terendah
-           • next_departure (str)   — Tarikh keberangkatan terdekat
-           • next_departure_label (str) — Label tarikh ("Departs YYYY-MM-DD")
-     
-     gds — list group_date dict (biasanya 1 item pertama):
+
+     gds — list group_date dict dalam susunan KRONOLOGI (item pertama
+           = tarikh terdekat):
            • total_days (int)       — Jumlah hari
            • total_nights (int)     — Jumlah malam
            • departure_date (str)   — Tarikh berlepas
            • sailing_start (str)    — Tarikh sail (cruise)
            • is_cruise_only (bool)  — TGD cruise sahaja (tanpa flight)
-           • max_participants (int|None) — Kapasiti (0=unlimited)
-   
-   CSS diperlukan: public/css/trip_card.css
-   Icon library: Tabler Icons (ti ti-*)
+           • trip_category (str)    — OPSYEN: kategori Travel Date
+                                      (Trip Category) — badge kategori
+                                      kad; tiada kategori → tiada badge.
+
+   Tarikh perwakilan kad `g` — TGD cruise_only terawal (durasi sailing
+   sebenar; TGD Cruise + Flight bawa hari penerbangan), fallback gds[0]
+   (tarikh terdekat). `g` memacu badge kategori tarikh, badge durasi &
+   pautan butang View Details (deep-link ?date=<tgd|travel_date> —
+   page detail trip pra-pilih tarikh itu). Grouping homepage menapis
+   gds ikut kategori seksyen, jadi `g` sentiasa tarikh terdekat DALAM
+   kategori yang memaparkan kad ini.
+
+   Struktur = Bootstrap card (card/card-body/badge/btn) + detail jenama
+   dalam rc-theme.css (blok KAD TRIP). Icon library: Tabler Icons (ti ti-*)
    ============================================================ #}
 
-<article class="rc-trip-card">
+{# ── Tarikh perwakilan kad (rujuk header) ── #}
+{% set _co_gds = gds | selectattr("is_cruise_only") | list %}
+{% set g = _co_gds[0] if (t.is_a_cruise_trip and _co_gds) else (gds[0] if gds else None) %}
+
+<article class="card rc-trip-card h-100 p-0">
   {# ── Media: Gambar + Badges ── #}
   <a class="rc-card-media" href="/{{ t.route }}">
     <img src="{{ t.trip_image }}"
@@ -40,96 +53,54 @@
          loading="lazy"
          onerror="this.src='/assets/travel_booking/img/defaultaroya.jpg'"/>
 
-    {# Type icon: Cruise Ship / Tour Route — bottom-right position #}
-    <!-- <span class="rc-card-icon ">
-      {% if t.is_a_cruise_trip %}<i class="ti ti-anchor"></i>{% else %}<i class="ti ti-route"></i>{% endif %}
-    </span> -->
-
     {# Category badge (jika ada) #}
     {% if t.trip_categories %}
-    <span class="rc-card-badge rc-badge-cat">{{ t.trip_categories }}</span>
+    <span class="badge rc-badge-cat">{{ t.trip_categories }}</span>
+    {% endif %}
+
+    {# Badge kategori tarikh — kategori Travel Date (Travel Date.
+       trip_category, cth "Cruise Only" / "Cruise + Flight") milik
+       tarikh perwakilan `g`. Grouping homepage menapis gds ikut
+       kategori seksyen, jadi badge sentiasa sepadan dengan kumpulan
+       yang memaparkan kad ini. Tiada kategori → badge disembunyi. #}
+    {% if g and g.trip_category %}
+    <span class="badge rc-badge-datecat"><i class="ti ti-anchor"></i> {{ g.trip_category }}</span>
     {% endif %}
   </a>
 
   {# ── Body: Content ── #}
-  <div class="rc-card-body">
+  <div class="card-body d-flex flex-column gap-2">
     {# Title #}
-    <h3 class="rc-card-title">
+    <h3 class="card-title rc-card-title mb-0">
       <a href="/{{ t.route }}">{{ t.trip_name }}</a>
     </h3>
-    
+
     {# Location / Destinations #}
     {% if t.destinations %}
-    <p class="rc-card-dest">
+    <p class="rc-card-dest mb-0">
       <i class="ti ti-map-pin"></i>
       {% for d in t.destinations %}
         {{ d.destination_name }}{% if not loop.last %}, {% endif %}
       {% endfor %}
     </p>
     {% else %}
-    <p class="rc-card-dest">
+    <p class="rc-card-dest mb-0">
       <i class="ti ti-map-pin"></i>
       Undisclosed Location
     </p>
     {% endif %}
 
-    
-      {# Meta Info: Duration, Date, Availability #}
-    <div class="rc-card-meta">
-      {% if gds and gds[0] %}
-        {# Cruise: meta (duration/kapasiti) dari TGD cruise_only — TGD
-           Cruise + Flight bawa hari perebangan, durationnya lebih panjang dari
-           sailing sebenar. Fallback ke gds[0] bila tiada TGD cruise_only. #}
-        {% set _co_gds = gds | selectattr("is_cruise_only") | list %}
-        {% set g = _co_gds[0] if (t.is_a_cruise_trip and _co_gds) else gds[0] %}
-        
-        {# Duration: X Days / Y Nights #}
-        {% if g.total_days %}
-        <span class="rc-meta-item">
-          <i class="ti ti-clock-2"></i> 
-          {{ g.total_days }}D / {{ g.total_nights }}N
-        </span>
-        {% endif %}
-        
-        {# Next Departure Date #}
-        {% if t.next_departure %}
-        <span class="rc-meta-item">
-          <i class="ti ti-calendar-event"></i> 
-          {{ t.next_departure_label }}
-        </span>
-        {% endif %}
-        
-        {# Seats / Availability Status #}
-        {% if g.max_participants is none or g.max_participants == "" %}
-          <span class="rc-seats rc-seats-ok">
-            <i class="ti ti-armchair"></i> Available
-          </span>
-        {% elif g.max_participants == 0 %}
-          <span class="rc-seats rc-seats-ok">
-            <i class="ti ti-armchair"></i> Open pax
-          </span>
-        {% else %}
-          <span class="rc-seats rc-seats-ok">
-            <i class="ti ti-armchair"></i> Up to {{ g.max_participants }} pax
-          </span>
-        {% endif %}
-        
-      {% else %}
-        {# Fallback: minimal info tanpa group date data #}
-        {% if t.next_departure %}
-        <span class="rc-meta-item">
-          <i class="ti ti-calendar-event"></i> 
-          {{ t.next_departure_label }}
-        </span>
-        {% endif %}
-        <span class="rc-seats rc-seats-ok">
-          <i class="ti ti-armchair"></i> Available
-        </span>
-      {% endif %}
-    </div>
+    {# Duration badge — X Days / Y Nights tarikh perwakilan `g` (cruise:
+       durasi sailing sebenar), dipapar selepas lokasi. align-self-start
+       kekal lebar fit-content dalam kolum flex card-body. #}
+    {% if g and g.total_days %}
+    <span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis align-self-start">
+      <i class="ti ti-clock-2"></i> {{ g.total_days }}D / {{ g.total_nights }}N
+    </span>
+    {% endif %}
 
     {# ── Footer: Price + CTA Button ── #}
-    <div class="rc-card-foot">
+    <div class="rc-card-foot d-flex align-items-center justify-content-between mt-auto pt-2">
       <div class="rc-card-price">
         {% if t.starting_from_price is not none %}
           {# Simbol currency LISTING aktif (pilihan customer, paksi
@@ -139,7 +110,7 @@
           {# Travel Price Rule: badge promosi + strikethrough harga asal
              (kunci guna .get() — kad luar yang tak bawa kunci ni selamat). #}
           {% if t.get("promo_label") %}
-          <span class="rc-card-promo-badge">{{ t.get("promo_label") }}</span>
+          <span class="badge rounded-pill rc-card-promo-badge">{{ t.get("promo_label") }}</span>
           {% endif %}
           <span class="rc-price-label">From</span>
           {% if t.get("original_starting_from_price") %}
@@ -152,7 +123,11 @@
           <span class="rc-price-value rc-price-tba"><span class="rc-price-label">Price</span>On Request</span>
         {% endif %}
       </div>
-      <a class="rc-card-cta rc-card-cta-outline" href="/{{ t.route }}">View Details</a>
+      {# CTA deep-link — terus ke tarikh perwakilan `g` (travel-date
+         terdekat sesuai kategori kad); ?date= diterima oleh page detail
+         trip (pra-pilih tarikh). Tiada gds → pautan biasa. #}
+      <a class="btn btn-sm btn-outline-primary rc-card-cta"
+         href="/{{ t.route }}{% if g and g.name %}?date={{ g.name | urlencode }}{% endif %}">View Details</a>
     </div>
   </div>
 </article>

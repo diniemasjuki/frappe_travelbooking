@@ -218,15 +218,59 @@ def _homepage_block(doc, prefix: str) -> dict:
             "background": doc.get(f"{prefix}_hero_background") or None,
             "search_label": doc.get(f"{prefix}_hero_search_label")
             or ("Search Cruises" if prefix == "cruise" else "Search Tours"),
-            "stats": _active_rows(doc.get(f"{prefix}_hero_stats"), has_active=False),
+            # Stats strip — homepage TOUR sahaja (homepage cruise tidak
+            # lagi paparkan stats bar; medan cruise_hero_stats dibuang
+            # dari Travel Website).
+            "stats": (
+                _active_rows(doc.get(f"{prefix}_hero_stats"), has_active=False)
+                if prefix == "tour"
+                else []
+            ),
+            # Slide banner hero (homepage cruise) — child Website Banner
+            # Slide aktif ikut sort_order. Kosong → template fallback ke
+            # background tunggal (banner statik tanpa slider).
+            "banners": _active_rows(
+                doc.get(f"{prefix}_banners"), has_active=True
+            ) if prefix == "cruise" else [],
+            # Default label butang CTA — dipakai bila Button Label slide
+            # itu kosong (label per slide disimpan dalam baris slide).
+            "slide_cta_label": doc.get("cruise_slide_cta_label") or "Explore",
         },
-        "featured": {
-            "tag": doc.get(f"{prefix}_featured_tag") or "",
-            "title": doc.get(f"{prefix}_featured_title") or "",
-            "subtitle": doc.get(f"{prefix}_featured_subtitle") or "",
-            "cta_label": doc.get(f"{prefix}_featured_cta_label") or "",
-            "cta_url": doc.get(f"{prefix}_featured_cta_url") or "",
-        },
+        # Featured section header — homepage TOUR sahaja (homepage cruise
+        # kini guna seksyen listing dinamik trip_sections di bawah).
+        "featured": (
+            {
+                "tag": doc.get(f"{prefix}_featured_tag") or "",
+                "title": doc.get(f"{prefix}_featured_title") or "",
+                "subtitle": doc.get(f"{prefix}_featured_subtitle") or "",
+                "cta_label": doc.get(f"{prefix}_featured_cta_label") or "",
+                "cta_url": doc.get(f"{prefix}_featured_cta_url") or "",
+            }
+            if prefix == "tour"
+            else {}
+        ),
+        # Seksyen listing trip homepage CRUISE — child Website Trip Listing
+        # Section aktif ikut sort_order: satu baris = satu seksyen homepage
+        # (tajuk/label/subtitle + kategori Travel Date + maks kad).
+        # cruise.py bina grid kad trip daripada config ini.
+        "trip_sections": (
+            _active_rows(doc.get("cruise_trip_sections"), has_active=True)
+            if prefix == "cruise"
+            else []
+        ),
+        # Search bar homepage (ringkas: Destination + Sailing Month) —
+        # label medan & butang sepenuhnya dari config.
+        "search": (
+            {
+                "destination_label": doc.get("cruise_search_destination_label") or "Destination",
+                "month_label": doc.get("cruise_search_month_label") or "Sailing Month",
+                "all_destinations": doc.get("cruise_search_all_destinations") or "All destinations",
+                "all_months": doc.get("cruise_search_all_months") or "All months",
+                "btn_label": doc.get("cruise_search_btn_label") or "Search",
+            }
+            if prefix == "cruise"
+            else {}
+        ),
         "whyus": {
             "tag": doc.get(f"{prefix}_whyus_tag") or "",
             "title": doc.get(f"{prefix}_whyus_title") or "",
@@ -280,7 +324,11 @@ def _active_rows(rows, has_active: bool = True) -> list:
     for r in rows:
         if has_active and not r.get("is_active"):
             continue
-        items.append(r.as_dict() if hasattr(r, "as_dict") else dict(r))
+        # callable() — frappe._dict pulangkan None (bukan AttributeError) untuk
+        # atribut yang tiada, jadi hasattr() sahaja tak cukup.
+        items.append(
+            r.as_dict() if callable(getattr(r, "as_dict", None)) else dict(r)
+        )
     items.sort(key=lambda x: (x.get("sort_order") or 0, x.get("idx") or 0))
     return items
 
@@ -291,8 +339,16 @@ def _empty_config() -> dict:
         "logo": "",
         "nav_cta": {"label": "Manage Booking", "url": "/traveller"},
         "menu": [],
-        "hero": {"tag": "", "title": "", "intro": "", "background": None, "search_label": "", "stats": []},
+        "hero": {"tag": "", "title": "", "intro": "", "background": None, "search_label": "", "stats": [], "banners": [], "slide_cta_label": "Explore"},
         "featured": {"tag": "", "title": "", "subtitle": "", "cta_label": "", "cta_url": ""},
+        "trip_sections": [],
+        "search": {
+            "destination_label": "Destination",
+            "month_label": "Sailing Month",
+            "all_destinations": "All destinations",
+            "all_months": "All months",
+            "btn_label": "Search",
+        },
         "whyus": {"tag": "", "title": "", "subtitle": "", "benefits": []},
         "dest": {"tag": "", "title": "", "subtitle": ""},
         "testi": {"tag": "", "title": "", "subtitle": "", "testimonials": []},

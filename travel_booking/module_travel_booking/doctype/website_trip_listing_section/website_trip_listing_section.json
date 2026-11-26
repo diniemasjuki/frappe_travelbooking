@@ -1,0 +1,121 @@
+{
+ "actions": [],
+ "creation": "2026-11-22 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section_title",
+  "section_label",
+  "section_subtitle",
+  "column_break_tsec",
+  "travel_date_category",
+  "max_listings",
+  "cta_label",
+  "cta_url",
+  "column_break_sts",
+  "sort_order",
+  "is_active"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_title",
+   "fieldtype": "Data",
+   "label": "Section Title",
+   "length": 140,
+   "reqd": 1,
+   "description": "Tajuk besar seksyen (cth \"Cruise Only\").",
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "section_label",
+   "fieldtype": "Data",
+   "label": "Section Label",
+   "length": 60,
+   "description": "Tag kecil di atas tajuk (cth \"Featured Voyages\").",
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "section_subtitle",
+   "fieldtype": "Small Text",
+   "label": "Section Subtitle",
+   "description": "Short description di bawah tajuk seksyen."
+  },
+  {
+   "fieldname": "column_break_tsec",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Kategori Travel Date untuk listing trip yang terlibat — hanya trip yang tarikhnya berkategori ini dipaparkan dalam seksyen.",
+   "fieldname": "travel_date_category",
+   "fieldtype": "Link",
+   "label": "Travel Date Category",
+   "options": "Trip Category",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2,
+   "in_standard_filter": 1
+  },
+  {
+   "default": "6",
+   "description": "Bilangan maksimum kad trip yang dipaparkan dalam seksyen ini.",
+   "fieldname": "max_listings",
+   "fieldtype": "Int",
+   "label": "Max Number of Listings",
+   "non_negative": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "description": "Butang di bawah grid (opsyenal) — cth \"View All Cruises\".",
+   "fieldname": "cta_label",
+   "fieldtype": "Data",
+   "label": "CTA Label",
+   "length": 60
+  },
+  {
+   "fieldname": "cta_url",
+   "fieldtype": "Data",
+   "label": "CTA URL",
+   "length": 200,
+   "placeholder": "/cruises"
+  },
+  {
+   "fieldname": "column_break_sts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Susunan seksyen pada homepage (kecil dahulu).",
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "label": "Position Sequence",
+   "non_negative": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "default": "1",
+   "description": "Disable untuk sorokkan seksyen dari homepage tanpa membuangnya.",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Active",
+   "in_list_view": 1,
+   "columns": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-22 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Website Trip Listing Section",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "sort_order",
+ "sort_order": "ASC",
+ "states": {}
+}

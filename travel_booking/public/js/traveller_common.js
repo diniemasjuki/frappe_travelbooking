@@ -153,6 +153,9 @@ const _post = (path, body) =>
 /* ── Endpoint namespaces (same APIs as old portal) ── */
 const API    = (m, p = {}) => _post(`/api/method/travel_booking.api.portal_auth.${m}`, p);
 const API_BK = (m, p = {}) => _post(`/api/method/travel_booking.api.portal_booking.${m}`, p);
+// Pembatalan self-service — modul portal baharu; API_CN terima nama
+// method terus (namespace travel_booking.api.portal_cancellation).
+const API_CN = (m, p = {}) => _post(`/api/method/travel_booking.api.portal_cancellation.${m}`, p);
 const API_PM = (m, p = {}) => _post(`/api/method/travel_booking.api.portal_payment.${m}`, p);
 const API_TV = (m, p = {}) => _post(`/api/method/travel_booking.api.portal_traveller.${m}`, p);
 const API_PF = (m, p = {}) => _post(`/api/method/travel_booking.api.portal_profile.${m}`, p);

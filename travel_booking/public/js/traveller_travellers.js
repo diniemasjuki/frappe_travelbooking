@@ -601,7 +601,7 @@
        - Had peringkat trip: jumlah tetamu <= seats_left
      Harga dipaparkan ikut _price_selection server; rule & harga DISEMAK
      SEMULA di server masa submit (create_new_cabin_order). Server cipta
-     & submit SO BAHARU dan pautkan ke booking (custom_booking); customer
+     & submit SO BAHARU dan daftarkan pada booking (registri Booking.sales_orders); customer
      selesaikan bayaran di page billing. Slot traveller cabin baharu
      aktif selepas SO dibayar penuh; detail traveller diisi melalui flow
      sedia ada di page ini. */

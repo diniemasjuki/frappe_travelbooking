@@ -7,7 +7,8 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "trip_group_date"
+  "trip_group_date",
+  "deprecation_note"
  ],
  "fields": [
   {
@@ -15,6 +16,12 @@
    "fieldtype": "Link",
    "label": "Trip Group by Date",
    "options": "Trip Group Date"
+  },
+  {
+   "fieldname": "deprecation_note",
+   "fieldtype": "HTML",
+   "label": "Deprecated",
+   "options": "<div class=\"alert alert-warning\" style=\"padding:8px 12px\"><strong>Deprecated (Nov 2026).</strong> Hubungan M:N pakej\u2194tarikh diganti oleh Package Offer (anak Travel Date). 65 baris lama disimpan sebagai sejarah \u2014 jangan tamb baharu.</div>"
   }
  ],
  "grid_page_length": 50,
@@ -32,5 +39,6 @@
  "rows_threshold_for_grid_search": 20,
  "sort_field": "creation",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "deprecated": 1
 }

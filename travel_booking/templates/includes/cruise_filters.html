@@ -20,13 +20,18 @@
 
    Konteks halaman yang dibaca: active (penapis semasa), options.destinations,
    month_options, year_options, currency.
+
+   Bootstrap 5: id form (`rcTripFilters`) ialah JS hook trips.js —
+   KEKAL. Kawalan dalaman = form-control/form-select + btn Bootstrap;
+   class layout jenama rc-filters/rc-filter-row/rc-field* kekal
+   (gaya dalam trips.css).
    ============================================================ #}
 <form class="rc-filters" method="get" action="{{ filter_action }}" id="{{ filter_id }}">
   {% if filter_force_cruise %}<input type="hidden" name="cruise" value="1"/>{% endif %}
   <div class="rc-filter-row">
     <label class="rc-field rc-field-search">
       <i class="ti ti-search"></i>
-      <input type="text" name="q" value="{{ active.q or '' }}" placeholder="Search cruises…"/>
+      <input type="text" name="q" value="{{ active.q or '' }}" placeholder="Search cruises…" class="form-control"/>
     </label>
 
     {% if filter_dest_mode == "autocomplete" %}
@@ -48,7 +53,7 @@
     {% else %}
     <label class="rc-field">
       <span class="rc-field-label">Destination</span>
-      <select name="destination">
+      <select name="destination" class="form-select">
         <option value="">All destinations</option>
         {% for d in options.destinations %}
         <option value="{{ d.name }}" {% if active.destination == d.name %}selected{% endif %}>{{ d.destination_name }}{% if d.destination_country %} — {{ d.destination_country }}{% endif %}</option>
@@ -59,7 +64,7 @@
 
     <label class="rc-field">
       <span class="rc-field-label">Sailing month</span>
-      <select name="month">
+      <select name="month" class="form-select">
         <option value="">All months</option>
         {% for m in month_options %}
         <option value="{{ m.value }}" {% if (active.month or '')|int == m.value %}selected{% endif %}>{{ m.label }}</option>
@@ -68,7 +73,7 @@
     </label>
     <label class="rc-field">
       <span class="rc-field-label">Sailing year</span>
-      <select name="year">
+      <select name="year" class="form-select">
         <option value="">All years</option>
         {% for y in year_options %}
         <option value="{{ y }}" {% if (active.year or '')|int == y %}selected{% endif %}>{{ y }}</option>
@@ -81,8 +86,8 @@
        param ?currency= hilang dan listing fallback ke default. #}
     <input type="hidden" name="currency" value="{{ currency or '' }}"/>
     <div class="rc-filter-actions">
-      <button type="submit" class="rc-btn-primary"><i class="ti ti-search"></i> Search</button>
-      <a href="{{ filter_reset_href }}" class="rc-btn-ghost">Reset</a>
+      <button type="submit" class="btn btn-primary"><i class="ti ti-search"></i> Search</button>
+      <a href="{{ filter_reset_href }}" class="btn btn-outline-secondary">Reset</a>
     </div>
   </div>
 </form>

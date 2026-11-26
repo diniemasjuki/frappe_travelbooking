@@ -21,36 +21,103 @@ from travel_booking.utils.upload_normalize import _decode_and_normalize_upload
 # ══════════════════════════════════════════════
 
 def _resolve_booking_from_so(so_name):
-    """Cari nama Booking yang berkaitan dengan SO ni, terus melalui
-    Sales Order.custom_booking. Pulang None kalau tiada kaitan.
+    """Cari nama Booking yang berkaitan dengan SO ni — carian TERBALIK
+    melalui registri Booking.sales_orders ([Nov 2026] SO tidak lagi
+    memegang link custom_booking ke Booking). Pulang None kalau tiada
+    kaitan.
     """
-    return frappe.db.get_value("Sales Order", so_name, "custom_booking")
+    return frappe.db.get_value(
+        "Booking Sales Order",
+        {"sales_order": so_name, "parenttype": "Booking"},
+        "parent",
+    )
+
+
+def _link_booking_sales_order(booking_name, so_name, purpose="Main Booking"):
+    """Daftar SO ke registri Booking.sales_orders — EJAAN TULIS satu-satunya
+    bagi hubungan SO↔Booking (dipanggil selepas SO dicipta; booking_name
+    mesti sudah wujud). Idempotent — SO yang sudah didaftar di-skip.
+
+    Insert child row TERUS ke DB (bukan booking.save()) supaya tidak
+    mencetus validate/hooks Booking dalam tengah transaksi confirm —
+    corak sama dengan sync cabin_rates (skip hooks).
+    """
+    if not booking_name or not so_name:
+        return
+    if frappe.db.exists("Booking Sales Order",
+                        {"parent": booking_name, "parenttype": "Booking",
+                         "sales_order": so_name}):
+        return
+    idx = frappe.db.count("Booking Sales Order",
+                          {"parent": booking_name, "parenttype": "Booking"}) + 1
+    frappe.get_doc({
+        "doctype": "Booking Sales Order",
+        "parent": booking_name,
+        "parentfield": "sales_orders",
+        "parenttype": "Booking",
+        "idx": idx,
+        "sales_order": so_name,
+        "purpose": purpose or "Main Booking",
+        "currency": frappe.db.get_value("Sales Order", so_name, "currency"),
+    }).insert(ignore_permissions=True)
+
+
+def _unlink_booking_sales_order(booking_name, so_name):
+    """Buang SO daripada registri booking (cth. SO dipadam admin, atau
+    pembersihan). Senyap — rekod tiada tak apa (idempotent).
+    """
+    if not booking_name or not so_name:
+        return
+    for name in frappe.get_all("Booking Sales Order",
+                               filters={"parent": booking_name,
+                                        "parenttype": "Booking",
+                                        "sales_order": so_name},
+                               pluck="name"):
+        frappe.delete_doc("Booking Sales Order", name,
+                          ignore_permissions=True, ignore_missing=True)
 
 
 def _get_all_booking_sales_orders(booking_name, include_cancelled=False):
-    """Semua SO yang berkaitan booking ni, melalui Sales Order.custom_booking
-    (satu-satunya sumber rujukan — utama dan addon setara secara struktur).
+    """Semua SO yang berkaitan booking ni, melalui registri
+    Booking.sales_orders ([Nov 2026] menggantikan Sales Order.custom_booking
+    — utama dan addon setara secara struktur).
     Secara default, SO Cancelled (docstatus=2) DIKECUALIKEN — supaya tak
     masuk kiraan Total/Payment Status/booking_status/waterfall allocation.
     Guna include_cancelled=True HANYA untuk paparan UI (transparency),
     bukan untuk logic status atau pembayaran.
     """
-    filters = {"custom_booking": booking_name}
-    if not include_cancelled:
-        filters["docstatus"] = ["!=", 2]
-    return frappe.get_all("Sales Order", filters=filters, pluck="name")
+    so_names = frappe.get_all(
+        "Booking Sales Order",
+        filters={"parent": booking_name, "parenttype": "Booking"},
+        pluck="sales_order", order_by="idx asc",
+    )
+    if not so_names:
+        return []
+    if include_cancelled:
+        return so_names
+    live = frappe.get_all(
+        "Sales Order",
+        filters={"name": ["in", so_names], "docstatus": ["!=", 2]},
+        pluck="name",
+    )
+    return [s for s in so_names if s in live]
 
 
 def _get_primary_so(booking_name):
     """SO 'utama' (cabin booking asal) — ditakrif sebagai SO PERTAMA yang
-    dicipta untuk booking ni (creation paling awal), bukan field berasingan.
-    Ini gantikan Booking.sales_order sepenuhnya — one-to-many standard
-    (Sales Order.custom_booking → Booking), bukan rujukan dua-hala.
+    didaftarkan pada booking ni (registri idx paling awal), bukan field
+    berasingan. Registri Booking.sales_orders menggantikan sepenuhnya
+    kedua-dua Booking.sales_order (lama) dan Sales Order.custom_booking
+    (Nov 2026) — one-to-many dimiliki Booking, bukan rujukan dua-hala.
+
+    FIX (Fasa 1c): SO Cancelled (docstatus 2) DIKECUALIKAN. Tanpa ni,
+    reschedule (cancel SO lama + SO baharu) meninggalkan SO cancelled
+    sebagai "primary" — merosakkan _activate_booking (layout diambil
+    daripada SO mati), order_summary, dan semua operasi booking_edit.
+    Booking yang SEMUA SO-nya cancelled → None (caller sedia handle).
     """
-    return frappe.db.get_value(
-        "Sales Order", {"custom_booking": booking_name},
-        "name", order_by="creation asc"
-    )
+    so_names = _get_all_booking_sales_orders(booking_name)
+    return so_names[0] if so_names else None
 
 
 def _compute_payment_status(paid, total):
@@ -301,22 +368,77 @@ def _upsert_customer_billing_address(customer_name, billing):
 
 
 # ══════════════════════════════════════════════
-# SALES ORDER ITEMS
+# BOOKING ITEM — SPECS PER-TRAVELLER (Fasa 0 booking-centric)
 # ══════════════════════════════════════════════
+# Satu spec = satu traveller. SO items (agregat pax_type + qty) dan
+# Booking Item (child table Booking, 1 baris = 1 traveller) KEDUA-DUANYA
+# dijana daripada specs yang sama supaya struktur sentiasa sepadan.
+# Kaunter kuota/seat KEKAL baca Booking Reservation — jadual Booking
+# Item ialah rekod komersial, tidak pernah dikira untuk kapasiti.
 
-def _build_so_items(selections, pricing_map, trip_name="", group_label="", is_cruise=True):
-    """Bina SO items dengan harga dari backend pricing_map.
+def _item_spec(room_category, cabin_no, pax_type, unit_price,
+               rate_basis="Standard", room_privacy="", age_category=""):
+    return {
+        "room_category": room_category,
+        "cabin_no":      int(cabin_no),
+        "pax_type":      pax_type,
+        "unit_price":    float(unit_price or 0),
+        "rate_basis":    rate_basis or "Standard",
+        "room_privacy":  room_privacy or "",
+        "age_category":  age_category or "",
+    }
 
-    Cruise (is_cruise=True) — model SLOT (posisi bilik): Main Guest
-    (single/twin) / Extra Bed / Infant. Harga ditentukan SLOT.
-    Non-cruise (is_cruise=False) — model UMUR: Adult (price_adult) /
-    Children (price_children) / Infant (price_infant), flat per pax (tiada
-    single supplement). Field payload {main_guests, extra_beds, infants}
-    sama — hanya field harga + label pax_type berbeza.
+
+def _guest_categories(sel, is_cruise):
+    """Kategori umur per-slot daripada medan additive 'guests' (wizard
+    Stage 1 itemized). Return (main_cats, extra_cats, infant_cats) dalam
+    turutan asal baris guest. Senarai KOSONG bila tiada 'guests' (klien
+    lama) — setiap spec akan dapat age_category="".
+
+    Konsistensi bilangan sudah divalidasi _validate_guest_list
+    (pricing.py); fungsi ini hanya MEMETAKAN, tidak menghalang. Slot
+    kosong (non-cruise) di-derive daripada kategori — pemetaan payload
+    agregat sedia ada (adult->main, child->extra_bed, infant->infant).
+
+    Kategori dinormalize ke TITLE CASE ("Adult"/"Child"/"Infant") — padan
+    options Select Booking Item.age_category + Traveller.age_category
+    sedia ada. Kontrak payload frontend kekal lowercase ("adult"), Frappe
+    _validate_selects menolak case mismatch pada field Select.
     """
-    items        = []
-    default_item = _get_or_create_travel_item()
+    title_case = {"adult": "Adult", "child": "Child", "infant": "Infant"}
+    derived = {"adult": "main", "child": "extra_bed", "infant": "infant"}
+    main_cats, extra_cats, infant_cats = [], [], []
+    for g in sel.get("guests") or []:
+        if not isinstance(g, dict):
+            continue
+        cat = (g.get("category") or "").strip().lower()
+        slot = (g.get("slot") or "").strip().lower() or derived.get(cat, "")
+        cat = title_case.get(cat, "")
+        if slot == "main":
+            main_cats.append(cat)
+        elif slot == "extra_bed":
+            extra_cats.append(cat)
+        elif slot == "infant":
+            infant_cats.append(cat)
+    return main_cats, extra_cats, infant_cats
 
+
+def _build_item_specs(selections, pricing_map, is_cruise=True):
+    """Spec per-TRAVELLER daripada payload selections + pricing_map.
+
+    Cruise (is_cruise=True) — model SLOT: Main Guest (solo → rate_basis
+    "Single" + kadar price_adult_single) / Extra Bed / Infant.
+    Non-cruise — model UMUR: Adult / Children / Infant, flat per pax.
+
+    Pengekalan tingkah laku _build_so_items asal: kabin dinomborkan
+    mengikut turutan selections (enumerate start=1) TERMASUK selection
+    kosong (0 pax tetap memakan nombor kabin — SO lama begitu).
+
+    age_category (itemized guests): dilekat mengikut turutan spec dalam
+    slot masing-masing — HARGA tidak terkesan (kadar ikut model slot/umur
+    sedia ada); ia data metadata untuk Booking Item sahaja.
+    """
+    specs = []
     for cabin_no, sel in enumerate(selections, start=1):
         room_category = sel.get("room_category")
         main_guests   = int(sel.get("main_guests", 0))
@@ -327,35 +449,217 @@ def _build_so_items(selections, pricing_map, trip_name="", group_label="", is_cr
         if not price:
             frappe.throw("Price not found for category: " + str(room_category))
 
+        main_cats, extra_cats, infant_cats = _guest_categories(sel, is_cruise)
+
         if is_cruise:
             if main_guests == 1:
-                items.append(_so_line(default_item, room_category, "Main Guest (Single)",
-                                      1, float(price.price_adult_single or 0),
-                                      trip_name, group_label, cabin_no,
-                                      room_privacy=(sel.get("room_privacy") or "")))
-            elif main_guests >= 2:
-                items.append(_so_line(default_item, room_category, "Main Guest",
-                                      main_guests, float(price.price_adult or 0),
-                                      trip_name, group_label, cabin_no))
-            if extra_beds > 0:
-                items.append(_so_line(default_item, room_category, "Extra Bed",
-                                      extra_beds, float(price.price_upperberth or 0),
-                                      trip_name, group_label, cabin_no))
+                specs.append(_item_spec(room_category, cabin_no, "Main Guest",
+                                        float(price.price_adult_single or 0),
+                                        rate_basis="Single",
+                                        room_privacy=(sel.get("room_privacy") or ""),
+                                        age_category=(main_cats[0] if main_cats else "")))
+            else:
+                for i in range(main_guests):
+                    specs.append(_item_spec(room_category, cabin_no, "Main Guest",
+                                            float(price.price_adult or 0),
+                                            age_category=(main_cats[i] if i < len(main_cats) else "")))
+            for i in range(extra_beds):
+                specs.append(_item_spec(room_category, cabin_no, "Extra Bed",
+                                        float(price.price_upperberth or 0),
+                                        age_category=(extra_cats[i] if i < len(extra_cats) else "")))
         else:
             # Non-cruise: flat per pax, tiada single supplement.
-            if main_guests > 0:
-                items.append(_so_line(default_item, room_category, "Adult",
-                                      main_guests, float(price.price_adult or 0),
-                                      trip_name, group_label, cabin_no))
-            if extra_beds > 0:
-                items.append(_so_line(default_item, room_category, "Children",
-                                      extra_beds, float(price.price_children or 0),
-                                      trip_name, group_label, cabin_no))
-        if infants > 0:
-            items.append(_so_line(default_item, room_category, "Infant",
-                                  infants, float(price.price_infant or 0),
-                                  trip_name, group_label, cabin_no))
+            for i in range(main_guests):
+                specs.append(_item_spec(room_category, cabin_no, "Adult",
+                                        float(price.price_adult or 0),
+                                        age_category=(main_cats[i] if i < len(main_cats) else "")))
+            for i in range(extra_beds):
+                specs.append(_item_spec(room_category, cabin_no, "Children",
+                                        float(price.price_children or 0),
+                                        age_category=(extra_cats[i] if i < len(extra_cats) else "")))
+        for i in range(infants):
+            specs.append(_item_spec(room_category, cabin_no, "Infant",
+                                    float(price.price_infant or 0),
+                                    age_category=(infant_cats[i] if i < len(infant_cats) else "")))
+    return specs
+
+
+def _so_items_from_specs(specs, trip_name="", group_label=""):
+    """Agregasi specs per-traveller kepada SO items — output SERAGAM dengan
+    _build_so_items asal: pax_type sama dalam cabin yang sama diagregatkan
+    SATU baris dengan qty=N; rate_basis "Single" dilabel "Main Guest
+    (Single)". custom_room_privacy kekal hanya pada baris single (corak
+    _so_line)."""
+    items        = []
+    default_item = _get_or_create_travel_item()
+
+    groups, index = [], {}
+    for s in specs:
+        label = s["pax_type"] + (" (Single)" if s.get("rate_basis") == "Single" else "")
+        key = (s["room_category"], s["cabin_no"], label, s.get("room_privacy") or "")
+        if key not in index:
+            index[key] = {"spec": s, "label": label, "qty": 0}
+            groups.append(index[key])
+        index[key]["qty"] += 1
+
+    for g in groups:
+        s = g["spec"]
+        items.append(_so_line(
+            default_item, s["room_category"], g["label"], g["qty"],
+            s["unit_price"], trip_name, group_label, s["cabin_no"],
+            room_privacy=(s.get("room_privacy") or ""),
+        ))
     return items
+
+
+def _normalize_pax_type(raw):
+    """Label pax SO → (pax_type ternormalisasi, rate_basis).
+
+    'Main Guest (Single)'     → ('Main Guest', 'Single')
+    'Extra Bed (Additional)'  → ('Extra Bed', 'Additional')
+    label bersih              → (label, 'Standard')
+    Kosong fallback 'Main Guest' (corak _booking_rooming_source_order).
+    """
+    label = (raw or "").strip()
+    for suffix, basis in ((" (Single)", "Single"), (" (Additional)", "Additional")):
+        if label.endswith(suffix):
+            return label[: -len(suffix)].strip() or "Main Guest", basis
+    return label or "Main Guest", "Standard"
+
+
+def _booking_item_rows(booking_name, so_name, specs, currency):
+    """Baris Booking Item (dict biasa) daripada specs — dipakai oleh dua
+    laluan tulis: append ke payload booking (confirm_booking — atomik
+    dengan insert booking) dan _write_booking_items (cabin_sharing —
+    booking sedia ada)."""
+    rows = []
+    for s in specs:
+        rows.append({
+            "doctype":       "Booking Item",
+            "booking":       booking_name,
+            "sales_order":   so_name,
+            "room_category": s["room_category"],
+            "cabin_no":      s["cabin_no"],
+            "pax_type":      s["pax_type"],
+            "rate_basis":    s.get("rate_basis") or "Standard",
+            # Kosong kekal kosong — persetaraan tepat dengan parse SO
+            # (layout multi-pax tanpa privacy = ""; default Select
+            # "Private" hanya untuk baris manual Desk).
+            "room_privacy":  s.get("room_privacy") or "",
+            "age_category":  s.get("age_category") or "",
+            "unit_price":    s["unit_price"],
+            "currency":      currency,
+            "status":        "Active",
+        })
+    return rows
+
+
+def _write_booking_items(booking_name, so_name, specs, currency):
+    """Tulis baris Booking Item untuk SATU SO — idempoten ikut pasangan
+    (booking, sales_order), cermin stamp Booking Reservation.sales_order.
+
+    Booking Item ialah child table SEBENAR (istable) pada Booking.items —
+    insert perlukan konteks parent (parent/parenttype/parentfield),
+    corak frappe.client.insert untuk doctype child. Parent mesti telah
+    wujud (confirm_booking panggil selepas booking.insert(); backfill &
+    cabin_sharing pada booking sedia ada).
+
+    Return senarai nama baris yang dicipta (kosong bila telah wujud)."""
+    if not specs:
+        return []
+    if frappe.db.exists("Booking Item", {"booking": booking_name, "sales_order": so_name}):
+        return []
+    # idx berjujukan dalam parent (grid Booking.items + turutan pembaca
+    # order_by idx). Insert child berdiri sendiri TIDAK menetapkan idx
+    # (default 0) — kira sini: max sedia ada + 1, menaik mengikut turutan
+    # specs (spec dijana ikut turutan cabin/pax yang sama dengan SO).
+    next_idx = (frappe.db.sql(
+        "SELECT COALESCE(MAX(idx), 0) FROM `tabBooking Item` WHERE parent = %s",
+        (booking_name,),
+    )[0][0]) + 1
+    created = []
+    for row in _booking_item_rows(booking_name, so_name, specs, currency):
+        row.update({
+            "parent":      booking_name,
+            "parenttype":  "Booking",
+            "parentfield": "items",
+            "idx":         next_idx,
+        })
+        next_idx += 1
+        doc = frappe.get_doc(row)
+        doc.insert(ignore_permissions=True)
+        created.append(doc.name)
+    return created
+
+
+def _booking_items_layout(booking_name, so_names=None):
+    """Layout cabin daripada Booking Item — OUTPUT BENTUK SAMA dengan
+    _cabin_layout_from_so ([{cabin_no, room_category, pax, pax_breakdown,
+    room_privacy, single_rate}] disusun ikut cabin_no) supaya pembaca
+    sedia ada (_activate_booking, get_shareable_cabins, rooming source)
+    tak berubah.
+
+    so_names (opsyenal): hadkan kepada SO tertentu — [primary] sahaja
+    untuk layout booking asal, atau senarai SO share untuk ekstra.
+    None = SEMUA SO booking.
+
+    Return [] bila tiada baris — caller fallback ke parse SO (melindungi
+    SO manual admin yang tiada Booking Item)."""
+    filters = {"booking": booking_name, "status": ["!=", "Cancelled"]}
+    if so_names is not None:
+        if not so_names:
+            return []
+        filters["sales_order"] = ["in", list(so_names)]
+    rows = frappe.get_all(
+        "Booking Item", filters=filters,
+        fields=["room_category", "cabin_no", "pax_type", "rate_basis",
+                "room_privacy", "unit_price"],
+        order_by="idx asc",
+    )
+    if not rows:
+        return []
+
+    layout = {}
+    for r in rows:
+        cabin_no = int(r.cabin_no or 0)
+        if cabin_no not in layout:
+            layout[cabin_no] = {
+                "cabin_no": cabin_no, "room_category": r.room_category,
+                "pax": 0, "pax_breakdown": {}, "room_privacy": "",
+                "single_rate": None,
+            }
+        cab = layout[cabin_no]
+        cab["pax"] += 1
+        cab["pax_breakdown"][r.pax_type] = cab["pax_breakdown"].get(r.pax_type, 0) + 1
+        if not cab["room_privacy"] and r.room_privacy:
+            cab["room_privacy"] = r.room_privacy
+        if (r.rate_basis or "Standard") == "Single" and cab["single_rate"] is None:
+            cab["single_rate"] = float(r.unit_price or 0)
+    return [layout[n] for n in sorted(layout.keys())]
+
+
+# ══════════════════════════════════════════════
+# SALES ORDER ITEMS
+# ══════════════════════════════════════════════
+
+def _build_so_items(selections, pricing_map, trip_name="", group_label="", is_cruise=True):
+    """Bina SO items dengan harga dari backend pricing_map.
+
+    Wrapper compat — logik sebenar kini di _build_item_specs (per
+    traveller) + _so_items_from_specs (agregat). Caller sedia ada
+    (api/booking.py, booking_engine.py) tidak berubah.
+
+    Cruise (is_cruise=True) — model SLOT (posisi bilik): Main Guest
+    (single/twin) / Extra Bed / Infant. Harga ditentukan SLOT.
+    Non-cruise (is_cruise=False) — model UMUR: Adult (price_adult) /
+    Children (price_children) / Infant (price_infant), flat per pax (tiada
+    single supplement). Field payload {main_guests, extra_beds, infants}
+    sama — hanya field harga + label pax_type berbeza.
+    """
+    return _so_items_from_specs(
+        _build_item_specs(selections, pricing_map, is_cruise),
+        trip_name, group_label,
+    )
 
 
 def _so_line(item_code, room_category, pax_type, qty, rate, trip_name, group_label, cabin_no=1,
@@ -537,8 +841,58 @@ def _activate_booking(booking_name, force=False):
         "guest_state":         booking_addr.get("cust_state") or "",
         "guest_country":       booking_addr.get("cust_country") or "",
     }
+    # ── Rantaian tarikh/schedule reservasi — [Nov 2026] dahulu fetch_from
+    # (date_selection ← booking.trip_date → trip_cruise_schedule ←
+    # date_selection.cruise_schedule), kini di-stamp EKSPLISIT supaya
+    # booking struktur baharu TIDAK bergantung pada TGD legasi:
+    # schedule resolve daripada TRAVEL DATE (struktur baharu) dahulu,
+    # fallback TGD anchor (booking legasi pra-struktur baharu).
+    _bk_date = frappe.db.get_value(
+        "Booking", booking_name,
+        ["travel_date", "trip_date", "trip_package"], as_dict=True) or {}
+    _cruise_schedule = None
+    if _bk_date.travel_date:
+        _cruise_schedule = frappe.db.get_value(
+            "Travel Date", _bk_date.travel_date, "cruise_schedule")
+    if not _cruise_schedule and _bk_date.trip_date:
+        _cruise_schedule = frappe.db.get_value(
+            "Trip Group Date", _bk_date.trip_date, "cruise_schedule")
+
     count = 0
-    for cabin in _cabin_layout_from_so(so_name):
+    # FASA 0 (booking-centric): layout daripada Booking Item — sumber
+    # struktur tunggal (baris per-traveller, dijana/di-backfill bersama
+    # SO). Fallback parse SO untuk booking lama pra-backfill / SO manual
+    # admin yang tiada baris item.
+    cabin_layout = _booking_items_layout(booking_name, [so_name])
+    if not cabin_layout:
+        cabin_layout = _cabin_layout_from_so(so_name)
+
+    # FASA 2 (traveller pra-bayar): peta identiti Booking Item → slot
+    # reservation yang AKAN dicipta. Kunci padanan: (cabin_no, pax_type)
+    # dalam turutan idx baris — selari turutan slot yang dicipta oleh
+    # gelung di bawah (pax_breakdown ikut urutan kemunculan). Bila item
+    # ada traveller, slot lahir TERUS beridentiti (sync_document_status
+    # pada validate menarik status Traveller — bukan Incomplete kosong).
+    _item_traveller_pool: dict = {}
+    _item_rows = frappe.get_all(
+        "Booking Item",
+        filters={"booking": booking_name, "sales_order": so_name,
+                 "status": ["!=", "Cancelled"]},
+        fields=["name", "cabin_no", "pax_type", "traveller"],
+        order_by="idx asc",
+    )
+    for _it in _item_rows:
+        if _it.traveller:
+            _item_traveller_pool.setdefault(
+                (int(_it.cabin_no or 0), _it.pax_type), []).append(_it.traveller)
+
+    def _pop_item_traveller(cabin_no, pax_type):
+        pool = _item_traveller_pool.get((int(cabin_no or 0), pax_type))
+        if pool:
+            return pool.pop(0)
+        return None
+
+    for cabin in cabin_layout:
         # room_category datang dari TEKS description SO Item (rujuk
         # _cabin_layout_from_so) — snapshot dibekukan masa booking dicipta,
         # BUKAN Link live. Bila admin rename Trip Price Category terus di DB
@@ -566,31 +920,69 @@ def _activate_booking(booking_name, force=False):
             continue
         for pax_type, qty in cabin.get("pax_breakdown", {}).items():
             for _ in range(int(qty)):
-                res = frappe.get_doc({
+                # FASA 2: warisi identiti traveller pra-bayar (Booking
+                # Item) bila ada — slot lahir beridentiti.
+                _inherited_traveller = _pop_item_traveller(cabin.get("cabin_no"), pax_type)
+                _res_payload = {
                     "doctype":         "Booking Reservation",
                     "booking":         booking_name,
                     "room_category":   cabin.get("room_category"),
                     "cabin_no":        cabin.get("cabin_no"),
                     "pax_type":        pax_type,
+                    # Rantaian tarikh/schedule — eksplisit (dahulu
+                    # fetch_from booking.trip_date / date_selection).
+                    # date_selection: TGD anchor (legasi, paparan Desk);
+                    # trip_cruise_schedule: Travel Date dahulu → TGD —
+                    # INI kunci occupancy kolam cabin_rates.
+                    "date_selection":  _bk_date.trip_date,
+                    "trip_cruise_schedule": _cruise_schedule,
+                    "trip_package":    _bk_date.trip_package,
                     # Room privacy pilihan customer (snapshot SO) — "Private"
                     # / "Open Sharing". Kosong untuk booking lama / cabin
                     # multi-pax (pilihan hanya wujud untuk solo cruise).
                     "room_privacy":    cabin.get("room_privacy") or "",
                     "is_a_cruise":     is_cruise,
+                    "traveller":       _inherited_traveller,
                     # Status auto dikira validate() ikut aliran status
                     # reservation — nilai awal ini diabaikan.
                     "status":          "Confirmed",
+                    **reservation_addr,
+                }
+                if _inherited_traveller:
+                    # JANGAN set document_status — sync_document_status
+                    # (validate) menarik status sebenar Traveller ke slot
+                    # (cth "Pending Verification" pra-bayar). Set nilai
+                    # di sini akan MENOLAK "Incomplete" ke Traveller
+                    # (cabang push), merosakkan status sedia ada.
+                    pass
+                else:
                     # 'Incomplete' (bukan 'Pending' — dihapus dari options
                     # bersama patch v30_traveller_status_incomplete; nilai
                     # lama menyebabkan ValidationError Select semasa insert,
                     # gagalkan penjanaan slot traveller).
-                    "document_status": "Incomplete",
-                    **reservation_addr,
-                })
+                    _res_payload["document_status"] = "Incomplete"
+                res = frappe.get_doc(_res_payload)
                 if force:
                     res.flags.skip_cabin_capacity_validation = True
                 res.insert(ignore_permissions=True)
                 count += 1
+
+    # WIZARD ADDONS (/booknow Step 2) — baris addon Per Pax "unassigned"
+    # (dicipta semasa booking, sebelum reservation wujud) di-assign slot
+    # reservation SEKARANG, sebaik slot di atas siap. try/except sendiri
+    # — kegagalan assignment TIDAK boleh roll-back submit Payment Entry
+    # (bayaran mesti sentiasa direkodkan); log sahaja, admin boleh assign
+    # manual di Desk (corak guard sama seperti _activate_booking di atas).
+    # Import lazily — addon_manager import modul ini (so_helpers).
+    try:
+        from travel_booking.api.addon_manager import _assign_unassigned_addon_items
+        _assign_unassigned_addon_items(booking_name)
+    except Exception as e:
+        frappe.log_error(
+            title="Addon Auto-Assign Error",
+            message=("Gagal auto-assign addon items untuk booking " +
+                     str(booking_name) + ": " + str(e)),
+        )
     return count
 
 
@@ -685,7 +1077,7 @@ def _resolve_cashback_deduction(company, currency, so_name, cashback_percent, ca
 # SO booking KEKAL GROSS (semua baris item rate positif — tiada pergantungan
 # pada Selling Settings > Allow Negative rates). Jumlah diskaun voucher/
 # referral disimpan pada BOOKING (voucher_discount / referral_discount,
-# diakses melalui Sales Order.custom_booking) dan diserap sebagai baris
+# diakses melalui registri Booking.sales_orders) dan diserap sebagai baris
 # DEDUCTION (debit) ke akaun Marketing Expenses company tersebut pada
 # Payment Entry.
 #
@@ -701,15 +1093,15 @@ _ORDER_DISCOUNT_DESC_PREFIX = "Order Discount"
 
 def _get_booking_discount_snapshot(so_name):
     """Diskaun order-level & kelayakan cashback suatu SO booking — voucher/
-    referral_discount dari BOOKING (sumber kebenaran) melalui
-    Sales Order.custom_booking; cashback_percent pula di-DERIVE semasa
+    referral_discount dari BOOKING (sumber kebenaran) melalui registri
+    Booking.sales_orders; cashback_percent pula di-DERIVE semasa
     bayaran (benefit transaksional): Booking.checkout_method ==
     "Manual Transfer" DAN promosi aktif di Travel Settings DAN bukan B2B.
     Returns (voucher_discount, referral_discount, cashback_percent).
 
     SO tanpa pautan Booking (rekod lama/ dicipta manual di Desk) → sifar,
     sama seperti tingkah lama bila field diskaun kosong."""
-    booking = frappe.db.get_value("Sales Order", so_name, "custom_booking")
+    booking = _resolve_booking_from_so(so_name)
     if not booking:
         return 0.0, 0.0, 0.0
     row = frappe.db.get_value(
@@ -1171,12 +1563,16 @@ def _maybe_auto_invoice_so(so_name):
             # carries the same Booking + Booking Addon references as the SO.
             so_custom = frappe.db.get_value(
                 "Sales Order", so_name,
-                ["custom_booking", "custom_booking_addon", "apply_discount_on",
+                ["custom_booking_addon", "apply_discount_on",
                  "additional_discount_percentage", "discount_amount"], as_dict=True
             )
             if so_custom:
-                if so_custom.custom_booking:
-                    si.custom_booking = so_custom.custom_booking
+                # [Nov 2026] SI kekal membawa custom_booking (link derived —
+                # dipakai dashboard/receipt), tapi sumbernya kini registri
+                # Booking.sales_orders (SO tidak lagi memegang link).
+                _si_booking = _resolve_booking_from_so(so_name)
+                if _si_booking:
+                    si.custom_booking = _si_booking
                 if so_custom.custom_booking_addon:
                     si.custom_booking_addon = so_custom.custom_booking_addon
                 # ADDITIONAL DISCOUNT (cashback manual transfer & harga net

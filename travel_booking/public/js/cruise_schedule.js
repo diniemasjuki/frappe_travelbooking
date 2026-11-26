@@ -16,8 +16,17 @@
 // strukturnya supaya wizard terus masuk step pakej yang dipilih.
 //
 // Harga dipapar dalam currency NATIVE pakej (currency billing booking — sama
-// model dengan wizard /booknow). Vanilla JS sahaja (tiada framework), corak
-// sama dengan trip_detail.js.
+// model dengan wizard /booknow). Vanilla JS sahaja (tiada framework).
+//
+// MIGRASI BOOTSTRAP 5: modal pakai komponen bootstrap.Modal (markup
+// `modal fade` + `modal-dialog/modal-content` dalam page). Show/hide via
+// bootstrap.Modal.getOrCreateInstance(el) — backdrop, body scroll-lock &
+// focus trap diurus BS (tiada lagi body.rc-modal-lock manual). Script page
+// di-load `defer` selepas bootstrap.bundle.min.js (base_travel.html), jadi
+// global `bootstrap` sedia ada — tetap dijaga dengan typeof guard dan
+// fallback ke behavior lama (hidden attribute + rc-modal-lock) bila BS
+// JS tak hadir. Hook JS kekal: .rc-pkg-item(.is-selected),
+// script.rc-sched-data, .rc-sched-book & semua id.
 
 (function () {
 	"use strict";
@@ -50,6 +59,27 @@
 		var _m = window.location.search.match(/[?&]sp=([^&]+)/);
 		AFFILIATE_CODE = _m ? decodeURIComponent(_m[1]).trim().toUpperCase() : "";
 	} catch (_e) {}
+
+	// ─── BOOTSTRAP MODAL GUARD ────────────────────────────────
+	// Instance BS modal (getOrCreateInstance) — null bila bootstrap JS
+	// tak hadir (fallback ke behavior vanilla lama).
+	function bsModal() {
+		if (typeof bootstrap === "undefined" || !bootstrap.Modal) return null;
+		return bootstrap.Modal.getOrCreateInstance(modal);
+	}
+
+	// Modal BS (bila ada): angkat modal & backdrop ATAS chat FAB
+	// (#rcwRoot .rcw-fab z-index 9990/9991) — default BS (1055) bawah FAB.
+	// Class body dipakai css untuk z-index .modal-backdrop ikut serta,
+	// supaya FAB turut di-dim macam overlay lama.
+	if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
+		modal.addEventListener("show.bs.modal", function () {
+			document.body.classList.add("rc-pkgmodal-open");
+		});
+		modal.addEventListener("hidden.bs.modal", function () {
+			document.body.classList.remove("rc-pkgmodal-open");
+		});
+	}
 
 	// ─── UTIL ─────────────────────────────────────────────────
 	function esc(s) {
@@ -108,11 +138,8 @@
 			if (pkg.ret_date) rows.push(["Flight Return Arrival", pkg.ret_date, ""]);
 		}
 		if (pkg.duration) rows.push(["Duration", pkg.duration, ""]);
-		rows.push([
-			"Ground Arrangement",
-			pkg.ground ? "Included" : "Not Included",
-			pkg.ground ? "is-ok" : "is-no",
-		]);
+		// [BUANG Nov 2026] Baris "Ground Arrangement" dibuang (arahan
+		// pemilik) — medan ground_arrangement tidak lagi wujud dalam DB.
 
 		var detailHtml = rows.map(function (r) {
 			return (
@@ -195,6 +222,9 @@
 	}
 
 	// ─── OPEN / CLOSE ─────────────────────────────────────────
+	// BS path: bootstrap.Modal.show()/hide() — backdrop + body lock +
+	// Esc + focus trap automatik. Fallback (bootstrap JS absent): toggle
+	// hidden attribute + body.rc-modal-lock seperti behavior lama.
 	function open(btn) {
 		var card = btn.closest(".rc-sched-card");
 		var data = card ? parseCardData(card) : null;
@@ -219,13 +249,29 @@
 
 		current = { trip: trip, data: data, pkgByName: pkgByName };
 		render(data);
-		modal.hidden = false;
-		document.body.classList.add("rc-modal-lock");
+
+		var inst = bsModal();
+		if (inst) {
+			inst.show();
+		} else {
+			// Fallback vanilla: markup BS tapi bootstrap JS absent — buang
+			// [hidden], tambah .show (patahkan .fade:not(.show) opacity 0),
+			// body.rc-modal-lock (overflow + dim sendiri via css page).
+			modal.hidden = false;
+			modal.classList.add("show");
+			document.body.classList.add("rc-modal-lock");
+		}
 	}
 
 	function close() {
-		modal.hidden = true;
-		document.body.classList.remove("rc-modal-lock");
+		var inst = bsModal();
+		if (inst) {
+			inst.hide();
+		} else {
+			modal.hidden = true;
+			modal.classList.remove("show");
+			document.body.classList.remove("rc-modal-lock");
+		}
 		current = null;
 		selection = null;
 	}
@@ -305,13 +351,17 @@
 			return;
 		}
 
-		// Tutup: overlay, butang X, Cancel
-		if (modal && !modal.hidden && ev.target.closest("[data-pkgmodal-close]")) {
+		// Tutup (FALLBACK vanilla sahaja — bila bootstrap JS wujud, butang
+		// X/Cancel guna data-bs-dismiss="modal" native BS): overlay, X, Cancel
+		if (!bsModal() && modal && !modal.hidden && ev.target.closest("[data-pkgmodal-close]")) {
 			close();
 		}
 	});
 
+	// Esc untuk fallback vanilla sahaja — BS modal dah urus Esc sendiri.
 	document.addEventListener("keydown", function (ev) {
-		if (ev.key === "Escape" && !modal.hidden) close();
+		if (ev.key !== "Escape") return;
+		if (typeof bootstrap !== "undefined" && bootstrap.Modal) return;
+		if (!modal.hidden) close();
 	});
 })();

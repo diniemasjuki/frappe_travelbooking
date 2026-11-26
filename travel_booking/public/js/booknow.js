@@ -107,6 +107,15 @@ const state = {
   group_seats_left: null,
   billing:      {},
   otp_verified: false,
+  // ── WIZARD ADDONS (Step 2) ──
+  // addons: {addon_package_name: qty} — pilihan customer (bertahan via
+  // snapshot). addon_catalog: respons get_wizard_addons (di-fetch semula
+  // bila trip/pakej/currency berubah — tidak di-snapshot). addon_fetch_key
+  // mengelak fetch berulang untuk konteks yang sama.
+  addons:        {},
+  addon_catalog: null,
+  addon_fetch_key: "",
+  addon_fetch_failed: false,
   // Booking on behalf (fasa 1): true bila actor (Affiliate/Sales User)
   // menanda checkbox — email customer diisi tanpa OTP. Dihantar ke
   // confirm_booking() sebagai on_behalf; server sahkan semula role.
@@ -135,9 +144,10 @@ var state_payment_settings = {
 // Kapasiti PERINGKAT TRIP (Trip Group Date.max_participants). group_seats_left
 // = baki tempat (max_participants − SUM booked_pax booking lain, dari
 // www/booking.py). null/undefined → UNLIMITED (max_participants = 0) → tiada
-// had di frontend. Dipakai groupCapFor() (mkStepper) supaya jumlah guest SEMUA
-// room tak melebihi baki kapasiti trip — sepadan dengan gate backend
-// confirm_booking() yang juga guna seats_left (bukan max_participants mentah).
+// had di frontend. Dipakai groupCapLeft() (baris guest itemized) supaya jumlah
+// guest SEMUA room tak melebihi baki kapasiti trip — sepadan dengan gate
+// backend confirm_booking() yang juga guna seats_left (bukan max_participants
+// mentah).
 function syncGroupSeatsLeft() {
   var all = (typeof trip_group_dateS !== "undefined" && trip_group_dateS)
     ? (trip_group_dateS[state.trip_master] || []) : [];
@@ -146,11 +156,31 @@ function syncGroupSeatsLeft() {
 }
 
 // Jumlah guest (main_guests + extra_beds + infants) SEMUA room — dipakai
-// groupCapFor() untuk kira baki kapasiti trip selepas tolak guest room lain.
+// groupCapLeft() untuk kira baki kapasiti trip selepas tolak guest room lain.
 function totalGuestsAllRooms() {
   return state.rooms.reduce(function(a, r) {
     return a + (r.main_guests || 0) + (r.extra_beds || 0) + (r.infants || 0);
   }, 0);
+}
+
+// Bilangan BILIK berkategori `cat` dalam cart — inventori cruise schedule
+// (kolam cabin_rates) mengira KABIN, bukan penumpang: setiap room yang
+// KATEGORINYA DIPILIH = SATU kabin dipesan (walaupun tetamu belum diisi —
+// slot itu sudah "diambil" dalam cart; gate server check_offer_capacity
+// mengira bilik berisi tetamu ≥1 sahaja, jadi frontend ni sentiasa sama
+// ketat atau lebih ketat — jangan sampai customer gagal di checkout).
+// `excludeRoom` (room yang sedang diedit dalam picker) dikira keluar
+// kerana kategorinya akan diganti. Dipakai: had pilihan kabin dalam
+// picker (buildCabinPickerList) + petunjuk "N cabins left" pada kad
+// bilik (renderRooms).
+function roomsUsedOfCategory(cat, excludeRoom) {
+  var n = 0;
+  (state.rooms || []).forEach(function(r) {
+    if (r === excludeRoom) return;
+    if (r.room_category !== cat) return;
+    n++;
+  });
+  return n;
 }
 
 // Papar petunjuk kapasiti trip di header section 2 (cth "3 / 10 pax").
@@ -404,6 +434,9 @@ function saveState() {
       terms_ok:     (function() { var cb = document.getElementById("bnwTermsAccept"); return cb ? !!cb.checked : false; })(),
       terms_ref:    (function() { var c = document.getElementById("bnwTermsCard"); return c ? (c.getAttribute("data-terms-name") || "") : ""; })(),
       cust_message: (function() { var el = document.getElementById("bnwCustomerMessage"); return el ? el.value : ""; })(),
+      // Pilihan addon (Step 2) — {addon_package: qty}. Bertahan refresh /
+      // Back dari Stripe supaya re-confirm menghantar semula nilai sama.
+      addons:       (state.addons || {}),
     };
     sessionStorage.setItem("bnw_booking_wizard", JSON.stringify(snap));
   } catch (e) {}
@@ -422,16 +455,19 @@ function showStep(n) {
   var targetStep = document.getElementById("bnwStep" + n);
   if (targetStep) targetStep.classList.add("bnw-section--active");
 
-  // Update step indicators
+  // Update step indicators — kelas sebenar ialah .bnw-step-num (bukan
+  // __num), dan nombor langkah ialah s (bukan s+1). Sebelum ini indicator
+  // "done" tak pernah bertukar icon check — querySelector salah kelas
+  // menyebabkan num sentiasa null.
   document.querySelectorAll(".bnw-step").forEach(el => {
     const s   = parseInt(el.dataset.step);
-    const num = el.querySelector(".bnw-step__num");
+    const num = el.querySelector(".bnw-step-num");
     el.classList.remove("active", "done");
     if (s < n) {
       el.classList.add("done");
       if (num) num.innerHTML = '<i class="ti ti-check"></i>';
     } else {
-      if (num) num.textContent = s + 1;
+      if (num) num.textContent = s;
       if (s === n) el.classList.add("active");
     }
   });
@@ -593,6 +629,10 @@ function restoreWizard() {
   state.package_label = snap.package_label || "";
   state.package_currency = snap.package_currency || "MYR";
   state.package_symbol   = snap.package_symbol || "RM";
+  // Pilihan addon (Step 2) — katalog TIDAK di-snapshot (di-fetch semula
+  // bila customer sampai ke langkah Add-ons; harga dari server sentiasa
+  // segar), hanya qty pilihan yang perlu bertahan.
+  state.addons = (snap.addons && typeof snap.addons === "object") ? snap.addons : {};
   // MULTI-COMPANY: selaraskan semula dengan selectedPackage yang
   // di-resolve di bawah (snapshot lama mungkin bawa nilai legacy).
   setTimeout(function () {
@@ -677,6 +717,10 @@ function restoreWizard() {
       if (isCompatible) {
         state.rooms = snap.rooms;
         roomSeq = snap.rooms.reduce(function(m, r) { return Math.max(m, r.uid || 0); }, 0);
+        // Snapshot lama (stepper kaunter) tiada 'guests' — derive baris
+        // itemized daripada kaunter; snapshot baharu sudah bawa guests
+        // (kaunter di-sync semula). Harga/payload tak berubah.
+        state.rooms.forEach(normalizeRoomGuests);
         renderRooms();
       } else {
         clearWizardState();
@@ -760,12 +804,21 @@ function restoreWizard() {
       }
     }
 
-    var target = Math.min(snap.step, 3);
-    if (target >= 2) {
+    // Susun atur langkah (5 langkah): 1=Rooms, 2=Add-ons, 3=Billing,
+    // 4=Payment, 5=Confirmation. Restore paling jauh = Payment (4) —
+    // skrin confirmation tak bermakna di-restore (booking dah final).
+    // Snapshot LAMA (4 langkah, sebelum Add-ons wujud — tiada kunci
+    // `addons`): nilai 2/3/4 bermaksud Billing/Payment/Confirm — geser
+    // +1 supaya customer yang tengah wizard semasa deploy tak tercicir.
+    var _snapStep = snap.step;
+    if (!snap.addons && _snapStep >= 2) _snapStep = _snapStep + 1;
+    var target = Math.min(_snapStep, 4);
+    if (target >= 2 && typeof ensureAddonsLoaded === "function") ensureAddonsLoaded();
+    if (target >= 3) {
       if (typeof buildBookingSummary === "function") buildBookingSummary();
       if (typeof checkStep2Ready === "function") checkStep2Ready();
     }
-    if (target === 3) { buildOrderSummary(); updatePaymentUI(); }
+    if (target === 4) { buildOrderSummary(); updatePaymentUI(); }
     showStep(target);
     // Email session (jika logged in) hanya di-apply SELEPAS restore billing
     // selesai — elak race mengunci field sebelum email manual dipulihkan.
@@ -996,23 +1049,23 @@ function renderStripeReturnConfirmation(bookingNumber, result, isSettled) {
   // the banner entirely from the backend API response (result object).
   if (result) {
     // Trip Name (h2 heading)
-    var bannerName4El = document.getElementById("bnwBannerTripName4");
-    if (bannerName4El) bannerName4El.textContent = result.trip_name || "";
+    var bannerName5El = document.getElementById("bnwBannerTripName5");
+    if (bannerName5El) bannerName5El.textContent = result.trip_name || "";
 
     // Group Summary line: "Group: 2026-09-13 : TRIP2613 : Cruise + Flight"
-    var bannerSum4El = document.getElementById("bnwBannerSummary4");
-    if (bannerSum4El) {
+    var bannerSum5El = document.getElementById("bnwBannerSummary5");
+    if (bannerSum5El) {
       var groupText = "Group: " + (result.group_name || "");
       // Append package type if available
       if (result.package_label && !groupText.includes(result.package_label)) {
         groupText += " : " + result.package_label;
       }
-      bannerSum4El.textContent = groupText;
+      bannerSum5El.textContent = groupText;
     }
 
     // Departure/Return Dates line: "Departure: 13 Sep 2026 – 22 Sep 2026 ✈️"
     // Hide for Cruise Only — cruise only packages show Sailing date only
-    var dep4El = document.getElementById("bnwBannerDeparture4");
+    var dep5El = document.getElementById("bnwBannerDeparture5");
     var depEmoji = "";
     var _pkgType = result.package_label || "";
     var _isCruiseOnly = (_pkgType === "Cruise Only");
@@ -1020,70 +1073,70 @@ function renderStripeReturnConfirmation(bookingNumber, result, isSettled) {
     var _hasFlightComponent = !_isCruiseOnly && !_isGroundOnly;
     if (_hasFlightComponent && result.flight) depEmoji = " ✈️";
 
-    if (dep4El && result.departure_date && !_isCruiseOnly) {
-      dep4El.textContent = "Departure: " + fmtDate(result.departure_date) +
+    if (dep5El && result.departure_date && !_isCruiseOnly) {
+      dep5El.textContent = "Departure: " + fmtDate(result.departure_date) +
         (result.return_date ? " – " + fmtDate(result.return_date) : "") + depEmoji;
-      dep4El.style.display = "";
-    } else if (dep4El) {
-      dep4El.style.display = "none";
+      dep5El.style.display = "";
+    } else if (dep5El) {
+      dep5El.style.display = "none";
     }
 
     // Depart From / Fly From line (only for packages with flight)
-    var departFrom4El = document.getElementById("bnwBannerDepartFrom4");
-    if (departFrom4El) {
+    var departFrom5El = document.getElementById("bnwBannerDepartFrom5");
+    if (departFrom5El) {
       if (result.flight_label && !_isCruiseOnly && !_isGroundOnly) {
-        departFrom4El.textContent = "Fly from " + result.flight_label;
-        departFrom4El.style.display = "";
+        departFrom5El.textContent = "Fly from " + result.flight_label;
+        departFrom5El.style.display = "";
       } else {
-        departFrom4El.style.display = "none";
+        departFrom5El.style.display = "none";
       }
     }
 
     // Sailing Dates line (cruise trips only)
     // Show kalau: (is_cruise_trip flag) ATAU (package_label mengandungi "Cruise")
-    var sail4El = document.getElementById("bnwBannerSailing4");
-    if (sail4El) {
+    var sail5El = document.getElementById("bnwBannerSailing5");
+    if (sail5El) {
       var _isCruise = result.is_cruise_trip || (result.package_label && result.package_label.toLowerCase().includes("cruise"));
       if (_isCruise && result.sailing_start) {
         var sailEmoji = " ⚓";
-        sail4El.textContent = "Sailing: " + fmtDate(result.sailing_start) +
+        sail5El.textContent = "Sailing: " + fmtDate(result.sailing_start) +
           (result.sailing_end ? " – " + fmtDate(result.sailing_end) : "") + sailEmoji;
-        sail4El.style.display = "";
-      } else if (sail4El) {
-        sail4El.style.display = "none";
+        sail5El.style.display = "";
+      } else if (sail5El) {
+        sail5El.style.display = "none";
       }
     }
 
     // Embarkation / Disembarkation Port — selepas Sailing (Stripe-return).
     // Sumber: result dari get_wizard_confirmation (return embarkation_port).
-    var embark4El = document.getElementById("bnwBannerEmbarkation4");
-    if (embark4El) {
+    var embark5El = document.getElementById("bnwBannerEmbarkation5");
+    if (embark5El) {
       if (result.embarkation_port) {
-        embark4El.textContent = "Embarkation: " + formatPortRange(result.embarkation_port, result.disembarkation_port);
-        embark4El.style.display = "";
+        embark5El.textContent = "Embarkation: " + formatPortRange(result.embarkation_port, result.disembarkation_port);
+        embark5El.style.display = "";
       } else {
-        embark4El.style.display = "none";
+        embark5El.style.display = "none";
       }
     }
 
     // Package Type Badge (yellow badge on right side of banner)
-    var badge4El = document.getElementById("bnwBannerTripType4");
-    if (badge4El) badge4El.textContent = badgeShort(result.package_label || "");
+    var badge5El = document.getElementById("bnwBannerTripType5");
+    if (badge5El) badge5El.textContent = badgeShort(result.package_label || "");
 
     // Fly From text below badge
-    var flyFrom4El = document.getElementById("bnwBannerFlyFrom4");
-    if (flyFrom4El) {
+    var flyFrom5El = document.getElementById("bnwBannerFlyFrom5");
+    if (flyFrom5El) {
       if (result.flight && !_isCruiseOnly && !_isGroundOnly) {
-        flyFrom4El.textContent = "Fly from " + result.flight;
-        flyFrom4El.style.display = "";
+        flyFrom5El.textContent = "Fly from " + result.flight;
+        flyFrom5El.style.display = "";
       } else {
-        flyFrom4El.style.display = "none";
+        flyFrom5El.style.display = "none";
       }
     }
 
     // Show the banner container itself (in case it was hidden)
-    var banner4El = document.getElementById("bnwTripBanner4");
-    if (banner4El) banner4El.style.display = "";
+    var banner5El = document.getElementById("bnwTripBanner5");
+    if (banner5El) banner5El.style.display = "";
 
     // "Amount Paid" dipapar untuk SEMUA status settled (Paid & Partially
     // Paid) — bukan Partially Paid sahaja macam sebelum ni (bila customer
@@ -1115,14 +1168,25 @@ function renderStripeReturnConfirmation(bookingNumber, result, isSettled) {
       '<div class="bnw-confirm-row"><span>Total</span><strong>' + fmt(result.grand_total || 0) + '</strong></div>' +
       amountPaidRow + balanceDueRow + paymentStatusRow +
       '<div class="bnw-confirm-row"><span>Booking Ref</span><strong>' + bookingNumber + '</strong></div>';
+
+    // Blok Add-ons — data dari snapshot (state client hilang selepas
+    // redirect Stripe); laluan ini sentiasa Online Payment.
+    renderAddonConfirmBox(
+      bookingNumber,
+      result.addon_lines || [],
+      !!result.addons_created,
+      result.addon_total || 0,
+      result.addons_error || "",
+      "Online Payment"
+    );
   } else {
     // Result is null — API failed or returned error
     // Show minimal info but still display the banner & basic details
-    var banner4El = document.getElementById("bnwTripBanner4");
-    if (banner4El) banner4El.style.display = "";
+    var banner5El = document.getElementById("bnwTripBanner5");
+    if (banner5El) banner5El.style.display = "";
 
-    var bannerName4El = document.getElementById("bnwBannerTripName4");
-    if (bannerName4El) bannerName4El.textContent = "Booking Confirmed";
+    var bannerName5El = document.getElementById("bnwBannerTripName5");
+    if (bannerName5El) bannerName5El.textContent = "Booking Confirmed";
 
     document.getElementById("bnwConfirmDetails").innerHTML =
       '<div class="bnw-confirm-row"><span>Booking Ref</span><strong>' + bookingNumber + '</strong></div>' +
@@ -1140,7 +1204,7 @@ function renderStripeReturnConfirmation(bookingNumber, result, isSettled) {
       'A confirmation email has been sent with your booking details.<br>' +
       'Complete traveller details anytime in your portal.';
   }
-  showStep(4);
+  showStep(5);
 }
 
 // intl-tel-input — SAMA library dengan fieldtype "Phone" di Frappe Desk,
@@ -1236,24 +1300,30 @@ if (!_restored) {
     state.trip_group_date = _cart.group_date;
     state.trip_name     = _cart.trip_name || "";
     state.is_cruise_trip = !!_cart.is_cruise;
+    // Reserve dari kad kabin (page trip): kategori kabin pra-pilih untuk
+    // BILIK PERTAMA — dimakan SEKALI oleh initRooms() selepas cabins load
+    // (sah + available; kosong/salah → bilik pertama mula kosong).
+    state.prefill_room_category = _cart.room_category || "";
 
-    // ── REVERSE TRACE (cruise): tentukan TGD SEBENAR dari (pakej + sailing) ──
-    // Radio tarikh di page trip mewakili SAILING date; TGD yang tepat
-    // ditentukan semula di sini daripada pautan pakej sebenar. Ini juga
-    // menyembuhkan cart lama (pra-fix) yang membawa TGD salah akibat
-    // merge dedupe sailing yang menulis semula pautan pakej.
+    // ── REVERSE TRACE (cruise): tentukan TGD SEBENAR dari (pakej + tarikh
+    // berlepas) ── Radio tarikh di page trip kini mewakili DEPARTURE date
+    // (dulu sailing date); TGD yang tepat ditentukan semula di sini daripada
+    // pautan pakej sebenar. Kunci padanan ikut departure_date || sailing_start
+    // — sama dengan kunci peta departure_tgds server. Cart lama (pra-fix)
+    // yang membawa sailing_start dalam medan lama masih dipadankan selagi
+    // nilainya sama; tiada padanan → TGD cart dikekalkan.
     if (state.is_cruise_trip && _cart.package_name) {
       var _tdsAll = (typeof trip_group_dateS !== "undefined" && trip_group_dateS)
         ? (trip_group_dateS[state.trip_master] || []) : [];
-      var _sailKey = _cart.sailing_start || "";
-      if (!_sailKey) {
-        // Cart lama tanpa sailing_start — terbitkan dari TGD cart (jika sah).
+      var _depKey = _cart.departure_date || _cart.sailing_start || "";
+      if (!_depKey) {
+        // Cart lama tanpa kunci tarikh — terbitkan dari TGD cart (jika sah).
         var _cartTd = _tdsAll.find(function (g) { return g.name === state.trip_group_date; });
-        _sailKey = (_cartTd && _cartTd.sailing_start) || "";
+        _depKey = (_cartTd && (_cartTd.departure_date || _cartTd.sailing_start)) || "";
       }
-      if (_sailKey) {
+      if (_depKey) {
         var _cands = _tdsAll.filter(function (g) {
-          return g.sailing_start === _sailKey
+          return (g.departure_date || g.sailing_start) === _depKey
             && ((typeof TRIP_PACKAGES !== "undefined" && TRIP_PACKAGES[g.name]) || [])
               .some(function (p) { return p.name === _cart.package_name; });
         });
@@ -1367,12 +1437,6 @@ if (!_restored) {
 }
 // ─── STEP 1: ROOMS & PAX ──────────────────────────────────
 var roomSeq = 0;
-// Array KONGSI untuk refreshButtons() SEMUA stepper (SEMUA room). Reset di
-// renderRooms() sebelum rebuild, supaya bila mana-mana counter berubah,
-// refreshAll() refresh SEMUA stepper — perlu untuk had PERINGKAT TRIP
-// (groupCapFor → state.group_seats_left) yang bergantung pada jumlah guest
-// SEMUA room, bukan satu room sahaja.
-var allStepperRefreshers = [];
 
 async function loadCabins() {
   showLoading("Loading room options...");
@@ -1381,9 +1445,20 @@ async function loadCabins() {
   // lama atau perubahan data server boleh tinggalkan nilai basi).
   resolveTripPackageName();
   try {
+    // F5 struktur baharu: pakej terpilih membawa identiti offer — hantar
+    // package_offer supaya server baca kabin/harga daripada Price Matrix
+    // offer + tarikh Travel Date (mod offer). Pakej legacy (tiada kunci
+    // offer) kekal guna trip_package legacy sepenuhnya.
+    const _offerParams = {};
+    if (USE_PACKAGE_OFFERS && selectedPackage && selectedPackage.offer) {
+      _offerParams.package_offer = selectedPackage.offer;
+    }
     const data = await apiCall(
       "travel_booking.api.booking.get_booking_details",
-      { trip_group_date: state.trip_group_date, trip_package: state.trip_package },
+      Object.assign(
+        { trip_group_date: state.trip_group_date, trip_package: state.trip_package },
+        _offerParams
+      ),
       true  // GET
     );
 
@@ -1412,7 +1487,7 @@ async function loadCabins() {
     // (Step 1-4) melalui CSS var --bnw-hero-img; gradient gelap di CSS
     // kekal melindungi kebolehbacaan teks di atas gambar.
     var _heroImg = (data.trip && data.trip.trip_image) || "/assets/travel_booking/img/defaultaroya.jpg";
-    ["", "2", "3", "4"].forEach(function(_sfx) {
+    ["", "2", "3", "4", "5"].forEach(function(_sfx) {
       var _bEl = document.getElementById("bnwTripBanner" + _sfx);
       if (_bEl) _bEl.style.setProperty("--bnw-hero-img", 'url("' + _heroImg + '")');
     });
@@ -1535,8 +1610,8 @@ async function loadCabins() {
     // Update semua 4 banner instances
     _updateBannerDates("");    // Step 1
     _updateBannerDates("2");   // Step 2
-    _updateBannerDates("3");   // Step 3
-    _updateBannerDates("4");   // Step 4
+    _updateBannerDates("4");   // Step 3
+    _updateBannerDates("5");   // Step 4
 
 
     var bannerName2El = document.getElementById("bnwBannerTripName2");
@@ -1570,8 +1645,8 @@ async function loadCabins() {
       }
     }
     _updateBannerCore("2");  // Step 2 (Billing)
-    _updateBannerCore("3");  // Step 3 (Payment)
-    _updateBannerCore("4");  // Step 4 (Confirmation)
+    _updateBannerCore("4");  // Step 3 (Payment)
+    _updateBannerCore("5");  // Step 4 (Confirmation)
 
     initRooms();
   } catch(e) {
@@ -1726,8 +1801,27 @@ function refreshPromoDiscountRow() {
 function initRooms() {
   state.rooms = [];
   roomSeq = 0;
-  if (availableCabins().length) addRoom();
-  else renderRooms();
+  if (availableCabins().length) {
+    addRoom();
+    // Prefill kabin dari cart Reserve (kad kabin page trip) — BILIK
+    // PERTAMA sahaja: sah kategori wujud & available → set kategori +
+    // auto Guest 1 dewana (selari auto-pick addRoom). One-shot —
+    // dibuang selepas digunakan supaya snapshot/restore tak terjejas.
+    var _pf = state.prefill_room_category || "";
+    if (_pf && state.rooms.length) {
+      var _pc = availableCabins().find(function (x) { return x.room_category === _pf; });
+      if (_pc) {
+        var _r0 = state.rooms[0];
+        _r0.room_category = _pf;
+        _r0.guests = [{ slot: "main", category: "adult" }];
+        _r0.main_guests = 1;
+        _r0.extra_beds = 0;
+        _r0.infants = 0;
+      }
+    }
+    state.prefill_room_category = "";
+  }
+  renderRooms();
 }
 
 // Had maksimum cabin per booking — dari Travel Settings melalui pageData
@@ -1738,6 +1832,13 @@ var MAX_CABINS_PER_BOOKING = Number(_data.max_cabins);
 if (!isFinite(MAX_CABINS_PER_BOOKING) || MAX_CABINS_PER_BOOKING < 0) {
   MAX_CABINS_PER_BOOKING = 0; // pageData tiada/rosak → anggap unlimited (selari backend)
 }
+
+// Ambang paparan petunjuk baki kabin kolam kontrak sailing (renderRooms
+// & buildCabinPickerList): kategori dengan kolam ≤ nilai ni dipaparkan
+// "N cabins left" — kolam besar (cth kontrak 3000 kabin) tak perlu
+// derau. Nilai statik (saiz kolam semasa load); baki dikira semula pada
+// setiap render (bilik ditambah/dibuang/tukar kategori).
+var POOL_HINT_MAX = 5;
 
 function addRoom() {
   var avail = availableCabins();
@@ -1751,10 +1852,15 @@ function addRoom() {
   // Non-cruise: kalau hanya 1 jenis bilik (pricing) tersenarai, auto-pilih
   // terus — customer tak perlu buka dropdown "Select rooming type".
   var _autoCat = (!state.is_cruise_trip && avail.length === 1) ? avail[0].room_category : "";
+  // Itemized guests: bilik dengan kabin terpilih terus dibekalkan Guest 1
+  // (adult, main berth) — lead guest wajib adult (selari backend
+  // _validate_guest_list). Bilik tanpa kabin mula kosong.
+  var _autoGuests = _autoCat ? [{ slot: "main", category: "adult" }] : [];
   state.rooms.push({
     uid:          ++roomSeq,
     room_category: _autoCat,
-    main_guests:  0,
+    guests:       _autoGuests,
+    main_guests:  _autoGuests.length,
     extra_beds:   0,
     infants:      0,
     open:         true,
@@ -1767,14 +1873,349 @@ function removeRoom(uid) {
   renderRooms();
 }
 
+// ── ITEMIZED GUEST ROWS (compile-to-aggregate) ──────────────────────────
+// Satu baris per guest menggantikan stepper kaunter: Guest 1 wajib adult
+// (main berth — kadar price_adult_single bila sorangan, cruise), guest
+// seterusnya isi main berth hingga capacity, lepas itu Extra Bed hingga
+// max_capacity (cruise model SLOT). Kaunter agregat
+// (main_guests/extra_beds/infants) KEKAL sumber harga/kapasiti/payload —
+// di-derive semula (syncRoomCounters) selepas setiap mutasi, jadi seluruh
+// rantaian sedia ada (priceRoomSelection, aggregateSelections, payload,
+// backend _price_selection/_validate_selection_capacity) tak berubah.
+
+// Slot label paparan — ikut label Travel Settings (price_config), konsisten
+// dengan label stepper lama + Payment Summary.
+function guestSlotLabel(slot) {
+  if (slot === "extra_bed") return guestLabel("price_upperberth", "Extra Bed");
+  if (slot === "infant")    return guestLabel("price_infant", "Infant");
+  return guestLabel("price_adult", state.is_cruise_trip ? "Main Guest" : "Adult");
+}
+
+function guestCatLabel(cat) {
+  if (cat === "child")  return "Child";
+  if (cat === "infant") return "Infant";
+  return "Adult";
+}
+
+// Kategori umur per-slot dalam turutan baris — dipakai summary (Step 1-4)
+// untuk label "(Child)" pada baris main/extra cruise. Fallback default bila
+// tiada 'guests' (snapshot lama).
+function roomSlotCategories(room) {
+  var main = [], extra = [], infant = [];
+  (room.guests || []).forEach(function(g) {
+    var slot = g.slot || ({ adult: "main", child: "extra_bed", infant: "infant" })[g.category] || "main";
+    if (slot === "extra_bed") extra.push(g.category || "adult");
+    else if (slot === "infant") infant.push(g.category || "infant");
+    else main.push(g.category || "adult");
+  });
+  return { main: main, extra: extra, infant: infant };
+}
+
+// Kira semula kaunter agregat daripada baris guests. WAJIB dipanggil
+// selepas setiap mutasi guests — kaunter ialah kontrak harga/payload.
+function syncRoomCounters(room) {
+  var mg = 0, eb = 0, inf = 0;
+  (room.guests || []).forEach(function(g) {
+    if (g.slot === "extra_bed") eb++;
+    else if (g.slot === "infant") inf++;
+    else mg++;
+  });
+  room.main_guests = mg;
+  room.extra_beds  = eb;
+  room.infants     = inf;
+}
+
+// Normalize bilik dari snapshot lama (stepper kaunter, tiada 'guests'):
+// derive baris itemized. Kategori default ikut pemetaan kaunter sedia ada
+// (cruise extra bed=adult, non-cruise extra bed=child) — metadata sahaja,
+// harga tidak berubah.
+function normalizeRoomGuests(room) {
+  if (!room) return;
+  if (!Array.isArray(room.guests)) {
+    var guests = [], i;
+    for (i = 0; i < (room.main_guests || 0); i++) guests.push({ slot: "main", category: "adult" });
+    for (i = 0; i < (room.extra_beds || 0); i++)
+      guests.push({ slot: "extra_bed", category: state.is_cruise_trip ? "adult" : "child" });
+    for (i = 0; i < (room.infants || 0); i++) guests.push({ slot: "infant", category: "infant" });
+    room.guests = guests;
+  }
+  syncRoomCounters(room);
+}
+
+// Kapasiti TAMBAHAN per slot yang masih dibenarkan — port tepat capFor()
+// stepper lama (mkStepper), dinyatakan sebagai "berapa baris lagi boleh
+// ditambah" untuk UI itemized. Cruise: main capped capacity & max_capacity;
+// Extra Bed hanya bila Main penuh (SLOT). Non-cruise: semua kategori
+// berkongsi max_capacity (model UMUR, tiada syarat "adult penuh dulu").
+function roomSlotCaps(room) {
+  var none = { main: 0, extra_bed: 0, infant: 0 };
+  var c = cabinByCategory(room.room_category);
+  if (!c) return none;
+  var capacity    = c.capacity || 0;
+  // max_capacity === 0 (eksplisit) -> UNLIMITED (overbooking dibenarkan);
+  // NULL -> fallback capacity (padan server _validate_selection_capacity).
+  var unlimited   = (c.max_capacity === 0);
+  var maxCapacity = unlimited ? Infinity : (c.max_capacity || capacity);
+  var mainCap     = capacity > 0 ? capacity : Infinity;
+  var mg = room.main_guests || 0, eb = room.extra_beds || 0, inf = room.infants || 0;
+  var caps = {};
+  if (state.is_cruise_trip) {
+    caps.main = Math.max(0, Math.min(mainCap, maxCapacity - eb - inf) - mg);
+    var ebAllowed = (capacity > 0) ? (mg === capacity) : (mg >= 1);
+    caps.extra_bed = ebAllowed ? Math.max(0, maxCapacity - mg - inf - eb) : 0;
+  } else {
+    caps.main = Math.max(0, maxCapacity - eb - inf - mg);
+    caps.extra_bed = (mg >= 1) ? Math.max(0, maxCapacity - mg - inf - eb) : 0;
+  }
+  caps.infant = (mg >= 1) ? Math.max(0, maxCapacity - mg - eb - inf) : 0;
+  return caps;
+}
+
+// Had PERINGKAT TRIP: baki slot guest untuk bilik NI selepas tolak guest
+// bilik-bilik lain — port groupCapFor() stepper lama (state.group_seats_left,
+// null = unlimited).
+function groupCapLeft(room) {
+  var gs = state.group_seats_left;
+  if (gs == null) return Infinity;
+  var others = totalGuestsAllRooms()
+    - ((room.main_guests || 0) + (room.extra_beds || 0) + (room.infants || 0));
+  return Math.max(0, gs - others);
+}
+
+// Cascade buang baris tak sah selepas mutasi — cermin handler minus stepper
+// lama: cruise main guest berkurangan hingga tak penuh capacity → baris
+// Extra Bed tak sah; tiada main guest → baris infant tak sah.
+// PENTING: kaunter di-SYNC Dahulu (syncRoomCounters) supaya peraturan dibaca
+// daripada keadaan SELEPAS mutasi — bukan kaunter stale pra-mutasi (punca
+// cascade senyap: mg 2→1 masih dibaca 2 === capacity → Extra Bed tertinggal).
+function applyRoomCascades(room) {
+  syncRoomCounters(room);
+  if (state.is_cruise_trip) {
+    var c = cabinByCategory(room.room_category);
+    var capacity = c ? (c.capacity || 0) : 0;
+    if ((room.main_guests || 0) !== capacity && (room.extra_beds || 0) > 0) {
+      room.guests = (room.guests || []).filter(function(g) { return g.slot !== "extra_bed"; });
+    }
+  }
+  if ((room.main_guests || 0) < 1) {
+    room.guests = (room.guests || []).filter(function(g) { return g.slot !== "infant"; });
+  }
+  syncRoomCounters(room);
+}
+
+// Kadar paparan satu baris guest — cermin _price_selection backend: cruise
+// main sorangan = price_adult_single, main ≥2 = price_adult setiap org
+// (kadar SEMUA baris main bertukar bila mg 1↔2 — render semula kad);
+// extra bed = price_upperberth (cruise) / price_children (non-cruise,
+// pemetaan kaunter umur); infant = price_infant. Promo strikethrough ikut
+// original_pricing (rateWithSlash).
+function guestRowRate(room, g, pricing, origPricing) {
+  var orig = origPricing || null;
+  if (g.slot === "infant")
+    return rateWithSlash(pricing.price_infant, orig && orig.price_infant);
+  if (state.is_cruise_trip) {
+    if (g.slot === "extra_bed")
+      return rateWithSlash(pricing.price_upperberth, orig && orig.price_upperberth);
+    return (room.main_guests || 0) === 1
+      ? rateWithSlash(pricing.price_adult_single, orig && orig.price_adult_single)
+      : rateWithSlash(pricing.price_adult, orig && orig.price_adult);
+  }
+  if (g.slot === "extra_bed")
+    return rateWithSlash(pricing.price_children, orig && orig.price_children);
+  return rateWithSlash(pricing.price_adult, orig && orig.price_adult);
+}
+
+// Tambah baris guest. slot "auto": main berth dahulu; bila penuh → Extra
+// Bed (cruise sahaja). Kategori default adult (boleh tukar kemudian);
+// infant ditambah melalui slot "infant" tersendiri.
+function addGuest(room, slot) {
+  var caps = roomSlotCaps(room);
+  if (slot === "auto") {
+    slot = caps.main > 0 ? "main" : (caps.extra_bed > 0 ? "extra_bed" : "");
+    if (!slot) return;
+  } else if ((slot === "infant" ? caps.infant : caps[slot]) <= 0) {
+    return;
+  }
+  if (groupCapLeft(room) <= 0) return;
+  room.guests.push({ slot: slot, category: slot === "infant" ? "infant" : "adult" });
+  syncRoomCounters(room);
+  renderRooms();
+  saveState();
+}
+
+// Buang satu baris guest (Guest 1 main dikunci — tak boleh dibuang).
+function removeGuest(room, g) {
+  var idx = (room.guests || []).indexOf(g);
+  if (idx < 0) return;
+  room.guests.splice(idx, 1);
+  applyRoomCascades(room);
+  renderRooms();
+  saveState();
+}
+
+// Bina blok baris guest untuk satu bilik (renderRooms selepas kabin
+// dipilih). Susunan baris: main → extra_bed → infant (turutan spec SO
+// backend); "Guest N" bernombor ikut turutan paparan.
+function buildGuestRows(room, cab, pricing, origPricing) {
+  normalizeRoomGuests(room);  // defensive: snapshot lama tanpa 'guests'
+
+  var wrap = document.createElement("div");
+  wrap.className = "bnw-guests";
+
+  var caps      = roomSlotCaps(room);
+  var groupLeft = groupCapLeft(room);
+
+  var slotRank = { main: 0, extra_bed: 1, infant: 2 };
+  var rows = (room.guests || []).slice().sort(function(a, b) {
+    return (slotRank[a.slot] || 0) - (slotRank[b.slot] || 0);
+  });
+
+  rows.forEach(function(g, i) {
+    var isLead = (i === 0 && g.slot === "main");
+    var row = document.createElement("div");
+    row.className = "bnw-guest-row" + (g.slot === "infant" ? " bnw-guest-row--infant" : "");
+
+    var no = document.createElement("span");
+    no.className = "bnw-guest-no";
+    no.textContent = "Guest " + (i + 1);
+    row.appendChild(no);
+
+    // Badge slot — cruise sahaja (non-cruise tiada konsep slot fizikal;
+    // kategori umur terus menentukan kadar).
+    if (state.is_cruise_trip) {
+      var badge = document.createElement("span");
+      badge.className = "bnw-guest-slot"
+        + (g.slot === "extra_bed" ? " bnw-guest-slot--extra" : "")
+        + (g.slot === "infant" ? " bnw-guest-slot--infant" : "");
+      badge.textContent = guestSlotLabel(g.slot);
+      row.appendChild(badge);
+    }
+
+    // Kategori umur. Guest 1 & baris infant: statik (wajib adult / infant).
+    // Baris lain: pilih Adult/Child. Cruise — kategori metadata sahaja
+    // (kadar ikut slot; kanak-kanak main berth dikenakan kadar dewasa).
+    // Non-cruise — kategori menentukan slot & kadar (model umur).
+    if (g.slot === "infant") {
+      var catStatic = document.createElement("span");
+      catStatic.className = "bnw-guest-cat bnw-guest-cat--static";
+      catStatic.textContent = guestCatLabel("infant");
+      row.appendChild(catStatic);
+    } else if (isLead) {
+      var catLead = document.createElement("span");
+      catLead.className = "bnw-guest-cat bnw-guest-cat--static";
+      catLead.textContent = guestCatLabel("adult");
+      row.appendChild(catLead);
+    } else {
+      var cat = document.createElement("select");
+      cat.className = "bnw-guest-cat";
+      ["adult", "child"].forEach(function(opt) {
+        var o = document.createElement("option");
+        o.value = opt;
+        o.textContent = guestCatLabel(opt);
+        if ((g.category || "adult") === opt) o.selected = true;
+        cat.appendChild(o);
+      });
+      cat.addEventListener("change", function() {
+        g.category = this.value;
+        // Non-cruise: kategori menentukan slot (pemetaan kaunter agregat
+        // adult→main, child→extra_bed). Cruise: slot kekal.
+        if (!state.is_cruise_trip) {
+          g.slot = (g.category === "child") ? "extra_bed" : "main";
+        }
+        syncRoomCounters(room);
+        renderRooms();
+        saveState();
+      });
+      row.appendChild(cat);
+    }
+
+    var rate = document.createElement("span");
+    rate.className = "bnw-guest-rate";
+    rate.innerHTML = guestRowRate(room, g, pricing, origPricing);
+    row.appendChild(rate);
+
+    // Nota child cruise: kadar dewasa dikenakan (kategori umur = data).
+    if (state.is_cruise_trip && g.category === "child" && g.slot !== "infant") {
+      var childNote = document.createElement("span");
+      childNote.className = "bnw-guest-childnote";
+      childNote.title = "Age category is recorded for rooming; the adult fare applies to this cabin.";
+      childNote.textContent = "adult fare";
+      row.appendChild(childNote);
+    }
+
+    if (isLead) {
+      var lock = document.createElement("span");
+      lock.className = "bnw-guest-lock";
+      lock.title = "The first guest must be an adult.";
+      lock.innerHTML = '<i class="ti ti-lock"></i>';
+      row.appendChild(lock);
+    } else {
+      var rm = document.createElement("button");
+      rm.type = "button";
+      rm.className = "bnw-guest-remove";
+      rm.setAttribute("aria-label", "Remove guest");
+      rm.innerHTML = '<i class="ti ti-x"></i>';
+      rm.addEventListener("click", function() { removeGuest(room, g); });
+      row.appendChild(rm);
+    }
+
+    wrap.appendChild(row);
+  });
+
+  // ── Butang tambah ──
+  var actions = document.createElement("div");
+  actions.className = "bnw-guest-actions";
+
+  // "Add Guest" → main berth; bila main penuh (cruise) bertukar "Add Extra
+  // Bed Guest". Hidden bila tiada slot langsung (non-cruise: main & extra
+  // berkongsi had sama; cruise tanpa upper berth fizikal).
+  var hasMain = caps.main > 0;
+  var hasExtra = state.is_cruise_trip && caps.extra_bed > 0;
+  if (hasMain || hasExtra) {
+    var addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "bnw-btn-add-guest";
+    addBtn.innerHTML = '<i class="ti ti-user-plus"></i> '
+      + (hasMain ? "Add Guest" : "Add Extra Bed Guest");
+    var noSlot = !(hasMain || hasExtra);
+    addBtn.disabled = noSlot || groupLeft <= 0;
+    if (groupLeft <= 0) addBtn.title = "Trip capacity reached";
+    addBtn.addEventListener("click", function() { addGuest(room, "auto"); });
+    actions.appendChild(addBtn);
+  }
+
+  var addInfBtn = document.createElement("button");
+  addInfBtn.type = "button";
+  addInfBtn.className = "bnw-btn-add-guest bnw-btn-add-guest--infant";
+  addInfBtn.innerHTML = '<i class="ti ti-baby-carriage"></i> Add Infant';
+  addInfBtn.disabled = caps.infant <= 0 || groupLeft <= 0;
+  if (caps.infant <= 0) addInfBtn.title = "Infant requires at least 1 main guest and room capacity";
+  addInfBtn.addEventListener("click", function() { addGuest(room, "infant"); });
+  actions.appendChild(addInfBtn);
+
+  wrap.appendChild(actions);
+
+  // Nota dasar umur (Travel Settings price labels) — gabungan nota slot
+  // yang relevan dengan model trip, menggantikan nota per-stepper lama.
+  var noteKeys = state.is_cruise_trip
+    ? ["price_adult", "price_upperberth", "price_infant"]
+    : ["price_adult", "price_children", "price_infant"];
+  noteKeys.forEach(function(k) {
+    var t = getPriceNote(k);
+    if (!t) return;
+    var noteEl = document.createElement("div");
+    noteEl.className = "bnw-guest-note";
+    noteEl.innerHTML = t;  // HTML dari Travel Settings (corak stepper lama)
+    wrap.appendChild(noteEl);
+  });
+
+  return wrap;
+}
+
 function renderRooms() {
   var list  = document.getElementById("bnwRoomList");
   list.innerHTML = "";
   var avail = availableCabins();
-
-  // Reset array stepper kongsi — stepper dibina semula oleh forEach di bawah
-  // dan akan mendaftar refreshButtons() masing-masing semula (rujuk mkStepper).
-  allStepperRefreshers.length = 0;
 
   state.rooms.forEach(function(room, idx) {
     var card = document.createElement("div");
@@ -1807,10 +2248,26 @@ function renderRooms() {
     if (!isOpen) {
       var pax      = room.main_guests + room.extra_beds + room.infants;
       var subtotal = c ? priceRoomSelection(c.pricing, room.main_guests, room.extra_beds, room.infants) : 0;
+      // Pecahan kategori umur daripada baris guests itemized —
+      // "2 pax (1 adult, 1 child)". Snapshot lama tanpa 'guests' →
+      // tiada pecahan (kaunter sahaja).
+      var gCounts = { adult: 0, child: 0, infant: 0 };
+      (room.guests || []).forEach(function(g) {
+        var cat = g.category || (g.slot === "infant" ? "infant" : "adult");
+        gCounts[cat] = (gCounts[cat] || 0) + 1;
+      });
+      var breakdown = "";
+      if (pax > 0) {
+        var parts = [];
+        if (gCounts.adult)  parts.push(gCounts.adult  + (gCounts.adult  > 1 ? " adults"    : " adult"));
+        if (gCounts.child)  parts.push(gCounts.child  + (gCounts.child  > 1 ? " children"  : " child"));
+        if (gCounts.infant) parts.push(gCounts.infant + (gCounts.infant > 1 ? " infants"   : " infant"));
+        if (parts.length) breakdown = " (" + parts.join(", ") + ")";
+      }
       var summary  = document.createElement("span");
       summary.className = "bnw-cabin-summary";
       // summary.textContent = "\u00b7 " + (room.room_category || "No room selected") + " \u00b7 " + pax + " pax \u00b7 " + fmt(subtotal);
-      summary.textContent = "\u00b7 " + (room.room_category || "No room selected") + " \u00b7 " + pax + " pax";
+      summary.textContent = "· " + (room.room_category || "No room selected") + " · " + pax + " pax" + breakdown;
       headLeft.appendChild(summary);
     }
     head.appendChild(headLeft);
@@ -1889,92 +2346,62 @@ function renderRooms() {
       // openCabinPickerModal(). Kad di sini cuma papar kabin terpilih +
       // kapasiti ikut keputusan produk 2026-09-13.)
 
-      // Vertical counter list: Main Guest / Extra Bed / Infant. Had setiap
-      // counter dikira SEMULA secara dinamik dalam mkStepper()'s capFor()
-      // (Extra Bed & Infant kini berkongsi baki capacity yang sama), jadi
-      // parameter 'max' di sini cuma placeholder — nilai sebenar diambil
-      // terus dari cabinByCategory() semasa setiap render.
-      var capacity = c ? (c.capacity || 0) : 0;
+      // ── ITEMIZED GUEST ROWS — satu baris per guest (bukan kaunter) ──
+      // Baris guest HANYA dibina & dipapar bila cabin type DAH dipilih —
+      // selagi placeholder "Select rooming type" dipapar, tiada harga.
+      // Bila bilik dipilih, selectCabinFromPicker() panggil renderRooms()
+      // semula jadi baris Guest 1 (adult, main berth) muncul serta-merta.
+      // Kaunter agregat kekal di-derive (syncRoomCounters) supaya semua
+      // logik harga/kapasiti/payload sedia ada tak berubah.
       var pricing  = c ? c.pricing : {};
       // Harga asal (pra-promosi) — untuk strikethrough Travel Price Rule.
       var origPricing = c ? (c.original_pricing || null) : null;
 
-      // Steppers harga (Main Guest / Extra Bed / Infant) HANYA dibina &
-      // dipapar bila cabin type DAH dipilih — selagi placeholder
-      // "Select rooming type" dipapar, tiada harga untuk dipilih. Bila bilik
-      // dipilih, selectCabinFromPicker() panggil renderRooms() semula jadi
-      // steppers muncul serta-merta.
-      var counters = null;
+      var guestsWrap = null;
       if (c) {
-        counters = document.createElement("div");
-        counters.className = "bnw-steppers";
-
-        // Extra Bed & Infant berkongsi kapasiti (capFor() masing-masing
-        // bergantung pada nilai counter SATU LAGI — rujuk capFor() dalam
-        // mkStepper()) — array ni kumpul refreshButtons() SETIAP stepper
-        // untuk room ni, supaya bila SALAH SATU counter berubah, kita boleh
-        // refresh SEMUA stepper (bukan cuma yang diklik). Sebelum ni, setiap
-        // stepper cuma refresh dirinya sendiri — punca bug: butang "+" Extra
-        // Bed kekal disabled selepas Infant dikurangkan (walhal kapasiti dah
-        // terbuka semula), sebab tiada apa trigger refresh Extra Bed punya
-        // capFor() semula bila Infant yang berubah.
-        var stepperRefreshers = allStepperRefreshers;  // kongsi array global (semua room)
-
-
-        if (state.is_cruise_trip) {
-          counters.appendChild(mkStepper(room, "main_guests", getPriceLabel("price_adult"), capacity, function() {
-            if(!pricing.price_adult ){ pricing.price_adult = 0; }
-            return room.main_guests === 1
-              ? rateWithSlash(pricing.price_adult_single, origPricing && origPricing.price_adult_single)
-              : rateWithSlash(pricing.price_adult, origPricing && origPricing.price_adult);
-          }, stepperRefreshers, getPriceNote("price_adult")));
-
-          // Extra Bed (price_upperberth) — HANYA bila cabin ada slot katil
-          // tambah, iaitu max_capacity > capacity. Bila capacity ===
-          // max_capacity (cth Interior 2/2), tiada upper berth fizikal —
-          // capFor() extra bed memang pulangkan 0 sentiasa, jadi stepper
-          // lama cuma butang mati; sembunyikan sahaja. max_capacity === 0
-          // (eksplisit) → UNLIMITED/overbooking dibenarkan → kekal papar.
-          var _unlimitedMax = !!(c && c.max_capacity === 0);
-          var _hasUpperBerth = !c || _unlimitedMax ||
-            ((c.max_capacity || 0) > (c.capacity || 0));
-          if (_hasUpperBerth) {
-            counters.appendChild(mkStepper(room, "extra_beds", getPriceLabel("price_upperberth"), 0, function() {
-              if(!pricing.price_upperberth ){ pricing.price_upperberth = 0; }
-              return rateWithSlash(pricing.price_upperberth, origPricing && origPricing.price_upperberth);
-            }, stepperRefreshers, getPriceNote("price_upperberth")));
-          } else if (room.extra_beds) {
-            // Cabin ditukar ke jenis tanpa upper berth — buang nilai lama
-            // supaya harga & payload tak bawa extra bed fantom.
-            room.extra_beds = 0;
-          }
-        } else {
-          // Non-cruise (model UMUR): Adult (price_adult) + Children (price_children).
-          counters.appendChild(mkStepper(room, "main_guests", getPriceLabel("price_adult"), capacity, function() {
-            if(!pricing.price_adult ){ pricing.price_adult = 0; }
-            return rateWithSlash(pricing.price_adult, origPricing && origPricing.price_adult);
-          }, stepperRefreshers, getPriceNote("price_adult")));
-
-          counters.appendChild(mkStepper(room, "extra_beds", getPriceLabel("price_children"), 0, function() {
-            if(!pricing.price_children ){ pricing.price_children = 0; }
-            return rateWithSlash(pricing.price_children, origPricing && origPricing.price_children);
-          }, stepperRefreshers, getPriceNote("price_children")));
-        }
-
-        counters.appendChild(mkStepper(room, "infants", getPriceLabel("price_infant"), 0, function() {
-          if(!pricing.price_infant ){ pricing.price_infant = 0; }
-          return rateWithSlash(pricing.price_infant, origPricing && origPricing.price_infant);
-        }, stepperRefreshers, getPriceNote("price_infant")));
+        guestsWrap = buildGuestRows(room, c, pricing, origPricing);
       }
 
       card.appendChild(typeField);
-      if (counters) card.appendChild(counters);
+      if (guestsWrap) card.appendChild(guestsWrap);
+
+      // Petunjuk baki KABIN kolam kontrak sailing utk kategori bilik ni —
+      // papar bila offer ada kolam (cruise ber-schedule) dan kolam kategori
+      // ni rendah (≤ POOL_HINT_MAX). Inventori mengira KABIN bukan
+      // penumpang — baki berubah bila bilik ditambah/dibuang (renderRooms
+      // re-render), BUKAN bila pax dalam bilik dikurangkan/tambah
+      // (stepper) kerana tetamu berkongsi kabin. Padan gate server
+      // check_offer_capacity yang kira 1 kabin per selection.
+      (function() {
+        var pc = cabinByCategory(room.room_category);
+        if (!pc || pc.pool_cabins_left == null || pc.pool_cabins_left > POOL_HINT_MAX) return;
+        var used = roomsUsedOfCategory(room.room_category, null);
+        var left = Math.max(0, pc.pool_cabins_left - used);
+        var hintEl = document.createElement("p");
+        hintEl.className = "bnw-pool-hint"
+          + (left === 0 ? " bnw-pool-hint--empty" : "")
+          + (left > 0 && left <= 3 ? " bnw-pool-hint--low" : "");
+        var hintIco = document.createElement("i");
+        hintIco.className = "ti ti-alert-circle";
+        var hintTxt = document.createElement("span");
+        hintTxt.textContent = left === 0
+          ? " No " + (pc.room_name || pc.room_category) + " cabins left on this sailing — please pick another cabin type."
+          : " Only " + left + " " + (pc.room_name || pc.room_category)
+            + " cabin" + (left === 1 ? "" : "s") + " left on this sailing.";
+        hintEl.appendChild(hintIco);
+        hintEl.appendChild(hintTxt);
+        card.appendChild(hintEl);
+      })();
+
       // Room privacy — cabin cruise betul-betul SOLO sahaja (total penghuni
       // main_guests + extra_beds + infants = 1). Diletakkan di BAWAH kad
-      // selepas counters: flow pilih kabin → set tetamu → baru soalan
+      // selepas baris guest: flow pilih kabin → set tetamu → baru soalan
       // sharing muncul; kad >1 orang kekal bersih. Harga tak berubah
       // (kekal price_adult_single masa checkout) — checkbox ni rekod janji
       // operasi: padankan roommate → refund lebihan nanti.
+      // Setiap mutasi baris guest (tambah/buang) panggil renderRooms()
+      // semula — blok ni dibina semula secara semula jadi, tiada lagi
+      // refresher manual (mekanisme stepper lama).
       var showPrivacy = state.is_cruise_trip && room.room_category &&
         (room.main_guests + room.extra_beds + room.infants) === 1;
       if (!showPrivacy && room.room_privacy) {
@@ -1983,25 +2410,7 @@ function renderRooms() {
         room.room_privacy = "";
       }
       if (showPrivacy) {
-        var privacyBlock = buildPrivacyBlock(room);
-        card.appendChild(privacyBlock);
-        // Extra Bed & Infant stepper TAK rebuild kad (flicker-free, rujuk
-        // refreshAll() dalam mkStepper()) — tanpa refresher ni blok akan
-        // "terlekat" bila user tambah tetamu selepas tick. Daftar semakan
-        // ke array kongsi: buang blok + kosongkan nilai bila bukan solo
-        // lagi, papar semula (checkbox unchecked) bila solo semula.
-        stepperRefreshers.push(function() {
-          var solo = state.is_cruise_trip && room.room_category &&
-            (room.main_guests + room.extra_beds + room.infants) === 1;
-          if (!solo) {
-            room.room_privacy = "";
-            if (privacyBlock.parentNode) privacyBlock.parentNode.removeChild(privacyBlock);
-          } else if (!privacyBlock.parentNode) {
-            var cb = privacyBlock.querySelector("input[type=checkbox]");
-            if (cb) cb.checked = room.room_privacy === "Open Sharing";
-            card.appendChild(privacyBlock);
-          }
-        });
+        card.appendChild(buildPrivacyBlock(room));
       }
     }
 
@@ -2072,12 +2481,12 @@ function buildPrivacyBlock(room) {
 // (nama, deskripsi, kapasiti, harga asas) + MEDIA: slider GAMBAR sahaja
 // (cover room_profile dahulu, diikuti gallery) — video bilik dibuka
 // melalui butang mini play (fullscreen) sebelah "Select This Room".
-// SEARCH BOX carian nama & FILTER chips room_type di bahagian AWAL
+// SEARCH BOX carian nama & FILTER chips category_group di bahagian AWAL
 // modal. Lepas kabin dipilih: modal tertutup & renderRooms() papar
 // kabin terpilih + kapasiti sahaja (keputusan produk 2026-09-13).
 // ═════════════════════════════════════════════════════════
 var _cabinPickerRoomUid = null;  // room.uid yang sedang membuka picker
-var _cabinPickerFilter  = "";    // room_type terfilter ("" = semua)
+var _cabinPickerFilter  = "";    // category_group terfilter ("" = semua)
 var _cabinPickerSearch  = "";    // carian nama kabin ("" = semua; lowercase)
 
 // Label kapasiti kabin — format SAMA dengan option dropdown lama:
@@ -2135,7 +2544,7 @@ function openCabinPickerModal(room) {
   dialog.appendChild(head);
 
   // ── Search box — cari kabin ikut NAMA (room_name / room_category).
-  // Digabung dengan filter chips room_type: kedua-dua syarat mesti padan.
+  // Digabung dengan filter chips category_group: kedua-dua syarat mesti padan.
   // Input event rebuild senarai sahaja (renderCabinPickerList), bukan
   // keseluruhan dialog — fokus kekal dalam input semasa menaip.
   var search = document.createElement("div");
@@ -2156,13 +2565,13 @@ function openCabinPickerModal(room) {
   search.appendChild(searchInput);
   dialog.appendChild(search);
 
-  // ── Filter chips ikut room_type — di AWAL section senarai kabin.
-  // Hanya dipapar bila ada > 1 jenis room_type yang berbeza (kalau semua
+  // ── Filter chips ikut category_group — di AWAL section senarai kabin.
+  // Hanya dipapar bila ada > 1 jenis category_group yang berbeza (kalau semua
   // kabin satu jenis, filter tak berguna — sembunyi).
   var avail = availableCabins();
   var types = [];
   avail.forEach(function(cab) {
-    var rt = (cab.room_type || "").trim();
+    var rt = (cab.category_group || "").trim();
     if (rt && types.indexOf(rt) === -1) types.push(rt);
   });
   if (types.length > 1) {
@@ -2222,7 +2631,7 @@ function renderCabinPickerList() {
 
   var room = currentPickerRoom();
   var avail = availableCabins().filter(function(cab) {
-    if (_cabinPickerFilter && (cab.room_type || "").trim() !== _cabinPickerFilter) return false;
+    if (_cabinPickerFilter && (cab.category_group || "").trim() !== _cabinPickerFilter) return false;
     if (_cabinPickerSearch) {
       // Padan ikut nama paparan ATAU kod kategori — kedua-duanya dilihat
       // user sebagai "nama" bilik. Case-insensitive substring.
@@ -2293,7 +2702,7 @@ function renderCabinPickerList() {
     }
 
     // ── Blok bawah kad — DUA KOLUMN (selepas description): ──
-    //   KIRI : badge room_type (Cabin/Suite) + link More
+    //   KIRI : badge category_group (Cabin/Suite) + link More
     //   KANAN: kapasiti pax, harga From, butang Select This Room
     var p = cab.pricing || {};
     var basePrices = state.is_cruise_trip
@@ -2306,10 +2715,10 @@ function renderCabinPickerList() {
 
     var bottomLeft = document.createElement("div");
     bottomLeft.className = "bnw-cpick-bottom-left";
-    if ((cab.room_type || "").trim()) {
+    if ((cab.category_group || "").trim()) {
       var badge = document.createElement("span");
       badge.className = "bnw-cpick-badge";
-      badge.textContent = cab.room_type;
+      badge.textContent = cab.category_group;
       bottomLeft.appendChild(badge);
     }
     if (cab.read_more_url) {
@@ -2329,6 +2738,22 @@ function renderCabinPickerList() {
     capSpan.className = "bnw-cpick-capacity";
     capSpan.innerHTML = '<i class="ti ti-users-group"></i> ' + capacityLabel(cab);
     bottomRight.appendChild(capSpan);
+    // Baki KABIN kolam kontrak sailing utk kategori ni — badge amaran bila
+    // rendah (kolam besar tak dipaparkan). Inventori mengira kabin, bukan
+    // penumpang. Baki dikira semula setiap kali picker dibuka (render
+    // list) tolak bilik kategori sama yang dah dalam cart.
+    if (cab.pool_cabins_left != null) {
+      var poolLeft = Math.max(0, cab.pool_cabins_left
+        - roomsUsedOfCategory(cab.room_category, room));
+      if (poolLeft > 0 && poolLeft <= POOL_HINT_MAX) {
+        var leftSpan = document.createElement("span");
+        leftSpan.className = "bnw-cpick-left"
+          + (poolLeft <= 3 ? " bnw-cpick-left--low" : "");
+        leftSpan.innerHTML = '<i class="ti ti-alert-circle"></i> '
+          + poolLeft + " cabin" + (poolLeft === 1 ? "" : "s") + " left";
+        bottomRight.appendChild(leftSpan);
+      }
+    }
     if (base > 0) {
       var priceSpan = document.createElement("span");
       priceSpan.className = "bnw-cpick-meta-price";
@@ -2371,12 +2796,28 @@ function renderCabinPickerList() {
     var selBtn = document.createElement("button");
     selBtn.type = "button";
     selBtn.className = "bnw-cpick-select";
-    selBtn.innerHTML = isSelected
-      ? '<i class="ti ti-circle-check"></i> Selected'
-      : "Select This Room";
-    selBtn.addEventListener("click", function() {
-      selectCabinFromPicker(cab);
-    });
+    // Had KABIN kolam kontrak sailing: kategori yang dah habis kabinnya
+    // (bilik kategori sama dalam cart ≥ baki kolam) tak boleh dipilih
+    // utk bilik NI — kecuali bilik ni sendiri sudah kategori tu (tukar
+    // ke kategori sama = tiada perubahan kiraan). Room yang sedang
+    // diedit dikira keluar (kategorinya akan diganti). Gate berlock
+    // sebenar: check_offer_capacity server.
+    var poolBlocked = cab.pool_cabins_left != null
+      && roomsUsedOfCategory(cab.room_category, room) >= cab.pool_cabins_left
+      && !isSelected;
+    if (poolBlocked) {
+      selBtn.className += " bnw-cpick-select--blocked";
+      selBtn.disabled = true;
+      selBtn.innerHTML = '<i class="ti ti-ban"></i> No Cabins Left';
+      card.classList.add("bnw-cpick-card--blocked");
+    } else {
+      selBtn.innerHTML = isSelected
+        ? '<i class="ti ti-circle-check"></i> Selected'
+        : "Select This Room";
+      selBtn.addEventListener("click", function() {
+        selectCabinFromPicker(cab);
+      });
+    }
     btnRow.appendChild(selBtn);
 
     bottomRight.appendChild(btnRow);
@@ -2390,15 +2831,19 @@ function renderCabinPickerList() {
 }
 
 // Simpan pilihan kabin ke room, TUTUP modal & render semula kad —
-// counter pax direset (kapasiti kabin baru), sama tingkah laku dengan
-// dropdown lama. renderRooms() papar nama kabin + kapasiti sahaja.
+// baris guest direset (kapasiti kabin baru), sama tingkah laku dengan
+// reset kaunter lama. Guest 1 (adult, main berth) terus disediakan:
+// lead guest wajib adult + kadar solo (cruise) terpapar serta-merta.
+// room_privacy juga direset — pilihan sharing bilik LAMA tidak boleh
+// tertinggal pada kabin baharu (reset kaunter lama menclear privacy
+// melalui renderRooms; di sini pax terus 1 jadi clear secara eksplisit).
 function selectCabinFromPicker(cab) {
   var room = currentPickerRoom();
   if (room) {
     room.room_category = cab.room_category;
-    room.main_guests = 0;
-    room.extra_beds  = 0;
-    room.infants     = 0;
+    room.guests = [{ slot: "main", category: "adult" }];
+    syncRoomCounters(room);
+    room.room_privacy = "";
   }
   closeCabinPickerModal();
   renderRooms();
@@ -2572,236 +3017,6 @@ function buildCabinCarousel(cab) {
   return wrap;
 }
 
-function mkStepper(room, key, label, max, rateFn, refreshers, noteText) {
-  // ------------------------------------------
-  var row = document.createElement("div");
-  row.className = "bnw-stepper";
-  // ------------------------------------------
-
-  // ── Declare button elements AWAL (sebelum refreshButtons) ──
-  var minus = document.createElement("button");
-  minus.className = "bnw-stepper-btn";
-  minus.type = "button";
-  minus.textContent = "\u2212";
-
-  var val = document.createElement("span");
-  val.className = "bnw-stepper-val";
-  val.textContent = room[key];
-
-  var plus = document.createElement("button");
-  plus.className = "bnw-stepper-btn";
-  plus.type = "button";
-  plus.textContent = "+";
-
-  // ── ROW: Info (label+price) + Controls ──
-  var stepperRow = document.createElement("div");
-  stepperRow.className = "bnw-stepper-row";
-
-  // Col 1: Label + Price (flexible width)
-  var infoCol = document.createElement("div");
-  infoCol.className = "bnw-stepper-info";
-
-  var lbl = document.createElement("div");
-  lbl.className = "bnw-stepper-label";
-
-  var lblText = document.createElement("span");
-  lblText.className = "bnw-stepper-label-text";
-  lblText.textContent = label;
-  lbl.appendChild(lblText);
-
-  infoCol.appendChild(lbl);
-
-  var rate = document.createElement("div");
-  rate.className = "bnw-stepper-rate";
-  // ------------------------------------------
-  function capFor() {
-
-    var c = cabinByCategory(room.room_category);
-    var capacity    = c ? (c.capacity || 0) : 0;
-    // max_capacity === 0 (eksplisit) -> UNLIMITED: overbooking cabin
-    // dibenarkan (pilihan user "per-cabin"). Server (get_booking_details)
-    // kekal hantar 0 untuk unlimited, fallback `capacity` bila NULL —
-    // jadi bezakan 0 di sini SEBELUM `|| capacity` (0 falsy akan ter-skip).
-    var unlimited   = !!(c && c.max_capacity === 0);
-    var maxCapacity = unlimited ? Infinity : (c ? (c.max_capacity || capacity) : 0);
-    // capacity sendiri 0 (cth cabin tanpa had fizikal) -> main guest tak
-    // limited secara struktur; treat sebagai Infinity juga (defensive,
-    // padan dengan _validate_selection_capacity server).
-    var mainCap     = capacity > 0 ? capacity : Infinity;
-
-    // Non-cruise (model UMUR): adult+children+infant berkongsi max_capacity;
-    // children dibenarkan bila-bila (tiada syarat "adult penuh") selagi ada
-    // >=1 adult. capacity (min) tak dipakai — had utama ialah max_capacity.
-    if (!state.is_cruise_trip) {
-      if (key === "main_guests") {
-        return unlimited ? Infinity : Math.max(0, maxCapacity - room.extra_beds - room.infants);
-      }
-      if (key === "extra_beds") {
-        if (room.main_guests < 1) return 0;
-        return unlimited ? Infinity : Math.max(0, maxCapacity - room.main_guests - room.infants);
-      }
-      if (key === "infants") {
-        if (room.main_guests < 1) return 0;
-        return unlimited ? Infinity : Math.max(0, maxCapacity - room.main_guests - room.extra_beds);
-      }
-      return 0;
-    }
-
-    if (key === "main_guests") {
-      // PENTING: bukan cuma capped oleh 'capacity' sendiri — Main Guest
-      // JUGA kena disable "+" kalau menambahnya akan exceed max_capacity
-      // KESELURUHAN cabin, memandangkan Extra Bed/Infant boleh dah guna
-      // sebahagian ruang WALAUPUN Main Guest belum sampai capacity lagi
-      // (cth Infant enable bila Main Guest >= 1, bukan perlu === capacity).
-      // Sebelum ni, capFor() Main Guest cuma pulangkan 'capacity' tetap,
-      // tak pernah ambil kira Extra Bed/Infant sedia ada — punca bug:
-      // Main Guest=1, Infant=3 (dah guna 4/4 ruang), tapi butang "+"
-      // Main Guest MASIH enabled, boleh diklik jadi Main Guest=2 (jumlah
-      // jadi 5, overbook kapasiti fizikal cabin). Sekarang: begitu total
-      // pax dah sampai max_capacity, "+" terus disabled — customer KENA
-      // kurangkan Extra Bed/Infant dulu secara eksplisit sebelum boleh
-      // tambah Main Guest semula (bukan auto-clamp/kurangkan senyap).
-      // Bila unlimited (max_capacity=0): maxCapacity=Infinity -> pulangkan
-      // mainCap (capacity struktur) sahaja.
-      return Math.min(mainCap, maxCapacity - room.extra_beds - room.infants);
-    }
-
-    if (key === "extra_beds") {
-      // Extra Bed: perlu Main Guest sudah penuh (= capacity) bila capacity
-      // terhad. capacity 0 (unlimited struktur) -> skip syarat ni, cuma
-      // perlu main_guests >= 1. Infant turut dikira dalam capacity bilik
-      // — Extra Bed & Infant berkongsi baki ruang (max_capacity -
-      // main_guests - infants). unlimited -> Infinity.
-      if (capacity > 0 && room.main_guests !== capacity) return 0;
-      if (capacity === 0 && room.main_guests < 1) return 0;
-      return Math.max(0, maxCapacity - room.main_guests - room.infants);
-    }
-
-    if (key === "infants") {
-      // Infant: enable bila Main Guest sekurang-kurangnya 1 (bukan 2 lagi).
-      // Infant dikira dalam capacity bilik — berkongsi baki ruang dengan
-      // Extra Bed (max_capacity - main_guests - extra_beds). unlimited
-      // -> Infinity.
-      if (room.main_guests < 1) return 0;
-      return Math.max(0, maxCapacity - room.main_guests - room.extra_beds);
-    }
-
-    return 0;
-  }
-
-  // Had PERINGKAT TRIP: jumlah guest SEMUA room tak boleh melebihi baki
-  // kapasiti trip-group-date (state.group_seats_left). null → unlimited.
-  // Diaplikasikan DI SINI (bukan dalam capFor) supaya logik per-cabin
-  // capFor() yang telah disahkan tak diusik — groupCapFor() bungkus capFor()
-  // dan constrain dengan baki kapasiti trip (seats_left − guest room lain).
-  function groupCapFor() {
-    var cap = capFor();
-    var gs = state.group_seats_left;
-    if (gs == null) return cap;
-    var others = totalGuestsAllRooms() - room[key];
-    return Math.min(cap, Math.max(0, gs - others));
-  }
-
-  function max_capacity_for_mg() {
-    var c = cabinByCategory(room.room_category);
-    return c ? (c.capacity || 0) : 0;
-  }
-
-  function refreshRate() {
-    // innerHTML — rateFn boleh pulangkan <s> strikethrough harga asal
-    // (Travel Price Rule, rujuk rateWithSlash()). String rateFn semua
-    // dibina dalaman dari fmt() nombor sahaja.
-    rate.innerHTML = rateFn ? rateFn() : "";
-  }
-
-  function refreshButtons() {
-    minus.disabled = room[key] <= 0;
-    plus.disabled  = room[key] >= groupCapFor();
-    refreshRate();
-  }
-  refreshButtons();
-
-  // Daftar refreshButtons() stepper ni ke senarai KONGSI (refreshers, sama
-  // array dipassing untuk ketiga-tiga stepper Main Guest/Extra Bed/Infant
-  // dalam SATU room — rujuk renderRooms()). refreshAll() di bawah guna
-  // senarai ni untuk refresh SEMUA stepper (bukan cuma diri sendiri) bila
-  // mana-mana satu counter berubah — supaya Extra Bed & Infant, yang
-  // capFor() masing-masing bergantung pada nilai SATU LAGI, sentiasa
-  // sepadan dengan kapasiti TERKINI tanpa perlu rebuild seluruh DOM
-  // (renderRooms()) — flicker-free, sepadan Opsyen 2.
-  if (refreshers) refreshers.push(refreshButtons);
-
-  function refreshAll() {
-    if (refreshers && refreshers.length) {
-      refreshers.forEach(function(fn) { fn(); });
-    } else {
-      refreshButtons();
-    }
-  }
-
-  // minus button action
-  minus.addEventListener("click", function() {
-
-    room[key] = Math.max(0, room[key] - 1);
-    
-    if (key === "main_guests") {
-      
-      // Cascade: turunkan Extra Bed / Infant kalau melanggar rule
-      var cap = max_capacity_for_mg();
-      if (room.main_guests !== cap) room.extra_beds = 0;
-      if (room.main_guests < 1) room.infants = 0;
-      
-      renderRooms();
-      return;
-    }
-
-    val.textContent = room[key];
-    refreshAll();
-    updateTotals();
-  });
-
-  // plus button action
-  plus.addEventListener("click", function() {
-
-    room[key] = Math.min(groupCapFor(), room[key] + 1);
-
-    if (key === "main_guests") {
-      renderRooms();
-      return;
-    }
-
-    val.textContent = room[key];
-    refreshAll();
-    updateTotals();
-  });
-
-  // Add rate to info column
-  infoCol.appendChild(rate);
-
-  // Col 2: Stepper controls (fixed width)
-  var stepper = document.createElement("div");
-  stepper.className = "bnw-stepper-controls";
-
-  stepper.appendChild(minus);
-  stepper.appendChild(val);
-  stepper.appendChild(plus);
-
-  // Assemble row: Info | Controls
-  stepperRow.appendChild(infoCol);
-  stepperRow.appendChild(stepper);
-  row.appendChild(stepperRow);
-
-  // Note text (full width below) - if provided
-  if (noteText) {
-    var noteDiv = document.createElement("div");
-    noteDiv.className = "bnw-stepper-note";
-    noteDiv.innerHTML = noteText;  // HTML from Travel Settings
-    row.appendChild(noteDiv);
-  }
-
-  return row;
-}
-
 // NOTA: state.selections (agregat ikut kategori, across semua cabin) HANYA
 // dipakai untuk VALIDATION (contoh: adakah ada sebarang pax dipilih sebelum
 // boleh Next). Kiraan harga sebenar guna priceRoomSelection() per-cabin dari
@@ -2888,6 +3103,9 @@ function guestLabel(priceKey, fallback) {
 // Data ringkasan SEMUA room aktif: {cabins: [{title, guestLines, privacy, fare}],
 // grand, totalPax}. Logika harga cermin backend _price_selection() — cruise =
 // model slot (single/twin + upper berth), non-cruise = model umur (flat pax).
+// Baris guest itemized: kategori umur per baris (dari room.guests) dipaparkan
+// sebagai akhiran "(Child)" pada baris main/extra cruise — selari baris guest
+// Stage 1. Snapshot lama tanpa 'guests' fallback kategori default.
 function getCabinSummaryData() {
   var activeRooms = state.rooms.filter(function(r) {
     return r.room_category && (r.main_guests + r.extra_beds + r.infants) > 0;
@@ -2902,11 +3120,18 @@ function getCabinSummaryData() {
     var cabinFare = 0;
     var guestLines = [];
     var guestNo = 1;
-    function addLines(priceKey, fallbackLabel, rate, count) {
+    var cats = roomSlotCategories(r);
+    // Akhiran kategori umur — cruise sahaja (non-cruise: label harga dah
+    // bunyikan kategori — Adult/Children).
+    function catSuffix(cat) {
+      return (state.is_cruise_trip && cat === "child") ? " (Child)" : "";
+    }
+    function addLines(priceKey, fallbackLabel, rate, count, catList) {
       rate = Number(rate || 0);
       for (var i = 0; i < count; i++) {
         cabinFare += rate;
-        guestLines.push(["Guest " + guestNo + ": " + guestLabel(priceKey, fallbackLabel), rate]);
+        var suffix = catList ? catSuffix(catList[i]) : "";
+        guestLines.push(["Guest " + guestNo + ": " + guestLabel(priceKey, fallbackLabel) + suffix, rate]);
         guestNo++;
       }
     }
@@ -2915,12 +3140,12 @@ function getCabinSummaryData() {
       if (r.main_guests === 1) {
         var singleRate = Number(p.price_adult_single || 0);
         cabinFare += singleRate;
-        guestLines.push(["Guest " + guestNo + ": " + guestLabel("price_adult", "Main Guest"), singleRate]);
+        guestLines.push(["Guest " + guestNo + ": " + guestLabel("price_adult", "Main Guest") + catSuffix(cats.main[0]), singleRate]);
         guestNo++;
       } else {
-        addLines("price_adult", "Main Guest", p.price_adult, r.main_guests);
+        addLines("price_adult", "Main Guest", p.price_adult, r.main_guests, cats.main);
       }
-      addLines("price_upperberth", "Extra Bed", p.price_upperberth, r.extra_beds);
+      addLines("price_upperberth", "Extra Bed", p.price_upperberth, r.extra_beds, cats.extra);
     } else {
       addLines("price_adult", "Adult", p.price_adult, r.main_guests);
       addLines("price_children", "Children", p.price_children, r.extra_beds);
@@ -3050,22 +3275,333 @@ if (step1NextEl) step1NextEl.addEventListener("click", function() {
   aggregateSelections();
   var active = Object.values(state.selections).filter(function(s) { return s.main_guests + s.extra_beds + s.infants > 0; });
   if (!active.length) return;
-  
+
+  // Muat katalog addon untuk konteks trip/pakej semasa (Step 2) — async,
+  // tak halang peralihan langkah; kad render bila data sampai.
+  if (typeof ensureAddonsLoaded === "function") ensureAddonsLoaded();
+
   // Build booking summary untuk Section 2 sebelum show
   if (typeof buildBookingSummary === "function") buildBookingSummary();
-  
+
   showStep(2);
 });
 
-		// ─── STEP 2: BILLING + OTP ────────────────────────────────
-	var step2BackEl = document.getElementById("bnwStep2Back") || document.getElementById("step2Back");
-	if (step2BackEl) step2BackEl.addEventListener("click", function() { showStep(1); });
+// ═══════════════════════════════════════════════════════════
+// STEP 2: ADD-ONS (katalog wizard — sebelum booking wujud)
+// ═══════════════════════════════════════════════════════════
+// Katalog di-fetch dari get_wizard_addons (allow_guest) sekali per
+// konteks (TGD + pakej/offer + currency). Harga paparan sahaja —
+// confirm_booking() re-price semula dari DB (server-authoritative).
+// Add-on adalah PILIHAN: butang Continue sentiasa aktif.
+
+// Bilangan pax LAYAK untuk addon per-pax — pax bayar penuh + pax katil
+// tambahan (cruise: Main Guest + Extra Bed; tour: Adult + Children).
+// Infant dilangkau — selari semakan server (eligible_pax).
+function addonEligiblePax() {
+  var n = 0;
+  Object.values(state.selections || {}).forEach(function(s) {
+    n += (s.main_guests || 0) + (s.extra_beds || 0);
+  });
+  return n;
+}
+
+// Kunci konteks fetch — berubah bila customer tukar tarikh/pakej/currency.
+function addonContextKey() {
+  var offer = (USE_PACKAGE_OFFERS && selectedPackage && selectedPackage.offer) || "";
+  return (state.trip_group_date || "") + "|" + offer + "|" + billingCurrency();
+}
+
+var _addonFetching = false;
+function ensureAddonsLoaded(force) {
+  if (!state.trip_group_date) return;
+  // Pastikan state.selections segar daripada state.rooms — restoreWizard
+  // hanya pulihkan rooms; eligiblePax (had qty Per Pax) bergantung pada
+  // agregat ini. aggregateSelections() reset + rebuild — idempoten.
+  if (typeof aggregateSelections === "function") aggregateSelections();
+  var key = addonContextKey();
+  if (!force && state.addon_catalog && state.addon_fetch_key === key) {
+    renderAddonCatalog();
+    return;
+  }
+  if (_addonFetching) return;
+  _addonFetching = true;
+  state.addon_fetch_failed = false;
+
+  // Skeleton semasa fetch
+  var listEl = document.getElementById("bnwAddonList");
+  if (listEl) listEl.innerHTML =
+    '<div class="bnw-addon-skeleton"></div>' +
+    '<div class="bnw-addon-skeleton"></div>' +
+    '<div class="bnw-addon-skeleton"></div>';
+
+  apiCall(
+    "travel_booking.api.addon_manager.get_wizard_addons",
+    {
+      trip_group_date: state.trip_group_date,
+      travel_package:  (USE_PACKAGE_OFFERS && selectedPackage && selectedPackage.travel_package) || "",
+      package_offer:   (USE_PACKAGE_OFFERS && selectedPackage && selectedPackage.offer) || "",
+      currency:        billingCurrency(),
+    },
+    true  // GET
+  ).then(function(data) {
+    _addonFetching = false;
+    state.addon_catalog = (data && data.addons) || [];
+    state.addon_fetch_key = addonContextKey();
+    // Buang pilihan yang tak lagi wujud / tak boleh dibeli dalam katalog
+    // baharu (cth tukar tarikh → scope lain).
+    var _valid = {};
+    state.addon_catalog.forEach(function(a) {
+      (a.packages || []).forEach(function(p) {
+        if (state.addons[p.addon_package]) _valid[p.addon_package] = state.addons[p.addon_package];
+      });
+    });
+    state.addons = _valid;
+    renderAddonCatalog();
+    buildAddonSummary();
+  }).catch(function() {
+    _addonFetching = false;
+    state.addon_fetch_failed = true;
+    renderAddonCatalog();
+  });
+}
+
+// Had atas qty untuk satu package — paling ketat antara had per-booking,
+// baki stok, dan (Per Pax) bilangan pax layak. Server sahkan semula.
+function addonQtyCap(pkg) {
+  var cap = Infinity;
+  if (pkg.max_qty_per_booking) cap = Math.min(cap, pkg.max_qty_per_booking);
+  if (pkg.remaining != null)    cap = Math.min(cap, pkg.remaining);
+  if ((pkg.scope || "Per Booking") === "Per Pax") cap = Math.min(cap, addonEligiblePax());
+  return cap;
+}
+
+function setAddonQty(addon, pkg, qty) {
+  var cap = addonQtyCap(pkg);
+  var q = Math.max(0, Math.min(cap, qty || 0));
+  // Variant (radio): hanya SATU package per addon boleh aktif — qty pada
+  // package lain addon yang sama dikosongkan (corak portal booking_addons).
+  (addon.packages || []).forEach(function(p) {
+    if (p.addon_package !== pkg.addon_package) delete state.addons[p.addon_package];
+  });
+  if (q > 0) state.addons[pkg.addon_package] = q;
+  else delete state.addons[pkg.addon_package];
+  renderAddonCatalog();
+  buildAddonSummary();
+}
+
+// Baris terpilih [{pkg, qty}] daripada katalog + state — sumber tunggal
+// untuk summary & payload.
+function addonSelectedLines() {
+  var out = [];
+  (state.addon_catalog || []).forEach(function(a) {
+    (a.packages || []).forEach(function(p) {
+      var q = state.addons[p.addon_package] || 0;
+      if (q > 0 && p.purchasable) out.push({ addon: a, pkg: p, qty: q });
+    });
+  });
+  return out;
+}
+
+function addonTotalAmount() {
+  return addonSelectedLines().reduce(function(t, l) {
+    return t + (l.pkg.unit_price || 0) * l.qty;
+  }, 0);
+}
+
+// Strip tag HTML daripada description (Text Editor) untuk paparan kad.
+function addonDescText(html) {
+  try {
+    var d = document.createElement("div");
+    d.innerHTML = html || "";
+    var t = (d.textContent || "").replace(/\s+/g, " ").trim();
+    return t.length > 140 ? t.slice(0, 140).replace(/\s+\S*$/, "") + "…" : t;
+  } catch (e) { return ""; }
+}
+
+function renderAddonCatalog() {
+  var listEl = document.getElementById("bnwAddonList");
+  if (!listEl) return;
+  var paxHint = document.getElementById("bnwAddonPaxHint");
+
+  if (state.addon_fetch_failed) {
+    listEl.innerHTML =
+      '<div class="bnw-addon-empty">' +
+      '<i class="ti ti-wifi-off"></i>' +
+      '<p>Could not load add-ons. Check your connection and try again.</p>' +
+      '<button type="button" class="bnw-btn bnw-btn-ghost bnw-btn-sm" onclick="ensureAddonsLoaded(true)">Retry</button>' +
+      '</div>';
+    if (paxHint) paxHint.style.display = "none";
+    return;
+  }
+  if (!state.addon_catalog) return; // masih fetching — skeleton kekal
+
+  if (!state.addon_catalog.length) {
+    listEl.innerHTML =
+      '<div class="bnw-addon-empty">' +
+      '<i class="ti ti-package-off"></i>' +
+      '<p>No add-ons available for this trip.<br/>You can continue to billing.</p>' +
+      '</div>';
+    if (paxHint) paxHint.style.display = "none";
+    return;
+  }
+
+  // Hint pax layak (per-pax) — papar bila ada mana-mana package Per Pax.
+  var hasPerPax = state.addon_catalog.some(function(a) {
+    return (a.packages || []).some(function(p) { return (p.scope || "") === "Per Pax"; });
+  });
+  if (paxHint) {
+    paxHint.style.display = hasPerPax ? "" : "none";
+    if (hasPerPax) paxHint.textContent =
+      "Per-pax add-ons can cover up to " + addonEligiblePax() + " paying guest(s)";
+  }
+
+  var html = "";
+  state.addon_catalog.forEach(function(a) {
+    var pkgs = (a.packages || []).filter(function(p) { return p.purchasable || state.addons[p.addon_package]; });
+    if (!pkgs.length) return;
+    var multi = pkgs.length > 1;
+    // Package "aktif" addon ni: satu-satunya yang ada qty > 0, atau
+    // default = pertama (single) / pertama (multi, belum pilih).
+    var activePkg = pkgs.find(function(p) { return state.addons[p.addon_package] > 0; }) || pkgs[0];
+
+    html += '<div class="bnw-addon-card" data-addon="' + _esc(a.addon) + '">';
+    if (a.cover_image) {
+      html += '<div class="bnw-addon-media"><img src="' + _esc(a.cover_image) + '" alt="" loading="lazy"/></div>';
+    } else {
+      html += '<div class="bnw-addon-media bnw-addon-media--icon"><i class="ti ti-package"></i></div>';
+    }
+    html += '<div class="bnw-addon-body">';
+    html += '<div class="bnw-addon-title-row">' +
+      '<span class="bnw-addon-title">' + _esc(a.addon_title) + '</span>' +
+      '<span class="bnw-addon-type-badge">' + _esc(a.addon_type || "Other") + '</span>' +
+      '</div>';
+    var desc = addonDescText(a.description);
+    if (desc) html += '<p class="bnw-addon-desc">' + _esc(desc) + '</p>';
+
+    pkgs.forEach(function(p) {
+      var qty = state.addons[p.addon_package] || 0;
+      var cap = addonQtyCap(p);
+      var isActive = !multi || p.addon_package === activePkg.addon_package;
+      html += '<div class="bnw-addon-variant' + (isActive ? ' bnw-addon-variant--active' : '') + '"' +
+        (multi ? ' onclick="bnwAddonPickVariant(this, \'' + _esc(p.addon_package) + '\')"' : '') + '>';
+      if (multi) {
+        html += '<span class="bnw-addon-radio' + (isActive ? ' is-on' : '') + '"></span>';
+      }
+      html += '<span class="bnw-addon-variant-name">' + _esc(p.addon_package_name || p.addon_title || "Standard") + '</span>';
+      html += '<span class="bnw-addon-variant-scope">' +
+        ((p.scope === "Per Pax") ? '<i class="ti ti-user"></i> per pax' : '<i class="ti ti-calendar"></i> per booking') +
+        '</span>';
+      html += '<span class="bnw-addon-variant-price">' + fmt(p.unit_price) + '</span>';
+      // Stepper qty — hanya untuk variant aktif
+      if (isActive) {
+        html += '<span class="bnw-addon-qty">' +
+          '<button type="button" class="bnw-qty-btn" onclick="bnwAddonStep(\'' + _esc(p.addon_package) + '\', -1)" ' +
+          (qty <= 0 ? 'disabled' : '') + '><i class="ti ti-minus"></i></button>' +
+          '<span class="bnw-qty-val">' + qty + '</span>' +
+          '<button type="button" class="bnw-qty-btn" onclick="bnwAddonStep(\'' + _esc(p.addon_package) + '\', 1)" ' +
+          (qty >= cap ? 'disabled' : '') + '><i class="ti ti-plus"></i></button>' +
+          '</span>';
+      }
+      html += '</div>'; // /.bnw-addon-variant
+    });
+
+    html += '</div></div>'; // /.bnw-addon-body /.bnw-addon-card
+  });
+
+  listEl.innerHTML = html || '<div class="bnw-addon-empty"><i class="ti ti-package-off"></i><p>No add-ons available for this trip.<br/>You can continue to billing.</p></div>';
+}
+
+// Helper klik inline (onclick=) — mesti global pada window.
+window.bnwAddonStep = function(pkgName, delta) {
+  var found = null;
+  (state.addon_catalog || []).some(function(a) {
+    return (a.packages || []).some(function(p) {
+      if (p.addon_package === pkgName) { found = { addon: a, pkg: p }; return true; }
+      return false;
+    });
+  });
+  if (!found) return;
+  setAddonQty(found.addon, found.pkg, (state.addons[pkgName] || 0) + delta);
+};
+window.bnwAddonPickVariant = function(el, pkgName) {
+  var found = null;
+  (state.addon_catalog || []).some(function(a) {
+    return (a.packages || []).some(function(p) {
+      if (p.addon_package === pkgName) { found = { addon: a, pkg: p }; return true; }
+      return false;
+    });
+  });
+  if (!found) return;
+  // Bawa qty (kalau ada) ke variant baharu; variant lain addon sama dikosongkan.
+  var q = state.addons[pkgName] || 0;
+  setAddonQty(found.addon, found.pkg, q > 0 ? q : 1);
+};
+
+// Payment Summary kad Step 2 (Add-ons) — bilik/guest + Trip Total +
+// deposit (formula sama Step 1) + baris addon & jumlah berasingan.
+function buildAddonSummary() {
+  var linesEl = document.getElementById("bnwAddonSummaryLines");
+  if (!linesEl) return;
+  var data = renderCabinSummaryLines(linesEl, "No rooms selected");
+  renderSummaryHead(null, "bnwAddonSummaryGuests", data);
+
+  var grandEl = document.getElementById("bnwAddonSummaryGrand");
+  if (grandEl) grandEl.textContent = fmt(data.grand);
+  var depEl = document.getElementById("bnwAddonSummaryDeposit");
+  if (depEl) depEl.textContent = fmt(depositEstimateFor(data.grand));
+
+  renderAddonRowsInto("bnwAddonSummaryBox");
+}
+
+// Baris addon terpilih → kad summary (dipakai Step 2, 3 & 4 supaya
+// customer nampak pilihan addon mereka konsisten hingga pembayaran).
+// Add-on dicaj sebagai ORDER BERASINGAN (SO sendiri) — jumlahnya TIDAK
+// dimasukkan ke Total trip; papar sebagai blok "billed separately".
+function renderAddonRowsInto(boxId) {
+  var box = document.getElementById(boxId);
+  if (!box) return;
+  var lines = addonSelectedLines();
+  if (!lines.length) { box.innerHTML = ""; box.style.display = "none"; return; }
+  var html = '<div class="bnw-divider"></div><p class="bnw-card-title-sm">Add-ons <span class="bnw-optional">(billed separately)</span></p>';
+  lines.forEach(function(l) {
+    html += '<div class="bnw-order-line">' +
+      '<span>' + _esc(l.pkg.addon_package_name || l.addon.addon_title) + ' × ' + l.qty + '</span>' +
+      '<span>' + fmt((l.pkg.unit_price || 0) * l.qty) + '</span>' +
+      '</div>';
+  });
+  html += '<div class="bnw-order-line bnw-addon-total-row">' +
+    '<span>Add-ons Total</span><strong>' + fmt(addonTotalAmount()) + '</strong></div>';
+  box.innerHTML = html;
+  box.style.display = "";
+}
+
+// Payload JSON untuk confirm_booking — hanya [{addon_package, qty}],
+// harga TIDAK dihantar (server re-price dari DB).
+function addonLinesPayloadJson() {
+  var lines = addonSelectedLines().map(function(l) {
+    return { addon_package: l.pkg.addon_package, qty: l.qty };
+  });
+  return lines.length ? JSON.stringify(lines) : "";
+}
+
+// Butang Back / Continue Step 2 (Add-ons) — optional step, tiada gate.
+var addonBackEl = document.getElementById("bnwAddonBack");
+if (addonBackEl) addonBackEl.addEventListener("click", function() { showStep(1); });
+var addonNextEl = document.getElementById("bnwAddonNext");
+if (addonNextEl) addonNextEl.addEventListener("click", function() {
+  if (typeof buildBookingSummary === "function") buildBookingSummary();
+  showStep(3);
+});
+
+		// ─── STEP 3: BILLING + OTP ────────────────────────────────
+	var step2BackEl = document.getElementById("bnwStep3Back") || document.getElementById("step2Back");
+	if (step2BackEl) step2BackEl.addEventListener("click", function() { showStep(2); });
 
 	var emailInput   = document.getElementById("bnwBillingEmail") || document.getElementById("billingEmail");
 	var emailStatus  = document.getElementById("bnwEmailStatus") || document.getElementById("emailStatus");
 	var otpInline    = document.getElementById("bnwOtpInline") || document.getElementById("otpInline");
 	var otpInput     = document.getElementById("bnwOtpInput") || document.getElementById("otpInput");
-	var step2NextBtn = document.getElementById("bnwStep2Next") || document.getElementById("step2Next");
+	var step2NextBtn = document.getElementById("bnwStep3Next") || document.getElementById("step2Next");
 
 	// ─── TRIP DETAILS BUTTON (Step 2 + Step 3) ─────────────────
 	// "Back to Product Info" — navigate ke trip detail page tanpa hilang wizard state.
@@ -3769,7 +4305,7 @@ BILLING_ADDRESS_IDS.forEach(function(id) {
   el.addEventListener("change", checkStep2Ready);
 });
 
-var step2NextEl = document.getElementById("bnwStep2Next");
+var step2NextEl = document.getElementById("bnwStep3Next");
 if (step2NextEl) step2NextEl.addEventListener("click", function() {
   var phone = _getBillingPhoneFull();
   // Validate SEBELUM proceed — sama ketat dengan library Python
@@ -3800,7 +4336,7 @@ if (step2NextEl) step2NextEl.addEventListener("click", function() {
     country:       addr.bnwBillingCountry,
   };
   buildOrderSummary();
-  showStep(3);
+  showStep(4);
 }); // end if (step2NextEl)
 
 function buildOrderSummary() {
@@ -3812,6 +4348,9 @@ function buildOrderSummary() {
   var data = renderCabinSummaryLines(document.getElementById("bnwOrderLines"), "No rooms selected");
   renderSummaryHead("bnwOrderSummaryTrip", "bnwOrderTotalGuests", data);
   document.getElementById("bnwOrderGrandTotal").textContent = fmt(data.grand);
+
+  // Baris addon terpilih (Step 2) — order berasingan, tidak masuk Total.
+  renderAddonRowsInto("bnwOrderAddonBox");
 
   refreshPromoDiscountRow();
   updatePaymentUI();
@@ -3828,10 +4367,13 @@ function buildBookingSummary() {
   renderSummaryHead("bnwBookingSummaryTrip", "bnwBookingTotalGuests", data);
 
   // Total (gross — sebelum voucher/referral/cashback yang hanya dipilih
-  // di Step 3) + anggaran deposit, formula sama dengan Step 1.
+  // di Step 4) + anggaran deposit, formula sama dengan Step 1.
   document.getElementById("bnwBookingGrandTotal").textContent = fmt(data.grand);
   var depEl = document.getElementById("bnwBookingDeposit");
   if (depEl) depEl.textContent = fmt(depositEstimateFor(data.grand));
+
+  // Baris addon terpilih (Step 2) — order berasingan, tidak masuk Total.
+  renderAddonRowsInto("bnwBookingAddonBox");
 }
 
 // Kemaskini "Total" dalam Order Summary supaya konsisten dengan calcDiscountedTotal()
@@ -5054,7 +5596,7 @@ async function analyzeReceipt(file) {
   }
 }
 
-(document.getElementById("bnwStep3Back") || document.getElementById("step3Back")).addEventListener("click", function() { showStep(2); });
+(document.getElementById("bnwStep4Back") || document.getElementById("step3Back")).addEventListener("click", function() { showStep(3); });
 
 document.getElementById("bnwPayNowBtn").addEventListener("click", async function() {
   if (!validatePay()) {
@@ -5111,9 +5653,16 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
           main_guests:   r.main_guests,
           extra_beds:    r.extra_beds,
           infants:       r.infants,
+          // Itemized guests (ADDITIVE metadata) — kategori umur per slot,
+          // diderive daripada baris yang sama dengan kaunter (konsisten
+          // oleh binaan; server validasi semula _validate_guest_list).
+          // Klien lama tanpa medan ni kekal sah di server.
+          guests:        (r.guests || []).map(function(g) {
+            return { slot: g.slot || "main", category: g.category || "adult" };
+          }),
           // Hanya relevan untuk cabin cruise SOLO (total penghuni 1 —
           // pilihan privacy dipapar situ sahaja). Kosong = Private
-          // (behavior lama). Server sanitize semula — nilai luar jangka dibuang.
+          // (behavior lama). Server sanitize semula — nilai luar jangkalan dibuang.
           room_privacy:  (state.is_cruise_trip && (r.main_guests + r.extra_beds + r.infants) === 1)
             ? (r.room_privacy === "Open Sharing" ? "Open Sharing" : "Private")
             : "",
@@ -5151,12 +5700,15 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
         // bagi pihak customer — minta server langkau OTP. Server sahkan
         // semula role session; nilai ini sahaja TIDAK mencukupi.
         on_behalf:      !!state.on_behalf,
-        // ── T&C + pesanan customer (Step 3) ── terms_reference ialah nama
+        // ── T&C + pesanan customer (Step 4) ── terms_reference ialah nama
         // dokumen T&C yang DIPAPAR semasa customer tick — server validasi
         // ia masih dokumen aktif semasa confirm (elak versi lapuk).
         terms_accepted:  isTermsAccepted() && !!getTermsCheckbox(),
         terms_reference: getTermsRef(),
         customer_message: customerMessageValue(),
+        // ── Pilihan addon (Step 2) — [{addon_package, qty}] sahaja; harga
+        // di-re-price semula 100% server-side (nilai client tak dipercayai).
+        addons:        addonLinesPayloadJson(),
       },
       false  // POST
     );
@@ -5219,6 +5771,18 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
           flight_label:    (selectedPackage && selectedPackage.flight_label) || "",
           grand_total:     result.grand_total || 0,
           advance_paid:    result.advance_paid || 0,
+          // Addon (Step 2) — ringkasan untuk skrin confirmation selepas
+          // kembali dari Stripe (state client hilang selepas redirect).
+          addon_lines:     addonSelectedLines().map(function(l) {
+            return {
+              title: l.pkg.addon_package_name || l.addon.addon_title,
+              qty:   l.qty,
+              amount: (l.pkg.unit_price || 0) * l.qty,
+            };
+          }),
+          addons_created:  !!result.addons_created,
+          addon_total:     result.addon_total || 0,
+          addons_error:    result.addons_error || "",
           timestamp:       Date.now()
         };
         sessionStorage.setItem("bnw_confirm_snapshot", JSON.stringify(_confirmSnapshot));
@@ -5238,21 +5802,66 @@ document.getElementById("bnwPayNowBtn").addEventListener("click", async function
     // perlu selesaikan bayaran secara berasingan di portal.
     if (result.payment_setup_failed) {
       showConfirmation(result);
-      showStep(4);
+      showStep(5);
       renderPaymentWarning(result.payment_error);
       return;
     }
 
     // Manual Transfer → terus ke halaman confirmation
     showConfirmation(result);
-    showStep(4);
+    showStep(5);
   } catch(e) {
     alert("Booking failed. Please try again.\n" + e.message);
   }
   hideLoading();
 });
 
-// ─── STEP 4: CONFIRMATION ─────────────────────────────────
+// ─── STEP 5: CONFIRMATION ─────────────────────────────────
+// Blok Add-ons pada skrin confirmation — dipanggil showConfirmation
+// (Manual Transfer / Pay Later / payment-setup-failed — state client
+// masih hidup) dan renderStripeReturnConfirmation (data dari snapshot).
+//
+// Online Payment / Pay Later: SO addon kekal Pending (sesi Stripe hanya
+// tutup SO utama) → papar pautan "Pay add-ons" ke portal billing.
+// Manual Transfer: resit/ref yang sama dilampir pada PE addon — admin
+// verify kedua-dua PE sekali.
+function renderAddonConfirmBox(bookingNumber, lines, addonsCreated, addonTotal, addonsError, paymentMethod) {
+  var box = document.getElementById("bnwAddonConfirmBox");
+  if (!box) return;
+  box.innerHTML = "";
+
+  if (addonsError) {
+    // Order addon GAGAL — booking utama tetap sah. Amaran jelas supaya
+    // customer tahu addon mereka TIDAK termasuk dan boleh beli di portal.
+    box.innerHTML =
+      '<div class="bnw-addon-warn">' +
+      '<i class="ti ti-alert-triangle"></i>' +
+      '<div><strong>Your add-ons could not be added to this booking.</strong><br/>' +
+      '<span>' + _esc(addonsError) + '</span><br/>' +
+      '<span>Your trip booking itself is confirmed. You can purchase add-ons later from your portal.</span></div>' +
+      '</div>';
+    return;
+  }
+  if (!lines || !lines.length || !addonsCreated) {
+    return; // tiada addon dipilih
+  }
+  var rows = lines.map(function(l) {
+    return '<div class="bnw-confirm-row"><span>' + _esc(l.title) + ' × ' + l.qty + '</span><strong>' + fmt(l.amount) + '</strong></div>';
+  }).join("");
+  var payLink = (paymentMethod === "Online Payment" || paymentMethod === "Pay Later")
+    ? '<a class="bnw-addon-paylink" href="/traveller/billing?ref=' + encodeURIComponent(bookingNumber || "") + '">' +
+      '<i class="ti ti-credit-card"></i> Pay add-ons in your portal</a>'
+    : '<p class="bnw-addon-note"><i class="ti ti-circle-check"></i> ' +
+      'Paid by bank transfer — verified together with your trip payment.</p>';
+  box.innerHTML =
+    '<div class="bnw-addon-confirm">' +
+    '<h4><i class="ti ti-package"></i> Add-ons (separate order)</h4>' +
+    rows +
+    '<div class="bnw-confirm-row"><span>Add-ons Total</span><strong>' + fmt(addonTotal) + '</strong></div>' +
+    payLink +
+    '</div>';
+}
+
 function showConfirmation(booking) {
   document.getElementById("bnwConfirmRef").textContent = booking.booking_number;
 
@@ -5289,61 +5898,61 @@ function showConfirmation(booking) {
 
   // ── Update Step 4 Banner with full trip info ──
   // Same data as Steps 1-3 banners — papar trip details di confirmation
-  var bannerName4El = document.getElementById("bnwBannerTripName4");
-  if (bannerName4El) bannerName4El.textContent = state.trip_name;
+  var bannerName5El = document.getElementById("bnwBannerTripName5");
+  if (bannerName5El) bannerName5El.textContent = state.trip_name;
 
-  var bannerSum4El = document.getElementById("bnwBannerSummary4");
-  if (bannerSum4El) bannerSum4El.textContent = "Group: " + state.group_name;
+  var bannerSum5El = document.getElementById("bnwBannerSummary5");
+  if (bannerSum5El) bannerSum5El.textContent = "Group: " + state.group_name;
 
   // Departure / Sailing / Depart From dates
-  var _selectedTgd4 = null;
+  var _selectedTgd5 = null;
   if (trip_group_dateS && trip_group_dateS[state.trip_master]) {
-    _selectedTgd4 = trip_group_dateS[state.trip_master].find(function(g) {
+    _selectedTgd5 = trip_group_dateS[state.trip_master].find(function(g) {
       return g.name === state.trip_group_date;
     }) || null;
   }
 
-  var dep4El = document.getElementById("bnwBannerDeparture4");
-  if (dep4El && _selectedTgd4 && _selectedTgd4.departure_date && !_isCruiseOnly4) {
+  var dep5El = document.getElementById("bnwBannerDeparture5");
+  if (dep5El && _selectedTgd5 && _selectedTgd5.departure_date && !_isCruiseOnly4) {
     // ✈️ emoji HANYA untuk package dengan flight component
     // Hide for Cruise Only — cruise only packages show Sailing date only
     var _depEmoji4 = _hasFlightComponent4 ? " ✈️ " : "";
-    dep4El.textContent = "Departure: " + fmtDate(_selectedTgd4.departure_date) +
-      (_selectedTgd4.return_date ? " – " + fmtDate(_selectedTgd4.return_date) : "") + _depEmoji4;
-    dep4El.style.display = "";
-  } else if (dep4El) { dep4El.style.display = "none"; }
+    dep5El.textContent = "Departure: " + fmtDate(_selectedTgd5.departure_date) +
+      (_selectedTgd5.return_date ? " – " + fmtDate(_selectedTgd5.return_date) : "") + _depEmoji4;
+    dep5El.style.display = "";
+  } else if (dep5El) { dep5El.style.display = "none"; }
 
-  var departFrom4El = document.getElementById("bnwBannerDepartFrom4");
+  var departFrom5El = document.getElementById("bnwBannerDepartFrom5");
   var _flightLabel4 = (typeof selectedPackage !== "undefined" && selectedPackage && selectedPackage.flight_label) || "";
   var _pkgType4 = (selectedPackage && selectedPackage.package_type) || "";
   var _isCruiseOnly4 = _pkgType4 === "Cruise Only";
   var _isGroundOnly4 = _pkgType4 === "Ground Only";
   var _hasFlightComponent4 = !_isCruiseOnly4 && !_isGroundOnly4;
 
-  if (departFrom4El) {
+  if (departFrom5El) {
     if (_hasFlightComponent4 && _flightLabel4) {
-      departFrom4El.textContent = "Departure From: " + _flightLabel4;
-      departFrom4El.style.display = "";
+      departFrom5El.textContent = "Departure From: " + _flightLabel4;
+      departFrom5El.style.display = "";
     } else {
-      departFrom4El.style.display = "none";
+      departFrom5El.style.display = "none";
     }
   }
 
-  var sail4El = document.getElementById("bnwBannerSailing4");
-  if (sail4El && state.is_cruise_trip && _selectedTgd4 && _selectedTgd4.sailing_start) {
-    sail4El.textContent = "Sailing: " + fmtDate(_selectedTgd4.sailing_start) + " – " + fmtDate(_selectedTgd4.sailing_end) + " ⛵";
-    sail4El.style.display = "";
-  } else if (sail4El) { sail4El.style.display = "none"; }
+  var sail5El = document.getElementById("bnwBannerSailing5");
+  if (sail5El && state.is_cruise_trip && _selectedTgd5 && _selectedTgd5.sailing_start) {
+    sail5El.textContent = "Sailing: " + fmtDate(_selectedTgd5.sailing_start) + " – " + fmtDate(_selectedTgd5.sailing_end) + " ⛵";
+    sail5El.style.display = "";
+  } else if (sail5El) { sail5El.style.display = "none"; }
 
   // Embarkation / Disembarkation Port — selepas Sailing (Step 4 normal).
-  // Sumber: _selectedTgd4 (pageData trip_group_dates dari get_ready_bundle).
-  var embark4El = document.getElementById("bnwBannerEmbarkation4");
-  if (embark4El) {
-    if (state.is_cruise_trip && _selectedTgd4 && _selectedTgd4.embarkation_port) {
-      embark4El.textContent = "Embarkation: " + formatPortRange(_selectedTgd4.embarkation_port, _selectedTgd4.disembarkation_port);
-      embark4El.style.display = "";
+  // Sumber: _selectedTgd5 (pageData trip_group_dates dari get_ready_bundle).
+  var embark5El = document.getElementById("bnwBannerEmbarkation5");
+  if (embark5El) {
+    if (state.is_cruise_trip && _selectedTgd5 && _selectedTgd5.embarkation_port) {
+      embark5El.textContent = "Embarkation: " + formatPortRange(_selectedTgd5.embarkation_port, _selectedTgd5.disembarkation_port);
+      embark5El.style.display = "";
     } else {
-      embark4El.style.display = "none";
+      embark5El.style.display = "none";
     }
   }
 
@@ -5352,21 +5961,21 @@ function showConfirmation(booking) {
   // state.package_label yang mungkin membawa label penuh butang pakej dari
   // cart (cth "Cruise + Flight from KULFlight Departure21 Sep 2026...") —
   // badgeShort atas teks tu menghasilkan badge salah ("CRUISE +").
-  var badge4El = document.getElementById("bnwBannerTripType4");
+  var badge5El = document.getElementById("bnwBannerTripType5");
   var _badge4Text = (typeof selectedPackage !== "undefined" && selectedPackage && selectedPackage.package_type)
     ? selectedPackage.package_type
     : (state.package_label || "");
-  if (badge4El) badge4El.textContent = badgeShort(_badge4Text);
+  if (badge5El) badge5El.textContent = badgeShort(_badge4Text);
 
   // Fly From note
-  var flyFrom4El = document.getElementById("bnwBannerFlyFrom4");
+  var flyFrom5El = document.getElementById("bnwBannerFlyFrom5");
   var _flightCode4 = (typeof selectedPackage !== "undefined" && selectedPackage && selectedPackage.flight) || "";
-  if (flyFrom4El) {
+  if (flyFrom5El) {
     if (_flightCode4 && _hasFlightComponent4) {
-      flyFrom4El.textContent = "Fly from " + _flightCode4;
-      flyFrom4El.style.display = "";
+      flyFrom5El.textContent = "Fly from " + _flightCode4;
+      flyFrom5El.style.display = "";
     } else {
-      flyFrom4El.style.display = "none";
+      flyFrom5El.style.display = "none";
     }
   }
 
@@ -5439,6 +6048,19 @@ function showConfirmation(booking) {
     '<div class="bnw-confirm-row"><span>Total</span><strong>' + fmt(totalAmt) + '</strong></div>' +
     '<div class="bnw-confirm-row"><span>Booking Ref</span><strong>' + booking.booking_number + '</strong></div>';
 
+  // Blok Add-ons (Step 2) — baris terpilih + jumlah berasingan / amaran
+  // bila order addon gagal dicipta (booking utama kekal sah).
+  renderAddonConfirmBox(
+    booking.booking_number,
+    addonSelectedLines().map(function(l) {
+      return { title: l.pkg.addon_package_name || l.addon.addon_title, qty: l.qty, amount: (l.pkg.unit_price || 0) * l.qty };
+    }),
+    !!booking.addons_created,
+    booking.addon_total || 0,
+    booking.addons_error || "",
+    state_payment_method
+  );
+
   // Booking baru selalu "Accepted" di titik ini (Manual Transfer — PE masih
   // draft, menunggu admin verify) — portal masih locked, jadi jangan janji
   // "complete traveller details" yang belum boleh dibuat.
@@ -5499,15 +6121,21 @@ function refreshCurrencyDisplay() {
       if (typeof renderRooms === "function") renderRooms();
       if (typeof updateTotals === "function") updateTotals();
     } else if (state.step === 2) {
-      // Step 2: Billing Details — rebuild booking summary with new currency
-      if (typeof buildBookingSummary === "function") buildBookingSummary();
+      // Step 2: Add-ons — katalog bergantung currency (rate per currency):
+      // buang cache supaya fetch semula membawa harga currency baharu.
+      state.addon_catalog = null;
+      state.addon_fetch_key = "";
+      if (typeof ensureAddonsLoaded === "function") ensureAddonsLoaded();
     } else if (state.step === 3) {
-      // Step 3: Payment — rebuild order summary + payment UI
+      // Step 3: Billing Details — rebuild booking summary with new currency
+      if (typeof buildBookingSummary === "function") buildBookingSummary();
+    } else if (state.step === 4) {
+      // Step 4: Payment — rebuild order summary + payment UI
       if (typeof buildOrderSummary === "function") buildOrderSummary();
       if (typeof refreshOrderSummaryTotal === "function") refreshOrderSummaryTotal();
       if (typeof refreshPaySummary === "function") refreshPaySummary();
     }
-    // Note: Step 4 (Confirmation) prices are static from booking time,
+    // Note: Step 5 (Confirmation) prices are static from booking time,
     // no need to refresh currency display after confirmation
   } catch (e) { /* jangan pecah flow utama */ }
 }

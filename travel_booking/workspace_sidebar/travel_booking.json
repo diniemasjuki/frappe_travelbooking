@@ -230,7 +230,7 @@
    "child": 1,
    "collapsible": 1,
    "default_workspace": 0,
-   "filters": "[[\"Sales Order\",\"custom_booking\",\"is\",\"set\"]]",
+   "filters": "[[\"Sales Order\", \"name\", \"like\", \"RTSB-SAL-ORD%\"]]",
    "icon": "arrow-big-right",
    "indent": 0,
    "keep_closed": 0,

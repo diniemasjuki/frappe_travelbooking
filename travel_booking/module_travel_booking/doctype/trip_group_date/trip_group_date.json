@@ -393,7 +393,7 @@
   },
   {
    "depends_on": "eval:doc.cruise_schedule",
-   "fetch_from": "cruise_schedule.trip_link",
+   "fetch_from": "cruise_schedule.trip_code",
    "fieldname": "cruise_trip",
    "fieldtype": "Data",
    "label": "Cruise Trip",

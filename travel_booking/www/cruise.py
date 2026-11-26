@@ -2,20 +2,27 @@
 #
 # Page homepage cruise /cruise — landing page utama untuk syarikat travel
 # yang menjual pakej cruise. Menampilkan:
-#   - Hero dengan search widget
-#   - Featured cruises (cruise sahaja, dihighlight)
+#   - Hero slide banner + search breaker
+#   - Seksyen listing trip dinamik (dari Travel Website → Trip Listing
+#     Sections child table — header + kategori Travel Date + maks kad
+#     per seksyen, semua dikawal admin)
 #   - Why Cruise With Us (benefits)
 #   - Popular destinations
-#   - How It Works
-#   - Testimonials (static content)
-#   - Newsletter CTA
+#   - Testimonials
+#   - Final CTA
 #
-# Data dari trip_catalog (sumber sama /trips) + enrichment khusus cruise.
+# Data dari trip_catalog (sumber sama /trips). Susunan & kandungan seksyen
+# produk ditakrif dalam Travel Website (cruise_trip_sections) — bukan lagi
+# auto-grouping ikut kategori.
 
 import frappe
 
 from travel_booking.utils.trip_catalog import get_catalog_trips, get_filter_options
 from travel_booking.utils.website_config import get_website_config
+
+# Penapis query string yang diterima homepage (search bar ringkas selepas
+# hero: Destination + Sailing Month gabungan; corak sama katalog).
+_FILTER_KEYS = ("destination", "month", "year")
 
 
 def get_context(context):
@@ -25,25 +32,63 @@ def get_context(context):
     from travel_booking.www.trips import _get_currency_filter
     currency = _get_currency_filter()
 
-    # 1. Get ALL cruise trips (cruise=1 filter) as "featured"
+    # 1. ALL cruise trips (cruise=1) ikut kronologi tarikh
     cruise_data = get_catalog_trips({"cruise": "1", "sort": "date", "currency": currency})
     all_cruises = cruise_data["trips"]
     trip_group_dates = cruise_data["trip_group_dates"]
 
-    # Enrich with cruise-specific fields for card display
-    featured_cruises = _enrich_cruise_cards(all_cruises[:6], trip_group_dates)
+    # 1a. Seksyen listing trip ikut konfigurasi Travel Website → Trip
+    #     Listing Sections (aktif, susun ikut Position Sequence).
+    cruise_groups = _configured_sections(all_cruises, trip_group_dates)
 
     # 2. Popular destinations — hanya destinasi yang ada trip cruise aktif,
     # disusun ikut bilangan cruise. options.destinations juga tertapis ke
-    # cruise (untuk hero search autocomplete).
+    # cruise (untuk autocomplete search bar).
     options = get_filter_options(cruise=1)
     popular_destinations = _get_popular_destinations()
 
-    # 3. Pass to template
-    context.featured_cruises = featured_cruises
-    context.trip_group_dates = trip_group_dates  # untuk trip_card.html (gds)
+    # 3. SEARCH BAR (ringkas: Destination + Sailing Month gabungan
+    # "YYYY MMM" menaik) — penapis semasa dari query string (pra-pilih).
+    # Form GET → /cruises (katalog cruise), cruise=1 dibawa hidden input.
+    filters = {}
+    for k in _FILTER_KEYS:
+        v = frappe.form_dict.get(k)
+        if v:
+            filters[k] = v
+    from travel_booking.www.cruises import _sailing_year_months
+    sailing_months = _sailing_year_months()
+
+    # Pra-pilih dropdown gabungan daripada ?month=&year= (deep-link).
+    active_month_year = ""
+    if filters.get("month") and filters.get("year"):
+        active_month_year = (
+            f"{filters['year']}-{int(filters['month']):02d}"
+        )
+
+    destination_label = filters.get("destination") or ""
+    if destination_label:
+        dest = frappe.db.get_value(
+            "Trip Destination Point", destination_label,
+            ["destination_name", "destination_country"], as_dict=True,
+        )
+        if dest:
+            destination_label = (
+                f"{dest.destination_name}, {dest.destination_country}"
+                if dest.destination_country
+                else (dest.destination_name or destination_label)
+            )
+
+    # 4. Pass to template
+    context.cruise_groups = cruise_groups
+    context.trip_group_dates = trip_group_dates  # rujukan (kad kategori bawa gds sendiri)
+    context.ga_cruises = _unique_trips(cruise_groups)
     context.popular_destinations = popular_destinations
     context.options = options
+    # Konteks search bar
+    context.active = filters
+    context.sailing_months = sailing_months
+    context.active_month_year = active_month_year
+    context.destination_label = destination_label
     context.active_nav = "cruise"  # highlight nav if needed
     context.no_cache = 1
     context.title = "Luxury Cruise Vacations — Rarecation"
@@ -56,6 +101,23 @@ def get_context(context):
     # wc ialah plain dict (attr access hanya berfungsi dalam Jinja) —
     # python guna .get() bersarang.
     hero_cfg = (wc.get("cruise") or {}).get("hero") or {}
+
+    # Hero SLIDER — child Website Banner Slide dari Travel Website →
+    # Cruise Homepage → Hero Slider (aktif ikut sort_order). Tiada slide →
+    # fallback SATU banner statik daripada section "Fallback Banner"
+    # supaya hero kekal hidup.
+    hero_slides = hero_cfg.get("banners") or []
+    if not hero_slides and hero_cfg.get("background"):
+        hero_slides = [{
+            "banner_image": hero_cfg.get("background"),
+            "banner_tag": "",
+            "banner_title": "",
+            "banner_subtitle": "",
+            "banner_cta_label": "",
+            "banner_link_url": "",
+        }]
+    context.hero_slides = hero_slides
+
     apply_seo(
         context,
         title="Luxury Cruise Vacations — Rarecation",
@@ -69,57 +131,76 @@ def get_context(context):
     context.currency_options = cruise_data["currency_options"]
 
 
-def _enrich_cruise_cards(trips, trip_group_dates):
-    """Enrich trip dicts with cruise-card-specific fields."""
-    enriched = []
-    for t in trips:
-        gds = trip_group_dates.get(t.name, [])
-        g = gds[0] if gds else {}
+def _configured_sections(all_cruises, trip_group_dates):
+    """Seksyen listing trip homepage ikut konfigurasi Travel Website →
+    cruise_trip_sections (child Website Trip Listing Section; aktif
+    sahaja, susun ikut sort_order — _active_rows di website_config).
 
-        # Duration label
-        total_days = g.get("total_days") or 0
-        total_nights = g.get("total_nights") or 0
-        days_nights = f"{total_days}D/{total_nights}N" if total_days else ""
+    Satu baris child table = satu seksyen homepage: tajuk/label/subtitle
+    dari baris itu; kad trip dikumpul daripada trip cruise yang mana
+    SALAH SATU tarikhnya (gds) berkategori travel_date_category baris
+    tersebut. gds kad ditapis ikut kategori seksyen supaya badge
+    kategori kad + pautan View Details (deep-link tarikh terdekat)
+    konsisten dengan seksyen yang memaparkannya.
+    Bilangan kad di-cap max_listings baris (default 6 bila kosong);
+    seksyen tanpa kad di-skip (tiada grid kosong di homepage).
 
-        # Ship name (from group date or trip)
-        ship_name = g.get("trip_group_name") or t.get("trip_name") or ""
+    Trip boleh muncul dalam beberapa seksyen jika tarikhnya meliputi
+    beberapa kategori. KEMBALI list[dict]:
+    {key, label, title, subtitle, cta_label, cta_url, cards} —
+    cards = [{t, gds}].
+    """
+    wc = get_website_config()
+    sections = (wc.get("cruise") or {}).get("trip_sections") or []
 
-        # Route name (destination summary)
-        destinations = t.get("destinations") or []
-        route_name = ", ".join(
-            [d.get("destination_name", "") for d in destinations[:3]]
-        )
-        if len(destinations) > 3:
-            route_name += f" +{len(destinations) - 3}"
+    groups = []
+    for row in sections:
+        cat = row.get("travel_date_category") or ""
+        if not cat:
+            continue
+        try:
+            limit = max(1, int(row.get("max_listings") or 6))
+        except (TypeError, ValueError):
+            limit = 6
 
-        # Short description (first 120 chars of description or generated)
-        short_desc = t.get("short_description") or ""
-        if not short_desc and destinations:
-            short_desc = f"Explore {' & '.join([d.get('destination_name', '') for d in destinations[:2]])} aboard luxury cruise."
+        cards = []
+        for t in all_cruises:
+            gds = [
+                g for g in (trip_group_dates.get(t.name) or [])
+                if (g.get("trip_category") or "") == cat
+            ]
+            if gds:
+                cards.append({"t": t, "gds": gds})
+            if len(cards) >= limit:
+                break
 
-        # Hot sale flag (arbitrary: if departure within 60 days AND has seats)
-        is_hot_sale = False
-        if g:
-            from datetime import date, timedelta
-            dep = g.get("departure_date")
-            seats = g.get("seats_left")
-            if dep and seats:
-                try:
-                    dep_date = date.fromisoformat(str(dep))
-                    is_hot_sale = (dep_date - date.today()).days <= 60 and seats > 0 and seats <= 5
-                except (ValueError, TypeError):
-                    pass
+        if not cards:
+            continue
 
-        enriched.append({
-            **t,
-            "days_nights": days_nights,
-            "ship_name": ship_name,
-            "route_name": route_name,
-            "short_description": short_desc[:150],
-            "is_hot_sale": is_hot_sale,
+        groups.append({
+            "key": cat,
+            "label": row.get("section_label") or "",
+            "title": row.get("section_title") or cat,
+            "subtitle": row.get("section_subtitle") or "",
+            "cta_label": row.get("cta_label") or "",
+            "cta_url": row.get("cta_url") or "",
+            "cards": cards[:limit],
         })
 
-    return enriched
+    return groups
+
+
+def _unique_trips(groups):
+    """Trip unik (ikut susunan) merentasi seksyen listing — senarai
+    item GA4 view_item_list (analytics.js); trip yang muncul dalam
+    beberapa seksyen dihantar sekali sahaja."""
+    seen, out = set(), []
+    for grp in groups:
+        for card in grp["cards"]:
+            if card["t"].name not in seen:
+                seen.add(card["t"].name)
+                out.append(card["t"])
+    return out
 
 
 def _get_popular_destinations():

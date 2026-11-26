@@ -23,12 +23,13 @@ from travel_booking.utils.trip_catalog import get_catalog_trips, get_filter_opti
 _FILTER_KEYS = ("q", "destination", "month", "year", "currency")
 
 
-def _sailing_periods() -> tuple[list, list]:
-	"""Tahun & bulan sebenar yang ada pelayaran cruise ready (group date
-	Active, tarikh akan datang, ada package Active, trip Active cruise) —
-	dropdown bulan/tahun hanya papar pilihan yang betul-betul ada sailing,
-	tak ada pilihan kosong. Tarikh rujukan = sailing_start dengan fallback
-	departure_date, SEPADAN _date_in_range get_catalog_trips."""
+def _sailing_year_months() -> list:
+	"""Pasangan (tahun, bulan) pelayaran cruise ready — group date Active,
+	tarikh akan datang, ada package Active, trip Active cruise. KEMBALI
+	list[{value: "YYYY-MM", label: "YYYY MMM"}] menaik (cth "2026 Nov")
+	— dropdown gabungan bulan-tahun (search bar homepage). Tarikh
+	rujukan = sailing_start dengan fallback departure_date, SEPADAN
+	_date_in_range get_catalog_trips."""
 	rows = frappe.db.sql(
 		"""
 		SELECT DISTINCT
@@ -51,14 +52,27 @@ def _sailing_periods() -> tuple[list, list]:
 		""",
 		as_dict=True,
 	)
-	years: list = []
-	months: list = []
+	out = []
 	for r in rows:
-		if r.y and int(r.y) not in years:
-			years.append(int(r.y))
-		if r.m and int(r.m) not in months:
-			months.append(int(r.m))
-	return sorted(years), sorted(months)
+		if not (r.y and r.m):
+			continue
+		y, m = int(r.y), int(r.m)
+		out.append({
+			"value": f"{y}-{m:02d}",
+			"label": f"{y} {calendar.month_abbr[m]}",
+		})
+	return out
+
+
+def _sailing_periods() -> tuple[list, list]:
+	"""Tahun & bulan sebenar yang ada pelayaran cruise ready (group date
+	Active, tarikh akan datang, ada package Active, trip Active cruise) —
+	dropdown bulan/tahun hanya papar pilihan yang betul-betul ada sailing,
+	tak ada pilihan kosong. Derive daripada _sailing_year_months()."""
+	ym = _sailing_year_months()
+	years = sorted({int(v["value"][:4]) for v in ym})
+	months = sorted({int(v["value"][5:7]) for v in ym})
+	return years, months
 
 
 def get_context(context):

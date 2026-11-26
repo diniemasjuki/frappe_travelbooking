@@ -13,18 +13,22 @@ class TravelWebsite(Document):
 
     if TYPE_CHECKING:
         from frappe.types import DF
+        from travel_booking.module_travel_booking.doctype.website_banner_slide.website_banner_slide import WebsiteBannerSlide
         from travel_booking.module_travel_booking.doctype.website_benefit_card.website_benefit_card import WebsiteBenefitCard
         from travel_booking.module_travel_booking.doctype.website_footer_link.website_footer_link import WebsiteFooterLink
         from travel_booking.module_travel_booking.doctype.website_geo_currency_rule.website_geo_currency_rule import WebsiteGeoCurrencyRule
         from travel_booking.module_travel_booking.doctype.website_menu_item.website_menu_item import WebsiteMenuItem
         from travel_booking.module_travel_booking.doctype.website_stat.website_stat import WebsiteStat
         from travel_booking.module_travel_booking.doctype.website_testimonial.website_testimonial import WebsiteTestimonial
+        from travel_booking.module_travel_booking.doctype.website_trip_listing_section.website_trip_listing_section import WebsiteTripListingSection
 
         chat_widget_subtitle: DF.SmallText | None
         chat_widget_success_message: DF.SmallText | None
         chat_widget_title: DF.Data | None
         copyright_text: DF.Data | None
+        cruise_banners: DF.Table[WebsiteBannerSlide]
         cruise_benefits: DF.Table[WebsiteBenefitCard]
+        cruise_booking_terms: DF.Link | None
         cruise_cta_body: DF.SmallText | None
         cruise_cta_icon: DF.Data | None
         cruise_cta_primary_label: DF.Data | None
@@ -37,31 +41,32 @@ class TravelWebsite(Document):
         cruise_dest_tag: DF.Data | None
         cruise_dest_title: DF.SmallText | None
         cruise_favicon: DF.AttachImage | None
-        cruise_featured_cta_label: DF.Data | None
-        cruise_featured_cta_url: DF.Data | None
-        cruise_featured_subtitle: DF.SmallText | None
-        cruise_featured_tag: DF.Data | None
-        cruise_featured_title: DF.SmallText | None
         cruise_ga_enabled: DF.Check
         cruise_ga_measurement_id: DF.Data | None
         cruise_hero_background: DF.AttachImage | None
         cruise_hero_intro: DF.SmallText | None
-        cruise_hero_search_label: DF.Data | None
-        cruise_hero_stats: DF.Table[WebsiteStat]
         cruise_hero_tag: DF.Data | None
         cruise_hero_title: DF.SmallText | None
         cruise_logo: DF.AttachImage | None
         cruise_menu: DF.Table[WebsiteMenuItem]
         cruise_nav_cta_label: DF.Data | None
         cruise_nav_cta_url: DF.Data | None
+        cruise_search_all_destinations: DF.Data | None
+        cruise_search_all_months: DF.Data | None
+        cruise_search_btn_label: DF.Data | None
+        cruise_search_destination_label: DF.Data | None
+        cruise_search_month_label: DF.Data | None
+        cruise_slide_cta_label: DF.Data | None
         cruise_testi_subtitle: DF.SmallText | None
         cruise_testi_tag: DF.Data | None
         cruise_testi_title: DF.SmallText | None
         cruise_testimonials: DF.Table[WebsiteTestimonial]
+        cruise_trip_sections: DF.Table[WebsiteTripListingSection]
         cruise_whyus_subtitle: DF.SmallText | None
         cruise_whyus_tag: DF.Data | None
         cruise_whyus_title: DF.SmallText | None
         date_display_format: DF.Literal["dd MMM yyyy", "dd/mm/yyyy", "dd-mm-yyyy", "dd MMMM yyyy", "yyyy-mm-dd"]
+        default_cruise_category: DF.Link | None
         enable_chat_widget: DF.Check
         footer_links: DF.Table[WebsiteFooterLink]
         footer_tagline: DF.TextEditor | None
@@ -72,6 +77,7 @@ class TravelWebsite(Document):
         social_whatsapp: DF.Data | None
         support_email: DF.Data | None
         tour_benefits: DF.Table[WebsiteBenefitCard]
+        tour_booking_terms: DF.Link | None
         tour_cta_body: DF.TextEditor | None
         tour_cta_icon: DF.Data | None
         tour_cta_primary_label: DF.Data | None

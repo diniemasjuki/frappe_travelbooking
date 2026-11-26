@@ -118,6 +118,21 @@
       </section>
       {% endif %}
 
+      {# ── Pilihan Tarikh & Pakej (cruise) — showcase kad per DEPARTURE
+          DATE, selari dengan widget sidebar: klik kad ⇄ sync pilihan
+          tarikh/pakej/kabin. Di-render trip_detail.js dari rcDetailData
+          (group_dates bawa flag is_special + inclusions — auto-derive
+          pakej khas dari addon matrix offer). Bukan-cruise: tiada seksyen. ── #}
+      {% if is_cruise and group_dates %}
+      <section class="rc-trip-section rc-dates-section">
+        <h2 class="rc-section-h">Dates &amp; Packages</h2>
+        <p class="rc-section-sub">Your selected departure — switch package or change date right here; the booking panel follows your pick.</p>
+        <div id="rcDateCards" class="rc-date-cards">
+          <p class="rc-muted">Loading dates…</p>
+        </div>
+      </section>
+      {% endif %}
+
       {# ── Video YouTube (antara gallery + content, ikut reference cruise.rarecation.com) ── #}
       {% if video_id %}
       <section class="rc-trip-section">
@@ -163,25 +178,31 @@
       {% endif %}
 
 
-      {# ── Included / Excluded ── #}
+      {# ── Included / Excluded — Bootstrap 2-column ── #}
       {% if included or excluded %}
-      <section class="rc-trip-section rc-trip-grid-2">
+      <section class="rc-trip-section">
+        <div class="row g-4">
         {% if included %}
-        <div class="rc-feat-block rc-feat-incl">
-          <h2 class="rc-section-h"><i class="ti ti-circle-check"></i> Included</h2>
-          <ul class="rc-feat-list">
-            {% for f in included %}<li><i class="ti ti-circle-check"></i><span>{{ f.feature }}</span></li>{% endfor %}
-          </ul>
+        <div class="col-md-6">
+          <div class="rc-feat-block rc-feat-incl h-100">
+            <h2 class="rc-section-h"><i class="ti ti-circle-check"></i> Included</h2>
+            <ul class="rc-feat-list">
+              {% for f in included %}<li><i class="ti ti-circle-check"></i><span>{{ f.feature }}</span></li>{% endfor %}
+            </ul>
+          </div>
         </div>
         {% endif %}
         {% if excluded %}
-        <div class="rc-feat-block rc-feat-excl">
-          <h2 class="rc-section-h"><i class="ti ti-circle-x"></i> Excluded</h2>
-          <ul class="rc-feat-list">
-            {% for f in excluded %}<li><i class="ti ti-circle-x"></i><span>{{ f.feature }}</span></li>{% endfor %}
-          </ul>
+        <div class="col-md-6">
+          <div class="rc-feat-block rc-feat-excl h-100">
+            <h2 class="rc-section-h"><i class="ti ti-circle-x"></i> Excluded</h2>
+            <ul class="rc-feat-list">
+              {% for f in excluded %}<li><i class="ti ti-circle-x"></i><span>{{ f.feature }}</span></li>{% endfor %}
+            </ul>
+          </div>
         </div>
         {% endif %}
+        </div>
       </section>
       {% endif %}
 
@@ -203,7 +224,7 @@
 
 
       {# ── Itinerary timeline (day-by-day) ── #}
-      {% if itinerary %}
+      {% if itinerary or show_itinerary_section %}
       <section class="rc-trip-section">
         <div class="rc-itin-top">
           <div>
@@ -216,61 +237,64 @@
             <i class="ti ti-chevrons-up"></i><span>Collapse all</span>
           </button>
         </div>
-        {# Timeline hari — macro supaya sama digunakan untuk render flat
-           dan render segmented (Pre-Cruise / Cruise / Post-Cruise). #}
-        {% macro itin_timeline(rows) %}
-        <ol class="rc-itinerary">
-          {% for row in rows %}
-          <li class="rc-itin-day" data-day="{{ row.day }}">
-            <div class="rc-itin-marker"><span>Day {{ row.day }}</span></div>
-            <div class="rc-itin-card">
-              <div class="rc-itin-head">
-                <h3 class="rc-itin-title">{{ row.day_title }}</h3>
-                {% if row.destination_name %}<span class="rc-itin-dest">{{ row.destination_name }}{% if row.country %} · {{ row.country }}{% endif %}</span>{% endif %}
-              </div>
-              {% if row.day_image %}
-              <img src="{{ row.day_image }}" alt="{{ row.day_title }}" class="rc-itin-img" onerror="this.style.display='none'"/>
-              {% endif %}
-              {% if row.description %}<div class="rc-itin-desc">{{ row.description }}</div>{% endif %}
-              {% if row.meals %}<p class="rc-itin-meals"><i class="ti ti-tools-kitchen2"></i> {{ row.meals }}</p>{% endif %}
-              <button type="button" class="rc-itin-toggle">hide</button>
-            </div>
-          </li>
-          {% endfor %}
-        </ol>
-        {% endmacro %}
-        {% if itinerary_segments and itinerary_segments|length > 1 %}
-          {# Cruise trip dengan hari Pre/Post — fasa berlabel, nombor hari kekal berterusan. #}
-          {% for seg in itinerary_segments %}
-          <div class="rc-itin-segment">
-            <div class="rc-itin-seg-head">
-              <i class="ti {{ seg.icon }}"></i>
-              <h3 class="rc-itin-seg-label">{{ seg.label }}</h3>
-              <span class="rc-itin-seg-days">Day {{ seg.day_from }}{% if seg.day_to != seg.day_from %}&ndash;{{ seg.day_to }}{% endif %}</span>
-            </div>
-            {{ itin_timeline(seg.rows) }}
-          </div>
-          {% endfor %}
-        {% else %}
-          {{ itin_timeline(itinerary) }}
-        {% endif %}
+        {# Timeline hari — include KONGSI dengan fragmen itinerary efektif
+           (package_catalog.get_effective_itinerary; warisan Trip ← Travel
+           Date ← Package Offer). #rcItinList ialah sasaran swap client-side
+           bila tarikh/pakej dipilih (trip_detail.js). #}
+        <div id="rcItinList">
+        {% include "travel_booking/module_travel_booking/doctype/trip/templates/includes/itinerary_list.html" %}
+        </div>
       </section>
       {% endif %}
 
-      {# ── FAQ accordion ── #}
+      {# ── Kategori Kabin (showcase) — kad penuh per room category
+          (gambar, kapasiti, harga per guest type) dari response
+          pricing.get_booking_details; di-render trip_detail.js dan
+          di-unhide selepas pakej dipilih. Section shell disorok dahulu
+          supaya trip tanpa room options tidak papar ruang kosong. ── #}
+      <section class="rc-trip-section rc-cabins-section" id="rcCabinsSection" hidden>
+        <h2 class="rc-section-h">Cabin Categories</h2>
+        <p class="rc-section-sub">Choose your room category — prices per guest type for the selected date &amp; package.</p>
+        <div id="rcCabinCards" class="rc-cabin-cards"></div>
+      </section>
+
+      {# ── FAQ accordion — Bootstrap accordion (single-open via
+          data-bs-parent; JS custom lama dibuang) ── #}
       {% if faqs %}
       <section class="rc-trip-section">
         <h2 class="rc-section-h">Frequently Asked Questions</h2>
-        <div class="rc-faq" id="rcFaq">
+        <div class="accordion rc-faq" id="rcFaq">
           {% for f in faqs %}
-          <div class="rc-faq-item">
-            <button class="rc-faq-q" type="button" aria-expanded="false">
-              <span>{{ f.question }}</span><i class="ti ti-chevron-down rc-faq-icon"></i>
-            </button>
-            <div class="rc-faq-a"><div class="rc-faq-a-inner">{{ f.answer }}</div></div>
+          <div class="accordion-item">
+            <h3 class="accordion-header">
+              <button class="accordion-button{% if not loop.first %} collapsed{% endif %}"
+                      type="button" data-bs-toggle="collapse"
+                      data-bs-target="#rcFaqItem{{ loop.index }}"
+                      aria-expanded="{{ 'true' if loop.first else 'false' }}"
+                      aria-controls="rcFaqItem{{ loop.index }}">
+                {{ f.question }}
+              </button>
+            </h3>
+            <div id="rcFaqItem{{ loop.index }}"
+                 class="accordion-collapse collapse{% if loop.first %} show{% endif %}"
+                 data-bs-parent="#rcFaq">
+              <div class="accordion-body">{{ f.answer }}</div>
+            </div>
           </div>
           {% endfor %}
         </div>
+      </section>
+      {% endif %}
+
+      {# ── Other Categories (cruise) — kategori travel-date LAIN selain
+          kategori tarikh terpilih (DateCards). >1 kategori → tab pill;
+          1 → senarai terus. Di-render trip_detail.js (renderOtherCats) —
+          tiada kategori lain / bukan cruise → seksyen kekal hidden. ── #}
+      {% if is_cruise and group_dates %}
+      <section class="rc-trip-section rc-catdates-section" id="rcOtherCatsSection" hidden>
+        <h2 class="rc-section-h">Other Categories</h2>
+        <p class="rc-section-sub">This trip also runs as the categories below — pick a departure to load it into the booking panel.</p>
+        <div id="rcOtherCats"></div>
       </section>
       {% endif %}
 
@@ -313,7 +337,9 @@
              mempropagasi :hover/:active label ke labeled control (bug sama
              seperti wrapper butang pakej di bawah). #}
           <div class="rc-field">
-            <span class="rc-field-label">{% if is_cruise %}Choose Sailing Date{% else %}Departure date{% endif %}</span>
+            {# Cruise: tarikh dipapar teks bold (tiada butang trigger) —
+               label neutral "Departure Date"; tour: kekal "Choose ..." #}
+            <span class="rc-field-label">{{ 'Departure Date' if is_cruise else 'Choose Departure Date' }}</span>
             <div id="rcDetailGroupDate" class="rc-date-radios">
               <p class="rc-muted">Loading dates…</p>
             </div>
@@ -322,20 +348,27 @@
              wrapper <label> akan implicitly label BUTANG PERTAMA dan Chrome
              mempropagasi :hover/:active label ke labeled control tersebut
              (hover butang lain turut "menyalakan" butang pertama). #}
+          {# Cruise: seksyen pakej DIBUANG daripada booking card — pakej
+             dipilih melalui modal Change Date (kad showcase "Dates &
+             Packages"); auto-select pakej pertama kekal dalam trip_detail.js
+             supaya Price Info + Book Now terus berfungsi. Tour: butang
+             pakej kekal (satu-satunya pemilih pakej). #}
+          {% if not is_cruise %}
           <div class="rc-field">
             <span class="rc-field-label">Choose Package</span>
             <div id="rcDetailPackage" class="rc-pkg-buttons">
               <p class="rc-muted">Pick a date to see available packages.</p>
             </div>
           </div>
+          {% endif %}
 
           <span class="rc-field-label">Price Info</span>
           <div id="rcDetailCabins" class="rc-cabins-empty">
             <p class="rc-muted">Pick a package to see room options and prices.</p>
           </div>
 
-          <button id="rcDetailBookBtn" class="rc-btn-primary rc-btn-disabled" disabled>Book Now</button>
-          <button id="rcDetailShareBtn" class="rc-btn-share rc-btn-disabled" disabled>Share My Trip</button>
+          <button id="rcDetailBookBtn" class="btn btn-primary btn-lg w-100 rc-btn-disabled" disabled>Book Now</button>
+          <button id="rcDetailShareBtn" class="btn btn-outline-primary w-100 mt-2 rc-btn-disabled" disabled>Share My Trip</button>
           {# Currency dicaj = currency native pakej yang dipilih (setiap
              pakej satu currency — trip_detail.js kemas kini nota ini bila
              customer pilih pakej; default: currency listing aktif). #}
@@ -374,11 +407,13 @@
   {% if related %}
   <section class="rc-trip-section rc-related">
     <h2 class="rc-section-h">You may also like</h2>
-    <div class="rc-trip-grid-cards">
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
       {% for r in related %}
-      {% with t=r, gds=[r.get('_first_gd', {})] %}
-      {% include "templates/includes/trip_card.html" %}
-      {% endwith %}
+      <div class="col">
+        {% with t=r, gds=[r.get('_first_gd', {})] %}
+        {% include "templates/includes/trip_card.html" %}
+        {% endwith %}
+      </div>
       {% endfor %}
     </div>
   </section>
@@ -387,7 +422,7 @@
 </article>
 
 {# JSON untuk trip_detail.js — packages di-preload dari get_trip_detail (sudah
-   cruise-dedup: group dates yang sama sailing_start digabung, jadi
+   cruise-dedup: group dates yang sama departure_date digabung, jadi
    trip_group_date setiap package konsisten dengan radio button yang dipaparkan).
    Ini mengelakkan search_packages_by_date (yang tak dedup) pulangkan package
    dari group date yang telah digabung, menyebabkan wish-matching gagal. #}
@@ -398,11 +433,14 @@
   "trip_type": {{ ("cruise" if is_cruise else "non_cruise")|tojson }},
   "group_dates": {{ group_dates_json }},
   "trip_packages": {{ trip_packages_json }},
-  "sailing_tgds": {{ sailing_tgds_json }},
+  "departure_tgds": {{ departure_tgds_json }},
   "company_symbol": {{ get_company_symbol()|tojson }},
   "currency": {{ (currency or get_company_currency())|tojson }},
   "currency_symbol": {{ (currency_symbol or get_company_symbol())|tojson }},
   "currency_native_only": {{ "true" if currency_native_only else "false" }},
+  "use_package_offers": {{ "true" if use_package_offers else "false" }},
+  "default_cruise_category": {{ default_cruise_category|tojson }},
+  "has_itinerary_override": {{ "true" if has_itinerary_override else "false" }},
   "gallery_count": {{ gallery|length }}
 }</script>
 

@@ -212,12 +212,24 @@ def _create_payment_intent_impl(sales_order: str, amount: float, source: str = "
     (endpoint ni whitelisted sendiri — jangan percaya caller).
     """
     so = frappe.db.get_value("Sales Order", sales_order,
-                             ["customer", "currency", "grand_total", "advance_paid"], as_dict=True)
+                             ["customer", "currency", "grand_total", "advance_paid"],
+                             as_dict=True)
     if not so:
         frappe.throw("Sales Order not found.")
+    # Booking berkaitan SO ni — carian terbalik melalui registri
+    # Booking.sales_orders ([Nov 2026] SO tidak lagi memegang link
+    # custom_booking ke Booking).
+    from travel_booking.api.so_helpers import (
+        _get_booking_discount_snapshot,
+        _resolve_booking_from_so,
+    )
+    booking_name = _resolve_booking_from_so(sales_order)
+    # Fasa 1 (1f): booking Cancelled/Abandoned tidak menerima PaymentIntent
+    # baharu — selaras portal & pay-link admin.
+    from travel_booking.api.booking_engine import _assert_booking_payable
+    _assert_booking_payable(booking_name)
     # Snapshot diskaun order-level disimpan pada Booking (SO kekal GROSS) —
     # rujuk _get_booking_discount_snapshot().
-    from travel_booking.api.so_helpers import _get_booking_discount_snapshot
     so_voucher_discount, so_referral_discount, _so_cashback_pct = \
         _get_booking_discount_snapshot(sales_order)
 
@@ -259,10 +271,8 @@ def _create_payment_intent_impl(sales_order: str, amount: float, source: str = "
     # ══════════════════════════════════════════════
     try:
         settings = frappe.get_single("Travel Settings")
-        min_deposit_pct = float(getattr(settings, 'default_deposit_percent', None) or 20)
         online_min = float(getattr(settings, "online_payment_min_amount", 0) or 0)
     except Exception:
-        min_deposit_pct = 20  # fallback
         online_min = 0
 
     effective_so_total = float(so.grand_total or 0)
@@ -271,14 +281,23 @@ def _create_payment_intent_impl(sales_order: str, amount: float, source: str = "
     # jumlah yang dicaj customer ialah gross ditolak diskaun tu. Min deposit
     # & pengecualian full-payment diukur atas nilai NET ni.
     net_payable = round(effective_so_total - so_voucher_discount - so_referral_discount, 2)
-    min_deposit = round(net_payable * (min_deposit_pct / 100), 2)
+
+    # Fasa 1 (1c): minimum BERKESAN booking (Package Offer override →
+    # Travel Settings global, + tetingkap final payment) — bukan peratusan
+    # global semata-mata (selari confirm_booking/portal). Di-cap pada baki
+    # SO supaya bayaran BAKI penuh (selepas deposit terdahulu) tidak
+    # ditolak oleh peraturan tetingkap full-payment.
+    from travel_booking.api.booking_engine import _minimum_first_payment_amount
+    min_deposit = _minimum_first_payment_amount(booking_name, net_payable)
+    if min_deposit is None:
+        min_deposit = round(net_payable * 0.20, 2)  # fallback lama
+    min_deposit = min(min_deposit, outstanding)
 
     # Jika amount kurang dari minimum deposit (dan bukan full payment), reject
     if amount < min_deposit and abs(amount - net_payable) > 0.01:
         frappe.throw(
-            _("Minimum payment is {0}% ({1}) of total order amount {2}. "
+            _("Minimum payment is {0} for order amount {1}. "
               "Please contact support for special arrangements.").format(
-                min_deposit_pct,
                 frappe.utils.fmt_currency(min_deposit, currency=so.currency or default_currency),
                 frappe.utils.fmt_currency(net_payable, currency=so.currency or default_currency)
             ),
@@ -622,7 +641,11 @@ def mark_checkout_timeout(pr: str, t: str = None):
     if not pr_doc:
         return {"status": "ignored"}
 
-    booking_name = frappe.db.get_value("Sales Order", pr_doc, "custom_booking")
+    # pr_doc ialah nama SO rujukan PR — bookingnya dicari terbalik melalui
+    # registri Booking.sales_orders ([Nov 2026] SO tidak lagi memegang
+    # link custom_booking ke Booking).
+    from travel_booking.api.so_helpers import _resolve_booking_from_so
+    booking_name = _resolve_booking_from_so(pr_doc)
     if not booking_name:
         return {"status": "ignored"}
 
@@ -1084,7 +1107,7 @@ def get_payment_result(payment_intent: str):
     #
     # TAPI untuk user AUTHENTICATED yang cuba akses payment_intent ORANG
     # LAIN (cth admin/staff yang login, atau customer cuba teka id),
-    # kita verify pemilikan via SO.custom_booking -> Booking.customer.
+    # kita verify pemilikan via Sales Order.customer.
     # Ini elak pengguna yang authenticated "menyiasat" pembayaran customer
     # lain walaupun mereka tak patut nampak.
     user_email = frappe.session.user
@@ -1107,7 +1130,9 @@ def get_payment_result(payment_intent: str):
         bk = frappe.db.sql("""
             SELECT tm.trip_name AS trip_label, td.trip_group_name
             FROM `tabSales Order` so
-            JOIN `tabBooking` b ON b.name = so.custom_booking
+            JOIN `tabBooking Sales Order` reg
+                ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+            JOIN `tabBooking` b ON b.name = reg.parent
             LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
             LEFT JOIN `tabTrip` tm ON tm.name = td.trip
             WHERE so.name = %s

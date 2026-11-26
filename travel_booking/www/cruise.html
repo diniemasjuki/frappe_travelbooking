@@ -9,108 +9,191 @@
 
 {% block page_content %}
 {# ============================================================
-   CRUISE HOMEPAGE — /cruise
+   CRUISE HOMEPAGE — /cruise  (PILOT MIGRASI BOOTSTRAP 5)
    Luxury cruise travel homepage. Marketing copy (hero, section
    headers, benefits, testimonials, CTA) comes from Travel Website
-   config (wc.cruise.*). Dynamic grids (featured cruises, popular
-   destinations) fetched by cruise.py via trip_catalog.
+   config (wc.cruise.*). Dynamic grids (seksyen listing trip dari
+   Trip Listing Sections child table, popular destinations) fetched
+   by cruise.py via trip_catalog.
+
+   Layout = Bootstrap: container / row / col / carousel / btn /
+   form-select. Blok jenama kongsi dalam rc-theme.css; spesifik
+   cruise dalam cruise.css (slim).
    ============================================================ #}
 {% set wc = get_website_config() %}
 {% set hp = wc.cruise %}
 
-{# ── HERO SECTION ── #}
-<section class="rc-cruise-hero">
-  <div class="rc-hero-bg"{% if hp.hero.background %} style="background-image: url('{{ hp.hero.background }}')"{% endif %}></div>
-  <div class="rc-hero-overlay"></div>
-  <div class="rc-hero-content">
-    <span class="rc-hero-tag">{{ hp.hero.tag }}</span>
-    <h1>{{ hp.hero.title|safe }}</h1>
-    <div class="rc-hero-intro">{{ hp.hero.intro|safe }}</div>
+{# ── HERO SLIDER → Bootstrap carousel (fade) ──
+   Carousel penuh lebar dari Travel Website → Cruise Homepage → Hero
+   Slider → Slides (child Website Banner Slide, aktif ikut sort_order).
+   Tiada slide → fallback SATU banner statik dari section "Fallback
+   Banner". Caption per slide (tag/title/subtitle) + butang CTA per slide
+   (Button URL wajib untuk papar butang; Button Label kosong → Default
+   Button Label cruise_slide_cta_label). Caption global (tag/title/intro)
+   HANYA dipakai banner fallback — slide yang dikonfigurasi tidak
+   mewarisinya. #}
+{% set slides = hero_slides or [] %}
+{% set has_slides = (hp.hero.banners or []) | length > 0 %}
+<section class="carousel slide carousel-fade rc-hero-slider" id="rcHeroSlider"
+         data-bs-ride="carousel" data-bs-interval="6000"
+         aria-roledescription="carousel" aria-label="Featured cruise banners">
+  <div class="carousel-inner">
+    {% for sl in slides %}
+    <div class="carousel-item rc-slide{% if loop.first %} active{% endif %}"
+         {% if sl.banner_image %}style="background-image:url('{{ sl.banner_image }}')"{% endif %}>
+      <div class="rc-slide-overlay"></div>
+      <div class="rc-slide-center">
+        {# Caption global (Fallback Banner) hanya untuk banner fallback. #}
+        {% set _fb = hp.hero if (loop.first and not has_slides) else {} %}
+        {% set _cap_tag = sl.get('banner_tag') or _fb.get('tag') or '' %}
+        {% set _cap_title = sl.get('banner_title') or _fb.get('title') or '' %}
+        {% set _cap_sub = sl.get('banner_subtitle') or _fb.get('intro') or '' %}
+        {# Blok caption dipaparkan bila ada caption ATAU butang — butang
+           tidak bergantung pada caption (slide imej + butang sahaja sah). #}
+        {% if _cap_tag or _cap_title or _cap_sub or sl.get('banner_link_url') %}
+        <div class="rc-slide-caption">
+          {% if _cap_tag %}<span class="rc-hero-tag">{{ _cap_tag }}</span>{% endif %}
+          {% if _cap_title %}<h1>{{ _cap_title|safe }}</h1>{% endif %}
+          {% if _cap_sub %}<div class="rc-hero-intro">{{ _cap_sub|safe }}</div>{% endif %}
+          {% if sl.get('banner_link_url') %}
+          <a href="{{ sl.banner_link_url }}" class="btn btn-primary btn-lg rc-slide-cta">
+            {{ sl.get('banner_cta_label') or hp.hero.get('slide_cta_label') or 'Explore' }} <i class="ti ti-arrow-right"></i>
+          </a>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
 
-    {# Search Widget #}
-    <form class="rc-hero-search" action="/cruises" method="get">
+  {% if slides|length > 1 %}
+  <button type="button" class="carousel-control-prev" data-bs-target="#rcHeroSlider" data-bs-slide="prev">
+    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+    <span class="visually-hidden">Slide sebelumnya</span>
+  </button>
+  <button type="button" class="carousel-control-next" data-bs-target="#rcHeroSlider" data-bs-slide="next">
+    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+    <span class="visually-hidden">Slide seterusnya</span>
+  </button>
+  <div class="carousel-indicators">
+    {% for sl in slides %}
+    <button type="button" data-bs-target="#rcHeroSlider" data-bs-slide-to="{{ loop.index0 }}"
+            {% if loop.first %}class="active" aria-current="true"{% endif %}
+            aria-label="Slide {{ loop.index }}"></button>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+{# ── SEARCH BREAKER ──
+   Band gelap nautika yang memisahkan hero ↔ kandungan (breaker).
+   Deck kaca terapung menjangkau keluar tepi bawah band (straddle ke
+   seksyen seterusnya) — kedalaman tanpa menutup kawalan slider hero.
+   Kandungan form kekal ringkas: Destination (autocomplete) + Sailing
+   Month gabungan ("YYYY MMM" menaik) SAHAJA — tiada input carian
+   teks, tiada dropdown tahun berasingan. Label medan & butang dari
+   Travel Website (wc.cruise.search). Form GET → /cruises; nilai
+   gabungan dipecah ke month= & year= oleh cruise.js semasa submit.
+   Currency aktif dibawa hidden input (paksi multi-company). #}
+{% set se_cfg = hp.get('search') or {} %}
+<section class="rc-search-strip">
+  <div class="container">
+    <div class="rc-search-deck">
+      <i class="ti ti-anchor rc-deck-watermark" aria-hidden="true"></i>
+      <form class="rc-home-search" method="get" action="/cruises" id="rcHomeFilters">
       <input type="hidden" name="cruise" value="1"/>
-      {# Currency aktif kekal dibawa bila customer guna search (paksi
-         multi-company — currency menentukan pakej yang dipaparkan). #}
       <input type="hidden" name="currency" value="{{ currency or '' }}"/>
-      <script type="application/json" id="rcSearchDestinations">{{ options.destinations | tojson }}</script>
-      <div class="rc-search-grid">
-        <div class="rc-search-field rc-autocomplete" data-rc-autocomplete>
+      <input type="hidden" name="month" value="{{ active.month or '' }}"/>
+      <input type="hidden" name="year" value="{{ active.year or '' }}"/>
+
+      {# Destination — autocomplete (destination_search.js); nilai
+         sebenar Trip Destination Point dibawa hidden input. #}
+      <div class="rc-field rc-field-dest">
+        <span class="rc-field-label">{{ se_cfg.get('destination_label') or 'Destination' }}</span>
+        <div class="rc-autocomplete" data-rc-autocomplete>
           <i class="ti ti-map-pin"></i>
-          <input type="text" class="rc-ac-input" placeholder="Where to?"
-                 autocomplete="off" aria-label="Destination"
+          <input type="text" class="rc-ac-input" placeholder="{{ se_cfg.get('all_destinations') or 'All destinations' }}"
+                 value="{{ destination_label or '' }}"
+                 autocomplete="off" aria-label="{{ se_cfg.get('destination_label') or 'Destination' }}"
                  aria-autocomplete="list" aria-expanded="false"/>
-          <input type="hidden" name="destination" value=""/>
+          <input type="hidden" name="destination" value="{{ active.destination or '' }}"/>
           <ul class="rc-ac-list" role="listbox" hidden></ul>
         </div>
-        <label class="rc-search-field">
-          <i class="ti ti-calendar-event"></i>
-          <input type="date" name="date_from" placeholder="Departure"/>
-        </label>
-        <button type="submit" class="rc-search-btn">
-          <i class="ti ti-search"></i> {{ hp.hero.search_label }}
-        </button>
+      </div>
+      <script type="application/json" id="rcSearchDestinations">{{ options.destinations | tojson }}</script>
+
+      {# Sailing Month — gabungan tahun+bulan ("2026 Nov") menaik. #}
+      <label class="rc-field rc-field-monthyear">
+        <span class="rc-field-label">{{ se_cfg.get('month_label') or 'Sailing Month' }}</span>
+        <select id="rcHomeMonthYear" class="form-select" aria-label="{{ se_cfg.get('month_label') or 'Sailing month' }}">
+          <option value="">{{ se_cfg.get('all_months') or 'All months' }}</option>
+          {% for o in sailing_months %}
+          <option value="{{ o.value }}" {% if active_month_year == o.value %}selected{% endif %}>{{ o.label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <div class="rc-home-search-actions">
+        <button type="submit" class="btn btn-primary"><i class="ti ti-search"></i> {{ se_cfg.get('btn_label') or 'Search' }}</button>
       </div>
     </form>
+    </div>
+  </div>
+</section>
 
-    <div class="rc-hero-stats">
-      {% for stat in hp.hero.stats %}
-      <div class="rc-stat">
-        <strong>{{ stat.stat_value }}</strong>
-        <span>{{ stat.stat_label }}</span>
+{# ── SEKSYEN LISTING TRIP — dikawal Travel Website → Trip Listing
+   Sections (child table) ──
+   cruise.py membina grid ikut konfigurasi: satu baris child table =
+   satu seksyen (label/tajuk/subtitle/kategori Travel Date/maks kad).
+   Kad dalam setiap seksyen SUDAH DITAPIS ikut kategori seksyen (badge
+   kategori kad + deep-link CTA konsisten). Seksyen tanpa produk di-skip
+   di server; butang CTA bawah grid hanya bila label + URL diisi. #}
+{% for grp in cruise_groups %}
+<section class="rc-section rc-featured">
+  <div class="container">
+    <div class="rc-section-header">
+      {% if grp.label %}<span class="rc-tag">{{ grp.label }}</span>{% endif %}
+      <h2>{{ grp.title }}</h2>
+      {% if grp.subtitle %}<p>{{ grp.subtitle }}</p>{% endif %}
+    </div>
+
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+      {% for card in grp.cards %}
+      <div class="col">
+        {% with t = card.t, gds = card.gds %}
+        {% include "templates/includes/trip_card.html" %}
+        {% endwith %}
       </div>
       {% endfor %}
     </div>
-  </div>
-</section>
 
-{# ── FEATURED CRUISES ── #}
-<section class="rc-section rc-featured">
-  <div class="rc-container">
-    <div class="rc-section-header">
-      <span class="rc-tag">{{ hp.featured.tag }}</span>
-      <h2>{{ hp.featured.title|safe }}</h2>
-      <p>{{ hp.featured.subtitle|safe }}</p>
-    </div>
-
-    {% if featured_cruises %}
-    <div class="rc-trip-grid">
-      {% for cruise in featured_cruises %}
-      {% with t = cruise, gds = trip_group_dates.get(cruise.name, []) %}
-      {% include "templates/includes/trip_card.html" %}
-      {% endwith %}
-      {% endfor %}
-    </div>
-    {% else %}
-    <div class="rc-empty-state">
-      <i class="ti ti-ship-off"></i>
-      <h3>No featured cruises yet</h3>
-      <p>Check back soon for our curated voyage selections.</p>
-      <a href="{{ hp.featured.cta_url }}" class="rc-btn-primary">Browse All Cruises</a>
+    {% if grp.cta_label and grp.cta_url %}
+    <div class="text-center mt-4">
+      <a href="{{ grp.cta_url }}" class="btn btn-outline-primary">{{ grp.cta_label }}</a>
     </div>
     {% endif %}
-
-    <div class="rc-section-cta">
-      <a href="{{ hp.featured.cta_url }}" class="rc-btn-outline">{{ hp.featured.cta_label }}</a>
-    </div>
   </div>
 </section>
+{% endfor %}
 
 {# ── WHY CRUISE WITH US ── #}
 <section class="rc-section rc-why-us">
-  <div class="rc-container">
+  <div class="container">
     <div class="rc-section-header rc-light">
       <span class="rc-tag rc-tag-outline">{{ hp.whyus.tag }}</span>
       <h2>{{ hp.whyus.title|safe }}</h2>
       <p>{{ hp.whyus.subtitle|safe }}</p>
     </div>
 
-    <div class="rc-benefits-grid">
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 position-relative">
       {% for b in hp.whyus.benefits %}
-      <div class="rc-benefit-card">
-        <div class="rc-benefit-icon"><i class="ti {{ b.icon }}"></i></div>
-        <h3>{{ b.title }}</h3>
-        <p>{{ b.description }}</p>
+      <div class="col">
+        <div class="rc-benefit-card">
+          <div class="rc-benefit-icon"><i class="ti {{ b.icon }}"></i></div>
+          <h3>{{ b.title }}</h3>
+          <p>{{ b.description }}</p>
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -119,7 +202,7 @@
 
 {# ── POPULAR DESTINATIONS ── #}
 <section class="rc-section rc-destinations">
-  <div class="rc-container">
+  <div class="container">
     <div class="rc-section-header">
       <span class="rc-tag">{{ hp.dest.tag }}</span>
       <h2>{{ hp.dest.title|safe }}</h2>
@@ -127,72 +210,92 @@
     </div>
 
     {% if popular_destinations %}
-    <div class="rc-dest-grid">
+    <div class="row row-cols-2 row-cols-lg-4 g-3 g-lg-4">
       {% for dest in popular_destinations %}
-      <a href="/cruises?destination={{ dest.name | urlencode }}" class="rc-dest-card">
-        <div class="rc-dest-img" style="background-image:url('{{ dest.image or '/assets/travel_booking/img/defaultaroya.jpg' }}')">
-          <div class="rc-dest-overlay">
-            <h3>{{ dest.destination_name }}</h3>
-            <span>{{ dest.cruise_count or '' }} Cruises</span>
+      <div class="col">
+        <a href="/cruises?destination={{ dest.name | urlencode }}" class="rc-dest-card">
+          <div class="rc-dest-img" style="background-image:url('{{ dest.image or '/assets/travel_booking/img/defaultaroya.jpg' }}')">
+            <div class="rc-dest-overlay">
+              <h3>{{ dest.destination_name }}</h3>
+              <span>{{ dest.cruise_count or '' }} Cruises</span>
+            </div>
           </div>
-        </div>
-      </a>
+        </a>
+      </div>
       {% endfor %}
     </div>
     {% endif %}
   </div>
 </section>
 
-{# ── TESTIMONIALS ── #}
+{# ── TESTIMONIALS → Bootstrap carousel (3 kad per slide desktop) ── #}
+{% set _testi = hp.testi.testimonials or [] %}
+{% if _testi %}
 <section class="rc-section rc-testimonials">
-  <div class="rc-container">
+  <div class="container">
     <div class="rc-section-header">
       <span class="rc-tag">{{ hp.testi.tag }}</span>
       <h2>{{ hp.testi.title|safe }}</h2>
       <p>{{ hp.testi.subtitle|safe }}</p>
     </div>
 
-    <div class="rc-testimonial-slider" id="rcTestimonialSlider">
-      <div class="rc-track">
-        {% for item in hp.testi.testimonials %}
-        <div class="rc-testi-card">
-          <div class="rc-testi-stars">{% for i in range(item.rating) %}★{% endfor %}</div>
-          <blockquote>"{{ item.quote }}"</blockquote>
-          <div class="rc-testi-author">
-            <strong>{{ item.author }}</strong>
-            {% if item.context_label %}<span>{{ item.context_label }}</span>{% endif %}
+    <div class="carousel slide rc-testimonial-slider" id="rcTestimonialSlider"
+         data-bs-ride="carousel" data-bs-interval="5000">
+      <div class="carousel-inner">
+        {% for batch in _testi | batch(3) %}
+        <div class="carousel-item{% if loop.first %} active{% endif %}">
+          <div class="row row-cols-1 row-cols-md-3 g-4">
+            {% for item in batch %}
+            <div class="col">
+              <div class="rc-testi-card">
+                <div class="rc-testi-stars">{% for i in range(item.rating) %}★{% endfor %}</div>
+                <blockquote>"{{ item.quote }}"</blockquote>
+                <div class="rc-testi-author">
+                  <strong>{{ item.author }}</strong>
+                  {% if item.context_label %}<span>{{ item.context_label }}</span>{% endif %}
+                </div>
+              </div>
+            </div>
+            {% endfor %}
           </div>
         </div>
         {% endfor %}
       </div>
-      <div class="rc-slider-dots" id="rcSliderDots"></div>
+      {% if _testi | length > 3 %}
+      <div class="carousel-indicators">
+        {% for batch in _testi | batch(3) %}
+        <button type="button" data-bs-target="#rcTestimonialSlider" data-bs-slide-to="{{ loop.index0 }}"
+                {% if loop.first %}class="active" aria-current="true"{% endif %}
+                aria-label="Testimonial {{ loop.index }}"></button>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
   </div>
 </section>
+{% endif %}
 
 {# ── FINAL CTA BANNER ── #}
 <section class="rc-final-cta">
-  <div class="rc-cta-bg"></div>
-  <div class="rc-cta-glow"></div>
-  <div class="rc-container">
-    <div class="rc-cta-content">
+  <div class="container">
+    <div class="rc-cta-content text-center">
       <div class="rc-cta-icon"><i class="ti {{ hp.cta.icon }}"></i></div>
       <span class="rc-cta-tag">{{ hp.cta.tag }}</span>
       <h2>{{ hp.cta.title|safe }}</h2>
       <div class="rc-cta-body-text">{{ hp.cta.body|safe }}</div>
-      <div class="rc-cta-buttons">
-        <a href="{{ hp.cta.primary_url }}" class="rc-btn-primary rc-btn-lg">{{ hp.cta.primary_label }}</a>
+      <div class="rc-cta-buttons d-flex justify-content-center flex-wrap gap-3">
+        <a href="{{ hp.cta.primary_url }}" class="btn btn-primary btn-lg">{{ hp.cta.primary_label }}</a>
         {% if hp.cta.secondary_label %}
-        <a href="{{ hp.cta.secondary_url }}" class="rc-btn-outline rc-btn-lg rc-btn-light">{{ hp.cta.secondary_label }}</a>
+        <a href="{{ hp.cta.secondary_url }}" class="btn btn-outline-primary btn-lg">{{ hp.cta.secondary_label }}</a>
         {% endif %}
       </div>
     </div>
   </div>
 </section>
 
-{# Data item untuk event GA4 view_item_list (analytics.js) — featured
-   cruises yang dipaparkan di page ni. #}
-{% with ga_list_id = "cruise_homepage_featured", ga_list_name = "Featured Cruises", ga_trips = featured_cruises %}
+{# Data item untuk event GA4 view_item_list (analytics.js) — kad cruise
+   yang dipaparkan merentasi kumpulan kategori (trip unik). #}
+{% with ga_list_id = "cruise_homepage_featured", ga_list_name = "Featured Cruises", ga_trips = ga_cruises %}
   {% include "templates/includes/ga_item_list.html" %}
 {% endwith %}
 {% endblock %}

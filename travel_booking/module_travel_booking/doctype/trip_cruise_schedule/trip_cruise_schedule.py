@@ -35,13 +35,36 @@ class TripCruiseSchedule(Document):
 		total_days: DF.Int
 		total_nights: DF.Int
 		trip_code: DF.Data | None
-		trip_link: DF.Link | None
-		trip_name: DF.Data | None
+		trip_name_cruise_company: DF.Data | None
 	# end: auto-generated types
 
 	_DOCTYPE_NAME = "Trip Cruise Schedule"
 
 	def validate(self):
+
+			# Peraturan relationship #1 (Nov 2026): schedule yang AKTIF
+			# (boleh dijual) mesti terkait sekurang-kurangnya SATU Package
+			# Offer editorial-Active — tanpa offer, sailing tiada harga &
+			# inventori, jualan akan gagal tersembunyi pada gate kapasiti.
+			# Bukan-Active (Pending Review/Completed/dsb.) tidak disekat.
+			# Throw hanya semasa UPDATE manual (bukan insert pertama —
+			# offer dijana selepas schedule dicipta).
+			if self.status in ("Active", "Running", "Sailing", "Full", "Closed") \
+					and not self.get("__islocal") and not self.flags.skip_offer_check:
+				has_offer = frappe.db.exists("Package Offer", {
+					"cruise_schedule": self.name,
+					"status_editorial": "Active",
+				})
+				if not has_offer:
+					frappe.throw(
+						"Cruise Schedule '{0}' tidak mempunyai sebarang Package "
+						"Offer aktif. Setiap cruise schedule mesti terkait "
+						"sekurang-kurangnya satu offer sebelum status ditukar "
+						"ke Active — jana offer pada Travel Date tarikh ini "
+						"dahulu (Travel Manager → halaman tarikh → Add Offer).".format(
+							self.name),
+						title="Sailing Tanpa Offer Aktif",
+					)
 
 			# jangan usik - start
 
@@ -112,137 +135,11 @@ class TripCruiseSchedule(Document):
 		return None
 
 
-def sync_cruise_only_group_date(doc, method=None) -> str | None:
-	"""doc_events on_update (berjalan selepas insert & setiap save) —
-	sync Trip Group Date "Cruise Only" dengan data Trip Cruise Schedule.
-
-	Syarat berjalan:
-	- trip_link wujud & rekod Trip sah (linked data ada)
-	- sail_start & sail_end ada (asas tarikh group)
-
-	Kelakuan:
-	- Group date untuk schedule ini SUDAH ADA → update trip link &
-	  info berkaitan schedule (ship, tarikh pelayaran, port, kod).
-	  Field set_only_once (is_cruise_only, is_a_cruise_trip,
-	  naming_series, group_organizer) TIDAK disentuh — Frappe throw
-	  jika diubah pada doc sedia ada. departure/return hanya di-sync
-	  jika group date itu cruise only.
-	- BELUM ADA → cipta baru dengan cruise_only enabled.
-
-	Field dipetakan ikut konvensyen _apply_cruise_fetch() dalam
-	api/trip_manager.py. Gagal (cth. validasi group date) di-log
-	sahaja — jangan block save schedule.
-	"""
-	try:
-		# Syarat 1: linked Trip mesti wujud
-		if not doc.trip_link or not frappe.db.exists("Trip", doc.trip_link):
-			return None
-
-		# Syarat 2: tarikh pelayaran diperlukan untuk bina/sync group
-		if not doc.sail_start or not doc.sail_end:
-			return None
-
-		trip = frappe.db.get_value(
-			"Trip", doc.trip_link, ("trip_name", "trip_organizer"), as_dict=True
-		)
-		schedule_values = {
-			"trip": doc.trip_link,
-			"trip_name": trip.trip_name,
-			"cruise_trip": doc.trip_link,
-			"cruise_code": doc.trip_code,
-			"cruise_schedule_title": doc.schedule_code,
-			"ship_name": doc.ship_name,
-			"ship_code": doc.ship_code,
-			"sailing_start": doc.sail_start,
-			"sailing_end": doc.sail_end,
-			"embarkation_port": doc.port_start,
-			"disembarkation_port": doc.port_end,
-			"cruise_days": doc.total_days,
-			"cruise_nights": doc.total_nights,
-			# options status kedua-dua doctype diseragamkan — nilai boleh
-			# di-sync terus (Cancelled/Completed di-maintain oleh auto-status
-			# validate() Trip Group Date jika tarikh kata sebaliknya)
-			"status": doc.status,
-		}
-
-		existing = frappe.get_all(
-			"Trip Group Date",
-			filters={"cruise_schedule": doc.name},
-			order_by="creation asc",
-			pluck="name",
-			limit=1,
-		)
-
-		if existing:
-			return _update_linked_group_date(existing[0], doc, schedule_values)
-
-		return _create_cruise_only_group_date(doc, trip, schedule_values)
-	except Exception:
-		frappe.log_error(
-			frappe.get_traceback(),
-			f"CruiseSchedule: Auto-sync Cruise Only group date failed for {doc.name}",
-		)
-		return None
-
-
-def _update_linked_group_date(group_date_name, doc, schedule_values) -> str:
-	"""Update group date sedia ada dengan nilai terkini schedule.
-	Save hanya jika ada nilai berubah — elak modified bergerak pada
-	setiap save schedule walaupun tiada perubahan."""
-	group_date = frappe.get_doc("Trip Group Date", group_date_name)
-
-	if group_date.is_cruise_only:
-		# cruise only: departure/return ikut sailing (sama seperti
-		# sync dalam validate() Trip Group Date)
-		schedule_values["departure_date"] = doc.sail_start
-		schedule_values["return_date"] = doc.sail_end
-
-	if group_date.status == "Cancelled":
-		# Cancelled adalah manual override (sama seperti doctrine
-		# _compute_auto_status) — jangan hidupkan semula group date
-		# yang telah dibatalkan walaupun schedule kembali aktif
-		schedule_values.pop("status", None)
-
-	changed = False
-	for fieldname, value in schedule_values.items():
-		if str(group_date.get(fieldname) or "") != str(value or ""):
-			group_date.set(fieldname, value)
-			changed = True
-
-	if changed:
-		group_date.save(ignore_permissions=True)
-
-	return group_date.name
-
-
-def _create_cruise_only_group_date(doc, trip, schedule_values) -> str:
-	"""Cipta group date CRUISE ONLY baharu daripada schedule."""
-	org_series = None
-	if trip.trip_organizer:
-		org_series = frappe.db.get_value("Trip Organizer", trip.trip_organizer, "org_series")
-
-	group_date = frappe.get_doc(
-		{
-			"doctype": "Trip Group Date",
-			"naming_series": org_series or "RC.YY.##",
-			"group_organizer": trip.trip_organizer,
-			# ikut status schedule semasa (biasanya Pending Review untuk
-			# schedule baharu)
-			"status": doc.status or "Pending Review",
-			# cruise only — set_only_once, wajib di-set semasa create
-			"is_a_cruise_trip": 1,
-			"is_cruise_only": 1,
-			"cruise_schedule": doc.name,
-			# cruise only: departure/return ikut sailing (validate group
-			# date sync nilai ni juga, di-set eksplisit untuk kejelasan)
-			"departure_date": doc.sail_start,
-			"return_date": doc.sail_end,
-			**schedule_values,
-		}
-	)
-	group_date.insert(ignore_permissions=True)
-
-	return group_date.name
+# [BUANG Stage 2 Nov 2026] sync_cruise_only_group_date +
+# _update_linked_group_date + _create_cruise_only_group_date — jentera
+# sync schedule → Trip Group Date (struktur lama). Schedule kini
+# berpaut Travel Date (Travel Date.cruise_schedule); pautan/proofing
+# TGD tidak lagi dijana daripada schedule.
 
 
 def auto_update_cruise_schedule_statuses(schedule_name=None):
@@ -314,6 +211,8 @@ def sync_cabin_availability(doc, method=None) -> None:
 	"""doc_events Booking Reservation (after_insert / on_update /
 	after_delete) — kira semula occupancy & availability kelas cabin yang
 	terlibat bila reservasi dicipta / diubah / dibatalkan / dipadam.
+	Occupancy mengira KABIN (DISTINCT room_id — tetamu berkongsi kabin),
+	bukan baris penumpang.
 
 	- after_insert & on_update: kira pasangan (trip_cruise_schedule,
 	  room_category) SEMASA; kalau salah satu link BERUBAH pada save ni,
@@ -372,14 +271,19 @@ def refresh_cabin_availability(schedule_name, room_category=None) -> dict:
 	if not schedule_name or not frappe.db.exists("Trip Cruise Schedule", schedule_name):
 		return {}
 
-	# Kiraan reservasi aktif per kelas — SATU query GROUP BY. Raw SQL
-	# sebab get_all v17 tak terima fungsi SQL dalam fields; corak sama
-	# dengan refresh_bookings() Trip Group Date.
+	# Kiraan KABIN terisi per kelas — inventori cruise schedule mengira
+	# BILIK/KABIN, bukan penumpang: reservasi tetamu berkongsi kabin
+	# (room_id sama), jadi kira DISTINCT room_id. Fallback COALESCE ke
+	# name (satu reservasi = satu kabin) bila room_id kosong (rekod lama).
+	# SATU query GROUP BY. Raw SQL sebab get_all v17 tak terima fungsi
+	# SQL dalam fields; corak sama dengan refresh_bookings() Trip Group
+	# Date.
 	counts = {
 		r.room_category: int(r.total or 0)
 		for r in frappe.db.sql(
 			"""
-			SELECT room_category, COUNT(name) AS total
+			SELECT room_category,
+			       COUNT(DISTINCT COALESCE(NULLIF(room_id, ''), name)) AS total
 			FROM `tabBooking Reservation`
 			WHERE trip_cruise_schedule = %s
 				AND status != 'Cancelled'

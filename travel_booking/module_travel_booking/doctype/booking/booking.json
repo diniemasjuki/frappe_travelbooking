@@ -34,7 +34,6 @@
   "cust_state",
   "cust_country",
   "section_break_eyrl",
-  "order_summary",
   "sales_channel_section",
   "column_break_jnes",
   "affiliate",
@@ -54,6 +53,7 @@
   "terms_accepted_at",
   "customer_message",
   "checkout_method",
+  "hold_expires_on",
   "section_break_wqvr",
   "column_break_luhk",
   "booking_channel",
@@ -73,15 +73,11 @@
   "trip_name",
   "trip_title",
   "trip_date",
-  "trip_date_group_name",
+  "travel_date",
   "trip_package",
-  "trip_package_name",
   "column_break_tgtv",
   "is_a_cruise_trip",
   "is_cruise_only",
-  "trip_status",
-  "trip_package_status",
-  "trip_date_group_status",
   "section_break_lewo",
   "column_break_ruru",
   "departure_date",
@@ -93,10 +89,13 @@
   "cruise_end",
   "column_break_jvfy",
   "package_type",
-  "ground_arrangement",
   "payment_due_amount",
-  "travel_package",
-  "package_offer"
+  "package_offer",
+  "payment_reminders_sent",
+  "booking_items_tab",
+  "items",
+  "sales_orders_tab",
+  "sales_orders"
  ],
  "fields": [
   {
@@ -133,7 +132,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "trip_package.trip_link",
+   "fetch_from": "package_offer.trip",
    "fieldname": "trip_name",
    "fieldtype": "Read Only",
    "label": "Trip",
@@ -144,8 +143,11 @@
    "depends_on": "eval:doc.trip_date",
    "fieldname": "trip_package",
    "fieldtype": "Link",
-   "label": "Trip Package",
-   "options": "Trip Package"
+   "label": "Trip Package (Legacy)",
+   "options": "Trip Package",
+   "hidden": 1,
+   "print_hide": 1,
+   "description": "Legasi (Travel Package deprecated). Struktur baharu: Package Offer."
   },
   {
    "fieldname": "customer",
@@ -209,13 +211,6 @@
    "fieldname": "section_break_mhpl",
    "fieldtype": "Section Break",
    "label": "Trip Information"
-  },
-  {
-   "fieldname": "order_summary",
-   "fieldtype": "Small Text",
-   "is_virtual": 1,
-   "label": "Order Summary",
-   "read_only": 1
   },
   {
    "fieldname": "payment_section",
@@ -362,8 +357,11 @@
    "depends_on": "eval:doc.trip_name",
    "fieldname": "trip_date",
    "fieldtype": "Link",
-   "label": "Trip Date",
-   "options": "Trip Group Date"
+   "label": "Trip Date (Legacy)",
+   "options": "Trip Group Date",
+   "hidden": 1,
+   "print_hide": 1,
+   "description": "Anchor TGD legasi — kini hanya untuk rujukan aliran lama. Struktur baharu: Travel Date."
   },
   {
    "fieldname": "column_break_nrfb",
@@ -407,24 +405,6 @@
    "read_only": 1
   },
   {
-   "fetch_from": "trip_name.status",
-   "fieldname": "trip_status",
-   "fieldtype": "Data",
-   "label": "Trip Status"
-  },
-  {
-   "fetch_from": "trip_date.status",
-   "fieldname": "trip_date_group_status",
-   "fieldtype": "Read Only",
-   "label": "Trip Date Group Status"
-  },
-  {
-   "fetch_from": "trip_package.status",
-   "fieldname": "trip_package_status",
-   "fieldtype": "Read Only",
-   "label": "Trip Package Status"
-  },
-  {
    "fieldname": "section_break_eyrl",
    "fieldtype": "Section Break"
   },
@@ -433,18 +413,18 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "trip_date.departure_date",
    "fieldname": "departure_date",
    "fieldtype": "Date",
    "in_list_view": 1,
-   "label": "Departure Date"
+   "label": "Departure Date",
+   "read_only": 1
   },
   {
-   "fetch_from": "trip_date.return_date",
    "fieldname": "return_date",
    "fieldtype": "Date",
    "in_list_view": 1,
-   "label": "Return Date"
+   "label": "Return Date",
+   "read_only": 1
   },
   {
    "depends_on": "eval:doc.is_a_cruise_trip",
@@ -453,35 +433,35 @@
   },
   {
    "default": "0",
-   "fetch_from": "trip_date.is_a_cruise_trip",
    "fieldname": "is_a_cruise_trip",
    "fieldtype": "Check",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "is a cruise trip"
+   "label": "is a cruise trip",
+   "read_only": 1
   },
   {
    "default": "0",
    "depends_on": "eval:doc.is_a_cruise_trip",
-   "fetch_from": "trip_date.is_cruise_only",
    "fieldname": "is_cruise_only",
    "fieldtype": "Check",
    "in_standard_filter": 1,
-   "label": "is cruise only"
+   "label": "is cruise only",
+   "read_only": 1
   },
   {
    "depends_on": "eval:doc.is_a_cruise_trip",
-   "fetch_from": "trip_date.sailing_start",
    "fieldname": "cruise_start",
    "fieldtype": "Date",
-   "label": "Cruise Start"
+   "label": "Cruise Start",
+   "read_only": 1
   },
   {
    "depends_on": "eval:doc.is_a_cruise_trip",
-   "fetch_from": "trip_date.sailing_end",
    "fieldname": "cruise_end",
    "fieldtype": "Date",
-   "label": "Cruise End"
+   "label": "Cruise End",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_qemr",
@@ -544,10 +524,10 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "trip_package.trip_name",
    "fieldname": "trip_title",
    "fieldtype": "Read Only",
-   "label": "Trip Title"
+   "label": "Trip Title",
+   "read_only": 1
   },
   {
    "description": "Partner B2B yang DIBILKAN untuk tempahan ini (booking_channel = B2B). Sales Order / Payment Entry / Sales Invoice semua atas Customer milik partner — pelanggan end-customer tidak melihat sebarang harga.",
@@ -579,6 +559,13 @@
    "set_only_once": 1
   },
   {
+   "depends_on": "eval:doc.checkout_method=='Held Booking'",
+   "description": "Fasa A (G2): tarikh akhir pegangan untuk tempahan 'Held Booking' (Pay Later) — amalan cruise: courtesy hold 24-72 jam. Job harian expire_held_bookings membatalkan booking (cascade SO/PR + pulang kuota offer) selepas tarikh ini. Kosong = tiada tarikh akhir (kelakuan lama). Boleh dilanjutkan manual oleh admin.",
+   "fieldname": "hold_expires_on",
+   "fieldtype": "Datetime",
+   "label": "Hold Expires On"
+  },
+  {
    "fieldname": "column_break_luhk",
    "fieldtype": "Column Break"
   },
@@ -595,34 +582,26 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "trip_date.total_days",
    "fieldname": "total_days",
    "fieldtype": "Read Only",
-   "label": "Total Days"
+   "label": "Total Days",
+   "read_only": 1
   },
   {
-   "fetch_from": "trip_date.total_nights",
    "fieldname": "total_night",
    "fieldtype": "Read Only",
-   "label": "Total Night"
+   "label": "Total Night",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_jvfy",
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "trip_package.package_type",
    "fieldname": "package_type",
    "fieldtype": "Read Only",
-   "label": "Package Type"
-  },
-  {
-   "default": "0",
-   "fetch_from": "trip_package.ground_arrangement",
-   "fieldname": "ground_arrangement",
-   "fieldtype": "Check",
-   "is_virtual": 1,
-   "label": "Ground Arrangement"
+   "label": "Package Type",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_nzrb",
@@ -658,46 +637,62 @@
    "read_only": 1
   },
   {
-   "depends_on": "eval:doc.trip_name",
-   "fetch_from": "trip_date.trip_group_name",
-   "fieldname": "trip_date_group_name",
-   "fieldtype": "Read Only",
-   "label": "Trip Date Group",
-   "options": "Trip Group Date"
-  },
-  {
-   "depends_on": "eval:doc.trip_date",
-   "fetch_from": "trip_package.package_title",
-   "fieldname": "trip_package_name",
-   "fieldtype": "Read Only",
-   "label": "Trip Package Name",
-   "options": "Trip Package"
-  },
-  {
-   "fieldname": "travel_package",
+   "fieldname": "travel_date",
    "fieldtype": "Link",
-   "label": "Travel Package (New)",
-   "options": "Travel Package",
+   "label": "Travel Date (New)",
+   "options": "Travel Date",
    "read_only": 1,
    "no_copy": 1,
-   "description": "F5: pautan struktur baharu — di-set semasa confirm_booking bila flag use_package_offers ON"
+   "print_hide": 1
   },
   {
+   "description": "F5: offer yang dibooking (inventori ditolak daripada offer ini)",
    "fieldname": "package_offer",
    "fieldtype": "Link",
    "label": "Package Offer (New)",
-   "options": "Package Offer",
-   "read_only": 1,
    "no_copy": 1,
-   "description": "F5: offer yang dibooking (inventori ditolak daripada offer ini)"
+   "options": "Package Offer",
+   "read_only": 1
+  },
+  {
+   "description": "Fasa A (G4): log dedup reminder bayaran baki {days_left: tarikh hantar} — scheduler send_payment_schedule_reminders hantar SATU emel per ambang (T-30/T-7/T-1) per booking.",
+   "fieldname": "payment_reminders_sent",
+   "fieldtype": "JSON",
+   "hidden": 1,
+   "label": "Payment Reminders Sent (Log)",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "booking_items_tab",
+   "fieldtype": "Tab Break",
+   "label": "Booking Items"
+  },
+  {
+   "description": "Fasa 0 (booking-centric): rekod komersial per traveller — sumber struktur tunggal booking. SO items dijana/di-backfill daripada baris ini; reservation diaktifkan daripadanya. Kaunter kuota/seat kekal baca Booking Reservation.",
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Booking Items",
+   "options": "Booking Item",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sales_orders_tab",
+   "fieldtype": "Tab Break",
+   "label": "Billing"
+  },
+  {
+   "fieldname": "sales_orders",
+   "fieldtype": "Table",
+   "label": "Sales Orders",
+   "no_copy": 1,
+   "options": "Booking Sales Order",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
+ "link_display_mode": "Search",
  "links": [
-  {
-   "link_doctype": "Sales Order",
-   "link_fieldname": "custom_booking"
-  },
   {
    "link_doctype": "Sales Invoice",
    "link_fieldname": "custom_booking"
@@ -711,7 +706,7 @@
    "link_fieldname": "booking"
   }
  ],
- "modified": "2026-10-25 14:52:05.838904",
+ "modified": "2026-11-18 15:00:00.000000",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Booking",

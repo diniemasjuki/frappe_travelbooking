@@ -23,7 +23,39 @@ from travel_booking.utils.upload_normalize import _decode_and_normalize_upload
 # ══════════════════════════════════════════════
 
 @frappe.whitelist()
-def get_all_so_payments():
+def _payment_schedule_rows(booking_name: str):
+    """Fasa A (G1): baris jadual bayaran SO booking (Deposit / Balance
+    Payment / Full Payment — dibina confirm_booking ikut deposit % + hari
+    final payment offer/Settings). Dikongsi oleh get_all_so_payments()
+    (mod self) dan get_booking_so_payments() (mod onbehalf/staff) supaya
+    kedua-dua mode portal papar tarikh akhir baki yang sama — selari emel
+    reminder T-30/T-7/T-1."""
+    rows = frappe.db.sql("""
+        SELECT ps.description, ps.due_date, ps.payment_amount,
+               ps.outstanding, so.currency
+        FROM `tabPayment Schedule` ps
+        INNER JOIN `tabSales Order` so ON so.name = ps.parent
+        INNER JOIN `tabBooking Sales Order` reg
+            ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+        WHERE reg.parent = %s AND so.docstatus = 1
+          AND ps.parenttype = 'Sales Order'
+          AND ps.description IS NOT NULL AND ps.description != ''
+        ORDER BY so.creation ASC, ps.idx ASC
+    """, booking_name, as_dict=True)
+    return [
+        {
+            "description": r.description,
+            "due_date": str(r.due_date) if r.due_date else "",
+            "payment_amount": float(r.payment_amount or 0),
+            "outstanding": float(r.outstanding or 0),
+            "currency": r.currency or "",
+        }
+        for r in rows
+    ]
+
+
+@frappe.whitelist()
+def get_all_so_payments(booking_number: str = None):
     """Sejarah bayaran customer — baca Payment Entry (bukan RPE) + Sales Invoice.
     SO Cancelled (docstatus=2) TETAP disertakan (transparency di UI, badge
     'Cancelled') tapi dikecualikan dari kiraan Total/Balance di frontend
@@ -37,19 +69,43 @@ def get_all_so_payments():
     from travel_booking.api.currency_axis import get_default_currency
     default_currency = get_default_currency()
 
+    # Penapis booking (opsyenal): hadkan kepada SO yang didaftarkan pada
+    # registri Booking.sales_orders ([Nov 2026] SO tidak lagi memegang
+    # link custom_booking ke Booking) bagi booking_number berkenaan.
     so_rows = frappe.db.sql("""
         SELECT so.name, so.grand_total, so.advance_paid, so.status, so.docstatus,
                so.currency, so.transaction_date, so.custom_booking_addon,
                cur.symbol AS currency_symbol
         FROM `tabSales Order` so
         LEFT JOIN `tabCurrency` cur ON cur.name = so.currency
-        WHERE so.customer = %s AND so.docstatus IN (1, 2)
+        {booking_join}
+        WHERE so.customer = %(customer)s AND so.docstatus IN (1, 2)
+          {booking_filter}
         ORDER BY so.creation DESC
-    """, customer_name, as_dict=True)
+    """.format(
+        booking_join=(
+            "INNER JOIN `tabBooking Sales Order` reg "
+            "ON reg.sales_order = so.name AND reg.parenttype = 'Booking'"
+            if booking_number else ""
+        ),
+        booking_filter=(
+            "AND reg.parent = (SELECT name FROM `tabBooking` WHERE booking_number = %(bno)s)"
+            if booking_number else ""
+        )),
+        {"customer": customer_name, "bno": booking_number}, as_dict=True)
 
     orders = _build_orders(so_rows, customer_name)
 
-    return {"orders": orders}
+    payload = {"orders": orders}
+    # Fasa A (G1): billing page mod self kini hantar booking_number —
+    # sertakan jadual Deposit/Balance untuk booking itu (mode onbehalf
+    # dapatnya melalui get_booking_so_payments).
+    if booking_number:
+        booking_name = frappe.db.get_value(
+            "Booking", {"booking_number": booking_number}, "name")
+        if booking_name:
+            payload["payment_schedule"] = _payment_schedule_rows(booking_name)
+    return payload
 
 
 def _build_orders(so_rows, customer_name, booking_name=None):
@@ -73,14 +129,17 @@ def _build_orders(so_rows, customer_name, booking_name=None):
         so_name = so.name
 
         # Booking (nama trip sebenar) untuk SO ini — SO boleh jadi SO utama
-        # ATAU SO addon (dikaitkan melalui Sales Order.custom_booking), jadi
-        # JOIN terus melalui custom_booking (bukan Booking.sales_order yang
-        # cuma menyimpan rujukan sehala dari Booking → SO utama).
+        # ATAU SO addon; KEDUA-DUANYA didaftar pada registri
+        # Booking.sales_orders ([Nov 2026] menggantikan rujukan
+        # Sales Order.custom_booking), jadi JOIN terus melalui registri
+        # tersebut.
         if booking_name:
             bk_rows = frappe.db.sql("""
                 SELECT b.name, b.booking_number, tm.trip_name AS trip_label, td.trip_group_name
                 FROM `tabSales Order` so
-                JOIN `tabBooking` b ON b.name = so.custom_booking
+                JOIN `tabBooking Sales Order` reg
+                    ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+                JOIN `tabBooking` b ON b.name = reg.parent
                 LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
                 LEFT JOIN `tabTrip` tm ON tm.name = td.trip
                 WHERE so.name = %s AND b.name = %s
@@ -89,7 +148,9 @@ def _build_orders(so_rows, customer_name, booking_name=None):
             bk_rows = frappe.db.sql("""
                 SELECT b.name, b.booking_number, tm.trip_name AS trip_label, td.trip_group_name
                 FROM `tabSales Order` so
-                JOIN `tabBooking` b ON b.name = so.custom_booking
+                JOIN `tabBooking Sales Order` reg
+                    ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+                JOIN `tabBooking` b ON b.name = reg.parent
                 LEFT JOIN `tabTrip Group Date`   td ON td.name = b.trip_date
                 LEFT JOIN `tabTrip` tm ON tm.name = td.trip
                 WHERE so.name = %s AND b.customer = %s
@@ -293,9 +354,10 @@ def get_booking_so_payments(booking_number: str = None):
     dan /traveller/onbehalf-billing (manager on-behalf).
 
     Bezanya dari get_all_so_payments() (semua SO milik customer session):
-    di sini SO DISARING KEPADA SATU booking (so.custom_booking) DAN akses
-    disahkan melalui _booking_accessible() — customer pemilik booking ATAU
-    manager on-behalf (booked_by = user, booking_channel != Direct).
+    di sini SO DISARING KEPADA SATU booking (melalui registri
+    Booking.sales_orders) DAN akses disahkan melalui _booking_accessible()
+    — customer pemilik booking ATAU manager on-behalf (booked_by = user,
+    booking_channel != Direct).
 
     Payload tambahan untuk mod on-behalf (page papar blok customer akhir +
     kawal butang ikut tahap akses, selari dengan get_booking_data()):
@@ -338,11 +400,16 @@ def get_booking_so_payments(booking_number: str = None):
                cur.symbol AS currency_symbol
         FROM `tabSales Order` so
         LEFT JOIN `tabCurrency` cur ON cur.name = so.currency
-        WHERE so.custom_booking = %s AND so.docstatus IN (1, 2)
+        INNER JOIN `tabBooking Sales Order` reg
+            ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+        WHERE reg.parent = %s AND so.docstatus IN (1, 2)
         ORDER BY so.creation DESC
     """, booking.name, as_dict=True)
 
     orders = _build_orders(so_rows, customer_name, booking_name=booking.name)
+
+    # Fasa A (G1): jadual bayaran SO (helper dikongsi dengan mod self).
+    payment_schedule = _payment_schedule_rows(booking.name)
 
     on_behalf = not (customer_name and booking.customer == customer_name)
     end_customer = None
@@ -359,6 +426,7 @@ def get_booking_so_payments(booking_number: str = None):
 
     return {
         "orders":                orders,
+        "payment_schedule":      payment_schedule,
         "booking_number":        booking_number,
         "on_behalf":             on_behalf,
         "end_customer_name":     end_customer or "",
@@ -416,8 +484,9 @@ def create_payment_request(booking_number: str = None, amount: float = None,
     # selepas redirect balik dari Stripe) gagal padankan balik ke Booking —
     # customer nampak "Couldn't confirm payment status" walaupun bayaran
     # itu sendiri (Stripe) berjaya/gagal seperti biasa.
+    from travel_booking.api.so_helpers import _resolve_booking_from_so
     if not booking_number:
-        booking_name_from_so = frappe.db.get_value("Sales Order", so_name, "custom_booking")
+        booking_name_from_so = _resolve_booking_from_so(so_name)
         if booking_name_from_so:
             booking_number = frappe.db.get_value("Booking", booking_name_from_so, "booking_number")
 
@@ -425,6 +494,12 @@ def create_payment_request(booking_number: str = None, amount: float = None,
                              ["customer", "grand_total", "advance_paid", "currency"], as_dict=True)
     if not _so_action_allowed(so_name, customer_name, managed, "Full"):
         frappe.throw("Access denied.", frappe.PermissionError)
+
+    # Fasa 1 (1f): booking Cancelled/Abandoned tidak menerima bayaran
+    # baharu — SO booking terbiar kekal submitted & berbaki, jadi semakan
+    # baki semata-mata tidak mencukupi.
+    from travel_booking.api.booking_engine import _assert_booking_payable
+    _assert_booking_payable(_resolve_booking_from_so(so_name))
 
     # NOTA: "Disable Rounded Total" kini global (Selling Settings) — semua
     # SO tak lagi ada rounded_total berlainan dari grand_total (dan ERPNext
@@ -440,19 +515,30 @@ def create_payment_request(booking_number: str = None, amount: float = None,
 
     req_amount = float(amount) if amount else outstanding
 
-    # Deposit minimum ikut Travel Settings (single-sourced dengan
-    # confirm_booking()) — bukan hardcode 20%, supaya konsisten kalau admin
-    # tukar peratus deposit lalai.
-    settings = frappe.get_cached_doc("Travel Settings")
-    default_deposit_percent = float(settings.default_deposit_percent or 20)
-
-    min_amount = round(grand_total * (default_deposit_percent / 100), 2) if paid <= 0 else 1.0
+    # Deposit minimum bayaran pertama — Fasa 1 (1c): terma BERKESAN
+    # booking (Package Offer override → Travel Settings global) +
+    # peraturan tetingkap final payment (dalam N hari sebelum berlepas =
+    # bayar penuh), single-sourced dengan confirm_booking() melalui
+    # _minimum_first_payment_amount. Baki (paid > 0) kekal min 1.00.
+    if paid <= 0:
+        from travel_booking.api.booking_engine import _minimum_first_payment_amount
+        booking_name = _resolve_booking_from_so(so_name)
+        min_amount = _minimum_first_payment_amount(booking_name, grand_total)
+        if min_amount is None:
+            # Booking tak dijumpai (SO tidak berdaftar pada mana-mana registri
+            # booking?) — fallback peratusan global lama supaya gate tak
+            # terbuka tanpa had.
+            settings = frappe.get_cached_doc("Travel Settings")
+            min_amount = round(grand_total * (
+                float(settings.default_deposit_percent or 20) / 100), 2)
+    else:
+        min_amount = 1.0
     if req_amount < min_amount - 0.01:
         if paid <= 0:
             from travel_booking.api.booking import fmt_currency
             frappe.throw(
-                "First payment must be at least the deposit of {:.0f}% ({}).".format(
-                    default_deposit_percent, fmt_currency(min_amount, so.currency)
+                "First payment must be at least the required deposit ({}).".format(
+                    fmt_currency(min_amount, so.currency)
                 )
             )
         frappe.throw("Invalid amount.")
@@ -505,6 +591,7 @@ def submit_manual_payment(amount: float, payment_date: str,
         _build_discount_deduction_rows,
         _get_absorbed_order_discount,
         _get_booking_discount_snapshot,
+        _resolve_booking_from_so,
         _safe_date,
     )
 
@@ -541,6 +628,11 @@ def submit_manual_payment(amount: float, payment_date: str,
                               "advance_paid"], as_dict=True)
     if not _so_action_allowed(target_so, customer_name, managed, "Full"):
         frappe.throw("Access denied.", frappe.PermissionError)
+
+    # Fasa 1 (1f): bukti transfer untuk booking Cancelled/Abandoned
+    # ditolak — bayaran baharu tidak lagi diterima.
+    from travel_booking.api.booking_engine import _assert_booking_payable
+    _assert_booking_payable(_resolve_booking_from_so(target_so))
 
     # ON-BEHALF: bila manager (bukan pemilik SO) yang hantar resit, PE
     # mesti direkodkan terhadap customer SO (end customer) — bukan

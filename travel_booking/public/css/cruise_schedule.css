@@ -4,14 +4,23 @@
    SAILING DATE. Satu node = satu sailing date; dalam node, trip
    nama lain = kad berasingan (stack).
 
-   Reuse trips.css (hero/filters/buttons) + trip_card.css
-   (rc-card-cta / rc-empty / rcCardFadeIn).
+   DIMIGRASI KE BOOTSTRAP 5 (pola emas cruise.html):
+   - Butang kad/modal = komponen BS (btn btn-primary / btn-outline-
+     primary / modal) — di-skin emas oleh rc-theme.css (base).
+   - Empty state = utility BS (text-center py-5) + butang BS.
+   - Modal pilih pakej = markup bootstrap.Modal (modal fade +
+     modal-dialog/modal-content); fail ini hanya SKIN jenama.
+   - Link trips.css & trip_card.css DIBUANG dari page — peraturan
+     yang masih dipakai (hero/filters/field/butang include kongsi
+     cruise_filters.html, rcCardFadeIn, rc-empty) di-COPY di bawah.
+     rc-promo-badge di-copy dari trip_detail.css (tak dimuatkan page).
 
    Tema: gold #C9A84C, dark #1E1C18, bg #F7F5F0, border #E8E5DF,
-   muted #5C5850/#7D7A70/#9C9789. Font: Rubik (heading) + Jost (body).
+   muted #5C5850/#7D7A70/#9C9789. Font: Rubik (heading) + Jost (body)
+   (token font dah di rc-theme.css).
    ============================================================ */
 
-/* Page container (corak .rc-catalog trips.css) */
+/* ── Page container (corak .rc-catalog trips.css — COPY) ── */
 .rc-sched {
   font-family: var(--font-jost);
   max-width: 1180px;
@@ -19,9 +28,114 @@
   padding: 24px 22px 60px;
 }
 
+/* ============================================================
+   HERO + FILTERS + META — COPY dari trips.css (link dibuang).
+   Markup datang dari include kongsi templates/includes/
+   cruise_filters.html (TIDAK diubah) — class rc-filters/rc-field/
+   rc-btn-* adalah hook struktur include; jangan tukar nama.
+   ============================================================ */
+.rc-catalog-hero {
+  padding: 30px 0 22px;
+  text-align: center;
+}
+.rc-catalog-hero h1 {
+  margin: 0;
+  font-family: var(--font-rubik);
+  font-size: 42px;
+  color: #1E1C18;
+  letter-spacing: -.01em;
+  font-weight: 500;
+}
+.rc-catalog-hero p {
+  margin: 8px 0 0;
+  color: #7D7A70;
+  font-size: 15px;
+}
+
+.rc-filters {
+  background: #fff;
+  border: 1px solid #E8E5DF;
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rc-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+.rc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 150px;
+}
+.rc-field-search {
+  flex: 2.2;
+  min-width: 200px;
+  position: relative;
+}
+.rc-field-search > i {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #9C9789;
+  font-size: 16px;
+}
+.rc-field-search input { padding-left: 34px; }
+.rc-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #7D7A70;
+  font-family: var(--font-jost);
+}
+.rc-field input,
+.rc-field select {
+  padding: 10px 12px;
+  border: 1px solid #E8E5DF;
+  border-radius: 9px;
+  font-size: 14px;
+  font-family: var(--font-jost);
+  color: #1E1C18;
+  background: #fff;
+  outline: none;
+  padding-left: 30px;
+}
+.rc-field input:focus,
+.rc-field select:focus {
+  border-color: #C9A84C;
+  box-shadow: 0 0 0 3px rgba(201, 168, 76, .15);
+}
+.rc-filter-actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+/* Butang include penapis (class brand — bukan komponen BS) */
+
+/* Result meta (jumlah sailing) */
+.rc-catalog-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 2px 14px;
+  font-size: 13px;
+  color: #7D7A70;
+  font-weight: 500;
+  font-family: var(--font-jost);
+}
+
 /* ── Penapis destinasi (autocomplete destination_search.js) ──
-   Input mewarisi .rc-field input (trips.css); ikon map-pin corak
-   .rc-field-search. Senarai cadangan .rc-ac-list (portal.css)
+   Input mewarisi .rc-field input (COPY di atas); ikon map-pin corak
+   .rc-field-search. Senarai cadangan .rc-ac-list (portal.css — base)
    absolute dalam .rc-autocomplete (position: relative sana). */
 .rc-field-dest { flex: 1.2; }
 .rc-field-dest .rc-autocomplete { position: relative; }
@@ -36,7 +150,10 @@
 }
 .rc-field-dest .rc-ac-input { width: 100%; padding-left: 34px; }
 
-/* ── Timeline: rel menegak di lajur penanda ── */
+/* ============================================================
+   TIMELINE — rel menegak di lajur penanda (blok jenama, tiada
+   padanan komponen BS)
+   ============================================================ */
 .rc-sched-timeline { position: relative; margin-top: 4px; }
 .rc-sched-timeline::before {
   content: "";
@@ -49,10 +166,10 @@
   border-radius: 2px;
 }
 
-/* ── Pemisah bulan: header sebelum kumpulan sailing pertama setiap
-   (tahun, bulan). Bulatan emas duduk tepat di atas rel (tengah 44px),
-   diikuti chip nama bulan + garis hairline — timeline terpecah jelas
-   per bulan. z-index + saiz bulatan menutup rel di belakangnya. ── */
+/* Pemisah bulan: header sebelum kumpulan sailing pertama setiap
+   (tahun, bulan). Bulatan emas duduk tepat di atas rel, diikuti
+   chip nama bulan + garis hairline — timeline terpecah jelas per
+   bulan. z-index + saiz bulatan menutup rel di belakangnya. */
 .rc-sched-month {
   position: relative;
   z-index: 1;
@@ -151,7 +268,7 @@
   min-width: 0;
 }
 
-/* ── Kad sailing ── */
+/* ── Kad sailing (shell jenama grid 3 lajur; butang dalam = BS) ── */
 .rc-sched-card {
   display: grid;
   grid-template-columns: 180px minmax(0, 1fr) 218px;
@@ -161,14 +278,17 @@
   border-radius: 14px;
   padding: 16px;
   transition: transform .15s ease, box-shadow .15s ease;
-  animation: rcCardFadeIn .3s ease forwards;  /* dari trip_card.css */
+  animation: rcCardFadeIn .3s ease forwards;
 }
 .rc-sched-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 12px 28px rgba(30, 28, 24, .1);
 }
 
-/* Media thumbnail + ikon sauh (badge bulat, corak rc-card-icon-cruise) */
+/* Keyframes rcCardFadeIn — COPY dari trip_card.css (link dibuang) */
+@keyframes rcCardFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Media thumbnail */
 .rc-sched-thumb {
   position: relative;
   display: block;
@@ -182,21 +302,6 @@
   height: 100%;
   object-fit: cover;
   display: block;
-}
-.rc-sched-ico {
-  position: absolute;
-  bottom: 10px;
-  right: 10px;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 119, 182, .92);   /* Bright Ocean Blue */
-  color: #fff;
-  font-size: 16px;
-  backdrop-filter: blur(6px);
 }
 
 /* Info tengah */
@@ -282,6 +387,22 @@
 }
 .rc-sched-tba { font-size: 13px; font-weight: 500; color: #7D7A70; }
 
+/* Strikethrough harga asal (Travel Price Rule) — rc-price-was dah
+   di rc-theme.css (base); badge promosi di-copy dari trip_detail.css
+   sebab css page itu tak dimuatkan di sini. */
+.rc-promo-badge {
+  display: inline-block;
+  margin: 6px 0 2px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(201,168,76,.12);
+  border: 1px solid rgba(201,168,76,.3);
+  color: #B8983F;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .3px;
+}
+
 /* Status tempat duduk (varian warna sepadan trip_card rc-seats) */
 .rc-sched-seats {
   display: inline-flex;
@@ -298,8 +419,8 @@
 .rc-sched-seats-low { background: #FFF3E0; color: #E65100; }
 .rc-sched-seats-out { background: #FFEBEE; color: #C62828; }
 
-/* Badge "With Flight" — sailing ada pakej penerbangan (bukan cruise-only);
-   pill corak sama rc-sched-seats, ton emas tema (#C9A84C) */
+/* Badge "With Flight" — sailing ada pakej penerbangan (bukan
+   cruise-only); pill corak sama rc-sched-seats, ton emas tema */
 .rc-sched-flight {
   display: inline-flex;
   align-items: center;
@@ -314,14 +435,28 @@
 }
 .rc-sched-flight i { font-size: 13px; }
 
-/* CTA reuse rc-card-cta / rc-card-cta-outline (trip_card.css) */
-.rc-sched-side .rc-card-cta,
-.rc-sched-side .rc-card-cta-outline {
+/* CTA = komponen BS (btn btn-sm btn-primary / btn-outline-primary);
+   rc-card-cta / rc-card-cta-outline kekal sebagai class jenama.
+   Butang kad memenuhi lajur sisi. */
+.rc-sched-side .btn {
   width: 100%;
   text-align: center;
 }
 
-/* ── Responsive ── */
+/* ── Empty state — layout via utility BS (text-center py-5) +
+   butang btn btn-primary; class rc-empty kekal untuk tipografi. ── */
+.rc-empty { color: #7D7A70; font-family: var(--font-jost); }
+.rc-empty i { font-size: 46px; color: #D8D3C8; }
+.rc-empty h3 {
+  margin: 14px 0 4px;
+  font-family: var(--font-rubik);
+  font-size: 24px;
+  color: #1E1C18;
+  font-weight: 500;
+}
+.rc-empty p { margin: 0 0 18px; font-size: 14px; }
+
+/* ── Responsive timeline/kad ── */
 @media (max-width: 980px) {
   .rc-sched-card { grid-template-columns: 150px minmax(0, 1fr); }
   /* Sisi harga/CTA jadi barisan bawah kad */
@@ -337,12 +472,21 @@
     border-left: 0;
     border-top: 1px dashed #E8E5DF;
   }
-  .rc-sched-side .rc-card-cta,
-  .rc-sched-side .rc-card-cta-outline { width: auto; }
+  .rc-sched-side .btn { width: auto; }
 }
 
 @media (max-width: 640px) {
   .rc-sched { padding: 16px 14px 48px; }
+  .rc-catalog-hero h1 { font-size: 32px; }
+  .rc-filter-row { gap: 10px; }
+  .rc-field,
+  .rc-field-search,
+  .rc-field-dest {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: none;
+  }
+  .rc-filter-actions { width: 100%; }
   .rc-sched-timeline::before { left: 29px; }  /* tengah lajur 60px */
   .rc-sched-item { grid-template-columns: 60px minmax(0, 1fr); gap: 12px; }
   .rc-sched-marker { margin-left: 1px; width: 58px; padding: 6px 2px 6px; }
@@ -359,54 +503,31 @@
   .rc-sched-side { gap: 10px; }
 }
 
-/* ── Modal pilih pakej (Book Now) ──
-   Shell kosong dalam cruise-schedule.html; badan (variant + pakej) diisi
-   cruise_schedule.js daripada options_json kad. Tema sama: gold/dark/cream. */
+/* ============================================================
+   MODAL PILIH PAKEJ — markup bootstrap.Modal (modal fade +
+   modal-dialog/modal-content dalam page). Show/hide, backdrop,
+   body scroll-lock & focus trap diurus BS. Di sini HANYA skin
+   jenama + z-index guard atas chat FAB (#rcwRoot, z-index 9990)
+   — default BS (modal 1055 / backdrop 1050) bawah FAB.
+   ============================================================ */
+.modal.rc-pkgmodal { z-index: 10005; }
+body.rc-pkgmodal-open .modal-backdrop { z-index: 10004; }  /* class body oleh JS */
 
-/* Kunci scroll page bila modal terbuka */
-body.rc-modal-lock { overflow: hidden; }
+/* Dialog: lebar pakej lama min(560px,100%) */
+.rc-pkgmodal .modal-dialog { max-width: 560px; }
 
-.rc-pkgmodal {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;   /* atas chat FAB (9990) — modal dialog tutup semua page chrome */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-.rc-pkgmodal[hidden] { display: none; }  /* override display:flex di atas */
-
-.rc-pkgmodal-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(30, 28, 24, .55);
-  backdrop-filter: blur(3px);
-  animation: rcModalFade .2s ease;
-}
-
-.rc-pkgmodal-dialog {
-  position: relative;
-  width: min(560px, 100%);
-  max-height: min(680px, 92vh);
-  display: flex;
-  flex-direction: column;
-  background: #fff;
+.rc-pkgmodal .modal-content {
+  border: none;
   border-radius: 16px;
   box-shadow: 0 24px 64px rgba(30, 28, 24, .28);
-  animation: rcModalRise .25s cubic-bezier(.2, .8, .3, 1);
 }
 
-@keyframes rcModalFade { from { opacity: 0; } }
-@keyframes rcModalRise {
-  from { opacity: 0; transform: translateY(18px) scale(.98); }
-}
-
-/* Butang tutup (X) */
+/* Butang tutup (X) — chip bulat jenama (bukan btn-close BS) */
 .rc-pkgmodal-x {
   position: absolute;
   top: 14px;
   right: 14px;
+  z-index: 2;
   width: 32px;
   height: 32px;
   display: flex;
@@ -419,14 +540,15 @@ body.rc-modal-lock { overflow: hidden; }
   font-size: 16px;
   cursor: pointer;
   transition: background .15s ease, color .15s ease;
+  padding: 0;
 }
 .rc-pkgmodal-x:hover { background: #C9A84C; color: #fff; }
 
 /* Kepala modal */
-.rc-pkgmodal-head {
-  padding: 20px 22px 14px;
+.rc-pkgmodal .modal-header.rc-pkgmodal-head {
+  display: block;
+  padding: 20px 56px 14px;       /* kanan: ruang butang X */
   border-bottom: 1px solid #F2EFE9;
-  padding-right: 56px;           /* ruang butang X */
 }
 .rc-pkgmodal-eyebrow {
   display: inline-flex;
@@ -453,19 +575,17 @@ body.rc-modal-lock { overflow: hidden; }
   color: #7D7A70;
 }
 
-/* Badan: senarai pakej (flat — tiada subgroup variant) */
-.rc-pkgmodal-body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+/* Badan: senarai pakej (flat) — modal-dialog-scrollable BS yang
+   urus overflow-y, jadi tiada lagi max-height/overflow manual */
+.rc-pkgmodal .modal-body.rc-pkgmodal-body {
   padding: 14px 22px 16px;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-/* Baris pakej — butang pilihan (radio-like): baris atas (radio + jenis +
-   harga) diikuti grid detail pakej */
+/* Baris pakej — butang pilihan (radio-like), diisi JS (hook
+   .rc-pkg-item(.is-selected) KEKAL) */
 .rc-pkg-item {
   display: flex;
   flex-direction: column;
@@ -589,8 +709,9 @@ body.rc-modal-lock { overflow: hidden; }
 .rc-pkg-none p { margin: 8px 0 0; font-size: 13.5px; font-weight: 500; color: #5C5850; }
 .rc-pkg-none-sub { font-size: 12.5px !important; color: #9C9789 !important; }
 
-/* Kaki modal: Cancel + Continue */
-.rc-pkgmodal-foot {
+/* Kaki modal: Cancel (btn-outline-secondary) + Continue
+   (btn-primary rc-pkgmodal-go, id HOOK JS) */
+.rc-pkgmodal .modal-footer.rc-pkgmodal-foot {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -602,16 +723,36 @@ body.rc-modal-lock { overflow: hidden; }
   opacity: .45;
   cursor: not-allowed;
 }
-.rc-pkgmodal-go:disabled:hover { background: #C9A84C; }  /* neutralise hover */
 
-/* ── Responsive modal ── */
-@media (max-width: 640px) {
-  .rc-pkgmodal { padding: 12px; align-items: flex-end; }
-  .rc-pkgmodal-dialog { max-height: 88vh; border-radius: 16px 16px 14px 14px; }
-  .rc-pkgmodal-head { padding: 18px 18px 12px; padding-right: 52px; }
-  .rc-pkgmodal-body { padding: 12px 18px 14px; }
-  .rc-pkgmodal-foot { padding: 12px 18px 16px; }
-  .rc-pkgmodal-foot .rc-btn-ghost,
-  .rc-pkgmodal-foot .rc-pkgmodal-go { flex: 1; justify-content: center; }
+/* ── Fallback vanilla (bootstrap JS absent) — corak lama: modal
+   flex ditengah + dim sendiri (tiada backdrop BS) + body lock.
+   body.rc-modal-lock ditulis hanya oleh fallback path JS. ── */
+body.rc-modal-lock { overflow: hidden; }
+body.rc-modal-lock .modal.rc-pkgmodal:not([hidden]) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(30, 28, 24, .55);
 }
 
+/* ── Responsive modal (bottom-sheet di mobile, macam lama) ── */
+@media (max-width: 640px) {
+  .rc-pkgmodal .modal-dialog { margin: 12px auto 0; }
+  .rc-pkgmodal .modal-dialog-scrollable { height: calc(100% - 12px); }
+  .rc-pkgmodal .modal-dialog-centered { min-height: calc(100% - 12px); align-items: flex-end; }
+  .rc-pkgmodal .modal-content { border-radius: 16px 16px 14px 14px; }
+  .rc-pkgmodal .modal-header.rc-pkgmodal-head { padding: 18px 52px 12px 18px; }
+  .rc-pkgmodal-x { top: 12px; right: 12px; }
+  .rc-pkgmodal .modal-body.rc-pkgmodal-body { padding: 12px 18px 14px; }
+  .rc-pkgmodal .modal-footer.rc-pkgmodal-foot { padding: 12px 18px 16px; }
+  .rc-pkgmodal .modal-footer.rc-pkgmodal-foot .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  /* Fallback vanilla mobile: turunkan modal ke bawah (corak lama) */
+  body.rc-modal-lock .modal.rc-pkgmodal:not([hidden]) {
+    padding: 12px;
+    align-items: flex-end;
+  }
+}

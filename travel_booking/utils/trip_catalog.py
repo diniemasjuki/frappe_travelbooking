@@ -160,7 +160,7 @@ def get_ready_bundle() -> tuple[list, dict, dict, dict]:
 			SELECT tp.name, sel.trip_group_date, tp.package_title, tp.package_type,
 			       tp.airport_form, ap.airport_name, tp.currency, cur.symbol AS currency_symbol,
 			       td.departure_date, td.return_date, td.sailing_start, td.sailing_end,
-			       td.total_days, td.total_nights, td.is_cruise_only, tp.ground_arrangement
+			       td.total_days, td.total_nights, td.is_cruise_only
 			FROM `tabTrip Package` tp
 			JOIN `tabTrip Package Group Date Select` sel ON sel.parent = tp.name
 			JOIN `tabTrip Group Date` td ON td.name = sel.trip_group_date
@@ -187,10 +187,10 @@ def get_ready_bundle() -> tuple[list, dict, dict, dict]:
 					"flight_label": flight_label,
 					"currency": p.currency or "MYR",
 					"currency_symbol": p.currency_symbol or (p.currency or "MYR"),
-					# ── Detail TGD pautan pakej (tarikh penerbangan / sailing,
-					# durasi, ground arrangement) — untuk baris detail pakej
-					# dalam modal pemilihan /cruise-schedule. str() wajib:
-					# medan date tak boleh lalu json.dumps (pageData wizard).
+				# ── Detail TGD pautan pakej (tarikh penerbangan / sailing,
+				# durasi) — untuk baris detail pakej
+				# dalam modal pemilihan /cruise-schedule. str() wajib:
+				# medan date tak boleh lalu json.dumps (pageData wizard).
 					"departure_date": str(p.departure_date) if p.departure_date else "",
 					"return_date": str(p.return_date) if p.return_date else "",
 					"sailing_start": str(p.sailing_start) if p.sailing_start else "",
@@ -198,7 +198,6 @@ def get_ready_bundle() -> tuple[list, dict, dict, dict]:
 					"total_days": p.total_days or 0,
 					"total_nights": p.total_nights or 0,
 					"is_cruise_only": bool(p.is_cruise_only),
-					"ground_arrangement": bool(p.ground_arrangement),
 				}
 			)
 
@@ -421,9 +420,40 @@ def get_catalog_trips(filters: dict | None = None) -> dict:
 	if not currency or currency not in declared:
 		currency = get_default_currency()
 
-	trips, trip_group_dates, trip_packages, trip_is_cruise = get_ready_bundle()
-	_enrich_trips(trips)
-	_add_starting_price(trips, currency)
+	# ── F5 dwi-baca: flag use_package_offers ON → katalog dibina daripada
+	# struktur baharu (Travel Date + Package Offer); trip legacy yang
+	# belum ada offer sah di-UNION balik daripada bacaan legacy supaya
+	# katalog tidak menyorok trip lama sepanjang tempoh cutover. ──
+	from travel_booking.utils.flags import use_package_offers
+	if use_package_offers():
+		from travel_booking.utils.new_catalog import (
+			get_bundle_new, _add_starting_price_from_offers,
+		)
+		trips, trip_group_dates, trip_packages, trip_is_cruise = get_bundle_new()
+		# _enrich_trips + _add_starting_price_from_offers guna akses
+		# ATRIBUT (t.name) — bungkus item bundle (dict biasa) dengan
+		# frappe._dict yang menyokong kedua-dua akses attr + item.
+		trips = [frappe._dict(t) for t in trips]
+		_enrich_trips(trips)
+		_add_starting_price_from_offers(trips, currency)
+		# Union trip legacy tanpa offer sah — enrich + harga legacy
+		# (Trip Package Price) di atas senarai tambahan itu sahaja.
+		_lt, _ltgd, _lpkg, _lcruise = get_ready_bundle()
+		_have = {t["name"] for t in trips}
+		_extra = [t for t in _lt if t["name"] not in _have]
+		if _extra:
+			_enrich_trips(_extra)
+			_add_starting_price(_extra, currency)
+			trips.extend(_extra)
+			for _name, _groups in (_ltgd or {}).items():
+				trip_group_dates.setdefault(_name, _groups)
+			for _name, _pkgs in (_lpkg or {}).items():
+				trip_packages.setdefault(_name, _pkgs)
+			trip_is_cruise.update(_lcruise or {})
+	else:
+		trips, trip_group_dates, trip_packages, trip_is_cruise = get_ready_bundle()
+		_enrich_trips(trips)
+		_add_starting_price(trips, currency)
 	_add_next_departure(trips, trip_group_dates)
 
 	q = (filters.get("q") or "").strip()
@@ -550,6 +580,10 @@ def get_catalog_trips(filters: dict | None = None) -> dict:
 	)
 	company_currency = get_company_currency()
 
+	# (Flag pakej khas per tarikh TIDAK lagi di-attach di sini — chips
+	# tarikh kad trip telah dibuang; page detail trip attach sendiri
+	# melalui get_trip_detail / new_catalog.)
+
 	return {
 		"trips": trips,
 		"trip_group_dates": trip_group_dates,
@@ -663,7 +697,7 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 			"group_dates": [],
 			"group_date_groups": [],
 			"trip_packages": {},
-			"sailing_tgds": {},
+			"departure_tgds": {},
 			"starting_from_price": None,
 			"destinations": [],
 			"is_cruise": False,
@@ -671,6 +705,18 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 			"currency_native_only": False,
 		}
 	is_cruise = bool(trip.is_a_cruise_trip)
+
+	# ── F5 dwi-baca: flag use_package_offers ON → baca struktur baharu
+	# (Travel Date + Package Offer; kontrak pulangan serasi — rujuk
+	# new_catalog.get_trip_detail_new). Trip yang tiada offer sah (belum
+	# dipindah / data legacy sahaja) fallback ke bacaan legacy di bawah —
+	# kekal berfungsi sepanjang tempoh cutover. ──
+	from travel_booking.utils.flags import use_package_offers
+	if use_package_offers():
+		from travel_booking.utils.new_catalog import get_trip_detail_new
+		d_new = get_trip_detail_new(trip_name, currency=currency)
+		if d_new["group_dates"]:
+			return d_new
 
 	# Normalize currency listing (default = currency company default axis).
 	from travel_booking.api.currency_axis import get_default_currency
@@ -699,6 +745,7 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 		SELECT td.name, td.trip, td.trip_group_name, td.trip_group_code,
 		       td.departure_date, td.return_date, td.total_days, td.total_nights,
 		       td.sailing_start, td.sailing_end, td.cruise_schedule,
+		       td.embarkation_port, td.disembarkation_port,
 		       td.max_participants, td.is_cruise_only
 		FROM `tabTrip Group Date` td
 		WHERE td.trip = %(t)s
@@ -778,6 +825,8 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 				"return_date": str(d.return_date) if d.return_date else "",
 				"sailing_start": str(d.sailing_start) if d.sailing_start else "",
 				"sailing_end": str(d.sailing_end) if d.sailing_end else "",
+				"embarkation_port": d.embarkation_port or "",
+				"disembarkation_port": d.disembarkation_port or "",
 				"cruise_schedule": d.cruise_schedule or "",
 				"total_days": d.total_days or 0,
 				"total_nights": d.total_nights or 0,
@@ -787,54 +836,47 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 				"sailing_label": sailing_label,
 			}
 		)
-	# Cruise disusun ikut sailing_start (sepadan get_ready_bundle).
-	# Initialize merge tracker di sini supaya wujud scope function (untuk
-	# code merge yang jalankan selepas ini, di luar if block).
+	# trip_category per TGD — sumber sebenarnya Travel Date (bayang
+	# migrasi: Travel Date.legacy_tgd → TGD) sebab TGD legacy tiada medan
+	# kategori. Trip yang belum migrasi kekal "" — frontend trip_detail.js
+	# tidak aktifkan tapisan kategori bila tarikh tiada kategori.
 	if is_cruise and group_dates:
-		group_dates.sort(key=lambda g: g["sailing_start"] or g["departure_date"])
+		_gd_names = [g["name"] for g in group_dates]
+		_td_cats = {
+			r.legacy_tgd: (r.trip_category or "")
+			for r in frappe.get_all(
+				"Travel Date",
+				filters={"legacy_tgd": ["in", _gd_names]},
+				fields=["legacy_tgd", "trip_category"],
+			)
+		}
+		for g in group_dates:
+			g["trip_category"] = _td_cats.get(g["name"], "")
+	# Cruise disusun ikut departure_date. SATU option tarikh per TGD —
+	# TIADA dedupe merentasi group date (dedupe sailing lama menyembunyikan
+	# varian berlepas sama hari; dedupe departure pula mencampurkan TGD
+	# berbeza durasi bawah satu radio).
+	if is_cruise and group_dates:
+		group_dates.sort(key=lambda g: g["departure_date"] or g["sailing_start"])
 
-		# ── Cruise dedup: papar SATU option tarikh sahaja per sailing_start ──
-		# (Cruise + Flight + Cruise Only yang sama sailing jadi satu radio.) Pakej
-		# TIDAK dimerge lagi — trip_packages kekal dikey ikut TGD sebenar dan
-		# sailing_tgds bawah memberi peta lengkap sailing → TGD untuk frontend.
-		_seen_sail: set = set()
-		_deduped: list = []
-		for gd in group_dates:
-			sail_key = gd.get("sailing_start") or ""
-			if sail_key and sail_key in _seen_sail:
-				continue
-			if sail_key:
-				_seen_sail.add(sail_key)
-			_deduped.append(gd)
-		group_dates = _deduped
-
-		# Cluster group date cruise mengikut sailing (cruise_schedule / sailing
-	# date) untuk render <optgroup> per sailing di page detail. Bukan-cruise:
-	# kosong -> template render flat (tiada optgroup).
+	# Satu kumpulan per TGD (kontrak optgroup lama — tiada consumer aktif,
+	# kekal untuk keserasian bentuk. Bukan-cruise: kosong).
 	group_date_groups: list = []
 	if is_cruise and group_dates:
-		_seen: dict = {}
-		for g in group_dates:
-			key = g.get("sailing_group") or ("sail:" + (g.get("sailing_start") or ""))
-			grp = _seen.get(key)
-			if not grp:
-				grp = {
-					"key": key,
-					"label": g.get("sailing_label")
-					or ("Sailing " + (g.get("sailing_start") or "")),
-					"dates": [],
-				}
-				_seen[key] = grp
-				group_date_groups.append(grp)
-			grp["dates"].append(g)
+		group_date_groups = [
+			{
+				"key": g["name"],
+				"label": "Departure "
+					+ (g.get("departure_date") or g.get("sailing_start") or ""),
+				"dates": [g],
+			}
+			for g in group_dates
+		]
 
 	# --- packages per group date (trip ni sahaja) ---
 	# PENTING: trip_packages dikey ikut TGD SEBENAR pautan pakej (sel.trip_group_date)
-	# — JANGAN overwrite ke TGD yang disimpan semasa dedupe sailing. Overwrite
-	# silam menyebabkan package Cruise Only (RTRC2604) dibawa bersama TGD Fly
-	# Cruise (RTRC2605) ke /booknow → wizard papar trip_group_date salah.
-	# Frontend (trip_detail.js) yang union-kan pakej ikut sailing date yang
-	# dipilih melalui peta sailing_tgds di bawah.
+	# — setiap radio tarikh membawa pakej TGD-nya sendiri, frontend baca terus
+	# ikut kunci (tiada union merentasi tarikh).
 	trip_packages: dict = {}
 	if dates:
 		# Filter currency pakej: hanya pakej dalam currency terpilih;
@@ -849,7 +891,7 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 			SELECT tp.name, sel.trip_group_date, tp.package_title, tp.package_type,
 			       tp.airport_form, ap.airport_name, tp.currency, cur.symbol AS currency_symbol,
 			       td.departure_date, td.return_date, td.sailing_start, td.sailing_end,
-			       td.total_days, td.total_nights, td.is_cruise_only, tp.ground_arrangement
+			       td.total_days, td.total_nights, td.is_cruise_only
 			FROM `tabTrip Package` tp
 			JOIN `tabTrip Package Group Date Select` sel ON sel.parent = tp.name
 			JOIN `tabTrip Group Date` td ON td.name = sel.trip_group_date
@@ -875,9 +917,9 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 					"flight_label": flight_label,
 					"currency": p.currency or "MYR",
 					"currency_symbol": p.currency_symbol or (p.currency or "MYR"),
-					# Info TGD sebenar pakej — untuk nota "Departs" pada butang
-					# pakej bukan-cruise-only, blok meta pakej (departure/return/
-					# duration/ground arrangement) dan resolusi TGD di /booknow.
+				# Info TGD sebenar pakej — untuk nota "Departs" pada butang
+				# pakej bukan-cruise-only, blok meta pakej (departure/return/
+				# duration) dan resolusi TGD di /booknow.
 					"departure_date": str(p.departure_date) if p.departure_date else "",
 					"return_date": str(p.return_date) if p.return_date else "",
 					"sailing_start": str(p.sailing_start) if p.sailing_start else "",
@@ -885,21 +927,25 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 					"total_days": p.total_days,
 					"total_nights": p.total_nights,
 					"is_cruise_only": bool(p.is_cruise_only),
-					"ground_arrangement": bool(p.ground_arrangement),
 				}
 				)
 
-	# ── Peta sailing → SEMUA group date (SEBELUM dedupe) ──
-	# Frontend guna ni untuk (a) union pakej bagi sailing yang dipilih di page
-	# trip, dan (b) tentukan kandidat TGD ikut (pakej + sailing) semasa klik
-	# [Book Now] — termasuk popup bila ada lebih dari satu departure date.
-	sailing_tgds: dict = {}
+	# ── Peta departure date → SEMUA group date (SEBELUM dedupe) ──
+	# Frontend guna ni untuk (a) union pakej bagi tarikh berlepas yang dipilih
+	# di page trip, dan (b) tentukan kandidat TGD ikut (pakej + tarikh) semasa
+	# klik [Book Now]. Kumpulan ikut DEPARTURE DATE (bukan sailing) — varian
+	# dengan tarikh penerbangan berbeza dalam sailing sama jadi pilihan
+	# sendiri. Fallback kunci ke sailing_start bila departure_date kosong.
+	departure_tgds: dict = {}
 	if is_cruise:
 		for d in dates:
-			sail = str(d.sailing_start) if d.sailing_start else ""
-			if not sail:
+			dep = (
+				str(d.departure_date) if d.departure_date
+				else (str(d.sailing_start) if d.sailing_start else "")
+			)
+			if not dep:
 				continue
-			sailing_tgds.setdefault(sail, []).append(
+			departure_tgds.setdefault(dep, []).append(
 				{
 					"name": d.name,
 					"departure_date": str(d.departure_date) if d.departure_date else "",
@@ -1026,11 +1072,15 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
         for r in dest_rows
     ]
 
-	return {
+	# Flag pakej khas per tarikh (auto-derive dari addon matrix offer,
+	# Travel Date.legacy_tgd → TGD) — medan TAMBAHAN pada kontrak
+	# (is_special + inclusions); caller lama tidak terjejas.
+	from travel_booking.utils.catalog_extras import attach_special_flags
+	return attach_special_flags({
 		"group_dates": group_dates,
 		"group_date_groups": group_date_groups,
 		"trip_packages": trip_packages,
-		"sailing_tgds": sailing_tgds,
+		"departure_tgds": departure_tgds,
 		"starting_from_price": starting_from_price,
 		"original_starting_from_price": original_starting_from_price,
 		"promo_label": promo_label,
@@ -1047,4 +1097,4 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 		# secara normal; currency native pakej termurah bila native_only).
 		"starting_from_currency": starting_from_currency,
 		"starting_from_symbol": starting_from_symbol,
-	}
+	})

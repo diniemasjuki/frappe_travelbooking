@@ -144,13 +144,17 @@ def get_trip_readiness(trip_name: str) -> dict:
 				))
 
 	# ── Cruise tambahan (info-level) ──
+	# Schedule dikesan melalui Travel Date (pautan baharu — schedule
+	# tidak lagi link Trip secara langsung).
 	if trip.is_a_cruise_trip:
 		if not frappe.db.count(
-				"Trip Cruise Schedule", {"trip_link": trip.name}):
+				"Travel Date",
+				{"trip": trip.name, "cruise_schedule": ["is", "set"]}):
 			issues.append(_issue(
 				"warning", "NO_CRUISE_SCHEDULE",
-				"Cruise trip tanpa Trip Cruise Schedule — data operasi kapal "
-				"(jadual/kadar kabin) tidak wujud.",
+				"Cruise trip tanpa Trip Cruise Schedule pada mana-mana "
+				"Travel Date — data operasi kapal (jadual/kadar kabin) "
+				"tidak wujud.",
 			))
 
 	errors = [i for i in issues if i["level"] == "error"]
@@ -332,18 +336,21 @@ def get_batch_readiness(trip_names: list = None, limit: int = 200) -> dict:
 
 
 def cross_check_legacy(limit: int = 500) -> dict:
-	"""F3 cross-check: offer baharu vs SUMBER LAMA (melalui provenance
-	legacy_tgd / legacy_trip_package). Buktikan migrasi tak drift semasa
-	dwi-larian — dipanggil manual / endpoint staf.
+	"""F3 cross-check: harga offer vs SUMBER LAMA (melalui provenance
+	legacy_trip_package). Buktikan migrasi tak drift — dipanggil manual /
+	endpoint staf.
 
-	Dibanding:
-	  1. Harga offer vs Trip Package Price lama (cabin × age)
-	  2. Allotment offer vs cabin_allotment lama
-	  3. Sold offer vs kiraan semula LIVE dari reservasi
+	[REFAKTOR Nov 2026] Offer Price / Offer Inventory ditanggalkan
+	daripada Package Offer:
+	  - Perbandingan harga kini melalui PRICE MATRIX (price_matrix ADULT)
+	    vs Trip Package Price lama (cabin × age).
+	  - Semakan allotment/sold per-variant digugurkan — kapasiti kini
+	    kolam Sailing Inventory kongsi per sailing (bukan milik offer);
+	    sold live disegerak oleh refresh_cabin_availability.
 	"""
 	offers = frappe.get_all(
 		"Package Offer",
-		filters={"legacy_tgd": ["is", "set"], "legacy_trip_package": ["is", "set"]},
+		filters={"legacy_trip_package": ["is", "set"]},
 		fields=["name", "package", "legacy_tgd", "legacy_trip_package"],
 		limit=limit,
 	)
@@ -353,67 +360,40 @@ def cross_check_legacy(limit: int = 500) -> dict:
 	}
 
 	price_drifts: list = []
-	allotment_drifts: list = []
-	sold_drifts: list = []
 	checked = 0
 
 	for o in offers:
-		checked += 1
-
+		# Harga lama (ADULT) daripada Trip Package Price pakej warisan.
 		old_prices: dict = {}
-		allot: dict = {}
 		for r in frappe.get_all(
 			"Trip Package Price",
 			filters={"parent": o.legacy_trip_package},
-			fields=["pricing_for_class", "price_adult", "price_children",
-					"price_infant", "price_toddler", "cabin_allotment"],
+			fields=["pricing_for_class", "price_adult"],
 		):
 			cc = cat_codes.get(r.pricing_for_class, r.pricing_for_class or "")
-			for fld, age in (("price_adult", "ADULT"), ("price_children", "CHILD"),
-							 ("price_infant", "INFANT"), ("price_toddler", "TODDLER")):
-				v = r.get(fld)
-				if (v or 0) > 0:
-					old_prices[(cc, age)] = float(v)
-			allot[cc] = int(r.cabin_allotment or 0)
+			if (r.price_adult or 0) > 0:
+				old_prices[cc] = float(r.price_adult)
 
-		for p in frappe.get_all(
-			"Offer Price",
-			filters={"parent": o.name, "active": 1},
-			fields=["price_key", "opt1", "age_option", "price"],
+		# Harga baharu (ADULT) daripada Price Matrix offer.
+		for r in frappe.get_all(
+			"Trip Package Price",
+			filters={"parent": o.name, "parenttype": "Package Offer",
+					 "parentfield": "price_matrix"},
+			fields=["pricing_for_class", "price_adult"],
 		):
-			key = (p.opt1 or "", p.age_option or "")
-			if key in old_prices and abs(float(p.price or 0) - old_prices[key]) > 0.01:
+			cc = cat_codes.get(r.pricing_for_class, r.pricing_for_class or "")
+			if cc in old_prices and abs(float(r.price_adult or 0) - old_prices[cc]) > 0.01:
 				price_drifts.append({
-					"offer": o.name, "key": p.price_key,
-					"offer_price": float(p.price or 0), "old_price": old_prices[key],
+					"offer": o.name, "key": cc,
+					"matrix_adult": float(r.price_adult or 0),
+					"old_price": old_prices[cc],
 				})
-
-		offer_sold = 0
-		for inv in frappe.get_all(
-			"Offer Inventory",
-			filters={"parent": o.name},
-			fields=["inventory_key", "allotment", "sold"],
-		):
-			cc = inv.inventory_key.split(":", 1)[1].split("|")[0] if ":" in inv.inventory_key else ""
-			if cc in allot and allot[cc] != int(inv.allotment or 0):
-				allotment_drifts.append({
-					"offer": o.name, "key": inv.inventory_key,
-					"offer_allotment": int(inv.allotment or 0), "old_allotment": allot[cc],
-				})
-			offer_sold += int(inv.sold or 0)
-
-		# sold vs kiraan semula LIVE (corak sama dengan patch v40)
-		from travel_booking.utils.offer_factory import sold_from_reservations
-		live_total = sum(sold_from_reservations(o.legacy_tgd, o.legacy_trip_package).values())
-		if offer_sold != live_total:
-			sold_drifts.append({
-				"offer": o.name, "offer_sold": offer_sold, "live_sold": live_total,
-			})
+		checked += 1
 
 	return {
 		"offers_checked": checked,
 		"price_drifts": price_drifts,
-		"allotment_drifts": allotment_drifts,
-		"sold_drifts": sold_drifts,
-		"clean": not (price_drifts or allotment_drifts or sold_drifts),
+		"allotment_drifts": [],  # [BUANG] kapasiti kini kolam sailing kongsi
+		"sold_drifts": [],       # [BUANG] sold live di Sailing Inventory
+		"clean": not price_drifts,
 	}

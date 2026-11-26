@@ -12,7 +12,8 @@
 #     4. Rooming    — senarai bilik ikut room_id + occupant
 #
 # Sumber data:
-# - Kewangan (revenue/collected): Sales Order via custom_booking —
+# - Kewangan (revenue/collected): Sales Order via registri
+#  Booking.sales_orders (child table "Booking Sales Order") —
 #  grand_total ialah nilai booking, advance_paid ialah jumlah terbayar.
 #   (Booking.total_amount belum wujud sebagai kolum di DB lama.)
 # - Diskaun: kolum Booking.voucher_discount / price_rule_discount /
@@ -52,6 +53,7 @@ from travel_booking.api._helpers import standardize_phone_to_hyphen
 from travel_booking.api.constants import DEFAULT_CURRENCY
 from travel_booking.api.currency_axis import get_rate_to_default
 from travel_booking.api.passport_maintenance import _ensure_private_url
+from travel_booking.api.so_helpers import _get_all_booking_sales_orders
 
 # Roles yang dibenarkan akses page ni — selari dengan booking_hub.py
 MANAGE_TRIP_ROLES = ["System Manager", "Tour Manager", "Tour Operator", "Accounts User"]
@@ -249,13 +251,16 @@ def _annotate_default(rows, fields):
 	return totals
 
 
-# Currency SO UTAMA (terawal) booking — axis currency untuk field
-# diskaun pada Booking (voucher/price_rule/referral_discount,
-# pre_discount_total), sama seperti property Booking.currency.
+# Currency SO UTAMA (SO pertama dalam registri Booking.sales_orders yang
+# submitted) booking — axis currency untuk field diskaun pada Booking
+# (voucher/price_rule/referral_discount, pre_discount_total), sama
+# seperti property Booking.currency.
 _PRIMARY_SO_CUR = (
 	"(SELECT so2.currency FROM `tabSales Order` so2 "
-	"WHERE so2.custom_booking = b.name AND so2.docstatus = 1 "
-	"ORDER BY so2.creation ASC, so2.name ASC LIMIT 1)"
+	"INNER JOIN `tabBooking Sales Order` reg2 "
+	"ON reg2.sales_order = so2.name AND reg2.parenttype = 'Booking' "
+	"WHERE reg2.parent = b.name AND so2.docstatus = 1 "
+	"ORDER BY reg2.idx ASC, so2.name ASC LIMIT 1)"
 )
 
 # Nilai wang per (booking, currency) — gross = grand_total, paid =
@@ -263,13 +268,17 @@ _PRIMARY_SO_CUR = (
 # currency (addon boleh dibeli dalam currency lain), jadi SEMUA jumlah
 # mesti dipecahkan ikut currency — jangan jemput hasil query ni
 # terus ke satu scalar.
+# [Nov 2026] Booking diselesaikan melalui registri Booking.sales_orders
+# (SO tidak lagi memegang link custom_booking ke Booking).
 _SO_PER_BOOKING_CUR = """
-	(SELECT so.custom_booking AS booking,
+	(SELECT reg.parent AS booking,
 	        COALESCE(NULLIF(so.currency, ''), %(def_cur)s) AS currency,
 	        SUM(so.grand_total) AS gross, SUM(so.advance_paid) AS paid
 	 FROM `tabSales Order` so
-	 WHERE so.docstatus = 1 AND so.custom_booking IS NOT NULL
-	 GROUP BY so.custom_booking,
+	 INNER JOIN `tabBooking Sales Order` reg
+	      ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+	 WHERE so.docstatus = 1
+	 GROUP BY reg.parent,
 	          COALESCE(NULLIF(so.currency, ''), %(def_cur)s)) soc
 """
 
@@ -393,10 +402,14 @@ def get_trip_groups(status: str = None, trip: str = None, search: str = None,
 			GROUP BY b.trip_date
 		) bk ON bk.grp = tgd.name
 		LEFT JOIN (
-			SELECT ba.trip_date AS grp, COUNT(*) AS addon_count
+			-- Booking Addon.travel_date kini Link Travel Date (RECONDITION
+			-- Nov 2026) — petakan balik ke Trip Group Date melalui anchor
+			-- provenance legacy_tgd, corak sama dengan get_group_addons.
+			SELECT td.legacy_tgd AS grp, COUNT(*) AS addon_count
 			FROM `tabBooking Addon` ba
-			WHERE ba.status != 'Cancelled'
-			GROUP BY ba.trip_date
+			INNER JOIN `tabTravel Date` td ON td.name = ba.travel_date
+			WHERE ba.status != 'Cancelled' AND td.legacy_tgd IS NOT NULL
+			GROUP BY td.legacy_tgd
 		) ad ON ad.grp = tgd.name
 		LEFT JOIN (
 			SELECT b.trip_date AS grp,
@@ -809,7 +822,7 @@ def get_group_dashboard(trip_group: str = None, trip_groups: list = None) -> dic
 		SELECT COUNT(DISTINCT bao.name) AS orders
 		FROM `tabBooking Addon` bao
 		INNER JOIN tabBooking b2 ON b2.name = bao.booking AND b2.status NOT IN %(excl)s
-		WHERE bao.trip_date IN %(groups)s AND IFNULL(bao.status, '') != 'Cancelled'
+		WHERE b2.trip_date IN %(groups)s AND IFNULL(bao.status, '') != 'Cancelled'
 	""", fmt, as_dict=True)[0]
 
 	addon_revenue_by_cur = _sort_cur_rows([
@@ -820,7 +833,7 @@ def get_group_dashboard(trip_group: str = None, trip_groups: list = None) -> dic
 			FROM `tabBooking Addon` bao
 			INNER JOIN tabBooking b2 ON b2.name = bao.booking AND b2.status NOT IN %(excl)s
 			LEFT JOIN `tabSales Order` so ON so.name = bao.sales_order AND so.docstatus = 1
-			WHERE bao.trip_date IN %(groups)s AND IFNULL(bao.status, '') != 'Cancelled'
+			WHERE b2.trip_date IN %(groups)s AND IFNULL(bao.status, '') != 'Cancelled'
 			GROUP BY COALESCE(NULLIF(so.currency, ''), %(def_cur)s)
 		""", {**fmt, "def_cur": _def_cur()}, as_dict=True)
 	])
@@ -842,7 +855,9 @@ def get_group_dashboard(trip_group: str = None, trip_groups: list = None) -> dic
 		       COALESCE(NULLIF(so.currency, ''), %(def_cur)s) AS currency,
 		       SUM(so.grand_total) AS revenue
 		FROM `tabSales Order` so
-		INNER JOIN tabBooking b ON b.name = so.custom_booking
+		INNER JOIN `tabBooking Sales Order` reg
+		     ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+		INNER JOIN tabBooking b ON b.name = reg.parent
 		WHERE b.trip_date IN %(groups)s AND b.status NOT IN %(excl)s
 		  AND so.docstatus = 1
 		GROUP BY DATE_FORMAT(so.creation, '%%Y-%%m-%%d'),
@@ -987,7 +1002,7 @@ def get_group_dashboard(trip_group: str = None, trip_groups: list = None) -> dic
 _BK_FILTER_ALIASES = {"Booking": "b", "Customer": "c"}
 
 
-def _bk_summary(trip_groups=None) -> dict:
+def _bk_summary(trip_groups=None, all_scope: bool = False) -> dict:
 	"""Ringkasan kecil senarai booking (jalur summary) — mirror _tv_summary.
 	Skop PENUH group/batch yang diminta (tidak terpengaruh carian / tapisan
 	status / payment / currency / penapis dinamik) supaya jalur kekal stabil
@@ -995,11 +1010,17 @@ def _bk_summary(trip_groups=None) -> dict:
 	default currency (≈); collected_pct = paid/gross dalam default currency.
 	Pulangkan juga docs_verified (dokumen pelawat disahkan) & default_gross /
 	default_paid utk jalur Total Revenue / Total Collection.
+
+	all_scope=True — ringkasan SKOP PENUH booking (senarai flat
+	get_all_bookings, tanpa skop group date).
 	"""
-	groups = _parse_groups(None, trip_groups)
-	fmt = {"groups": groups, "done": list(DOC_STATUS_DONE),
-		   "def_cur": _def_cur()}
-	where = "b.trip_date IN %(groups)s"
+	fmt = {"done": list(DOC_STATUS_DONE), "def_cur": _def_cur()}
+	if all_scope:
+		where = "TRUE"
+	else:
+		groups = _parse_groups(None, trip_groups)
+		fmt["groups"] = groups
+		where = "b.trip_date IN %(groups)s"
 
 	totals = frappe.db.sql(f"""
 		SELECT COUNT(*) AS cnt,
@@ -1045,6 +1066,72 @@ def _bk_summary(trip_groups=None) -> dict:
 	}
 
 
+def _bk_list_conditions(fmt: dict, status=None, payment_status=None, search=None,
+						currency=None, custom_filters: list = None,
+						custom_match: str = "AND", all_scope: bool = False) -> list:
+	"""Syarat WHERE tapisan pilihan senarai booking — SATU sumber untuk
+	get_group_bookings, get_all_bookings & get_booking_neighbours, supaya
+	tapisan prev/next TIDAK boleh lari daripada senarai yang diklik user.
+
+	`fmt` diisi in-place (placeholder %s). Pemanggil menambah syarat SKOP
+	sendiri (cth. trip_date IN … / b.customer = …) dan menggabungkan
+	hasilnya. all_scope — carian turut merangkumi trip_name (senarai flat
+	semua booking; skop group tak perlukannya).
+	"""
+	conditions = list(_tv_filter_conditions(custom_filters, fmt,
+		"OR" if str(custom_match).upper() == "OR" else "AND",
+		aliases=_BK_FILTER_ALIASES))
+
+	if status and status != "All":
+		conditions.append("b.status = %(status)s")
+		fmt["status"] = status
+	if payment_status and payment_status != "All":
+		conditions.append("b.payment_status = %(pay)s")
+		fmt["pay"] = payment_status
+	if currency:
+		# Tapis ikut currency bil — booking dipaparkan bila ADA SO submitted
+		# dalam currency itu (utama mahupun addon; currency kosong jatuh ke
+		# default currency, selari _SO_PER_BOOKING_CUR).
+		conditions.append("""EXISTS (
+			SELECT 1 FROM `tabSales Order` socf
+			INNER JOIN `tabBooking Sales Order` regcf
+			     ON regcf.sales_order = socf.name AND regcf.parenttype = 'Booking'
+			WHERE regcf.parent = b.name AND socf.docstatus = 1
+			  AND COALESCE(NULLIF(socf.currency, ''), %(def_cur)s) = %(cur)s)""")
+		fmt["cur"] = currency
+		fmt["def_cur"] = _def_cur()
+	if search:
+		# Skop carian: booking (ID/no), customer (nama/emel/telefon) dan
+		# traveller (nama/telefon/emel/IC/paspport — snapshot reservation
+		# ATAU rekod Traveller) — padanan traveller memsurfacekan booking
+		# induknya. Reservation Cancelled diketepikan (bukan lagi tetamu).
+		conditions.append("""(
+			b.name LIKE %(s)s OR b.booking_number LIKE %(s)s
+			OR b.customer LIKE %(s)s OR c.customer_name LIKE %(s)s
+			OR b.cust_email LIKE %(s)s OR b.get_cust_booking_phone LIKE %(s)s
+			""" + ("OR b.trip_name LIKE %(s)s" if all_scope else "") + """
+			OR EXISTS (
+				SELECT 1 FROM `tabBooking Reservation` sbr
+				LEFT JOIN tabTraveller stv ON stv.name = sbr.traveller
+				WHERE sbr.booking = b.name AND sbr.status != 'Cancelled'
+				  AND (sbr.traveller_full_name LIKE %(s)s OR stv.full_name LIKE %(s)s
+					OR sbr.traveller_passportno LIKE %(s)s OR stv.passport_no LIKE %(s)s
+					OR sbr.traveller_ic LIKE %(s)s OR stv.ic_number LIKE %(s)s
+					OR sbr.traveller_email LIKE %(s)s OR stv.email LIKE %(s)s
+					OR stv.phone LIKE %(s)s)
+			)
+		)""")
+		fmt["s"] = f"%{search}%"
+	return conditions
+
+
+# Susunan senarai booking — server (terkini dahulu) + tiebreaker nama supaya
+# turutan DETERMINISTIK bila dua booking dicipta dalam saat yang sama: ini
+# penting kepada prev/next (get_booking_neighbours) yang mesti bergerak ikut
+# susunan yang TEPAT sama dengan senarai asalnya.
+_BK_ORDER = "ORDER BY b.creation DESC, b.name DESC"
+
+
 @frappe.whitelist()
 def get_group_bookings(trip_group: str = None, trip_groups: list = None, status: str = None,
 					   payment_status: str = None, search: str = None, currency: str = None,
@@ -1067,50 +1154,11 @@ def get_group_bookings(trip_group: str = None, trip_groups: list = None, status:
 	_require_access()
 	groups = _parse_groups(trip_group, trip_groups)
 
-	conditions = ["b.trip_date IN %(groups)s"]
 	fmt = {"groups": groups, "done": list(DOC_STATUS_DONE),
 		   "excl": list(EXCLUDED_BOOKING_STATUSES)}
-	conditions.extend(_tv_filter_conditions(custom_filters, fmt,
-		"OR" if str(custom_match).upper() == "OR" else "AND",
-		aliases=_BK_FILTER_ALIASES))
-
-	if status and status != "All":
-		conditions.append("b.status = %(status)s")
-		fmt["status"] = status
-	if payment_status and payment_status != "All":
-		conditions.append("b.payment_status = %(pay)s")
-		fmt["pay"] = payment_status
-	if currency:
-		# Tapis ikut currency bil — booking dipaparkan bila ADA SO submitted
-		# dalam currency itu (utama mahupun addon; currency kosong jatuh ke
-		# default currency, selari _SO_PER_BOOKING_CUR).
-		conditions.append(f"""EXISTS (
-			SELECT 1 FROM `tabSales Order` socf
-			WHERE socf.custom_booking = b.name AND socf.docstatus = 1
-			  AND COALESCE(NULLIF(socf.currency, ''), %(def_cur)s) = %(cur)s)""")
-		fmt["cur"] = currency
-		fmt["def_cur"] = _def_cur()
-	if search:
-		# Skop carian: booking (ID/no), customer (nama/emel/telefon) dan
-		# traveller (nama/telefon/emel/IC/paspport — snapshot reservation
-		# ATAU rekod Traveller) — padanan traveller memsurfacekan booking
-		# induknya. Reservation Cancelled diketepikan (bukan lagi tetamu).
-		conditions.append("""(
-			b.name LIKE %(s)s OR b.booking_number LIKE %(s)s
-			OR b.customer LIKE %(s)s OR c.customer_name LIKE %(s)s
-			OR b.cust_email LIKE %(s)s OR b.get_cust_booking_phone LIKE %(s)s
-			OR EXISTS (
-				SELECT 1 FROM `tabBooking Reservation` sbr
-				LEFT JOIN tabTraveller stv ON stv.name = sbr.traveller
-				WHERE sbr.booking = b.name AND sbr.status != 'Cancelled'
-				  AND (sbr.traveller_full_name LIKE %(s)s OR stv.full_name LIKE %(s)s
-					OR sbr.traveller_passportno LIKE %(s)s OR stv.passport_no LIKE %(s)s
-					OR sbr.traveller_ic LIKE %(s)s OR stv.ic_number LIKE %(s)s
-					OR sbr.traveller_email LIKE %(s)s OR stv.email LIKE %(s)s
-					OR stv.phone LIKE %(s)s)
-			)
-		)""")
-		fmt["s"] = f"%{search}%"
+	conditions = ["b.trip_date IN %(groups)s"]
+	conditions.extend(_bk_list_conditions(fmt, status, payment_status, search,
+		currency, custom_filters, custom_match))
 	where = " AND ".join(conditions)
 
 	try:
@@ -1132,7 +1180,7 @@ def get_group_bookings(trip_group: str = None, trip_groups: list = None, status:
 		LEFT JOIN tabCustomer c ON c.name = b.customer
 		LEFT JOIN {_RES_PER_BOOKING}
 		WHERE {where}
-		ORDER BY b.creation DESC
+		{_BK_ORDER}
 		{lim}
 	""", {**fmt, "def_cur": _def_cur()}, as_dict=True)
 
@@ -1287,6 +1335,276 @@ def get_group_bookings(trip_group: str = None, trip_groups: list = None, status:
 
 
 @frappe.whitelist()
+def get_all_bookings(status: str = None, payment_status: str = None, search: str = None,
+					 currency: str = None, custom_filters: list = None,
+					 custom_match: str = "AND", limit: int = 20):
+	"""Senarai booking FLAT merentas SEMUA Trip Group Date — TANPA melalui
+	travel date (route travel-manager/booking, sub-menu Booking Group
+	dipindah ke booking-group — Nov 2026). Setiap booking satu baris,
+	disusun created on TERKINI dahulu (creation DESC).
+
+	Mirror get_group_bookings: agregat setiap booking (pax, bilik, nilai SO,
+	terbayar, baki, diskaun, dokumen pending) + trip_name untuk konteks trip;
+	tanpa syarat trip_date — semua booking termasuk group lampau/arkib.
+	`count` dan `totals` dikira atas SEMUA row yang padan filter.
+	`summary` (jalur ringkasan) dikira atas skop penuh tanpa filter.
+	"""
+	_require_access()
+
+	fmt = {"done": list(DOC_STATUS_DONE), "def_cur": _def_cur()}
+	conditions = _bk_list_conditions(fmt, status, payment_status, search, currency,
+		custom_filters, custom_match, all_scope=True)
+	where = " AND ".join(conditions) or "TRUE"
+
+	try:
+		limit = int(limit or 0)
+	except (TypeError, ValueError):
+		limit = 20
+	lim = f"LIMIT {limit}" if limit > 0 else ""
+
+	rows = frappe.db.sql(f"""
+		SELECT b.name, b.booking_number, b.customer, c.customer_name, b.cust_email,
+		       b.get_cust_booking_phone AS cust_phone,
+		       b.customer_message,
+		       b.status, b.payment_status, b.booking_channel, b.checkout_method,
+		       b.voucher_discount, b.price_rule_discount, b.referral_discount,
+		       COALESCE(NULLIF({_PRIMARY_SO_CUR}, ''), %(def_cur)s) AS discount_currency,
+		       b.creation, b.trip_date, b.trip_name,
+		       res.pax, res.rooms, res.pending_docs, res.docs_submitted, res.docs_verified
+		FROM tabBooking b
+		LEFT JOIN tabCustomer c ON c.name = b.customer
+		LEFT JOIN {_RES_PER_BOOKING}
+		WHERE {where}
+		{_BK_ORDER}
+		{lim}
+	""", fmt, as_dict=True)
+
+	# Wang per (booking, currency) untuk booking di halaman ini — booking
+	# boleh ada SO dalam beberapa currency (addon), jadi pecahan dijaga
+	# per currency, tidak pernah dijumlah merentas currency.
+	page_bookings = [r.name for r in rows]
+	money_by_booking = {}
+	if page_bookings:
+		for r in frappe.db.sql(f"""
+			SELECT soc.booking, soc.currency, soc.gross, soc.paid
+			FROM {_SO_PER_BOOKING_CUR}
+			WHERE soc.booking IN %(page_bookings)s
+		""", {**fmt, "page_bookings": page_bookings}, as_dict=True):
+			money_by_booking.setdefault(r.booking, []).append(r)
+
+	# Total atas semua row yang padan (untuk footer & "showing x of y").
+	totals = frappe.db.sql(f"""
+		SELECT COUNT(*) AS cnt,
+		       COALESCE(SUM(res.pax), 0) AS pax,
+		       COALESCE(SUM(res.rooms), 0) AS rooms,
+		       COALESCE(SUM(res.pending_docs), 0) AS pending_docs
+		FROM tabBooking b
+		LEFT JOIN tabCustomer c ON c.name = b.customer
+		LEFT JOIN {_RES_PER_BOOKING}
+		WHERE {where}
+	""", fmt, as_dict=True)[0]
+
+	# Wang (gross/paid) per currency atas semua booking yang padan filter.
+	gross_by_cur = {}
+	for r in frappe.db.sql(f"""
+		SELECT soc.currency, SUM(soc.gross) AS gross, SUM(soc.paid) AS paid
+		FROM tabBooking b
+		INNER JOIN {_SO_PER_BOOKING_CUR} ON soc.booking = b.name
+		LEFT JOIN tabCustomer c ON c.name = b.customer
+		WHERE {where}
+		GROUP BY soc.currency
+	""", fmt, as_dict=True):
+		gross_by_cur[r.currency] = {
+			"gross": _f(r.gross), "paid": _f(r.paid),
+			"balance": round(_f(r.gross) - _f(r.paid), 2), "discount": 0.0,
+		}
+
+	# Diskaun per currency (field Booking — axis currency SO utama).
+	for r in frappe.db.sql(f"""
+		SELECT COALESCE(NULLIF({_PRIMARY_SO_CUR}, ''), %(def_cur)s) AS currency,
+		       SUM(b.voucher_discount + b.price_rule_discount + b.referral_discount) AS discount
+		FROM tabBooking b
+		LEFT JOIN tabCustomer c ON c.name = b.customer
+		WHERE {where}
+		GROUP BY COALESCE(NULLIF({_PRIMARY_SO_CUR}, ''), %(def_cur)s)
+	""", fmt, as_dict=True):
+		entry = gross_by_cur.setdefault(r.currency, {
+			"gross": 0.0, "paid": 0.0, "balance": 0.0, "discount": 0.0,
+		})
+		entry["discount"] = _f(r.discount)
+
+	tot_by_cur = _sort_cur_rows([
+		{"currency": cur, **vals} for cur, vals in gross_by_cur.items()
+	])
+	tot_default_totals = _annotate_default(tot_by_cur, ["gross", "paid", "balance", "discount"])
+	if len(tot_by_cur) == 1:
+		tot_gross = tot_by_cur[0]["gross"]
+		tot_paid = tot_by_cur[0]["paid"]
+		tot_balance = tot_by_cur[0]["balance"]
+		tot_discount = tot_by_cur[0]["discount"]
+	elif not tot_by_cur:
+		tot_gross = tot_paid = tot_balance = tot_discount = 0.0
+	else:
+		# Campur currency — scalar None (frontend papar pecahan).
+		tot_gross = tot_paid = tot_balance = tot_discount = None
+
+	bookings = []
+	for r in rows:
+		by_cur = _sort_cur_rows([
+			{
+				"currency": m.currency,
+				"gross": _f(m.gross),
+				"paid": _f(m.paid),
+				"balance": round(_f(m.gross) - _f(m.paid), 2),
+			}
+			for m in money_by_booking.get(r.name, [])
+		])
+		b_default_totals = _annotate_default(by_cur, ["gross", "paid", "balance"])
+		if len(by_cur) == 1:
+			gross, paid, balance, b_currency = (
+				by_cur[0]["gross"], by_cur[0]["paid"], by_cur[0]["balance"], by_cur[0]["currency"])
+		elif not by_cur:
+			gross, paid, balance, b_currency = 0.0, 0.0, 0.0, None
+		else:
+			gross, paid, balance, b_currency = None, None, None, None
+		bookings.append({
+			"name": r.name,
+			"booking_number": r.booking_number or r.name,
+			"customer": r.customer or "",
+			"customer_name": r.customer_name or r.customer or "-",
+			"cust_email": r.cust_email or "",
+			"cust_phone": r.cust_phone or "",
+			"customer_message": r.customer_message or "",
+			"status": r.status or "",
+			"payment_status": r.payment_status or "",
+			"booking_channel": r.booking_channel or "",
+			"checkout_method": r.checkout_method or "",
+			"voucher_discount": _f(r.voucher_discount),
+			"price_rule_discount": _f(r.price_rule_discount),
+			"referral_discount": _f(r.referral_discount),
+			"discount_currency": r.discount_currency,
+			"creation": _s(r.creation),
+			"trip_date": r.trip_date or "",
+			# Konteks trip — senarai flat bukan skop satu group, jadi
+			# kolum Group papar nama trip (bukan sekadar ID group date).
+			"trip_name": r.trip_name or "",
+			"pax": _i(r.pax),
+			"rooms": _i(r.rooms),
+			"pending_docs": _i(r.pending_docs),
+			"docs_submitted": _i(r.docs_submitted),
+			"docs_verified": _i(r.docs_verified),
+			"gross": gross,
+			"paid": paid,
+			"balance": balance,
+			"currency": b_currency,
+			"gross_by_currency": by_cur,
+			"default_totals": b_default_totals,
+		})
+
+	return {
+		"bookings": bookings,
+		"shown": len(bookings),
+		"count": _i(totals.cnt),
+		"currencies": [r["currency"] for r in tot_by_cur],
+		"summary": _bk_summary(all_scope=True),
+		"totals": {
+			"pax": _i(totals.pax),
+			"rooms": _i(totals.rooms),
+			"gross": tot_gross,
+			"paid": tot_paid,
+			"balance": tot_balance,
+			"discount": tot_discount,
+			"pending_docs": _i(totals.pending_docs),
+			"by_currency": tot_by_cur,
+			"default_totals": tot_default_totals,
+		},
+	}
+
+
+@frappe.whitelist()
+def get_booking_neighbours(booking: str = None, scope: str = "all",
+						   trip_groups: "list | str" = None, customer: str = None,
+						   status: str = None, payment_status: str = None,
+						   search: str = None, currency: str = None,
+						   custom_filters: "list | str" = None,
+						   custom_match: str = "AND") -> dict:
+	"""Prev/Next SATU booking dalam susunan DIREKTORI asalnya — butang
+	navigasi page Booking Info (Travel Manager).
+
+	Navigasi "same level" ikut senarai yang booking itu DIBUKA daripadanya
+	(bukan ikut group semula jadinya): tapisan & turutan diambil daripada
+	senarai itu dengan memakai _bk_list_conditions + _BK_ORDER yang SAMA —
+	jadi prev/next bergerak tepat ikut baris yang user lihat, melepasi
+	tingkap "Load more" (tiada LIMIT di sini).
+
+	scope:
+	  all      — senarai FLAT semua booking (route travel-manager/booking)
+	  group    — booking dalam Trip Group Date / batch yang diberi
+	             (trip_groups) — senarai L1 Booking Group ATAU tab Bookings L2
+	  customer — booking seorang customer (direktori Customer)
+
+	Argumen tapisan (status, payment_status, search, currency,
+	custom_filters, custom_match) ialah STATE SENARAI yang sama yang dihantar
+	oleh komponen senarai — tanpa `limit`.
+
+	Return {booking, found, index, total, prev, next}. `found` false bila
+	booking TIADA dalam direktori itu (deep-link ke booking di luar senarai /
+	telah ditapis) — frontend menyembunyikan prev/next. prev = baris SEBELUM
+	(atas), next = baris SESUDAH (bawah) dalam susunan senarai.
+	"""
+	_require_access()
+	if not booking:
+		frappe.throw(_("Booking is required"))
+
+	fmt = {"done": list(DOC_STATUS_DONE), "def_cur": _def_cur()}
+	conditions = _bk_list_conditions(fmt, status, payment_status, search, currency,
+		custom_filters, custom_match, all_scope=(scope != "group"))
+
+	if scope == "group":
+		fmt["groups"] = _parse_groups(None, trip_groups)
+		conditions.append("b.trip_date IN %(groups)s")
+	elif scope == "customer":
+		if not customer:
+			frappe.throw(_("Customer is required"))
+		fmt["customer"] = customer
+		conditions.append("b.customer = %(customer)s")
+	elif scope != "all":
+		frappe.throw(_("Unknown booking directory scope: {0}").format(scope))
+
+	where = " AND ".join(conditions) or "TRUE"
+	rows = frappe.db.sql(f"""
+		SELECT b.name, b.booking_number, c.customer_name,
+		       b.status, b.payment_status, b.trip_date, b.trip_name
+		FROM tabBooking b
+		LEFT JOIN tabCustomer c ON c.name = b.customer
+		WHERE {where}
+		{_BK_ORDER}
+	""", fmt, as_dict=True)
+
+	names = [r["name"] for r in rows]
+	idx = names.index(booking) if booking in names else -1
+
+	def brief(r):
+		return {
+			"name": r["name"],
+			"booking_number": r["booking_number"] or r["name"],
+			"customer_name": r["customer_name"] or "",
+			"status": r["status"] or "",
+			"payment_status": r["payment_status"] or "",
+			"trip_date": r["trip_date"] or "",
+		}
+
+	return {
+		"booking": booking,
+		"found": idx >= 0,
+		"index": idx + 1,          # 1-based; 0 bila tiada dalam direktori
+		"total": len(rows),
+		"prev": brief(rows[idx - 1]) if idx > 0 else None,
+		"next": brief(rows[idx + 1]) if 0 <= idx < len(rows) - 1 else None,
+	}
+
+
+@frappe.whitelist()
 def get_booking_filter_fields() -> list:
 	"""Senarai medan yang boleh ditapis untuk penapis dinamik SENARAI
 	BOOKING — medan meta doctype Booking & Customer sahaja (join tetap
@@ -1322,16 +1640,23 @@ def get_booking_filter_fields() -> list:
 @frappe.whitelist()
 def get_booking_filter_values(doctype: str = None, fieldname: str = None,
 							  trip_group: str = None, trip_groups: "list | str" = None,
-							  search: str = None, limit: int = 100) -> dict:
+							  search: str = None, limit: int = 100,
+							  all: "int | str" = None) -> dict:
 	"""Nilai berbeza (distinct) satu medan dalam skop senarai booking —
 	cadangan dropdown nilai penapis dinamik (datalist klien). Mirror
-	get_traveller_filter_values, skop ikut join kueri booking (b + c)."""
+	get_traveller_filter_values, skop ikut join kueri booking (b + c).
+	all=1 — skop FLAT semua booking (senarai flat get_all_bookings,
+	tanpa syarat trip_date)."""
 	_require_access()
 	alias, df = _tv_filter_field(doctype, fieldname, aliases=_BK_FILTER_ALIASES)
-	groups = _parse_groups(trip_group, trip_groups)
 	col = f"{alias}.`{df.fieldname}`"
-	conditions = ["b.trip_date IN %(groups)s"]
-	fmt = {"groups": groups}
+	fmt = {}
+	if frappe.utils.cint(all):
+		conditions = []
+	else:
+		groups = _parse_groups(trip_group, trip_groups)
+		fmt["groups"] = groups
+		conditions = ["b.trip_date IN %(groups)s"]
 	if search:
 		conditions.append(f"CAST({col} AS CHAR) LIKE %(vs)s")
 		fmt["vs"] = f"%{search}%"
@@ -1339,11 +1664,12 @@ def get_booking_filter_values(doctype: str = None, fieldname: str = None,
 		limit = max(1, min(int(limit or 100), 200))
 	except (TypeError, ValueError):
 		limit = 100
+	where = " AND ".join(conditions) or "TRUE"
 	rows = frappe.db.sql(f"""
 		SELECT DISTINCT {col} AS v
 		FROM tabBooking b
 		LEFT JOIN tabCustomer c ON c.name = b.customer
-		WHERE {' AND '.join(conditions)}
+		WHERE {where}
 		ORDER BY v
 		LIMIT {limit}
 	""", fmt, as_dict=True)
@@ -1364,7 +1690,20 @@ def get_group_addons(trip_group: str = None, trip_groups: list = None, status: s
 	_require_access()
 	groups = _parse_groups(trip_group, trip_groups)
 
-	conditions = ["ba.trip_date IN %(groups)s"]
+	# RECONDITION Nov 2026 — Booking Addon.travel_date kini Link Travel
+	# Date. Pemanggil (manage-booking-app) masih hantar nama Trip Group
+	# Date (struktur dibekukan) — petakan ke Travel Date melalui anchor
+	# provenance legacy_tgd; nama yang sudah Travel Date kekal diterima.
+	td_groups = set(groups or [])
+	if td_groups:
+		td_groups |= set(frappe.get_all(
+			"Travel Date",
+			filters={"legacy_tgd": ["in", list(td_groups)]},
+			pluck="name",
+		))
+	groups = sorted(td_groups)
+
+	conditions = ["ba.travel_date IN %(groups)s"]
 	fmt = {"groups": groups, "def_cur": _def_cur()}
 
 	if status and status != "All":
@@ -1387,7 +1726,7 @@ def get_group_addons(trip_group: str = None, trip_groups: list = None, status: s
 
 	rows = frappe.db.sql(f"""
 		SELECT ba.name, ba.booking, ba.booking_number, ba.customer,
-		       c.customer_name, ba.trip_package, ba.trip_date,
+		       c.customer_name, ba.package_offer, ba.travel_date,
 		       ba.status, ba.payment_status,
 		       ba.currency, ba.total_amount, ba.notes,
 		       COALESCE(ba.order_date, ba.creation) AS order_date,
@@ -1425,8 +1764,8 @@ def get_group_addons(trip_group: str = None, trip_groups: list = None, status: s
 		"booking_number": r.booking_number or r.booking or "",
 		"customer": r.customer or "",
 		"customer_name": r.customer_name or r.customer or "-",
-		"trip_package": r.trip_package or "",
-		"trip_date": r.trip_date or "",
+		"package_offer": r.package_offer or "",
+		"travel_date": r.travel_date or "",
 		"status": r.status or "",
 		"payment_status": r.payment_status or "",
 		"currency": r.currency or "",
@@ -1458,6 +1797,115 @@ def _count_addons(fmt, where):
 		WHERE {where}
 	""", fmt, as_dict=True)
 	return _i(r[0].cnt) if r else 0
+
+
+@frappe.whitelist()
+def get_all_addons(status: str = None, payment_status: str = None,
+				   currency: str = None, search: str = None,
+				   limit: int = 1000) -> dict:
+	"""Senarai FLAT semua Booking Addon merentas trip — TANPA skop group
+	date (route travel-manager/addon-booking, sub-menu Booking Management
+	selepas Booking Group — Nov 2026). Disusun created on TERKINI dahulu
+	(creation DESC).
+
+	Mirror get_group_addons: carian (order/booking/customer/offer/travel
+	date), penapis status/payment/currency, jumlah nilai per currency +
+	jumlah bersamaan default currency; `count` dikira atas SEMUA row yang
+	padan filter (cap `limit` + `total` row penuh — corak direktori).
+	"""
+	_require_access()
+
+	fmt = {"def_cur": _def_cur()}
+	conditions = []
+	if status and status != "All":
+		conditions.append("ba.status = %(status)s")
+		fmt["status"] = status
+	if payment_status and payment_status != "All":
+		conditions.append("ba.payment_status = %(pay)s")
+		fmt["pay"] = payment_status
+	if currency and currency != "All":
+		# Nilai wang dipegang dalam currency order addon (fallback default).
+		conditions.append("COALESCE(NULLIF(ba.currency, ''), %(def_cur)s) = %(cur)s")
+		fmt["cur"] = currency
+	if search:
+		conditions.append("""(
+			ba.name LIKE %(s)s OR ba.booking_number LIKE %(s)s
+			OR ba.booking LIKE %(s)s OR ba.customer LIKE %(s)s
+			OR c.customer_name LIKE %(s)s OR ba.package_offer LIKE %(s)s
+			OR ba.travel_date LIKE %(s)s
+		)""")
+		fmt["s"] = f"%{search}%"
+	where = " AND ".join(conditions) or "TRUE"
+
+	try:
+		limit = int(limit or 0)
+	except (TypeError, ValueError):
+		limit = 1000
+	lim = f"LIMIT {limit}" if limit > 0 else ""
+
+	rows = frappe.db.sql(f"""
+		SELECT ba.name, ba.booking, ba.booking_number, ba.customer,
+		       c.customer_name, ba.package_offer, ba.travel_date,
+		       ba.status, ba.payment_status,
+		       ba.currency, ba.total_amount, ba.notes,
+		       COALESCE(ba.order_date, ba.creation) AS order_date,
+		       ba.creation,
+		       (SELECT COUNT(*) FROM `tabBooking Addon Item` bai
+		        WHERE bai.addon_order = ba.name) AS item_count
+		FROM `tabBooking Addon` ba
+		LEFT JOIN tabCustomer c ON c.name = ba.customer
+		WHERE {where}
+		ORDER BY ba.creation DESC
+		{lim}
+	""", fmt, as_dict=True)
+
+	# Jumlah atas semua row yang padan filter — amount per currency
+	# (currency kosong fallback ke default currency), kemudian jumlah
+	# bersamaan default currency.
+	amount_by_cur = {}
+	for r in frappe.db.sql(f"""
+		SELECT COALESCE(NULLIF(ba.currency, ''), %(def_cur)s) AS currency,
+		       SUM(ba.total_amount) AS amount
+		FROM `tabBooking Addon` ba
+		LEFT JOIN tabCustomer c ON c.name = ba.customer
+		WHERE {where}
+		GROUP BY COALESCE(NULLIF(ba.currency, ''), %(def_cur)s)
+	""", fmt, as_dict=True):
+		amount_by_cur[r.currency] = _f(r.amount)
+	tot_by_cur = _sort_cur_rows([
+		{"currency": cur, "amount": amt} for cur, amt in amount_by_cur.items()
+	])
+	tot_default_totals = _annotate_default(tot_by_cur, ["amount"])
+
+	addons = [{
+		"name": r.name,
+		"booking": r.booking or "",
+		"booking_number": r.booking_number or r.booking or "",
+		"customer": r.customer or "",
+		"customer_name": r.customer_name or r.customer or "-",
+		"package_offer": r.package_offer or "",
+		"travel_date": r.travel_date or "",
+		"status": r.status or "",
+		"payment_status": r.payment_status or "",
+		"currency": r.currency or "",
+		"total_amount": _f(r.total_amount),
+		"item_count": _i(r.item_count),
+		"notes": r.notes or "",
+		"order_date": _s(r.order_date),
+		"creation": _s(r.creation),
+	} for r in rows]
+
+	return {
+		"addons": addons,
+		"shown": len(addons),
+		# Jumlah row yang padan filter (tanpa limit) — amaran pemotongan
+		# frontend bila cap 1000 terjejas (corak direktori customer).
+		"count": _count_addons(fmt, where) if lim else len(addons),
+		"totals": {
+			"by_currency": tot_by_cur,
+			"default_totals": tot_default_totals,
+		},
+	}
 
 
 @frappe.whitelist()
@@ -1572,8 +2020,8 @@ def get_booking_addons_flights(booking: str = None) -> dict:
 		"booking_number": r.booking_number or r.booking or "",
 		"customer": r.customer or "",
 		"customer_name": r.customer_name or r.customer or "-",
-		"trip_package": r.trip_package or "",
-		"trip_date": r.trip_date or "",
+		"package_offer": r.package_offer or "",
+		"travel_date": r.travel_date or "",
 		"status": r.status or "",
 		"payment_status": r.payment_status or "",
 		"currency": r.currency or "",
@@ -1584,7 +2032,7 @@ def get_booking_addons_flights(booking: str = None) -> dict:
 		"creation": _s(r.creation),
 	} for r in frappe.db.sql("""
 		SELECT ba.name, ba.booking, ba.booking_number, ba.customer,
-		       c.customer_name, ba.trip_package, ba.trip_date,
+		       c.customer_name, ba.package_offer, ba.travel_date,
 		       ba.status, ba.payment_status, ba.currency, ba.total_amount,
 		       ba.notes, COALESCE(ba.order_date, ba.creation) AS order_date,
 		       ba.creation,
@@ -2732,12 +3180,14 @@ BOOKING_DELETE_GRACE_HOURS = 24
 # dahulu bila docstatus 1) — dokumen operasional sahaja. Sales Invoice
 # SENGAJA TIDAK disertakan (dokumen kewangan) — SI yang belum dibatalkan
 # akan menyekat padam Booking dan dilaporkan dalam `failed` dengan sebab.
+# Sales Order TIDAK berada di sini — ia dicari melalui registri
+# Booking.sales_orders dalam _delete_booking_linked_docs ([Nov 2026] SO
+# tidak lagi memegang link custom_booking ke Booking).
 _BOOKING_DELETE_LINKED = (
     ("Booking Reservation", "booking"),
     ("Booking Addon", "booking"),
     ("Voucher Usage", "booking"),
     ("Affiliate Commission", "booking"),
-    ("Sales Order", "custom_booking"),
 )
 
 
@@ -2752,6 +3202,15 @@ def _delete_booking_linked_docs(booking: str) -> list:
 				d.cancel()
 			frappe.delete_doc(dt, dn, ignore_permissions=True)
 			removed.append(f"{dt} {dn}")
+	# Sales Order booking — dicari melalui registri Booking.sales_orders
+	# (semua docstatus, termasuk Cancelled — baris registri turut hilang
+	# apabila Booking induknya dipadam). Cancel dahulu bila docstatus 1.
+	for dn in _get_all_booking_sales_orders(booking, include_cancelled=True):
+		d = frappe.get_doc("Sales Order", dn)
+		if d.docstatus == 1:
+			d.cancel()
+		frappe.delete_doc("Sales Order", dn, ignore_permissions=True)
+		removed.append(f"Sales Order {dn}")
 	return removed
 
 
@@ -3308,8 +3767,8 @@ def get_group_rooming(trip_group: str = None, trip_groups: list = None, booking:
 	# Senarai pilihan kategori bilik untuk papan Rooming Board — PENUH
 	# daripada doctype Trip Price Category (bukan hanya kategori yang
 	# dipakai bilik semasa), DIPADANKAN dengan jenis trip: group cruise →
-	# hanya kategori cruise-enabled (is_a_cruise=1); group darat → kategori
-	# bukan cruise; batch campuran → kedua-duanya. Kapasiti diambil dari
+	# kategori bilik ikut jenis trip: cruise → price_category 'Cruise';
+	# darat → 'Tour'; batch campuran → kedua-duanya. Kapasiti diambil dari
 	# rekod doctype; kategori yang dipakai bilik sedia ada tetap
 	# disertakan (fallback kapasiti bilik) supaya paparan kolum konsisten.
 	if booking_scope and not groups:
@@ -3321,9 +3780,9 @@ def get_group_rooming(trip_group: str = None, trip_groups: list = None, booking:
 			"Trip Group Date", filters={"name": ["in", groups]},
 			fields=["is_a_cruise_trip"])] if groups else []
 	if all(cruise_flags):
-		cat_filter = {"is_a_cruise": 1}
+		cat_filter = {"price_category": "Cruise"}
 	elif not any(cruise_flags):
-		cat_filter = {"is_a_cruise": 0}
+		cat_filter = {"price_category": "Tour"}
 	else:
 		cat_filter = None
 	categories = {}
@@ -3434,16 +3893,25 @@ def _booking_rooming_source_order(booking_name: str) -> list:
 	padanan; room_privacy dari pilihan customer pada SO (fallback nilai
 	sedia ada reservation supaya reset tidak memadam privacy).
 	"""
-	from travel_booking.api.so_helpers import _cabin_layout_from_so, _get_primary_so
+	from travel_booking.api.so_helpers import (
+		_booking_items_layout, _cabin_layout_from_so, _get_primary_so,
+	)
 
 	so_name = _get_primary_so(booking_name)
 	if not so_name:
 		frappe.throw(_("Primary Sales Order not found for this booking"))
 
+	# FASA 0 (booking-centric): slot sumber daripada Booking Item SO
+	# utama (baris per-traveller, pax_type ternormalisasi) — fallback
+	# parse SO untuk booking lama pra-backfill / SO manual admin.
+	_source_layout = _booking_items_layout(booking_name, [so_name])
+	if not _source_layout:
+		_source_layout = _cabin_layout_from_so(so_name)
+
 	# Slot sumber berurutan: cabin ikut idx SO, pax_type ikut turutan
 	# pax_breakdown, kuantiti setiap jenis.
 	slots = []
-	for cabin in _cabin_layout_from_so(so_name):
+	for cabin in _source_layout:
 		for pax_type, qty in cabin.get("pax_breakdown", {}).items():
 			for _ in range(int(qty)):
 				slots.append({
@@ -3873,9 +4341,11 @@ def get_booking_profile(booking: str = None) -> dict:
 		   "done": list(DOC_STATUS_DONE)}
 
 	# ── Profil — satu row Booking + customer + trip/group snapshot ──
-	r = frappe.db.sql("""
+	# (_PRIMARY_SO_CUR: currency SO utama booking melalui registri
+	# Booking.sales_orders — selari agregat group.)
+	r = frappe.db.sql(f"""
 		SELECT b.name, b.booking_number, b.status, b.payment_status,
-		       b.booking_channel, b.checkout_method, b.booked_by,
+		       b.booking_channel, b.checkout_method, b.hold_expires_on, b.booked_by,
 		       b.customer, c.customer_name,
 		       b.cust_email, b.get_cust_booking_phone AS cust_phone,
 		       b.customer_message,
@@ -3894,13 +4364,9 @@ def get_booking_profile(booking: str = None) -> dict:
 		       b.voucher_discount, b.price_rule_discount, b.referral_discount,
 		       b.terms_accepted, b.terms_accepted_at,
 		       b.creation, b.modified,
-		       COALESCE(NULLIF((SELECT so2.currency FROM `tabSales Order` so2
-		           WHERE so2.custom_booking = b.name AND so2.docstatus = 1
-		           ORDER BY so2.creation ASC, so2.name ASC LIMIT 1), ''),
+		       COALESCE(NULLIF({_PRIMARY_SO_CUR}, ''),
 		           %(def_cur)s) AS discount_currency,
-		       NULLIF((SELECT so3.currency FROM `tabSales Order` so3
-		           WHERE so3.custom_booking = b.name AND so3.docstatus = 1
-		           ORDER BY so3.creation ASC, so3.name ASC LIMIT 1), '') AS booking_currency
+		       NULLIF({_PRIMARY_SO_CUR}, '') AS booking_currency
 		FROM tabBooking b
 		LEFT JOIN tabCustomer c ON c.name = b.customer
 		LEFT JOIN `tabTrip Group Date` tgd ON tgd.name = b.trip_date
@@ -3921,7 +4387,9 @@ def get_booking_profile(booking: str = None) -> dict:
 			SELECT COALESCE(NULLIF(so.currency, ''), %(def_cur)s) AS currency,
 			       SUM(so.grand_total) AS gross, SUM(so.advance_paid) AS paid
 			FROM `tabSales Order` so
-			WHERE so.docstatus = 1 AND so.custom_booking = %(booking)s
+			INNER JOIN `tabBooking Sales Order` reg
+			     ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+			WHERE so.docstatus = 1 AND reg.parent = %(booking)s
 			GROUP BY COALESCE(NULLIF(so.currency, ''), %(def_cur)s)
 		""", fmt, as_dict=True)
 	])
@@ -3941,6 +4409,9 @@ def get_booking_profile(booking: str = None) -> dict:
 		"payment_status": r.payment_status or "",
 		"booking_channel": r.booking_channel or "",
 		"checkout_method": r.checkout_method or "",
+		# Fasa A (G2): tarikh akhir hold 'Held Booking' — kosong untuk kaedah
+		# lain / ciri dimatikan.
+		"hold_expires_on": _s(r.hold_expires_on),
 		"booked_by": r.booked_by or "",
 		"customer": r.customer or "",
 		"customer_name": r.customer_name or r.customer or "-",
@@ -4152,14 +4623,17 @@ def get_booking_profile(booking: str = None) -> dict:
 
 	# ── Transactions — Sales Order (semua docstatus; addon dilabel).
 	# SO dengan custom_booking_addon diisi ialah addon; SO 'utama' ialah
-	# SO pertama booking (creation terawal) — selari _get_primary_so().
+	# SO pertama dalam registri Booking.sales_orders — selari
+	# _get_primary_so().
 	sos = frappe.db.sql("""
 		SELECT so.name, so.custom_booking_addon, so.status, so.docstatus,
 		       so.transaction_date, so.currency, so.grand_total,
 		       so.advance_paid, so.creation
 		FROM `tabSales Order` so
-		WHERE so.custom_booking = %(booking)s
-		ORDER BY so.creation ASC, so.name ASC
+		INNER JOIN `tabBooking Sales Order` reg
+		     ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+		WHERE reg.parent = %(booking)s
+		ORDER BY reg.idx ASC, so.name ASC
 	""", fmt, as_dict=True)
 	so_names = [so.name for so in sos]
 	fmt["sos"] = tuple(so_names)
@@ -4389,10 +4863,43 @@ def get_booking_profile(booking: str = None) -> dict:
 				"phone": ap.phone or "",
 			}
 
+	# ── Fasa A (G1): jadual bayaran SO — baris Deposit / Balance Payment /
+	# Full Payment yang dibina semasa confirm_booking (deposit % + hari
+	# final payment offer/Settings). Sumber kebenaran tarikh akhir baki;
+	# emel reminder T-30/T-7/T-1 berpaut baris yang sama. SO addon tanpa
+	# terma travel hanya membawa baris immediate ERPNext — paparan UI boleh
+	# tapis ikut description bila perlu.
+	schedule_rows = frappe.db.sql("""
+		SELECT ps.parent AS sales_order, ps.idx,
+		       ps.description, ps.due_date, ps.payment_amount,
+		       ps.paid_amount, ps.outstanding, so.currency
+		FROM `tabPayment Schedule` ps
+		INNER JOIN `tabSales Order` so ON so.name = ps.parent
+		INNER JOIN `tabBooking Sales Order` reg
+		     ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+		WHERE reg.parent = %(booking)s
+		  AND so.docstatus = 1
+		  AND ps.parenttype = 'Sales Order'
+		ORDER BY so.creation ASC, ps.idx ASC
+	""", fmt, as_dict=True)
+
 	return {
 		"booking": booking,
 		"currency": _def_cur(),
 		"profile": profile,
+		"payment_schedule": [
+			{
+				"sales_order": p.sales_order,
+				"idx": _i(p.idx),
+				"description": p.description or "",
+				"due_date": _s(p.due_date),
+				"payment_amount": _f(p.payment_amount),
+				"paid_amount": _f(p.paid_amount),
+				"outstanding": _f(p.outstanding),
+				"currency": p.currency or _def_cur(),
+			}
+			for p in schedule_rows
+		],
 		"reservations": reservations,
 		"reservations_count": len(reservations),
 		"transactions": {
@@ -4651,7 +5158,8 @@ def download_travellers_csv(booking: str = None, trip_group: str = None,
 
 
 def _booking_download_scope(trip_groups: "list | str" = None,
-							bookings: "list | str" = None):
+							bookings: "list | str" = None,
+							all_scope: bool = False):
 	"""Skop muat turun senarai booking — baris daripada get_group_bookings
 	(skop PENUH group/batch, tanpa limit & tanpa penapis paparan) — mirror
 	_traveller_download_scope.
@@ -4662,10 +5170,16 @@ def _booking_download_scope(trip_groups: "list | str" = None,
 
 	`trip_groups` menerima list (frappe.call POST) ATAU string JSON /
 	berkoma (pautan <a href> GET) — _parse_groups normalize kedua-duanya.
+	`all_scope` — eksport senarai FLAT semua booking (get_all_bookings,
+	tanpa skop group date — route travel-manager/booking).
 	Return (rows, nama asas fail)."""
-	groups = _parse_groups(None, trip_groups)
-	data = get_group_bookings(trip_groups=groups, limit=0)
-	rows, base = data.get("bookings", []), "-".join(groups)[:60] or "groups"
+	if all_scope:
+		data = get_all_bookings(limit=0)
+		rows, base = data.get("bookings", []), "all-bookings"
+	else:
+		groups = _parse_groups(None, trip_groups)
+		data = get_group_bookings(trip_groups=groups, limit=0)
+		rows, base = data.get("bookings", []), "-".join(groups)[:60] or "groups"
 	if bookings:
 		if isinstance(bookings, str):
 			try:
@@ -4680,13 +5194,14 @@ def _booking_download_scope(trip_groups: "list | str" = None,
 
 
 def _booking_export_rows(trip_groups: "list | str" = None,
-						 bookings: "list | str" = None):
+						 bookings: "list | str" = None,
+						 all_scope: bool = False):
 	"""Baris eksport senarai booking (satu baris setiap booking, medan
-	daripada get_group_bookings — sumber disatukan) — dikongsi eksport
-	XLSX & CSV. Wang per currency: baris satu currency → nombor + kolum
-	'Currency'; campur currency → string pecahan 'RM 1,000.00 · S$ 20.00'.
-	Return (rows, nama asas fail)."""
-	rows_src, base = _booking_download_scope(trip_groups, bookings)
+	daripada get_group_bookings / get_all_bookings — sumber disatukan) —
+	dikongsi eksport XLSX & CSV. Wang per currency: baris satu currency →
+	nombor + kolum 'Currency'; campur currency → string pecahan
+	'RM 1,000.00 · S$ 20.00'. Return (rows, nama asas fail)."""
+	rows_src, base = _booking_download_scope(trip_groups, bookings, all_scope)
 
 	def money(b, field):
 		"""Nilai wang satu field — nombor (satu currency) atau string
@@ -4729,12 +5244,15 @@ def _booking_export_rows(trip_groups: "list | str" = None,
 
 @frappe.whitelist()
 def download_bookings_excel(trip_groups: "list | str" = None,
-							bookings: "list | str" = None):
-	"""Excel (XLSX) senarai booking — skop group/batch ATAU baris terpilih
-	(checkbox bulk edit) — mirror download_travellers_excel."""
+							bookings: "list | str" = None,
+							all: "int | str" = None):
+	"""Excel (XLSX) senarai booking — skop group/batch, baris terpilih
+	(checkbox bulk edit) ATAU senarai flat semua booking (all=1) — mirror
+	download_travellers_excel."""
 	from frappe.utils.xlsxutils import make_xlsx
 
-	rows, base = _booking_export_rows(trip_groups, bookings)
+	rows, base = _booking_export_rows(trip_groups, bookings,
+		all_scope=bool(frappe.utils.cint(all)))
 	out = make_xlsx(rows, "Bookings")
 	frappe.local.response.update({
 		"type": "download",
@@ -4745,13 +5263,15 @@ def download_bookings_excel(trip_groups: "list | str" = None,
 
 @frappe.whitelist()
 def download_bookings_csv(trip_groups: "list | str" = None,
-						  bookings: "list | str" = None):
+						  bookings: "list | str" = None,
+						  all: "int | str" = None):
 	"""CSV senarai booking — baris sama dengan Excel; BOM UTF-8 supaya
 	Excel membuka dengan aksara betul."""
 	import csv
 	import io
 
-	rows, base = _booking_export_rows(trip_groups, bookings)
+	rows, base = _booking_export_rows(trip_groups, bookings,
+		all_scope=bool(frappe.utils.cint(all)))
 	buf = io.StringIO()
 	csv.writer(buf).writerows(rows)
 	frappe.local.response.update({
@@ -4791,7 +5311,9 @@ def _booking_paylink_context(booking: str):
 		       so.grand_total, so.advance_paid,
 		       ROUND(so.grand_total - so.advance_paid, 2) AS balance
 		FROM `tabSales Order` so
-		WHERE so.custom_booking = %(booking)s AND so.docstatus = 1
+		INNER JOIN `tabBooking Sales Order` reg
+		     ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+		WHERE reg.parent = %(booking)s AND so.docstatus = 1
 		ORDER BY so.creation ASC, so.name ASC
 	""", {"booking": b.name}, as_dict=True)
 	return b, sos
@@ -4932,6 +5454,11 @@ def create_booking_payment_link(booking: str = None,
 	if not outstanding:
 		frappe.throw(_("No Sales Order with outstanding balance for this booking."))
 
+	# Fasa 1 (1f): pay-link tidak boleh dijana untuk booking Cancelled/
+	# Abandoned — bayaran baharu tidak lagi diterima.
+	from travel_booking.api.booking_engine import _assert_booking_payable
+	_assert_booking_payable(b.name)
+
 	# Pilihan SO — kosong = SEMUA SO outstanding. String JSON / CSV diterima
 	# (frappe.call hantar array; form-encoded mungkin string).
 	if isinstance(sales_orders, str):
@@ -4997,6 +5524,19 @@ def create_booking_payment_link(booking: str = None,
 	if online_min and total < online_min:
 		frappe.throw(_("Online payment requires a minimum of {0} {1}.").format(
 			online_min, currency))
+
+	# Fasa 1 (1c): gate deposit bayaran PERTAMA — selari portal/Stripe
+	# (terma berkesan booking: Package Offer override → global + tetingkap
+	# final payment). Hanya dipakai bila TIADA SO booking ini yang telah
+	# dibayar (pautan pertama); pautan susulan (baki/separa) kekal bebas
+	# alokasi seperti sedia ada — admin kekal fleksibel untuk kes operasi
+	# khas (cth. pelarasan bayaran manual pelanggan).
+	if not any(_f(so.advance_paid) > 0 for so in outstanding.values()):
+		from travel_booking.api.booking_engine import _minimum_first_payment_amount
+		min_dep = _minimum_first_payment_amount(b.name, total)
+		if min_dep is not None and total < min_dep - 0.01:
+			frappe.throw(_("First payment must be at least the required deposit ({0} {1}).").format(
+				min_dep, currency))
 
 	ss, gateway_account = _get_stripe_settings(currency)
 

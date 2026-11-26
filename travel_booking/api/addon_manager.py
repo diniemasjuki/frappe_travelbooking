@@ -2,8 +2,9 @@
 #
 # Portal endpoints untuk upsell addon/insurance selepas booking confirmed:
 #   - get_available_addons(booking_number) — katalog Addon Package yang
-#     layak untuk booking ni (scoped ikut trip_package), dengan status
-#     stok/cutoff untuk paparan portal.
+#     layak untuk booking ni (scoped ikut Package Offer / Travel Date —
+#     RECONDITION Nov 2026, dahulu Trip Package / Trip Group Date), dengan
+#     status stok/cutoff untuk paparan portal.
 #   - checkout_addons(booking_number, lines, ...) — cart checkout:
 #     re-price server-side, cipta SATU Sales Order addon (item "Trip Addon
 #     Package") + Booking Addon (header) + Booking Addon Item (baris).
@@ -25,6 +26,8 @@ from travel_booking.api.portal_booking import (
 from travel_booking.api.constants import ADDON_PACKAGE_ITEM_CODE
 from travel_booking.api.so_helpers import (
     _get_or_create_travel_item,
+    _get_primary_so,
+    _link_booking_sales_order,
     _resolve_so_currency_and_rate,
     _create_manual_payment_entry,
 )
@@ -37,10 +40,15 @@ from travel_booking.utils.upload_normalize import _decode_and_normalize_upload
 
 def _get_owned_booking(booking_number):
     """Sahkan booking_number wujud DAN milik customer yang sedang login.
-    Pulang dict {name, customer, trip_package, trip_date, status, affiliate,
-    booking_channel, end_customer}, atau throw PermissionError. Dipanggil
-    di SETIAP endpoint dalam modul ni sebelum apa-apa operasi — jangan
-    percaya booking_number dari client tanpa verify ownership.
+    Pulang dict {name, customer, package_offer, trip_package, trip_date,
+    status, affiliate, booking_channel, end_customer}, atau throw
+    PermissionError. Dipanggil di SETIAP endpoint dalam modul ni sebelum
+    apa-apa operasi — jangan percaya booking_number dari client tanpa
+    verify ownership.
+
+    package_offer = keterkaitan struktur baharu (RECONDITION Nov 2026);
+    trip_package/trip_date ialah medan warisan booking lama — kekal dibaca
+    untuk resolusi konteks (legacy mapping melalui provenance offer).
 
     ON-BEHALF: manager (booked_by) juga dibenarkan — addon/upsell
     melibatkan maklumat traveller, jadi perlukan tahap akses "Docs"
@@ -55,8 +63,8 @@ def _get_owned_booking(booking_number):
     _user, customer_name, managed = _portal_access()
     booking = frappe.db.get_value(
         "Booking", {"booking_number": booking_number},
-        ["name", "customer", "trip_package", "trip_date", "status", "affiliate",
-         "booking_channel", "end_customer"], as_dict=True
+        ["name", "customer", "package_offer", "trip_package", "trip_date",
+         "status", "affiliate", "booking_channel", "end_customer"], as_dict=True
     )
     if not booking or not _booking_action_allowed(booking, customer_name, managed, "Docs"):
         frappe.throw("Booking not found.", frappe.PermissionError)
@@ -70,36 +78,84 @@ def _get_owned_booking(booking_number):
 # ══════════════════════════════════════════════
 
 @frappe.whitelist()
-def _booking_trip_context(booking: frappe._dict) -> tuple:
-    """Terbitkan konteks trip booking: (trip_name, departure_date).
+def _booking_offer_context(booking: frappe._dict) -> tuple:
+    """Terbitkan konteks offer booking: (package_offer, travel_date,
+    trip_name, departure_date) — RECONDITION Nov 2026.
 
+    Keterkaitan scoping addon kini Package Offer / Travel Date. Booking
+    baharu (struktur baharu) membawa package_offer terus; booking warisan
+    (trip_package/trip_date → doctype lama yang dibekukan) dipetakan ke
+    rekod baharu melalui anchor provenance:
+      Booking.trip_date    → Travel Date.legacy_tgd
+      Booking.trip_package → Package Offer.legacy_trip_package
     trip_name diperlukan untuk padanan scoping peringkat TRIP (addon yang
-    di-scope "trip sahaja"). Booking tiada field trip terus — diterbitkan
-    daripada Trip Group Date (utama) atau Trip Package (fallback).
+    di-scope "trip sahaja"); departure_date untuk cutoff jualan.
     """
+    package_offer = booking.get("package_offer") or None
+    travel_date = None
     trip_name = None
     departure_date = None
-    if booking.trip_date:
+
+    if package_offer:
+        offer = frappe.db.get_value(
+            "Package Offer", package_offer,
+            ["travel_date", "trip", "departure_date"], as_dict=True
+        )
+        if offer:
+            travel_date = offer.travel_date or None
+            trip_name = offer.trip or None
+            departure_date = offer.departure_date or None
+
+    # Konteks warisan — petakan ke rekod baharu melalui provenance.
+    legacy_td = None
+    if booking.get("trip_date") and not travel_date:
+        legacy_td = frappe.db.get_value(
+            "Travel Date", {"legacy_tgd": booking.trip_date}, "name"
+        )
+        if legacy_td and not package_offer:
+            travel_date = legacy_td
+
+    legacy_offer = None
+    if booking.get("trip_package") and not package_offer:
+        legacy_offer = frappe.db.get_value(
+            "Package Offer", {"legacy_trip_package": booking.trip_package}, "name"
+        )
+        if legacy_offer:
+            package_offer = legacy_offer
+            if not travel_date:
+                travel_date = frappe.db.get_value(
+                    "Package Offer", legacy_offer, "travel_date")
+
+    # trip_name / departure_date — daripada Travel Date baharu (utama),
+    # fallback doctype warisan (masih wujud — dibekukan, tak dipadam).
+    if travel_date:
+        td = frappe.db.get_value(
+            "Travel Date", travel_date, ["trip", "departure_date"], as_dict=True
+        )
+        if td:
+            trip_name = td.trip or trip_name
+            departure_date = td.departure_date or departure_date
+    if not trip_name and booking.get("trip_date"):
         tgd = frappe.db.get_value(
             "Trip Group Date", booking.trip_date, ["trip", "departure_date"], as_dict=True
         )
         if tgd:
             trip_name = tgd.trip
-            departure_date = tgd.departure_date
-    if not trip_name and booking.trip_package:
+            departure_date = departure_date or tgd.departure_date
+    if not trip_name and booking.get("trip_package"):
         trip_name = frappe.db.get_value("Trip Package", booking.trip_package, "trip_link")
-    return trip_name, departure_date
+    return package_offer, travel_date, trip_name, departure_date
 
 
 def _scoping_is_applicable(
     applicable_to: str | None,
     scopings: list,
-    trip_package_name: str | None,
-    group_date_name: str | None,
+    package_offer_name: str | None,
+    travel_date_name: str | None,
     trip_name: str | None,
 ) -> bool:
     """Logik padanan scoping addon package — konsisten dengan
-    Trip Addon Package.is_applicable_for_trip_package (rujuk situ untuk
+    Trip Addon Package.is_applicable_for_context (rujuk situ untuk
     semantik row scoping). Dipisah di sini supaya get_available_addons boleh
     guna scoping yang di-bulk-load (elak N+1 get_doc per package).
     """
@@ -107,25 +163,25 @@ def _scoping_is_applicable(
         return True
 
     for s in scopings:
-        # Row trip+package (group date KOSONG): addon sah untuk package
-        # tertentu PADA TRIP tersebut sahaja — merangkumi SEMUA tarikh
-        # group date yang package itu sah. Bila row nyatakan trip, booking
+        # Row trip+offer (travel date KOSONG): addon sah untuk Package
+        # Offer tertentu PADA TRIP tersebut sahaja — merangkumi SEMUA
+        # tarikh yang offer itu sah. Bila row nyatakan trip, booking
         # juga mesti dari trip sama (guard data tak konsisten).
-        if s.trip_package and trip_package_name and s.trip_package == trip_package_name:
+        if s.package_offer and package_offer_name and s.package_offer == package_offer_name:
             if not s.trip or not trip_name or s.trip == trip_name:
                 return True
-        if s.group_date and group_date_name and s.group_date == group_date_name:
+        if s.travel_date and travel_date_name and s.travel_date == travel_date_name:
             return True
         if (
             s.trip
-            and not s.group_date
-            and not s.trip_package
+            and not s.travel_date
+            and not s.package_offer
             and trip_name
             and s.trip == trip_name
         ):
             return True
 
-    if not trip_package_name and not group_date_name and not trip_name:
+    if not package_offer_name and not travel_date_name and not trip_name:
         return any(s.trip for s in scopings)
     return False
 
@@ -154,14 +210,15 @@ def get_available_addons(booking_number: str, currency: str = None):
     _b2b_user, b2b_customer_name, _b2b_managed = _portal_access()
     hide_prices = _price_hidden_for(booking, b2b_customer_name)
 
-    # Default currency = currency booking utama (SO utama booking ni).
+    # Default currency = currency booking utama (SO utama booking ni,
+    # melalui registri Booking.sales_orders).
     from travel_booking.api.currency_axis import get_declared_currencies, get_default_currency
     if not currency:
-        primary_so = frappe.db.get_value(
-            "Sales Order", {"custom_booking": booking.name},
-            "currency", order_by="creation asc"
-        )
-        currency = primary_so or get_default_currency()
+        primary_so = _get_primary_so(booking.name)
+        currency = (
+            frappe.db.get_value("Sales Order", primary_so, "currency")
+            if primary_so else None
+        ) or get_default_currency()
     declared = get_declared_currencies()
     if currency and declared and currency not in declared:
         frappe.throw(
@@ -171,8 +228,60 @@ def get_available_addons(booking_number: str, currency: str = None):
             title="Currency Not Available",
         )
 
-    trip_name, departure_date = _booking_trip_context(booking)
+    package_offer, travel_date, trip_name, departure_date = _booking_offer_context(booking)
 
+    out = _build_addon_catalog(
+        package_offer_name=package_offer,
+        travel_date_name=travel_date,
+        trip_name=trip_name,
+        departure_date=departure_date,
+        currency=currency,
+    )
+
+    # B2B end-customer: harga addon DITAPIS dari respons (katalog tetap
+    # nampak — maklumat perjalanan) dan checkout disekat.
+    if hide_prices:
+        for addon in out:
+            for pkg in addon["packages"]:
+                pkg["unit_price"] = None
+                pkg["currency"] = ""
+                pkg["purchasable"] = False
+
+    # Meta currency untuk selector portal (pilihan bebas — setiap currency
+    # yang diisytiharkan dalam axis, walaupun tiada addon punya rate
+    # untuknya; frontend hanya disable/hide pilihan tanpa hasil).
+    from travel_booking.api.currency_axis import get_currency_options, _currency_symbol
+    currency_options = [
+        {"currency": o["currency"], "symbol": o["symbol"]}
+        for o in get_currency_options()
+    ]
+
+    return {
+        "addons": out,
+        "currency": currency,
+        "currency_symbol": _currency_symbol(currency),
+        "currency_options": currency_options,
+        # B2B end-customer: tiada pembelian sendiri — addon diuruskan oleh
+        # staf partner (SO addon dibilkan kepada Customer partner).
+        "can_checkout": not hide_prices,
+        "price_hidden": hide_prices,
+    }
+
+
+def _build_addon_catalog(package_offer_name, travel_date_name, trip_name,
+                         departure_date, currency):
+    """Bina katalog addon (senarai Trip Addon + package variants) yang
+    layak untuk SATU konteks offer — dikongsi oleh:
+
+      - get_available_addons (portal — konteks daripada booking sedia ada)
+      - get_wizard_addons    (wizard /booknow — konteks daripada pilihan
+                              offer/tarikh customer, SEBELUM booking wujud)
+
+    Tapisan: package Active + addon tak disabled + scoping match + ADA
+    rate dalam currency diminta + status stok/cutoff. Harga dalam respons
+    adalah untuk PAPARAN sahaja — checkout/confirm re-price semula dari
+    DB (jangan percaya harga dari client).
+    """
     rows = frappe.db.sql("""
         SELECT DISTINCT
             ap.name, ap.addon, ap.addon_title, ap.addon_package_name,
@@ -193,13 +302,12 @@ def get_available_addons(booking_number: str, currency: str = None):
     # booking_addons memuatkan kesemuanya).
     scoping_map = {}
     for s in frappe.get_all(
-        "Trip Scoping", {}, ["parent", "trip", "group_date", "trip_package"]
+        "Trip Scoping", {}, ["parent", "trip", "travel_date", "package_offer"]
     ):
         scoping_map.setdefault(s.parent, []).append(s)
 
     # Bulk-load SEMUA rate rows sekali (sama punca N+1) — resolve harga
-    # ikut currency terpilih; fallback legacy unit_price hanya bila
-    # currency legacy == currency diminta.
+    # ikut currency terpilih.
     rate_map = {}
     for rr in frappe.get_all(
         "Trip Addon Package Rate",
@@ -212,15 +320,15 @@ def get_available_addons(booking_number: str, currency: str = None):
     addon_map = {}   # {addon_name: {addon-level fields, packages: [...]}}
 
     for r in rows:
-        # Padanan scoping: trip_package / group_date / trip (booking).
+        # Padanan scoping: package_offer / travel_date / trip.
         # Fallback konservatif: hanya "All Trips" dianggap applicable bila
         # data scoping gagal dibaca — JANGAN bolong scoping dengan
         # "sebarang row wujud → True" (fallback lama).
         is_applicable = _scoping_is_applicable(
             r.applicable_to,
             scoping_map.get(r.name, []),
-            booking.trip_package,
-            booking.trip_date,
+            package_offer_name,
+            travel_date_name,
             trip_name,
         )
 
@@ -291,35 +399,121 @@ def get_available_addons(booking_number: str, currency: str = None):
                 addon_map[gr.attached_to_name]["gallery_images"].append(gr.file_url)
 
     # Convert to list, sorted by addon_type then title
-    out = sorted(addon_map.values(), key=lambda x: (x["addon_type"], x["addon_title"]))
+    return sorted(addon_map.values(), key=lambda x: (x["addon_type"], x["addon_title"]))
 
-    # B2B end-customer: harga addon DITAPIS dari respons (katalog tetap
-    # nampak — maklumat perjalanan) dan checkout disekat.
-    if hide_prices:
-        for addon in out:
-            for pkg in addon["packages"]:
-                pkg["unit_price"] = None
-                pkg["currency"] = ""
-                pkg["purchasable"] = False
 
-    # Meta currency untuk selector portal (pilihan bebas — setiap currency
-    # yang diisytiharkan dalam axis, walaupun tiada addon punya rate
-    # untuknya; frontend hanya disable/hide pilihan tanpa hasil).
-    from travel_booking.api.currency_axis import get_currency_options, _currency_symbol
-    currency_options = [
-        {"currency": o["currency"], "symbol": o["symbol"]}
-        for o in get_currency_options()
-    ]
+# ══════════════════════════════════════════════
+# WIZARD CATALOG (Step 2 /booknow — sebelum booking wujud)
+# ══════════════════════════════════════════════
 
+def _resolve_wizard_offer_context(trip_group_date, travel_package, package_offer):
+    """Normalisasi konteks wizard kepada tuple (package_offer, travel_date,
+    trip_name, departure_date) — RECONDITION Nov 2026: scoping addon kini
+    hidup dalam ruang Package Offer / Travel Date.
+
+    Laluan:
+      - package_offer dihantar (flag use_package_offers ON) → konteks offer
+        terus: offer.travel_date + offer.trip + offer.departure_date;
+      - selain itu → parameter legacy terus (?trip_group_date= & pakej
+        katalog lama) dipetakan ke rekod baharu melalui provenance
+        (Travel Date.legacy_tgd / Package Offer.legacy_trip_package) —
+        nama warisan kekal sebagai fallback trip_name.
+    """
+    package_offer_name = None
+    travel_date_name = None
+    trip_name = None
+    departure_date = None
+
+    if package_offer:
+        from travel_booking.utils.flags import use_package_offers
+        if use_package_offers():
+            offer = frappe.db.get_value(
+                "Package Offer", package_offer,
+                ["travel_date", "trip", "departure_date"], as_dict=True,
+            )
+            if offer:
+                package_offer_name = package_offer
+                travel_date_name = offer.travel_date or None
+                trip_name = offer.trip or None
+                departure_date = offer.departure_date or None
+                return package_offer_name, travel_date_name, trip_name, departure_date
+
+    # Laluan legacy — petakan nama warisan ke rekod baharu (jika wujud).
+    if trip_group_date:
+        travel_date_name = frappe.db.get_value(
+            "Travel Date", {"legacy_tgd": trip_group_date}, "name")
+    if travel_package and not package_offer_name:
+        package_offer_name = frappe.db.get_value(
+            "Package Offer",
+            {"legacy_trip_package": travel_package, "trip": ["!=", ""]},
+            "name",
+        )
+        if package_offer_name and not travel_date_name:
+            travel_date_name = frappe.db.get_value(
+                "Package Offer", package_offer_name, "travel_date")
+
+    if travel_date_name:
+        td = frappe.db.get_value(
+            "Travel Date", travel_date_name, ["trip", "departure_date"], as_dict=True,
+        )
+        if td:
+            trip_name = td.trip
+            departure_date = td.departure_date
+    if not trip_name and trip_group_date:
+        tgd = frappe.db.get_value(
+            "Trip Group Date", trip_group_date,
+            ["trip", "departure_date"], as_dict=True,
+        )
+        if tgd:
+            trip_name = tgd.trip
+            departure_date = departure_date or tgd.departure_date
+    if not trip_name and travel_package:
+        trip_name = frappe.db.get_value("Trip Package", travel_package, "trip_link")
+    return package_offer_name, travel_date_name, trip_name, departure_date
+
+
+@frappe.whitelist(allow_guest=True)
+def get_wizard_addons(trip_group_date: str = None, travel_package: str = None,
+                      package_offer: str = None, currency: str = None):
+    """Katalog addon untuk Step 2 (Add-ons) wizard /booknow — dipanggil
+    SEBELUM booking wujud, jadi terima konteks trip/pakej yang customer
+    pilih di Step 1 (bukan booking_number macam get_available_addons).
+
+    allow_guest: wizard 100% guest-capable (sama macam confirm_booking).
+    Respons HANYA data katalog awam (tajuk/gambar/harga paparan) — semua
+    semakan transaksi (harga sebenar, stok, cutoff, had qty) dijalankan
+    SEMULA server-side semasa confirm_booking().
+    """
+    package_offer_name, travel_date_name, trip_name, departure_date = (
+        _resolve_wizard_offer_context(trip_group_date, travel_package, package_offer)
+    )
+
+    from travel_booking.api.currency_axis import get_default_currency
+    if not currency:
+        currency = get_default_currency()
+    from travel_booking.api.currency_axis import get_declared_currencies
+    declared = get_declared_currencies()
+    if declared and currency not in declared:
+        frappe.throw(
+            "Currency '{0}' is not available. Available currencies: {1}.".format(
+                currency, ", ".join(sorted(declared))
+            ),
+            title="Currency Not Available",
+        )
+
+    addons = _build_addon_catalog(
+        package_offer_name=package_offer_name,
+        travel_date_name=travel_date_name,
+        trip_name=trip_name,
+        departure_date=departure_date,
+        currency=currency,
+    )
+
+    from travel_booking.api.currency_axis import _currency_symbol
     return {
-        "addons": out,
+        "addons": addons,
         "currency": currency,
         "currency_symbol": _currency_symbol(currency),
-        "currency_options": currency_options,
-        # B2B end-customer: tiada pembelian sendiri — addon diuruskan oleh
-        # staf partner (SO addon dibilkan kepada Customer partner).
-        "can_checkout": not hide_prices,
-        "price_hidden": hide_prices,
     }
 
 
@@ -369,16 +563,17 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
     if not lines:
         frappe.throw("Please select at least one item.")
 
-    # Currency checkout: default = currency booking utama; mesti
-    # diisytiharkan dalam axis (throw jika tidak — jangan fallback senyap
-    # ke currency lain, harga cart akan berubah tanpa customer sedar).
+    # Currency checkout: default = currency booking utama (SO utama melalui
+    # registri Booking.sales_orders); mesti diisytiharkan dalam axis (throw
+    # jika tidak — jangan fallback senyap ke currency lain, harga cart akan
+    # berubah tanpa customer sedar).
     from travel_booking.api.currency_axis import get_declared_currencies, get_default_currency
     if not currency:
-        primary_so = frappe.db.get_value(
-            "Sales Order", {"custom_booking": booking.name},
-            "currency", order_by="creation asc"
-        )
-        currency = primary_so or get_default_currency()
+        primary_so = _get_primary_so(booking.name)
+        currency = (
+            frappe.db.get_value("Sales Order", primary_so, "currency")
+            if primary_so else None
+        ) or get_default_currency()
     declared = get_declared_currencies()
     if declared and currency not in declared:
         frappe.throw(
@@ -388,8 +583,40 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
             title="Currency Not Available",
         )
 
+    validated_lines = _validate_addon_lines(booking, lines, currency)
+    return _create_addon_order(booking, validated_lines,
+                               payment_method=payment_method,
+                               receipt=receipt,
+                               bank_transfer_ref=bank_transfer_ref)
+
+
+def _validate_addon_lines(booking, lines, currency, eligible_pax=None):
+    """Semak + re-price SEMUA baris cart addon daripada DB (jangan sesekali
+    percaya rate/qty dari client). Dipakai bersama oleh:
+
+      - checkout_addons (portal — baris penuh dengan `travellers`)
+      - confirm_booking (wizard /booknow — baris qty sahaja, lihat
+        `eligible_pax` di bawah)
+
+    `booking` ialah rekod/dict Booking (perlukan name, customer,
+    trip_package, trip_date) — scoping + had qty per booking disemak
+    terhadap booking INI.
+
+    eligible_pax (opsyenal, laluan wizard): bilangan pax LAYAK (bukan
+    infant) dalam booking. Bila diberikan, baris Per Pax BOLEH datang
+    tanpa `travellers` — nama traveller belum wujud masa wizard (Booking
+    Reservation hanya dicipta selepas bayaran pertama, rujuk
+    _activate_booking). qty diambil terus daripada baris (disahkan ≤
+    eligible_pax) dan baris item akan di-auto-assign kemudian oleh
+    _assign_unassigned_addon_items().
+    """
+    if isinstance(lines, str):
+        lines = json.loads(lines)
+    if not lines:
+        frappe.throw("Please select at least one item.")
+
     validated_lines = []
-    trip_name, departure_date = _booking_trip_context(booking)
+    package_offer, travel_date, trip_name, departure_date = _booking_offer_context(booking)
     today = frappe.utils.getdate()
 
     for line in lines:
@@ -428,10 +655,23 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
             )
 
         scope = ap.scope or "Per Booking"
-        # Per Pax: server re-derives qty from traveller count (don't trust client)
+        # Per Pax: qty daripada traveller count (jangan percaya client).
+        # Laluan WIZARD (eligible_pax diberikan, tiada travellers): qty
+        # eksplisit — nama traveller belum wujud, baris diwujudkan sebagai
+        # "unassigned" dan di-assign selepas reservation dicipta.
         if scope == "Per Pax":
-            qty = len(travellers)
-            if qty == 0:
+            if travellers:
+                qty = len(travellers)
+            elif eligible_pax is not None:
+                qty = int(line.get("qty", 0) or 0)
+                if qty <= 0:
+                    continue
+                if qty > eligible_pax:
+                    frappe.throw(
+                        ap.addon_title + " is limited to " + str(eligible_pax) +
+                        " guest(s) on this booking."
+                    )
+            else:
                 frappe.throw("Please select at least one traveller for " + ap.addon_title + ".")
         else:
             qty = int(line.get("qty", 0))
@@ -441,11 +681,11 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
         # Scoping check (logik sama dengan get_available_addons — trip-level
         # match kini disokong; fallback konservatif hanya "All Trips").
         scopings = frappe.get_all(
-            "Trip Scoping", {"parent": ap.name}, ["trip", "group_date", "trip_package"]
+            "Trip Scoping", {"parent": ap.name}, ["trip", "travel_date", "package_offer"]
         )
         is_applicable = _scoping_is_applicable(
             ap.applicable_to, scopings,
-            booking.trip_package, booking.trip_date, trip_name,
+            package_offer, travel_date, trip_name,
         )
         if not is_applicable:
             frappe.throw("One of the selected items is not valid for this booking.")
@@ -484,6 +724,34 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
 
     if not validated_lines:
         frappe.throw("Please select at least one item.")
+
+    return validated_lines
+
+
+def _create_addon_order(booking, validated_lines, payment_method="Online Payment",
+                        receipt=None, bank_transfer_ref=None):
+    """Cipta SATU order addon untuk booking: Booking Addon (header) +
+    Sales Order addon (item "Trip Addon Package") + Booking Addon Item
+    (baris) + Payment Entry DRAFT untuk Manual Transfer.
+
+    Dipakai bersama oleh checkout_addons (portal) dan confirm_booking
+    (wizard /booknow — dipanggil SELEPAS booking utama + SO utama +
+    pembayaran utama siap; kegagalan di-skip oleh caller supaya booking
+    utama tidak tergugur).
+
+    Baris Per Pax dengan `travellers`: 1 SO line (qty=1) + 1 item row
+    ber-reservation SETIAP traveller (portal).
+    Baris Per Pax TANPA travellers (wizard): 1 SO line qty=N + N item
+    row qty=1 "unassigned" — auto-assign oleh
+    _assign_unassigned_addon_items() bila reservation wujud.
+    Baris Per Booking: 1 SO line (qty=N) + 1 item row tanpa reservation.
+    """
+    # Konteks offer (RECONDITION Nov 2026) untuk stamp header Booking
+    # Addon: package_offer/travel_date daripada konteks booking. Laluan
+    # wizard (confirm_booking) menghantar dict diperkaya offer semasa;
+    # laluan portal (checkout_addons) menghantar Document Booking yang
+    # medan package_offer dah di-stamp pada booking.
+    package_offer, travel_date, _ctx_trip, _ctx_dep = _booking_offer_context(booking)
 
     # Cart guard: SEMUA baris mesti currency yang sama — dikunci semula
     # kepada currency checkout yang di-derive di atas (bukan dari set
@@ -549,15 +817,30 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
             pkg_label = (l["addon_package_name"] + " (" + price_str + ")") if l["addon_package_name"] else price_str
 
             if l["scope"] == "Per Pax":
-                for tr_name in l["travellers"]:
-                    tname = traveller_map.get(tr_name, "Unknown")
+                if l["travellers"]:
+                    for tr_name in l["travellers"]:
+                        tname = traveller_map.get(tr_name, "Unknown")
+                        so_items.append({
+                            "item_code":   item_code,
+                            "item_name":   "Trip Addon Package",
+                            "qty":         1,
+                            "rate":        l["unit_price"],
+                            "uom":         "Nos",
+                            "description": l["addon_title"] + " | " + pkg_label + " | Traveller: " + tname,
+                        })
+                else:
+                    # WIZARD — nama traveller belum wujud (reservation
+                    # dicipta selepas bayaran pertama). Satu baris qty=N;
+                    # baris item "unassigned" di-auto-assign kemudian.
                     so_items.append({
                         "item_code":   item_code,
                         "item_name":   "Trip Addon Package",
-                        "qty":         1,
+                        "qty":         l["qty"],
                         "rate":        l["unit_price"],
                         "uom":         "Nos",
-                        "description": l["addon_title"] + " | " + pkg_label + " | Traveller: " + tname,
+                        "description": l["addon_title"] + " | " + pkg_label +
+                                       " | Travellers: to be assigned (" +
+                                       str(l["qty"]) + " guest(s))",
                     })
             else:
                 traveller_list = ""
@@ -575,20 +858,25 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
 
         # Create Booking Addon (header) BEFORE the Sales Order so the SO
         # can carry custom_booking_addon as a reverse link. sales_order is
-        # set after SO submit via db_set.
+        # set after SO submit via db_set. package_offer/travel_date (repo
+        # RECONDITION Nov 2026) = keterkaitan konteks booking — dipetakan
+        # ke rekod baharu walaupun booking warisan (rujuk
+        # _booking_offer_context); view group addon (manage-booking-app)
+        # menghubung order ke tarikh melalui medan ini.
         order = frappe.get_doc({
             "doctype":      "Booking Addon",
             "booking":      booking.name,
             "status":       "Pending",
             "currency":     so_currency,
             "total_amount": grand_total,
+            "package_offer": package_offer or "",
+            "travel_date":   travel_date or "",
         })
         order.insert(ignore_permissions=True)
 
         so = frappe.get_doc({
             "doctype":               "Sales Order",
             "customer":              booking.customer,
-            "custom_booking":        booking.name,
             "custom_booking_addon":  order.name,
             # Company pengeluar SO addon ditentukan oleh currency rate yang
             # dipilih customer (paksi currency multi-company).
@@ -607,24 +895,45 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
         so.flags.ignore_permissions = True
         so.submit()
 
+        # Daftar SO addon pada registri Booking.sales_orders ([Nov 2026]
+        # menggantikan set Sales Order.custom_booking — Booking yang
+        # memiliki senarai SO-nya; idempotent).
+        _link_booking_sales_order(booking.name, so.name, "Addon")
+
         # Reverse link: set sales_order on the header after SO is submitted.
         order.db_set("sales_order", so.name)
 
         # Create Booking Addon Item rows (scope-aware)
         for l in validated_lines:
             if l["scope"] == "Per Pax":
-                for tr_name in l["travellers"]:
-                    frappe.get_doc({
-                        "doctype":             "Booking Addon Item",
-                        "addon_order":         order.name,
-                        "addon_package":       l["addon_package"],
-                        "booking_reservation": tr_name,
-                        "qty":                 1,
-                        "currency":            l["currency"],
-                        "unit_price":          l["unit_price"],
-                        "amount":              l["unit_price"],
-                        "status":              "Pending",
-                    }).insert(ignore_permissions=True)
+                if l["travellers"]:
+                    for tr_name in l["travellers"]:
+                        frappe.get_doc({
+                            "doctype":             "Booking Addon Item",
+                            "addon_order":         order.name,
+                            "addon_package":       l["addon_package"],
+                            "booking_reservation": tr_name,
+                            "qty":                 1,
+                            "currency":            l["currency"],
+                            "unit_price":          l["unit_price"],
+                            "amount":              l["unit_price"],
+                            "status":              "Pending",
+                        }).insert(ignore_permissions=True)
+                else:
+                    # WIZARD — N baris qty=1 TANPA reservation ("unassigned");
+                    # _assign_unassigned_addon_items() isi booking_reservation
+                    # bila reservation dicipta selepas bayaran pertama.
+                    for _i in range(int(l["qty"])):
+                        frappe.get_doc({
+                            "doctype":       "Booking Addon Item",
+                            "addon_order":   order.name,
+                            "addon_package": l["addon_package"],
+                            "qty":           1,
+                            "currency":      l["currency"],
+                            "unit_price":    l["unit_price"],
+                            "amount":        l["unit_price"],
+                            "status":        "Pending",
+                        }).insert(ignore_permissions=True)
             else:
                 frappe.get_doc({
                     "doctype":       "Booking Addon Item",
@@ -704,8 +1013,156 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
         "payment_entry": pe_name,
         "grand_total":   grand_total,
         "currency":      so_currency,
-        "billing_url":   "/traveller/billing?ref=" + booking_number,
+        # Portal hantar booking_number; wizard (confirm_booking) hantar
+        # Document Booking — kedua-dua ada booking_number.
+        "billing_url":   "/traveller/billing?ref=" + (
+            getattr(booking, "booking_number", None) or booking.name),
     }
+
+
+# ══════════════════════════════════════════════
+# AUTO-ASSIGN (baris wizard "unassigned" → reservation)
+# ══════════════════════════════════════════════
+
+# Keutamaan padanan: pax PEMBAYAR dulu (harga penuh), pax tambahan
+# kemudian. Infant dilangkau sepenuhnya — selari semakan eligible_pax
+# wizard (qty addon per-pax dibatasi kepada pax bukan-infant).
+_PAX_PRIORITY = (
+    "Main Guest (Single)", "Main Guest", "Adult", "Extra Bed", "Children",
+)
+
+
+def _assign_unassigned_addon_items(booking_name):
+    """Auto-assign Booking Reservation kepada baris addon Per Pax yang
+    "unassigned" (booking_reservation kosong — dicipta oleh wizard
+    /booknow sebelum reservation wujud). Dipanggil oleh
+    _activate_booking() sebaik slot reservation dicipta (bayaran pertama
+    masuk melalui hook Payment Entry submit).
+
+    Padanan 1:1 FIFO, ikut keutamaan pax pembayar (rujuk _PAX_PRIORITY),
+    kemudian susunan creation. Baris lebihan (cth ditambah admin secara
+    manual selepas itu) kekal unassigned untuk admin isi di Desk.
+
+    Idempoten: baris yang dah ada reservation / sudah Cancelled tak
+    tersentuh. Return bilangan baris yang di-assign.
+    """
+    items = frappe.get_all(
+        "Booking Addon Item",
+        filters={
+            "booking": booking_name,
+            "booking_reservation": ("is", "not set"),
+            "status": ("!=", "Cancelled"),
+        },
+        fields=["name", "addon_package"],
+        order_by="creation asc",
+    )
+    if not items:
+        return 0
+
+    # Hanya baris Per Pax — baris Per Booking memang kekal tanpa
+    # reservation (enforce_scope kosongkannya semula kalau diisi).
+    pkg_scopes = {
+        p["name"]: p["scope"]
+        for p in frappe.get_all(
+            "Trip Addon Package",
+            filters={"name": ("in", list({i["addon_package"] for i in items}))},
+            fields=["name", "scope"],
+        )
+    }
+    items = [
+        i for i in items
+        if (pkg_scopes.get(i["addon_package"]) or "Per Booking") == "Per Pax"
+    ]
+    if not items:
+        return 0
+
+    reservations = frappe.get_all(
+        "Booking Reservation",
+        filters={"booking": booking_name, "status": ("!=", "Cancelled")},
+        fields=["name", "pax_type"],
+        order_by="creation asc",
+    )
+    # Infant dilangkau (corak eligible_pax wizard); pax jenis lain ikut
+    # keutamaan _PAX_PRIORITY, yang tak dikenali diletak paling hujung.
+    def _prio(r):
+        pt = r["pax_type"] or ""
+        return _PAX_PRIORITY.index(pt) if pt in _PAX_PRIORITY else 98
+    reservations = [r for r in reservations if (r["pax_type"] or "") != "Infant"]
+    reservations.sort(key=_prio)
+
+    assigned = 0
+    for item, res in zip(items, reservations):
+        # get_doc + save (bukan db.set_value) supaya validate + fetch
+        # traveller_name + refresh_related (kaunter stok) semua jalan.
+        doc = frappe.get_doc("Booking Addon Item", item["name"])
+        doc.booking_reservation = res["name"]
+        doc.save(ignore_permissions=True)
+        assigned += 1
+    return assigned
+
+
+def _cancel_addon_orders_for_booking(booking_name):
+    """Cancel SEMUA Booking Addon order + baris item booking ni yang
+    BELUM dibayar (payment_status Pending). Dipanggil daripada
+    _cancel_booking_cascade() — meliputi semua laluan pembatalan booking
+    (admin Desk, Abandoned, dan re-confirm wizard /booknow bila customer
+    kembali dari Stripe dan confirm semula — booking lama di-cancel
+    sebelum booking baharu dicipta).
+
+    SO addon itu sendiri sudah di-cancel oleh cascade (ia mengumpul
+    SEMUA SO berkaitan booking melalui registri Booking.sales_orders).
+    Helper ni cuma menutup order header + baris supaya:
+      - kaunter current_qty_sold dikira semula (refresh_related baca
+        baris status != Cancelled), dan
+      - had max_qty_per_booking booking baharu tak tersekat oleh baris
+        order lama yang hangus.
+
+    Order yang sudah ada bayaran (Partially Paid / Paid) TIDAK
+    di-cancel — refund manual (corak sama dengan SO berbayar); log sahaja
+    supaya admin nampak.
+    """
+    orders = frappe.get_all(
+        "Booking Addon",
+        filters={"booking": booking_name, "status": ("!=", "Cancelled")},
+        fields=["name", "payment_status"],
+    )
+    for o in orders:
+        if (o["payment_status"] or "Pending") != "Pending":
+            frappe.log_error(
+                title="Addon Order Cancel Skipped - Refund Needed",
+                message=("Booking " + booking_name + " cancelled but addon order " +
+                         o["name"] + " has payment_status '" +
+                         str(o["payment_status"]) +
+                         "'. Refund & cancel requires manual action."),
+            )
+            continue
+        # Baris item dahulu (save → refresh_related kira semula kaunter),
+        # kemudian header order.
+        for it in frappe.get_all(
+            "Booking Addon Item",
+            filters={"addon_order": o["name"], "status": ("!=", "Cancelled")},
+            pluck="name",
+        ):
+            try:
+                item_doc = frappe.get_doc("Booking Addon Item", it)
+                item_doc.status = "Cancelled"
+                item_doc.save(ignore_permissions=True)
+            except Exception as e:
+                frappe.log_error(
+                    title="Addon Item Cancel Failed",
+                    message=("Could not cancel Booking Addon Item " + it +
+                             " (order " + o["name"] + "): " + str(e)),
+                )
+        try:
+            order_doc = frappe.get_doc("Booking Addon", o["name"])
+            order_doc.status = "Cancelled"
+            order_doc.save(ignore_permissions=True)
+        except Exception as e:
+            frappe.log_error(
+                title="Addon Order Cancel Failed",
+                message=("Could not cancel Booking Addon " + o["name"] +
+                         " (booking " + booking_name + "): " + str(e)),
+            )
 
 
 # ══════════════════════════════════════════════
@@ -799,7 +1256,7 @@ def get_booking_addons(booking_number: str):
     return orders
 
 @frappe.whitelist()
-def search_trip_packages_by_group_date(
+def search_package_offers_by_travel_date(
     doctype: str,
     txt: str,
     searchfield: str,
@@ -807,16 +1264,15 @@ def search_trip_packages_by_group_date(
     page_len: int,
     filters: dict | str | None = None,
 ) -> list:
-    """Link-search Trip Package yang sah untuk satu Trip Group Date.
+    """Link-search Package Offer yang sah untuk satu Travel Date / trip
+    (RECONDITION Nov 2026 — menggantikan search_trip_packages_by_group_date
+    yang menapis Trip Package melalui jadual M:N Trip Package Group Date
+    Select; Package Offer kini berpaut TERUS kepada Travel Date).
 
     Digunakan oleh filter dependent child table Trip Scoping (Trip Addon
-    Package di Desk): pilih trip → group date difilter ikut trip → pakej
-    difilter ikut group date. Hubungan Package↔Group Date many-to-many
-    (child table Trip Package Group Date Select) — tak boleh link filter
-    biasa, jadi query join di sini.
-
-    Fallback: tiada group_date dalam filters tapi ada trip → pulangkan
-    semua pakej Active trip tersebut.
+    Package di Desk): pilih trip → travel date difilter ikut trip → offer
+    difilter ikut travel date. Fallback: tiada travel_date dalam filters
+    tapi ada trip → pulangkan semua offer Active trip tersebut.
     """
     # Link-query Frappe menghantar filters sebagai dict, tetapi panggilan
     # API terus (GET) membawa JSON string — terima kedua-dua bentuk.
@@ -828,35 +1284,34 @@ def search_trip_packages_by_group_date(
         except Exception:
             filters = {}
     filters = filters or {}
-    gd = filters.get("group_date") or ""
+    td = filters.get("travel_date") or ""
     trip = filters.get("trip") or ""
     txt = (txt or "").strip()
     like = "%" + txt + "%"
 
-    if gd:
+    if td:
         return frappe.db.sql(
             """
-            SELECT DISTINCT tp.name, tp.package_title
-            FROM `tabTrip Package` tp
-            JOIN `tabTrip Package Group Date Select` sel ON sel.parent = tp.name
-            WHERE sel.trip_group_date = %(gd)s
-              AND tp.status = 'Active'
-              AND (tp.name LIKE %(like)s OR IFNULL(tp.package_title, '') LIKE %(like)s)
-            ORDER BY tp.name
+            SELECT po.name, po.offer_name
+            FROM `tabPackage Offer` po
+            WHERE po.travel_date = %(td)s
+              AND po.status_editorial = 'Active'
+              AND (po.name LIKE %(like)s OR IFNULL(po.offer_name, '') LIKE %(like)s)
+            ORDER BY po.name
             LIMIT %(limit)s OFFSET %(start)s
             """,
-            {"gd": gd, "like": like, "limit": page_len, "start": start},
+            {"td": td, "like": like, "limit": page_len, "start": start},
             as_list=True,
         )
 
     if trip:
         return frappe.db.sql(
             """
-            SELECT tp.name, tp.package_title
-            FROM `tabTrip Package` tp
-            WHERE tp.trip_link = %(trip)s AND tp.status = 'Active'
-              AND (tp.name LIKE %(like)s OR IFNULL(tp.package_title, '') LIKE %(like)s)
-            ORDER BY tp.name
+            SELECT po.name, po.offer_name
+            FROM `tabPackage Offer` po
+            WHERE po.trip = %(trip)s AND po.status_editorial = 'Active'
+              AND (po.name LIKE %(like)s OR IFNULL(po.offer_name, '') LIKE %(like)s)
+            ORDER BY po.name
             LIMIT %(limit)s OFFSET %(start)s
             """,
             {"trip": trip, "like": like, "limit": page_len, "start": start},

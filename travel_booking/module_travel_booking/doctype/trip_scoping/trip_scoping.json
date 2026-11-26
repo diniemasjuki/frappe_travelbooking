@@ -8,11 +8,11 @@
  "engine": "InnoDB",
  "field_order": [
   "trip",
-  "group_date",
-  "trip_package",
+  "travel_date",
+  "package_offer",
   "trip_name",
-  "group_date_name",
-  "package_title"
+  "travel_date_name",
+  "offer_name"
  ],
  "fields": [
   {
@@ -31,33 +31,33 @@
    "read_only": 1
   },
   {
-   "fieldname": "group_date",
+   "fieldname": "travel_date",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Group Date (Departure)",
-   "options": "Trip Group Date"
+   "label": "Travel Date (Departure)",
+   "options": "Travel Date"
   },
   {
-   "fetch_from": "group_date.trip_group_name",
-   "fieldname": "group_date_name",
+   "fetch_from": "travel_date.travel_date_name",
+   "fieldname": "travel_date_name",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Date / Sailing No.",
    "read_only": 1
   },
   {
-   "fieldname": "trip_package",
+   "fieldname": "package_offer",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Package Type",
-   "options": "Trip Package"
+   "label": "Package Offer",
+   "options": "Package Offer"
   },
   {
-   "fetch_from": "trip_package.package_title",
-   "fieldname": "package_title",
+   "fetch_from": "package_offer.offer_name",
+   "fieldname": "offer_name",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Package Title",
+   "label": "Offer Name",
    "read_only": 1
   }
  ],
@@ -65,8 +65,8 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-08-28 15:53:17.908689",
- "modified_by": "diniemasjuki@gmail.com",
+ "modified": "2026-11-16 12:00:00.000000",
+ "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Trip Scoping",
  "naming_rule": "Autoincrement",

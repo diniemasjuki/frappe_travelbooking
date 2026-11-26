@@ -11,7 +11,6 @@
   "details_tab",
   "status",
   "column_break_ghkn",
-  "document_verified",
   "personal_information_section",
   "first_name",
   "last_name",
@@ -55,6 +54,7 @@
   "medical_conditions",
   "column_break_sbym",
   "medicine_treatment",
+  "special_needs",
   "others_tab",
   "contacts_section",
   "column_break_cbrh",
@@ -329,6 +329,11 @@
    "fieldname": "medicine_treatment",
    "fieldtype": "Text",
    "label": "List of Medicine or Treatment"
+  },
+  {
+   "fieldname": "special_needs",
+   "fieldtype": "Text",
+   "label": "Special Needs"
   },
   {
    "fieldname": "passport_tab",

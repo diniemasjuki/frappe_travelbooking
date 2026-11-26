@@ -2949,15 +2949,6 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 }
 .mba-rb-conf input { margin: 0; }
 
-/* Kontrol props — gaya lembut minimal: latar hampir lut sinar + garis
-   bawah halus (bukan kotak penuh). !important mengatasi gaya asas
-   select/input kolum & gaya form framework (input-with-feedback). */
-.input-with-feedback, input.mba-rb-stateroom, input.mba-rb-delegate, .mba-rb-privacy {
-	background: #00000005 !important;
-	border-radius: 3px !important;
-	border-bottom: 0.5px solid #0000001a !important;
-}
-
 /* Kolum is-confirmed (panel Confirmed) — kunci penuh: SEMUA control
    disabled (termasuk Stateroom & Delegate No) + background hijau lembut
    sebagai isyarat visual "disahkan"; kad tak boleh drag (cursor
@@ -3394,3 +3385,156 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 	margin: 0;
 	accent-color: var(--primary-color, #2490ef);
 }
+
+/* ── Fasa A (G1): jadual bayaran Deposit/Balance — strip Overview L3 ── */
+.mba-sched {
+	background: var(--bg-color, #fff);
+	border: 1px solid var(--border-color, #e2e2e2);
+	border-radius: 8px;
+	padding: 10px 14px;
+	margin: 10px 0 0;
+}
+.mba-sched-title {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--text-muted, #8d8d8d);
+	margin-bottom: 6px;
+}
+.mba-sched-table {
+	width: 100%;
+	font-size: 12.5px;
+	border-collapse: collapse;
+}
+.mba-sched-table th {
+	text-align: left;
+	font-weight: 600;
+	color: var(--text-muted, #8d8d8d);
+	padding: 4px 8px 4px 0;
+	border-bottom: 1px solid var(--border-color, #e2e2e2);
+}
+.mba-sched-table td {
+	padding: 5px 8px 5px 0;
+	border-bottom: 1px dashed var(--border-color, #eee);
+}
+.mba-sched-table tr:last-child td { border-bottom: none; }
+.mba-sched-table .num {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+.mba-sched-overdue td {
+	color: #d93025;
+	font-weight: 600;
+}
+
+/* ═══ Fasa 1a: Edit Pax (booking → SO propagation) ═══ */
+.mba-bkg-editpax-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	margin-right: 14px;
+	padding: 5px 10px;
+	border-radius: 6px;
+	border: 1px solid var(--gray-400, #d1d8dd);
+	background: var(--gray-100, #f8f8f8);
+	color: var(--text-color, #202124);
+	font-size: 12px;
+	font-weight: 500;
+	cursor: pointer;
+}
+.mba-bkg-editpax-btn:hover {
+	border-color: var(--blue-700, #174ea6);
+	color: var(--blue-700, #174ea6);
+}
+.mba-bkg-editpax-btn .icon { width: 12px; height: 12px; }
+
+.mba-editpax-blocked {
+	background: #fef3c7;
+	border: 1px solid #f59e0b;
+	border-radius: 6px;
+	padding: 10px 14px;
+	margin-bottom: 12px;
+	font-size: 12.5px;
+	color: #78350f;
+}
+.mba-editpax-reason { margin-bottom: 14px; }
+.mba-editpax-reason label {
+	font-size: 12px;
+	font-weight: 600;
+	display: block;
+	margin-bottom: 4px;
+}
+.mba-editpax-sostate {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-size: 12px;
+	padding: 8px 12px;
+	background: var(--gray-50, #fafafa);
+	border-radius: 6px;
+	margin-bottom: 14px;
+}
+.mba-editpax-section {
+	font-size: 12px;
+	font-weight: 700;
+	letter-spacing: .3px;
+	text-transform: uppercase;
+	color: var(--text-muted, #6c757d);
+	margin: 16px 0 8px;
+}
+.mba-editpax-cabins {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+	gap: 10px;
+}
+.mba-editpax-cabin {
+	border: 1px solid var(--gray-300, #d1d8dd);
+	border-radius: 8px;
+	padding: 10px 12px;
+}
+.mba-editpax-cabin-h {
+	font-size: 12.5px;
+	font-weight: 600;
+	margin-bottom: 6px;
+}
+.mba-editpax-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	font-size: 12px;
+	padding: 4px 0;
+}
+.mba-editpax-row > span:first-child { flex: 1; }
+
+/* Fasa 1b: baris tukar kategori dalam dialog Edit Pax */
+.mba-editpax-catrow {
+	border-top: 1px dashed var(--gray-300, #d1d8dd);
+	margin-top: 6px;
+	padding-top: 8px;
+}
+.mba-editpax-catrow select {
+	flex: 0 1 auto;
+}
+
+/* Fasa 1c: butang Reschedule L3 */
+.mba-bkg-resched-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	margin-right: 14px;
+	padding: 5px 10px;
+	border-radius: 6px;
+	border: 1px solid var(--gray-400, #d1d8dd);
+	background: var(--gray-100, #f8f8f8);
+	color: var(--text-color, #202124);
+	font-size: 12px;
+	font-weight: 500;
+	cursor: pointer;
+}
+.mba-bkg-resched-btn:hover {
+	border-color: var(--blue-700, #174ea6);
+	color: var(--blue-700, #174ea6);
+}
+.mba-bkg-resched-btn .icon { width: 12px; height: 12px; }

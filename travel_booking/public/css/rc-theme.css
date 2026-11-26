@@ -1,0 +1,535 @@
+/* ============================================================
+   travel_booking/public/css/rc-theme.css
+   RARECATION BRAND THEME di atas Bootstrap 5.3.3.
+
+   Bootstrap dimuat dulu (bootstrap.min.css), kemudian fail ini,
+   kemudian CSS custom sedia ada (portal.css, cruise.css, dll).
+   Aturan: Bootstrap = lapisan grid/komponen/utility; fail ini
+   memetakan komponen Bootstrap kepada identiti jenama Rarecation
+   (krim #F7F5F0, emas #C9A84C, gelap #1E1C18, font Archivo/Jost).
+
+   Nota teknikal: Bootstrap 5.3 yang di-compile tidak membaca
+   --bs-primary semasa runtime untuk .btn-primary dll. — jadi setiap
+   komponen di-skin secara eksplisit di bawah. Jangan letak CSS
+   komponen halaman di sini; itu tetap dalam CSS page masing-masing.
+
+   Parity guards (bahagian PALING BAWAH) mengekalkan rupa halaman
+   yang BELUM dimigrasi selepas reboot Bootstrap diaktifkan.
+   ============================================================ */
+
+:root {
+  /* Palet jenama — rujukan tunggal untuk semua skin di bawah */
+  --rc-gold: #C9A84C;
+  --rc-gold-dark: #A8893B;
+  --rc-gold-light: #E3CE8F;
+  --rc-gold-mid: #D4BC6A;
+  --rc-dark: #1E1C18;
+  --rc-dark-2: #2A2620;
+  --rc-cream: #F7F5F0;
+  --rc-cream-2: #EFEAE0;
+  --rc-text: #1E1C18;
+  --rc-text-muted: #5C5850;
+  --rc-line: #E3DFD6;
+
+  /* Petakan ke variable Bootstrap (untuk utility yg memang membacanya) */
+  --bs-primary: #C9A84C;
+  --bs-primary-rgb: 201, 168, 76;
+  --bs-dark: #1E1C18;
+  --bs-dark-rgb: 30, 28, 24;
+  --bs-body-font-family: 'Archivo', system-ui, -apple-system, sans-serif;
+  --bs-body-color: #1E1C18;
+  --bs-border-radius: 0.5rem;
+  --bs-border-radius-lg: 0.75rem;
+  --bs-link-color: #A8893B;
+  --bs-link-hover-color: #C9A84C;
+
+  /* Font token jenama (dulunya ditakrif dalam cruise/tour/trips/
+     trip_detail css — diduplikasi di sini supaya rc-theme cukup
+     sendiri di mana-mana halaman yang memuatinya). */
+  --font-rubik: "Rubik", sans-serif;
+  --font-jost: "Jost", sans-serif;
+  --font-satisfy: "Satisfy", cursive;
+  --font-sansita: "Sansita", serif;
+}
+
+/* ── Buttons ──
+   Jenama: primary = emas pepejal teks gelap; outline-primary = border
+   emas teks emas (fill emas semasa hover). */
+.btn-primary {
+  --bs-btn-bg: #C9A84C;
+  --bs-btn-border-color: #C9A84C;
+  --bs-btn-color: #1E1C18;
+  --bs-btn-hover-bg: #A8893B;
+  --bs-btn-hover-border-color: #A8893B;
+  --bs-btn-hover-color: #1E1C18;
+  --bs-btn-active-bg: #96803A;
+  --bs-btn-active-border-color: #96803A;
+  --bs-btn-active-color: #1E1C18;
+  --bs-btn-disabled-bg: #C9A84C;
+  --bs-btn-disabled-border-color: #C9A84C;
+  --bs-btn-disabled-color: #1E1C18;
+  --bs-btn-focus-shadow-rgb: 201, 168, 76;
+  font-weight: 600;
+}
+.btn-outline-primary {
+  --bs-btn-color: #A8893B;
+  --bs-btn-border-color: #C9A84C;
+  --bs-btn-hover-bg: #C9A84C;
+  --bs-btn-hover-border-color: #C9A84C;
+  --bs-btn-hover-color: #1E1C18;
+  --bs-btn-active-bg: #A8893B;
+  --bs-btn-active-border-color: #A8893B;
+  --bs-btn-active-color: #1E1C18;
+  --bs-btn-disabled-color: #C9A84C;
+  --bs-btn-disabled-border-color: #C9A84C;
+  --bs-btn-focus-shadow-rgb: 201, 168, 76;
+  font-weight: 600;
+}
+.btn-dark {
+  --bs-btn-bg: #1E1C18;
+  --bs-btn-border-color: #1E1C18;
+  --bs-btn-hover-bg: #3A352C;
+  --bs-btn-hover-border-color: #3A352C;
+}
+.btn-outline-dark {
+  --bs-btn-color: #1E1C18;
+  --bs-btn-border-color: #1E1C18;
+  --bs-btn-hover-bg: #1E1C18;
+  --bs-btn-hover-border-color: #1E1C18;
+}
+/* Ghost neutral jenama (pengganti rc-btn-ghost) */
+.btn-outline-secondary {
+  --bs-btn-color: #5C5850;
+  --bs-btn-border-color: #D8D3C8;
+  --bs-btn-hover-bg: #F7F5F0;
+  --bs-btn-hover-border-color: #C9A84C;
+  --bs-btn-hover-color: #1E1C18;
+  --bs-btn-active-bg: #C9A84C;
+  --bs-btn-active-border-color: #C9A84C;
+  --bs-btn-active-color: #1E1C18;
+}
+/* Butang emas atas latar gelap (hero/CTA section) */
+.btn-gold-light {
+  --bs-btn-bg: #C9A84C;
+  --bs-btn-border-color: #C9A84C;
+  --bs-btn-color: #1E1C18;
+  --bs-btn-hover-bg: #E3CE8F;
+  --bs-btn-hover-border-color: #E3CE8F;
+  --bs-btn-hover-color: #1E1C18;
+}
+
+/* ── Badges ── */
+.text-bg-primary {
+  background-color: #C9A84C !important;
+  color: #1E1C18 !important;
+}
+.badge { font-weight: 600; letter-spacing: .02em; }
+
+/* ── Form controls ── */
+.form-control:focus,
+.form-select:focus {
+  border-color: #C9A84C;
+  box-shadow: 0 0 0 0.2rem rgba(201, 168, 76, 0.18);
+}
+.form-control, .form-select { border-color: #E3DFD6; }
+.form-control::placeholder { color: #9C9789; }
+.form-check-input:checked { background-color: #C9A84C; border-color: #C9A84C; }
+.form-check-input:focus { border-color: #C9A84C; box-shadow: 0 0 0 0.2rem rgba(201, 168, 76, 0.18); }
+
+/* ── Navbar ── */
+.navbar { font-family: 'Archivo', system-ui, sans-serif; }
+.navbar .nav-link { color: #5C5850; font-weight: 500; }
+.navbar .nav-link:hover, .navbar .nav-link:focus { color: #A8893B; }
+.navbar .nav-link.active { color: #1E1C18; font-weight: 600; }
+.navbar-toggler { border-color: #E3DFD6; }
+.navbar-toggler:focus { box-shadow: 0 0 0 0.2rem rgba(201, 168, 76, 0.25); }
+
+/* ── Cards ── */
+.card {
+  border-color: #E3DFD6;
+  box-shadow: 0 1px 3px rgba(30, 28, 24, 0.06);
+}
+.card:focus-within, .card:hover { transition: box-shadow .2s ease; }
+
+/* ── Carousel (hero + testimonial) ── */
+.carousel-indicators [data-bs-target] {
+  background-color: rgba(255, 255, 255, 0.45);
+}
+.carousel-indicators .active { background-color: #C9A84C; }
+.carousel-caption { color: #fff; }
+.carousel-control-prev-icon,
+.carousel-control-next-icon { filter: grayscale(1); }
+
+/* ── Accordion ── */
+.accordion-button:not(.collapsed) {
+  background-color: rgba(201, 168, 76, 0.08);
+  color: #1E1C18;
+  box-shadow: inset 0 calc(-1 * var(--bs-accordion-border-width)) 0 var(--bs-accordion-border-color);
+}
+.accordion-button:focus { box-shadow: 0 0 0 0.2rem rgba(201, 168, 76, 0.18); }
+
+/* ── Nav tabs / pills ── */
+.nav-tabs { border-bottom-color: #E3DFD6; }
+.nav-tabs .nav-link { color: #5C5850; }
+.nav-tabs .nav-link.active {
+  color: #1E1C18;
+  border-color: #E3DFD6 #E3DFD6 #F7F5F0;
+  font-weight: 600;
+}
+
+/* ── Dropdown ── */
+.dropdown-menu { border-color: #E3DFD6; box-shadow: 0 8px 24px rgba(30, 28, 24, 0.12); }
+.dropdown-item.active, .dropdown-item:active { background-color: #C9A84C; color: #1E1C18; }
+
+/* ── Offcanvas (drawer) ── */
+.offcanvas { border-left: 1px solid #E3DFD6; }
+
+/* ── Modal ── */
+.modal-content { border: none; border-radius: 0.75rem; }
+
+/* ── Alert (tv-msg → alert) tint jenama untuk variant semantik kekal */
+.alert-primary { background: rgba(201,168,76,.12); border-color: rgba(201,168,76,.35); color: #7A6426; }
+
+/* ── Pagination ── */
+.pagination { --bs-pagination-active-bg: #C9A84C; --bs-pagination-active-border-color: #C9A84C;
+  --bs-pagination-color: #A8893B; --bs-pagination-hover-color: #7A6426; --bs-pagination-focus-box-shadow: 0 0 0 0.2rem rgba(201,168,76,.18); }
+
+/* ── Section heading helper — digunakan halaman bermigrasi ── */
+.rc-eyebrow {
+  display: inline-block;
+  background: #C9A84C;
+  color: #1E1C18;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 4px 14px;
+  border-radius: 999px;
+}
+
+/* ============================================================
+   NAV AWAM (templates/includes/public_nav.html)
+   Struktur = Bootstrap navbar (sticky-top, collapse hamburger);
+   blok ini hanya identiti jenama. Class hook `rc-public-nav`
+   dikekalkan (trip_detail.js mengukur offset nav dengannya).
+   ============================================================ */
+.rc-public-nav { border-bottom: 1px solid #E8E5DF; --bs-navbar-padding-y: 0.625rem; }
+.rc-nav-brand { display: flex; align-items: center; gap: 8px; padding: 0; margin: 0; }
+.rc-nav-brand img { width: 140px; height: auto; display: block; }
+.rc-logo-fallback {
+  display: none; font-family: 'DM Serif Display', serif;
+  font-size: 24px; line-height: 1; color: #1E1C18;
+}
+.rc-logo-fallback em { font-style: normal; color: #C9A84C; }
+.rc-public-nav .nav-link {
+  padding: 8px 16px; border-radius: 8px;
+  font-size: 14px; font-weight: 500; white-space: nowrap;
+  color: #5C5850; transition: all .2s;
+}
+.rc-public-nav .nav-link:hover { color: #1E1C18; background: #F7F5F0; }
+.rc-public-nav .nav-link.active { color: #fff; background: #C9A84C; }
+.rc-nav-cta { padding: 9px 18px; border-radius: 9px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.rc-public-nav .rc-currency-select { width: auto; font-size: 13px; font-weight: 500; }
+@media (max-width: 991.98px) {
+  /* Hamburger terbuka: menu menindih kandungan, bukan tolak hero */
+  .rc-public-nav .navbar-collapse {
+    position: absolute; left: 0; right: 0; top: 100%;
+    background: #fff; border-bottom: 1px solid #E8E5DF;
+    padding: 10px 16px 14px; box-shadow: 0 12px 24px rgba(30,28,24,.12);
+  }
+}
+@media (max-width: 500px) {
+  .rc-nav-brand img { width: 110px; }
+  .rc-public-nav .nav-link { padding: 6px 8px; font-size: 13px; }
+  .rc-nav-cta { padding: 6px 12px; font-size: 12px; }
+}
+
+/* ============================================================
+   FOOTER AWAM (templates/includes/public_footer.html)
+   Struktur = Bootstrap grid (row/col) + bg-dark; warna jenama di sini.
+   ============================================================ */
+.rc-public-footer { color: #C9A84C; }
+.rc-footer-logo { width: 148px; height: auto; display: block; filter: brightness(0) invert(1); opacity: .9; }
+.rc-public-footer .rc-footer-tagline { margin: 6px 0 0; font-size: 13px; color: #9C9789; }
+.rc-public-footer .rc-footer-col-title {
+  margin: 0 0 8px; font-size: 12px; text-transform: uppercase;
+  letter-spacing: .06em; color: #9C9789;
+}
+.rc-public-footer a.rc-footer-link {
+  display: block; padding: 3px 0; font-size: 13px; color: #E8E5DF;
+}
+.rc-public-footer a.rc-footer-link:hover { color: #C9A84C; }
+.rc-public-footer .rc-footer-bottom {
+  border-top: 1px solid #3A3730; font-size: 12px; color: #6E6A5F;
+}
+
+/* ============================================================
+   KAD TRIP (templates/includes/trip_card.html)
+   Struktur = Bootstrap card; detail jenama kad di sini.
+   ============================================================ */
+.rc-trip-card { overflow: hidden; border-radius: 14px; border: 1px solid #E8E5DF; }
+.rc-card-media { position: relative; display: block; aspect-ratio: 4/3; overflow: hidden; background: #F2EFE9; }
+.rc-card-media img { width: 100%; height: 100%; object-fit: cover; transition: transform .25s ease; }
+.rc-trip-card:hover .rc-card-media img { transform: scale(1.04); }
+.rc-trip-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(30, 28, 24, .1); }
+.rc-card-title { font-family: var(--font-rubik); font-size: 20px; line-height: 1.2; font-weight: 500; }
+.rc-card-title a { color: inherit; }
+.rc-card-title a:hover { color: #C9A84C; }
+.rc-card-dest { color: #7D7A70; font-size: 13px; }
+.rc-card-dest i { font-size: 15px; }
+.rc-card-foot { border-top: 1px solid #F2EFE9; }
+.rc-card-price { display: flex; flex-direction: column; line-height: 1.1; }
+.rc-price-label { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #9C9789; }
+.rc-price-value { font-size: 18px; font-weight: 700; color: #1E1C18; font-family: var(--font-rubik); }
+.rc-price-tba { font-size: 13px; color: #7D7A70; font-weight: 500; }
+.rc-price-was { font-size: 12.5px; color: #9C9789; font-weight: 500; margin-right: 3px; }
+.rc-card-promo-badge {
+  width: fit-content; font-size: 10px; letter-spacing: .05em;
+  text-transform: uppercase; color: #B8983F;
+  background: rgba(201,168,76,.12); border-color: rgba(201,168,76,.3);
+}
+.rc-card-cta { padding: 9px 18px; border-radius: 9px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.rc-card-badge { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; font-size: 11.5px; font-weight: 600; letter-spacing: .3px; }
+/* Badge kategori tarikh (Travel Date.trip_category) — slot kanan-atas
+   kad trip (menggantikan badge "Special Package" lama). */
+.rc-badge-datecat {
+  position: absolute; top: 12px; right: 12px;
+  background: #C9A84C; color: #1E1C18;
+  box-shadow: 0 2px 10px rgba(30, 28, 24, .25);
+}
+.rc-badge-datecat i { font-size: 12px; }
+.rc-badge-cat {
+  position: absolute; top: 12px; left: 12px;
+  background: rgba(30, 28, 24, .72); color: #fff;
+  backdrop-filter: blur(6px);
+}
+@keyframes rcCardFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.rc-trip-card { animation: rcCardFadeIn .3s ease forwards; }
+.rc-trip-card:nth-child(2) { animation-delay: .05s; }
+.rc-trip-card:nth-child(3) { animation-delay: .1s; }
+
+/* ============================================================
+   SHARED HOMEPAGE BLOCKS (cruise.html + tour.html)
+   Blok seksyen yang SERUPA di kedua-dua homepage — layout pakai
+   Bootstrap (container/row/col/carousel/btn); di sini hanya tint
+   seksyen & komponen jenama yang tiada padanan BS. CSS spesifik
+   hero/search per halaman kekal dalam cruise.css / tour.css.
+   ============================================================ */
+.rc-section { padding: 70px 0; }
+.rc-section-header { text-align: center; margin-bottom: 48px; }
+.rc-section-header.rc-light h2,
+.rc-section-header.rc-light p { color: #fff; }
+.rc-section-header h2 {
+  font-family: var(--font-rubik); font-size: 36px; font-weight: 500;
+  letter-spacing: .75px; color: #1E1C18; margin: 0 0 10px;
+}
+.rc-section-header p {
+  font-size: 16px; color: #7D7A70; max-width: 560px; margin: 0 auto;
+}
+.rc-tag {
+  display: inline-block; padding: 6px 20px;
+  font-family: var(--font-satisfy); font-size: 17px; line-height: 1.3;
+  color: #fff; background-color: #F59E0B;
+  border-radius: 4px 20px 4px 20px;
+  margin-bottom: 14px; letter-spacing: .72px;
+}
+.rc-tag-outline { background: transparent; border: 2px solid #C9A84C; color: #C9A84C; }
+
+/* Tint seksyen standard */
+.rc-featured { background: #F7F5F0; }
+.rc-why-us { background: #1E1C18; position: relative; overflow: hidden; }
+.rc-why-us::before {
+  content: ""; position: absolute;
+  top: -50%; right: -20%; width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(201,168,76,.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+.rc-special { background: #F7F5F0; }
+.rc-testimonials { background: #fff; overflow: hidden; }
+
+/* Empty state homepage */
+.rc-empty-state { text-align: center; padding: 50px 20px; color: #7D7A70; font-family: var(--font-jost); }
+.rc-empty-state i { font-size: 48px; color: #D8D3C8; display: block; margin-bottom: 12px; }
+.rc-empty-state h3 { font-family: var(--font-rubik); font-size: 22px; color: #1E1C18; margin: 0 0 8px; }
+.rc-empty-state p { margin: 0 0 20px; }
+
+/* Hero text bits — sama di cruise (slide caption) & tour (hero) */
+.rc-hero-tag {
+  display: inline-block; padding: 8px 24px;
+  font-family: var(--font-satisfy); font-size: 16px;
+  color: #C9A84C; letter-spacing: 1.5px;
+  border: 1px solid rgba(201,168,76,.4); border-radius: 30px;
+  margin-bottom: 24px;
+  backdrop-filter: blur(4px);
+}
+.rc-hero-intro {
+  font-size: 17px; line-height: 1.68; color: rgba(255,255,255,.82);
+  margin: 0 0 30px;
+}
+.rc-hero-intro p { margin: 0 0 10px; }
+.rc-hero-intro p:last-child { margin-bottom: 0; }
+@keyframes rcFadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes rcFadeInDown { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Stats strip (cruise bar gelap / tour dalam hero) */
+.rc-stat strong {
+  display: block; font-family: var(--font-rubik);
+  font-size: 32px; font-weight: 600; color: #C9A84C;
+}
+.rc-stat span {
+  font-size: 13px; color: rgba(255,255,255,.65); text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+/* Benefit card (seksyen gelap "Why ... with us") */
+.rc-benefit-card {
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
+  border-radius: 16px; padding: 32px 26px;
+  transition: all .3s cubic-bezier(.25,.46,.45,.94);
+  position: relative; overflow: hidden; height: 100%;
+}
+.rc-benefit-card::after {
+  content: ""; position: absolute;
+  top: 0; left: -100%; width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(201,168,76,.08), transparent);
+  transition: left .5s ease;
+}
+.rc-benefit-card:hover::after { left: 100%; }
+.rc-benefit-card:hover {
+  background: rgba(255,255,255,.07); border-color: rgba(201,168,76,.25);
+  transform: translateY(-5px);
+  box-shadow: 0 12px 40px rgba(0,0,0,.3);
+}
+.rc-benefit-icon {
+  width: 60px; height: 60px; border-radius: 16px;
+  background: linear-gradient(135deg, rgba(201,168,76,.15), rgba(201,168,76,.08));
+  color: #C9A84C;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 27px; margin-bottom: 18px;
+  transition: all .3s ease;
+  border: 1px solid transparent;
+}
+.rc-benefit-card:hover .rc-benefit-icon {
+  background: linear-gradient(135deg, #C9A84C, #B8983F);
+  color: #1E1C18;
+  border-color: rgba(201,168,76,.4);
+  transform: scale(1.08) rotate(-3deg);
+  box-shadow: 0 8px 20px rgba(201,168,76,.25);
+}
+.rc-benefit-card h3 {
+  font-family: var(--font-rubik); font-size: 19px; font-weight: 500;
+  color: #fff; margin: 0 0 10px; letter-spacing: .2px;
+}
+.rc-benefit-card p { font-size: 14px; line-height: 1.65; color: rgba(255,255,255,.55); margin: 0; }
+
+/* Destination card — row/col BS membawa layout; kad = brand look */
+.rc-dest-card {
+  display: block; position: relative; aspect-ratio: 3/4;
+  border-radius: 14px; overflow: hidden;
+  height: 100%;
+}
+.rc-dest-card:hover { transform: scale(1.03); }
+.rc-dest-img {
+  width: 100%; height: 100%;
+  background-size: cover; background-position: center;
+  position: relative;
+}
+.rc-dest-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, transparent 30%, rgba(16,12,8,.85) 100%);
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 20px; transition: background .25s;
+}
+.rc-dest-card:hover .rc-dest-overlay {
+  background: linear-gradient(180deg, rgba(201,168,76,.1) 0%, rgba(16,12,8,.92) 100%);
+}
+.rc-dest-overlay h3 { font-family: var(--font-rubik); font-size: 18px; font-weight: 500; color: #fff; margin: 0 0 4px; }
+.rc-dest-overlay span { font-size: 13px; color: #C9A84C; font-family: var(--font-jost); }
+
+/* Testimonial card (isi carousel BS) */
+.rc-testi-card {
+  background: #fff; border: 1px solid #E8E5DF;
+  border-radius: 16px; padding: 28px 24px;
+  box-shadow: 0 4px 16px rgba(30,28,24,.05);
+  transition: box-shadow .25s, transform .25s;
+  height: 100%;
+}
+.rc-testi-card:hover { box-shadow: 0 12px 36px rgba(30,28,24,.1); transform: translateY(-3px); }
+.rc-testi-stars { font-size: 18px; color: #C9A84C; letter-spacing: 2px; margin-bottom: 14px; }
+.rc-testi-card blockquote { font-size: 15px; line-height: 1.65; color: #5C5850; margin: 0 0 20px; font-style: normal; }
+.rc-testi-author { display: flex; flex-direction: column; gap: 2px; }
+.rc-testi-author strong { font-family: var(--font-rubik); font-size: 15px; color: #1E1C18; }
+.rc-testi-author span { font-size: 13px; color: #9C9789; }
+/* Dots testimoni — BS carousel-indicators diletak statik bawah kad */
+.rc-testimonial-slider .carousel-indicators {
+  position: static; margin: 28px 0 0;
+}
+.rc-testimonial-slider .carousel-indicators [data-bs-target] {
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 2px solid rgba(201,168,76,.4); background-color: transparent;
+  text-indent: 0;
+}
+.rc-testimonial-slider .carousel-indicators .active {
+  background-color: #C9A84C; border-color: #C9A84C; transform: scale(1.2); width: 10px;
+}
+
+/* Final CTA banner */
+.rc-final-cta { position: relative; padding: 90px 0; background: #F7F5F0; border-bottom: 3px solid #C9A84C; }
+.rc-cta-icon {
+  width: 72px; height: 72px; margin: 0 auto 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #C9A84C, #B8983F);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px; color: #1E1C18;
+  position: relative;
+  animation: rcCtaFloat 3s ease-in-out infinite;
+  box-shadow: 0 6px 20px rgba(201,168,76,.25);
+}
+.rc-cta-icon::before {
+  content: ""; position: absolute; inset: -6px;
+  border-radius: 50%; border: 1px solid rgba(201,168,76,.25);
+}
+@keyframes rcCtaFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+.rc-cta-tag {
+  display: inline-block; padding: 6px 20px;
+  font-family: var(--font-satisfy); font-size: 16px;
+  color: #C9A84C; letter-spacing: 1px;
+  border: 1px solid rgba(201,168,76,.4); border-radius: 30px;
+  margin-bottom: 18px;
+}
+.rc-cta-content h2 {
+  font-family: var(--font-rubik); font-size: 42px; font-weight: 500;
+  color: #1E1C18; margin: 0 0 16px; letter-spacing: -.3px;
+}
+.rc-cta-body-text {
+  font-size: 18px; color: #5C5850; margin: 0 auto 36px;
+  max-width: 520px; line-height: 1.6;
+}
+.rc-cta-body-text p { margin: 0 0 8px; }
+.rc-cta-body-text p:last-child { margin-bottom: 0; }
+.rc-cta-buttons .btn-primary {
+  box-shadow: 0 6px 20px rgba(201,168,76,.25);
+}
+.rc-cta-buttons .btn-primary:hover {
+  box-shadow: 0 10px 30px rgba(201,168,76,.4); transform: translateY(-2px);
+}
+@media (max-width: 640px) {
+  .rc-final-cta { padding: 70px 0; }
+  .rc-cta-content h2 { font-size: 30px; }
+  .rc-cta-body-text { font-size: 16px; }
+  .rc-cta-buttons .btn-lg { width: 100%; max-width: 280px; }
+}
+
+/* ============================================================
+   PARITY GUARDS — kekalkan rupa sedia ada selepas reboot BS5
+   aktif pada halaman yang belum dimigrasi. Jangan buang sehingga
+   migrasi penuh selesai, kemudian semak semula.
+   ============================================================ */
+/* BS5 underline semua <a> — jenama sedia ada tanpa underline */
+a { text-decoration: none; }
+/* Container jenama 1180px (rc-container lama) */
+@media (min-width: 1200px) {
+  .container { max-width: 1180px; }
+}
+/* Focus ring jenama */
+:focus-visible { outline: 2px solid rgba(201, 168, 76, 0.6); outline-offset: 2px; }

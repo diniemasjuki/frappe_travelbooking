@@ -220,6 +220,8 @@ def _resolve_guest_token(token: str):
     """Sahkan token link guest passport — pulangkan (booking, slot, actor).
 
     Token disimpan pada Booking Reservation (passport_link_token, search_index).
+    FASA 2: token pra-bayar disimpan pada Booking Item (medan sama) —
+    cari kedua-dua pembawa.
     Reusable sehingga tamat tempoh (bukan one-time — guest boleh balik ubah
     maklumat). Slot yang sudah Verified (locked) tidak boleh diakses lagi.
 
@@ -231,14 +233,27 @@ def _resolve_guest_token(token: str):
         frappe.throw("Invalid passport link.", frappe.PermissionError)
     slot_name = frappe.db.get_value("Booking Reservation",
                                     {"passport_link_token": token}, "name")
-    if not slot_name:
-        frappe.throw("This passport link is invalid or has been revoked.",
-                     frappe.PermissionError)
-    slot = frappe.db.get_value(
-        "Booking Reservation", slot_name,
-        ["name", "booking", "document_status", "traveller", "is_a_cruise",
-         "passport_link_email", "passport_link_expires_on"], as_dict=True
-    )
+    if slot_name:
+        slot = frappe.db.get_value(
+            "Booking Reservation", slot_name,
+            ["name", "booking", "document_status", "traveller", "is_a_cruise",
+             "passport_link_email", "passport_link_expires_on"], as_dict=True
+        )
+    else:
+        slot_name = frappe.db.get_value("Booking Item",
+                                        {"passport_link_token": token}, "name")
+        if not slot_name:
+            frappe.throw("This passport link is invalid or has been revoked.",
+                         frappe.PermissionError)
+        slot = frappe.db.get_value(
+            "Booking Item", slot_name,
+            ["name", "booking", "traveller",
+             "passport_link_email", "passport_link_expires_on"], as_dict=True
+        )
+        # Status dokumen pra-bayar cermin status Traveller (tiada mirror
+        # tersimpan pada item — rujuk sintesis slot get_booking_data).
+        slot.document_status = (frappe.db.get_value("Traveller", slot.traveller, "status")
+                                if slot.traveller else None)
     # Expiry WAJIB — token tanpa tarikh tamat (legacy/NULL) dianggap
     # expired supaya tidak menjadi bearer token selama-lamanya.
     if not slot.passport_link_expires_on or \
@@ -264,6 +279,10 @@ def _customer_traveller_names(customer_name: str) -> set:
     """Set Traveller docnames yang dimiliki customer (ada sekurang-kurangnya
     satu Booking Reservation pada booking customer tersebut).
 
+    FASA 2: traveler pra-bayar (Booking Item.traveller pada booking yang
+    belum bayar — tiada reservation lagi) turut dimasukkan supaya dedupe
+    passport-scan / wizard_lookup nampak mereka.
+
     Digunakan utk scope lookup traveller (check_traveller_passport,
     wizard_lookup) supaya customer A tak boleh baca PII traveller customer B
     hanya dengan tahu IC/passport mereka (IDOR / cross-customer PII
@@ -272,11 +291,47 @@ def _customer_traveller_names(customer_name: str) -> set:
         """SELECT res.traveller
              FROM `tabBooking Reservation` res
              JOIN `tabBooking` b ON b.name = res.booking
-            WHERE b.customer = %s AND res.traveller IS NOT NULL""",
-        (customer_name,),
+            WHERE b.customer = %s AND res.traveller IS NOT NULL
+           UNION
+           SELECT bi.traveller
+             FROM `tabBooking Item` bi
+             JOIN `tabBooking` b ON b.name = bi.booking
+            WHERE b.customer = %s AND bi.traveller IS NOT NULL
+              AND bi.status != 'Cancelled'""",
+        (customer_name, customer_name),
         as_list=True,
     )
     return {r[0] for r in rows if r[0]}
+
+
+def _resolve_slot(slot_name: str, booking_name: str):
+    """FASA 2 — resolusi dwi-slot: `slot_name` boleh merujuk
+
+      - Booking Reservation (laluan biasa, pasca-bayar), ATAU
+      - Booking Item (pra-bayar — slot sintesis portal sebelum bayaran
+        pertama; identiti traveller disimpan pada item dan diwarisi
+        reservation semasa _activate_booking).
+
+    Return (kind, doc) — kind "reservation" / "item" — atau throw.
+    Kedua-dua doctype membawa medan `booking`; semakan pemilikan sama:
+    slot mesti milik booking yang diberikan.
+    """
+    if frappe.db.exists("Booking Reservation", slot_name or ""):
+        doc = frappe.get_doc("Booking Reservation", slot_name)
+        kind = "reservation"
+    elif frappe.db.exists("Booking Item", slot_name or ""):
+        doc = frappe.get_doc("Booking Item", slot_name)
+        kind = "item"
+        # Status dokumen pra-bayar cermin status Traveller (tiada mirror
+        # tersimpan pada item — rujuk sintesis slot get_booking_data).
+        doc.document_status = (frappe.db.get_value("Traveller", doc.traveller, "status")
+                               if doc.traveller else None)
+    else:
+        frappe.throw("Traveller slot not found.")
+    if doc.booking != booking_name:
+        frappe.throw("Traveller slot does not belong to this booking.",
+                     frappe.PermissionError)
+    return kind, doc
 
 
 def _traveller_missing_fields(tvl, has_passport_image: bool = False) -> list:
@@ -391,12 +446,9 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         # names bawah) ikut CUSTOMER BOOKING — untuk pemilik ia sama dengan
         # session customer; untuk manager on-behalf ia customer akhir booking.
         customer_name = booking.customer
-        slot = frappe.db.get_value(
-            "Booking Reservation", slot_name,
-            ["name", "booking", "document_status", "traveller"], as_dict=True
-        )
-        if not slot or slot.booking != booking.name:
-            frappe.throw("Slot not found.")
+        # FASA 2: dwi-slot — reservation (pasca-bayar) ATAU Booking Item
+        # (pra-bayar, slot sintesis portal).
+        slot_kind, slot = _resolve_slot(slot_name, booking.name)
         actor = frappe.session.user
 
     LOCKED_STATUSES = ["Verified"]
@@ -508,10 +560,16 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         if existing:
             # Elak traveller yang SAMA di-assign ke slot LAIN dalam booking
             # yang sama (cth IC sama termasuk secara tak sengaja untuk
-            # Traveller berbeza).
+            # Traveller berbeza). FASA 2: semak reservation DAN Booking
+            # Item (slot pra-bayar).
             conflict = frappe.db.get_value(
                 "Booking Reservation",
                 {"booking": booking.name, "traveller": existing, "name": ["!=", slot_name]},
+                "name"
+            ) or frappe.db.get_value(
+                "Booking Item",
+                {"booking": booking.name, "traveller": existing, "name": ["!=", slot_name],
+                 "status": ["!=", "Cancelled"]},
                 "name"
             )
             if conflict:
@@ -632,17 +690,22 @@ def save_booking_traveller(booking_number: str, slot_name: str,
             ),
         }).insert(ignore_permissions=True)
 
-    # Link Traveller ke Booking Reservation (idempotent — selamat untuk
-    # semua section). NOTA: full_name pada Booking Reservation adalah
-    # fetch_from (traveller.full_name) — auto-terisi bila doc di-save()
-    # penuh (bukan db.set_value()).
-    res_doc = frappe.get_doc("Booking Reservation", slot_name)
-    res_doc.traveller       = traveller_name
-    # Cermin status Traveller TERKINI (bukan hardcoded "Incomplete") —
-    # sekarang status boleh jadi "Pending Verification" automatik bila
-    # borang wajib lengkap (before_save doctype Traveller).
-    res_doc.document_status = tvl.status or "Incomplete"
-    res_doc.save(ignore_permissions=True)
+    # Link Traveller ke slot (idempotent — selamat untuk semua section).
+    # FASA 2 dwi-slot: reservation (pasca-bayar — full_name fetch_from
+    # auto-terisi bila doc.save() penuh; status Traveller dicerminkan)
+    # ATAU Booking Item (pra-bayar — identiti disimpan di sini dan
+    # diwarisi reservation semasa _activate_booking).
+    _kind, slot_doc = _resolve_slot(slot_name, booking.name)
+    if _kind == "reservation":
+        slot_doc.traveller       = traveller_name
+        # Cermin status Traveller TERKINI (bukan hardcoded "Incomplete") —
+        # sekarang status boleh jadi "Pending Verification" automatik bila
+        # borang wajib lengkap (before_save doctype Traveller).
+        slot_doc.document_status = tvl.status or "Incomplete"
+        slot_doc.save(ignore_permissions=True)
+    else:
+        slot_doc.traveller = traveller_name
+        slot_doc.save(ignore_permissions=True)
 
     # Upload passport — hanya untuk section passport, simpan dalam
     # Traveller.passport_image. Jenis fail disahkan (JPG/PNG/PDF — magic
@@ -701,7 +764,8 @@ def save_booking_traveller(booking_number: str, slot_name: str,
 
     # FIXED: Gunakan booking name dari slot (docname), bukan booking_number (RC code)
     # Booking Reservation.booking menyimpan docname (BK-...), bukan RC code
-    slot_doc = frappe.get_doc("Booking Reservation", slot_name)
+    # FASA 2: slot boleh Booking Item — kiraan all_filled pra-bayar
+    # dikira daripada baris item aktif (tiada reservation lagi).
     actual_booking_name = slot_doc.booking
 
     total_slots  = frappe.db.count("Booking Reservation", {"booking": actual_booking_name})
@@ -709,6 +773,13 @@ def save_booking_traveller(booking_number: str, slot_name: str,
         "booking":   actual_booking_name,
         "traveller": ["!=", ""]
     })
+    if not total_slots:
+        total_slots  = frappe.db.count(
+            "Booking Item", {"booking": actual_booking_name, "status": ["!=", "Cancelled"]})
+        filled_count = frappe.db.count(
+            "Booking Item",
+            {"booking": actual_booking_name, "status": ["!=", "Cancelled"],
+             "traveller": ["!=", ""]})
 
     return {
         "status":       "ok",
@@ -2171,12 +2242,23 @@ def request_guest_passport_link(booking_number: str = "", slot_name: str = "",
 
     # Resolve slot → booking (dari slot.booking). Membolehkan Desk (ada
     # slot_name = frm.doc.name) & portal (ada booking_number + slot_name)
-    # guna endpoint yang sama.
+    # guna endpoint yang sama. FASA 2: dwi-slot — reservation ATAU Booking
+    # Item (pra-bayar; token disimpan pada item, medan sama).
+    slot_doctype = "Booking Reservation"
     slot = frappe.db.get_value(
         "Booking Reservation", slot_name,
         ["name", "booking", "document_status", "traveller",
          "guest_label", "pax_type"], as_dict=True
     )
+    if not slot:
+        slot_doctype = "Booking Item"
+        slot = frappe.db.get_value(
+            "Booking Item", slot_name,
+            ["name", "booking", "traveller", "pax_type"], as_dict=True
+        )
+        slot.document_status = (frappe.db.get_value("Traveller", slot.traveller, "status")
+                               if slot.traveller else None)
+        slot.guest_label = ""
     if not slot:
         frappe.throw("Slot not found.")
     booking = frappe.db.get_value("Booking", slot.booking,
@@ -2209,7 +2291,7 @@ def request_guest_passport_link(booking_number: str = "", slot_name: str = "",
         expires_on = frappe.utils.add_to_date(frappe.utils.now_datetime(),
                                               days=_GUEST_LINK_EXPIRY_DAYS)
 
-    frappe.db.set_value("Booking Reservation", slot_name, {
+    frappe.db.set_value(slot_doctype, slot_name, {
         "passport_link_token":      token,
         "passport_link_email":      email,
         "passport_link_expires_on": expires_on,
@@ -2321,15 +2403,16 @@ def verify_guest_token(token: str = ""):
         as_dict=True,
     )
     # Label mesra manusia utk Room Category (docname Link selalunya kod),
-    # konsisten dgn paparan portal customer (rc.category_name / rc.room_type).
+    # konsisten dgn paparan portal customer (rc.category_name /
+    # rc.category_group).
     room_category_label = ""
     if room and room.room_category:
         rc = frappe.db.get_value(
             "Trip Price Category", room.room_category,
-            ["category_name", "room_type"], as_dict=True,
+            ["category_name", "category_group"], as_dict=True,
         )
         if rc:
-            room_category_label = rc.category_name or rc.room_type or ""
+            room_category_label = rc.category_name or rc.category_group or ""
 
     # Penentu paparan panel Cruise Cabin: TRIP/PACKAGE bercruise sahaja
     # (is_a_cruise_trip). Salinan flag rantau fetch di-OR untuk rekod lama
@@ -2540,7 +2623,11 @@ def get_slot_file(booking_number: str, slot_name: str, field: str = "passport_im
     if not _booking_action_allowed(booking, session_customer, managed, "Docs"):
         frappe.throw("Access denied.", frappe.PermissionError)
 
+    # FASA 2: dwi-slot — reservation ATAU Booking Item (pra-bayar);
+    # kedua-duanya bawa medan booking + traveller.
     slot = frappe.db.get_value("Booking Reservation", slot_name,
+                               ["name", "booking", "traveller"], as_dict=True) \
+        or frappe.db.get_value("Booking Item", slot_name,
                                ["name", "booking", "traveller"], as_dict=True)
     if not slot or slot.booking != booking.name:
         frappe.throw("Slot not found.")

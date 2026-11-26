@@ -50,7 +50,6 @@ class TripPackage(Document):
 
 		airport_form: DF.Link | None
 		currency: DF.Link
-		ground_arrangement: DF.Check
 		is_a_cruise_trip: DF.Check
 		is_cruise_only: DF.Check
 		organizer_link: DF.Link | None

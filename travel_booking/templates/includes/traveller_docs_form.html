@@ -1,6 +1,21 @@
 {# Shared traveller docs form (SINGLE-PAGE form + submit bar).
    Included by www/guest_passport.html (guest via token link).
 
+   MIGRASI BOOTSTRAP 5: grid `.g2` → `row gx-3` + `col-md-6`; field
+   `.f` → `mb-3` / `col-md-6 mb-3`; label `.lbl` kekal + `form-label`;
+   input/select/textarea → `form-control`/`form-select`; `btn btn-g` →
+   +`btn-outline-secondary`, `btn btn-p` → +`btn-primary` (class skin
+   portal `.btn-g`/`.btn-p` KEKAL kerana portal_traveller_page.js
+   menyuntik butang `btn btn-g`/`btn btn-p` secara dinamik pada page
+   ini — kad hasil imbasan & modal consent — dan portal.css tidak boleh
+   diedit); `info-note` → +`alert alert-warning` (amber = padanan visual
+   skin portal). Hook JS KEKAL 1:1: `#V-form`, `.tvl-pdpa-consent`,
+   `[data-guest-hide]`, `#tvl-docs-loading`, semua id medan `tvl-*`,
+   `passport-upload-area`/`-txt`, `visa-photo-upload-area`/`-txt`,
+   `upload-area`/`upload-*`, `.f-err` (dicipta oleh JS pada
+   input.parentElement — struktur wrapper medan kekal tanpa margin
+   tambahan), classList `tvl-guest-mode`.
+
    data-guest-hide = elemen yang disembunyikan dalam mod guest (cth.
    "Back to travellers" — guest tiada senarai slot). Semua section
    (Passport / Contact Info / Health) berada dalam SATU page — user isi
@@ -18,26 +33,26 @@
 
 <!-- ══ BORANG TRAVELLER (satu page penuh + bar hantar) ══ -->
 <div class="sc-page" id="V-form" style="display:none;">
-  <button type="button" class="btn btn-g btn-sm" data-guest-hide onclick="tvlBackToList()" style="margin-bottom:16px;">← Back to travellers</button>
+  <button type="button" class="btn btn-g btn-outline-secondary btn-sm mb-3" data-guest-hide onclick="tvlBackToList()">← Back to travellers</button>
 
-  <div id="tvl-pp-reset-notice" class="info-note" style="display:none;margin-bottom:14px;">
+  <div id="tvl-pp-reset-notice" class="info-note alert alert-warning" style="display:none;margin-bottom:14px;">
     <p><strong>Passport changed detected</strong> — passport fields were cleared, please enter your current passport details.</p>
   </div>
 
   <!-- ══ SECTION 1: PASSPORT ══ -->
   <div class="card">
     <div class="sec">Passport Copy</div>
-    <div class="g2">
-      <div style="text-align:center;">
+    <div class="row gx-3">
+      <div class="col-md-6" style="text-align:center;">
         <img id="passport-preview" alt="Your uploaded passport copy" style="display:none;max-width:100%;border-radius:10px;border:1px solid #E8E5DF;"/>
         <img src="/assets/travel_booking/img/example_passport.jpg" id="passport-example" alt="Example of a valid passport photo page" style="max-width:100%;border-radius:10px;border:1px solid #E8E5DF;"/>
         <div id="passport-preview-cap" style="font-size:11px;color:#B0AC9F;margin-top:6px;">Photo page · All corners visible</div>
       </div>
-      <div>
+      <div class="col-md-6">
         {# Kamera terus (peranti sentuh sahaja) — JANGAN letak inline
            display:none pada butang (inline style mengatasi media query —
            bug yang pernah berlaku di page travellers 2026-09-05). #}
-        <button type="button" id="pp-cam-btn" class="btn btn-g" onclick="triggerPassportUpload(true)" style="width:100%;margin-bottom:10px;">
+        <button type="button" id="pp-cam-btn" class="btn btn-g btn-outline-secondary" onclick="triggerPassportUpload(true)" style="width:100%;margin-bottom:10px;">
           📷 Take Photo
         </button>
         <button type="button" id="passport-upload-area" class="upload-area" onclick="triggerPassportUpload()" style="width:100%;text-align:left;font:inherit;cursor:pointer;" aria-label="Upload passport copy">
@@ -69,68 +84,68 @@
 
   <div class="card" style="margin-top:14px;">
     <div class="sec">Identity &amp; Passport</div>
-    <div class="g2">
-      <div class="f">
-        <label class="lbl" for="tvl-firstname">First Name <span style="color:#C0392B;">*</span></label>
-        <input type="text" id="tvl-firstname" placeholder="Ahmad" autocomplete="given-name" oninput="syncFullName();clearFieldError(this);" style="text-transform:uppercase;"/>
+    <div class="row gx-3">
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-firstname">First Name <span style="color:#C0392B;">*</span></label>
+        <input type="text" id="tvl-firstname" class="form-control" placeholder="Ahmad" autocomplete="given-name" oninput="syncFullName();clearFieldError(this);" style="text-transform:uppercase;"/>
       </div>
-      <div class="f">
-        <label class="lbl" for="tvl-lastname">Last Name <span style="color:#C0392B;">*</span></label>
-        <input type="text" id="tvl-lastname" placeholder="bin Razali" autocomplete="family-name" oninput="syncFullName();clearFieldError(this);" style="text-transform:uppercase;"/>
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-lastname">Last Name <span style="color:#C0392B;">*</span></label>
+        <input type="text" id="tvl-lastname" class="form-control" placeholder="bin Razali" autocomplete="family-name" oninput="syncFullName();clearFieldError(this);" style="text-transform:uppercase;"/>
       </div>
     </div>
-    <div class="g2">
-      <div class="f">
-        <label class="lbl" for="tvl-fullname-format">Full Name Format</label>
+    <div class="row gx-3">
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-fullname-format">Full Name Format</label>
         {# Pilihan = options Select fullname_format pada doctype Traveller.
            full_name diira semula serta-merta bila format ditukar
            (syncFullName) — selari dengan set_full_name() controller. #}
-        <select id="tvl-fullname-format" onchange="syncFullName();clearFieldError(this);">
+        <select id="tvl-fullname-format" class="form-select" onchange="syncFullName();clearFieldError(this);">
           <option value="First Name + Last Name">First Name + Last Name</option>
           <option value="Last Name + First Name">Last Name + First Name</option>
         </select>
       </div>
-      <div class="f">
-        <label class="lbl" for="tvl-name">Full Name</label>
-        <input type="text" id="tvl-name" readonly style="background:#F5F3EE;"/>
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-name">Full Name</label>
+        <input type="text" id="tvl-name" class="form-control" readonly style="background:#F5F3EE;"/>
       </div>
     </div>
-    <div class="g2">
-      <div class="f">
-        <label class="lbl" for="tvl-ic">IC Number <span style="color:#C0392B;">*</span></label>
-        <input type="text" id="tvl-ic" maxlength="14" placeholder="123456789012" oninput="clearFieldError(this);"/>
+    <div class="row gx-3">
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-ic">IC Number <span style="color:#C0392B;">*</span></label>
+        <input type="text" id="tvl-ic" class="form-control" maxlength="14" placeholder="123456789012" oninput="clearFieldError(this);"/>
       </div>
-      <div class="f">
-        <label class="lbl" for="tvl-nat">Nationality <span style="color:#C0392B;">*</span></label>
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-nat">Nationality <span style="color:#C0392B;">*</span></label>
         {# Autocomplete (datalist native) — senarai negara diisi oleh
            loadCountries() (portal_traveller_page.js). Nilai yang sah
            dinormalisasi semasa save. #}
-        <input type="text" id="tvl-nat" list="tvl-nat-list" placeholder="Type to search country…" autocomplete="off" oninput="clearFieldError(this);"/>
+        <input type="text" id="tvl-nat" class="form-control" list="tvl-nat-list" placeholder="Type to search country…" autocomplete="off" oninput="clearFieldError(this);"/>
         <datalist id="tvl-nat-list"></datalist>
       </div>
     </div>
-    <div class="g2">
-      <div class="f">
-        <label class="lbl" for="tvl-dob">Date of Birth <span style="color:#C0392B;">*</span></label>
-        <input type="date" id="tvl-dob" onchange="clearFieldError(this);"/>
+    <div class="row gx-3">
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-dob">Date of Birth <span style="color:#C0392B;">*</span></label>
+        <input type="date" id="tvl-dob" class="form-control" onchange="clearFieldError(this);"/>
       </div>
-      <div class="f">
-        <label class="lbl" for="tvl-gender">Gender <span style="color:#C0392B;">*</span></label>
-        <select id="tvl-gender" onchange="clearFieldError(this);">
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-gender">Gender <span style="color:#C0392B;">*</span></label>
+        <select id="tvl-gender" class="form-select" onchange="clearFieldError(this);">
           <option value="">Select gender</option>
           <option value="Male">Male</option>
           <option value="Female">Female</option>
         </select>
       </div>
     </div>
-    <div class="g2">
-      <div class="f">
-        <label class="lbl" for="tvl-pp">Passport Number <span style="color:#C0392B;">*</span></label>
-        <input type="text" id="tvl-pp" placeholder="A12345678" oninput="clearFieldError(this);" style="text-transform:uppercase;"/>
+    <div class="row gx-3">
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-pp">Passport Number <span style="color:#C0392B;">*</span></label>
+        <input type="text" id="tvl-pp" class="form-control" placeholder="A12345678" oninput="clearFieldError(this);" style="text-transform:uppercase;"/>
       </div>
-      <div class="f" style="position:relative;">
-        <label class="lbl" for="tvl-ppexp">Passport Expiry <span style="color:#C0392B;">*</span></label>
-        <input type="date" id="tvl-ppexp" onchange="checkPassportValidity();clearFieldError(this);"/>
+      <div class="col-md-6 mb-3" style="position:relative;">
+        <label class="lbl form-label" for="tvl-ppexp">Passport Expiry <span style="color:#C0392B;">*</span></label>
+        <input type="date" id="tvl-ppexp" class="form-control" onchange="checkPassportValidity();clearFieldError(this);"/>
         <span id="pp-validity-badge" style="display:none;position:absolute;right:38px;top:36px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;"></span>
       </div>
     </div>
@@ -143,14 +158,14 @@
   <!-- ══ SECTION 2: CONTACT INFO ══ -->
   <div class="card" style="margin-top:14px;">
     <div class="sec">Contact Info</div>
-    <div class="g2">
-      <div class="f">
-        <label class="lbl" for="tvl-phone-num">Phone <span style="color:#C0392B;">*</span></label>
-        <input type="tel" id="tvl-phone-num" autocomplete="tel" oninput="clearFieldError(this);"/>
+    <div class="row gx-3">
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-phone-num">Phone <span style="color:#C0392B;">*</span></label>
+        <input type="tel" id="tvl-phone-num" class="form-control" autocomplete="tel" oninput="clearFieldError(this);"/>
       </div>
-      <div class="f">
-        <label class="lbl" for="tvl-email">Email <span style="color:#C0392B;">*</span></label>
-        <input type="email" id="tvl-email" autocomplete="email" oninput="clearFieldError(this);"/>
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-email">Email <span style="color:#C0392B;">*</span></label>
+        <input type="email" id="tvl-email" class="form-control" autocomplete="email" oninput="clearFieldError(this);"/>
       </div>
     </div>
   </div>
@@ -165,32 +180,32 @@
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
       <div class="sec">Address</div>
       <label id="tvl-copy-billing-wrap" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#5C5850;cursor:pointer;user-select:none;font-family:inherit;">
-        <input type="checkbox" id="tvl-copy-billing" style="margin:0;accent-color:#C9A84C;"/>
+        <input type="checkbox" id="tvl-copy-billing" class="form-check-input" style="margin:0;accent-color:#C9A84C;"/>
         Copy from billing address
       </label>
     </div>
-    <div class="f">
-      <label class="lbl" for="tvl-addr1">Street Address <span style="color:#C0392B;">*</span></label>
-      <input type="text" id="tvl-addr1" autocomplete="street-address" placeholder="Street, apartment, unit, etc." oninput="clearFieldError(this);"/>
+    <div class="mb-3">
+      <label class="lbl form-label" for="tvl-addr1">Street Address <span style="color:#C0392B;">*</span></label>
+      <input type="text" id="tvl-addr1" class="form-control" autocomplete="street-address" placeholder="Street, apartment, unit, etc." oninput="clearFieldError(this);"/>
     </div>
-    <div class="g2">
-      <div class="f">
-        <label class="lbl" for="tvl-city">City <span style="color:#C0392B;">*</span></label>
-        <input type="text" id="tvl-city" autocomplete="address-level2" oninput="clearFieldError(this);"/>
+    <div class="row gx-3">
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-city">City <span style="color:#C0392B;">*</span></label>
+        <input type="text" id="tvl-city" class="form-control" autocomplete="address-level2" oninput="clearFieldError(this);"/>
       </div>
-      <div class="f">
-        <label class="lbl" for="tvl-postcode">Postcode <span style="color:#C0392B;">*</span></label>
-        <input type="text" id="tvl-postcode" autocomplete="postal-code" oninput="clearFieldError(this);"/>
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-postcode">Postcode <span style="color:#C0392B;">*</span></label>
+        <input type="text" id="tvl-postcode" class="form-control" autocomplete="postal-code" oninput="clearFieldError(this);"/>
       </div>
     </div>
-    <div class="g2">
-      <div class="f">
-        <label class="lbl" for="tvl-state">State <span style="color:#C0392B;">*</span></label>
-        <input type="text" id="tvl-state" autocomplete="address-level1" oninput="clearFieldError(this);"/>
+    <div class="row gx-3">
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-state">State <span style="color:#C0392B;">*</span></label>
+        <input type="text" id="tvl-state" class="form-control" autocomplete="address-level1" oninput="clearFieldError(this);"/>
       </div>
-      <div class="f">
-        <label class="lbl" for="tvl-country">Country <span style="color:#C0392B;">*</span></label>
-        <input type="text" id="tvl-country" list="tvl-country-list" placeholder="Type to search country…" autocomplete="off" oninput="clearFieldError(this);"/>
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-country">Country <span style="color:#C0392B;">*</span></label>
+        <input type="text" id="tvl-country" class="form-control" list="tvl-country-list" placeholder="Type to search country…" autocomplete="off" oninput="clearFieldError(this);"/>
         <datalist id="tvl-country-list"></datalist>
       </div>
     </div>
@@ -198,19 +213,19 @@
 
   <div class="card" style="margin-top:14px;">
     <div class="sec">Emergency Contact</div>
-    <div class="g2">
-      <div class="f">
-        <label class="lbl" for="tvl-ec-name">Name</label>
-        <input type="text" id="tvl-ec-name" autocomplete="off" oninput="clearFieldError(this);"/>
+    <div class="row gx-3">
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-ec-name">Name</label>
+        <input type="text" id="tvl-ec-name" class="form-control" autocomplete="off" oninput="clearFieldError(this);"/>
       </div>
-      <div class="f">
-        <label class="lbl" for="tvl-ec-phone">Phone</label>
-        <input type="tel" id="tvl-ec-phone" autocomplete="off" oninput="clearFieldError(this);"/>
+      <div class="col-md-6 mb-3">
+        <label class="lbl form-label" for="tvl-ec-phone">Phone</label>
+        <input type="tel" id="tvl-ec-phone" class="form-control" autocomplete="off" oninput="clearFieldError(this);"/>
       </div>
     </div>
-    <div class="f">
-      <label class="lbl" for="tvl-ec-relationship">Relationship</label>
-      <input type="text" id="tvl-ec-relationship" placeholder="e.g. Spouse, Parent, Sibling" oninput="clearFieldError(this);"/>
+    <div class="mb-3">
+      <label class="lbl form-label" for="tvl-ec-relationship">Relationship</label>
+      <input type="text" id="tvl-ec-relationship" class="form-control" placeholder="e.g. Spouse, Parent, Sibling" oninput="clearFieldError(this);"/>
     </div>
   </div>
 
@@ -227,15 +242,17 @@
         Most nationalities do not require a visa for this trip. Our team will
         advise if one is needed. You may upload a visa photo here if you have one.
       </p>
-      <div class="g2">
-        <button type="button" id="visa-photo-upload-area" class="upload-area" onclick="triggerVisaPhotoUpload()" style="width:100%;text-align:left;font:inherit;cursor:pointer;" aria-label="Upload visa photo">
-          <div class="upload-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          </div>
-          <div class="upload-txt" id="visa-photo-upload-txt">Upload photo</div>
-          <div class="upload-sub">JPG, PNG or PDF · Max 5MB</div>
-        </button>
-        <div style="text-align:center;">
+      <div class="row gx-3">
+        <div class="col-md-6">
+          <button type="button" id="visa-photo-upload-area" class="upload-area" onclick="triggerVisaPhotoUpload()" style="width:100%;text-align:left;font:inherit;cursor:pointer;" aria-label="Upload visa photo">
+            <div class="upload-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="upload-txt" id="visa-photo-upload-txt">Upload photo</div>
+            <div class="upload-sub">JPG, PNG or PDF · Max 5MB</div>
+          </button>
+        </div>
+        <div class="col-md-6" style="text-align:center;">
           <img src="/assets/travel_booking/img/example_visa_photo.jpg" alt="Example of a valid visa photo" style="max-width:100%;border-radius:10px;border:1px solid #E8E5DF;"/>
           <div style="font-size:11px;color:#B0AC9F;margin-top:6px;">Full visa sticker visible</div>
         </div>
@@ -249,25 +266,25 @@
   <!-- ══ SECTION 3: HEALTH ══ -->
   <div class="card" style="margin-top:14px;">
     <div class="sec">Health Declaration</div>
-    <div class="f">
-      <label class="lbl" for="tvl-dietary">Dietary Requirements</label>
-      <textarea id="tvl-dietary" rows="3" placeholder="e.g. Vegetarian, halal-only, nut allergy" style="width:100%;border:1px solid #D4D1CC;border-radius:8px;padding:10px 12px;font:inherit;font-size:13px;"></textarea>
+    <div class="mb-3">
+      <label class="lbl form-label" for="tvl-dietary">Dietary Requirements</label>
+      <textarea id="tvl-dietary" class="form-control" rows="3" placeholder="e.g. Vegetarian, halal-only, nut allergy"></textarea>
     </div>
-    <div class="f">
-      <label class="lbl" for="tvl-medical">Medical Conditions</label>
-      <textarea id="tvl-medical" rows="3" placeholder="Anything our crew should know about" style="width:100%;border:1px solid #D4D1CC;border-radius:8px;padding:10px 12px;font:inherit;font-size:13px;"></textarea>
+    <div class="mb-3">
+      <label class="lbl form-label" for="tvl-medical">Medical Conditions</label>
+      <textarea id="tvl-medical" class="form-control" rows="3" placeholder="Anything our crew should know about"></textarea>
     </div>
-    <div class="f">
-      <label class="lbl" for="tvl-medicine">Medicine / Treatment</label>
-      <textarea id="tvl-medicine" rows="3" placeholder="e.g. insulin, inhaler, daily medication" style="width:100%;border:1px solid #D4D1CC;border-radius:8px;padding:10px 12px;font:inherit;font-size:13px;"></textarea>
+    <div class="mb-3">
+      <label class="lbl form-label" for="tvl-medicine">Medicine / Treatment</label>
+      <textarea id="tvl-medicine" class="form-control" rows="3" placeholder="e.g. insulin, inhaler, daily medication"></textarea>
     </div>
-    <div class="f">
-      <label class="lbl" for="tvl-special-needs">Special Needs</label>
-      <textarea id="tvl-special-needs" rows="3" placeholder="e.g. assistance during embarkation" style="width:100%;border:1px solid #D4D1CC;border-radius:8px;padding:10px 12px;font:inherit;font-size:13px;"></textarea>
+    <div class="mb-3">
+      <label class="lbl form-label" for="tvl-special-needs">Special Needs</label>
+      <textarea id="tvl-special-needs" class="form-control" rows="3" placeholder="e.g. assistance during embarkation"></textarea>
     </div>
-    <div class="f">
-      <label class="lbl" for="tvl-wheelchair">Wheelchair Assistance <span style="color:#C0392B;">*</span></label>
-      <select id="tvl-wheelchair" onchange="clearFieldError(this);" required="required" >
+    <div class="mb-3">
+      <label class="lbl form-label" for="tvl-wheelchair">Wheelchair Assistance <span style="color:#C0392B;">*</span></label>
+      <select id="tvl-wheelchair" class="form-select" onchange="clearFieldError(this);" required="required" >
         <option value="">Select if required</option>
         <option value="Not Required">Not Required</option>
         <option value="Long Walk Only">Long Walk Only</option>
@@ -283,7 +300,7 @@
        (baca sahaja). -->
   <div class="card" id="tvl-submit-bar" style="margin-top:20px;">
     <label style="display:flex;gap:10px;align-items:flex-start;margin:0 0 4px;cursor:pointer;">
-      <input type="checkbox" class="tvl-pdpa-consent" style="margin-top:3px;flex-shrink:0;"/>
+      <input type="checkbox" class="tvl-pdpa-consent form-check-input" style="margin-top:3px;flex-shrink:0;"/>
       <span style="font-size:12px;color:#5C5850;line-height:1.6;">
         I consent to Rarecation collecting and storing these personal details
         (including passport information) for the purposes of trip arrangements,
@@ -291,7 +308,7 @@
         <a href="/traveller/privacy" target="_blank" rel="noopener">Privacy Notice</a>. <span style="color:#C0392B;">*</span>
       </span>
     </label>
-    <button type="button" class="btn btn-p" id="tvl-submit-btn" style="width:100%;margin-top:12px;" onclick="submitTraveller(this)">✓ Submit Traveller Details</button>
+    <button type="button" class="btn btn-p btn-primary" id="tvl-submit-btn" style="width:100%;margin-top:12px;" onclick="submitTraveller(this)">✓ Submit Traveller Details</button>
     <div id="tvl-form-error" role="alert" style="display:none;padding:10px 13px;background:#FEF2F2;border-radius:6px;margin-top:12px;border-left:2px solid #F87171;">
       <p style="font-size:12px;color:#991B1B;" id="tvl-form-error-msg"></p>
     </div>

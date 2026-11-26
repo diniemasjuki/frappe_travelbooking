@@ -3,7 +3,11 @@
 {# ============================================================
    travel_booking/www/cruise-schedule.html
    Page /cruise-schedule — TIMELINE pelayaran CRUISE sahaja
-   (is_a_cruise_trip = 1).
+   (is_a_cruise_trip = 1).  MIGRASI BOOTSTRAP 5 (pola emas
+   www/cruise.html): layout jenama kekal (rc-sched-*, rc-catalog-*),
+   butang/modal guna komponen BS5; css page di-slim ke
+   cruise_schedule.css sahaja (trips.css & trip_card.css dibuang —
+   peraturan yang masih dipakai di-copy ke css page).
 
    Satu node = satu SAILING DATE; dalam setiap sailing date, trip
    dengan nama berbeza kekal kad berasingan (tidak digabung), manakala
@@ -26,8 +30,6 @@
 {% block title %}Cruise Schedule — {{ site_name or 'Rarecation' }}{% endblock %}
 
 {% block head_extra %}
-<link rel="stylesheet" href="/assets/travel_booking/css/trip_card.css?v={{ asset_v('css/trip_card.css') }}"/>
-<link rel="stylesheet" href="/assets/travel_booking/css/trips.css?v={{ asset_v('css/trips.css') }}"/>
 <link rel="stylesheet" href="/assets/travel_booking/css/cruise_schedule.css?v={{ asset_v('css/cruise_schedule.css') }}"/>
 {% endblock %}
 
@@ -41,7 +43,9 @@
   {# ── Bar penapis — include kongsi dengan /cruises
         (templates/includes/cruise_filters.html). Cruise dipaksa
         server-side; destinasi guna autocomplete destination_search.js
-        (corak hero search /cruise). ── #}
+        (corak hero search /cruise). Include ni TIDAK diubah — class
+        rc-filters/rc-field/rc-btn-* dikekalkan sebagai hook struktur;
+        gayanya di-copy dari trips.css ke cruise_schedule.css. ── #}
   {% with filter_action="/cruise-schedule", filter_id="rcSchedFilters",
           filter_reset_href="/cruise-schedule", filter_force_cruise=0,
           filter_dest_mode="autocomplete" %}
@@ -84,11 +88,10 @@
         {% for e in dg.events %}
         <div class="rc-sched-card">
 
-          {# Media: gambar + ikon sauh (badge bulat, corak rc-card-icon) #}
+          {# Media: gambar (ikon sauh dibuang — markup commented lama) #}
           <a class="rc-sched-thumb" href="/{{ e.route }}" aria-label="{{ e.trip_name }}">
             <img src="{{ e.trip_image }}" alt="{{ e.trip_name }}" loading="lazy"
                  onerror="this.src='/assets/travel_booking/img/defaultaroya.jpg'"/>
-            <!-- <span class="rc-sched-ico"><i class="ti ti-anchor"></i></span> -->
           </a>
 
           {# Info trip: tiada group chip #}
@@ -133,7 +136,9 @@
             </div>
           </div>
 
-          {# Sisi kanan: harga + status tempat duduk + CTA #}
+          {# Sisi kanan: harga + status tempat duduk + CTA
+             (butang = komponen BS5; rc-card-cta/rc-card-cta-outline
+             kekal sebagai class jenama/rc-sched-book HOOK JS) #}
           <div class="rc-sched-side">
             <div class="rc-sched-price">
               {% if e.starting_from_price is not none %}
@@ -168,11 +173,11 @@
             {# Book Now TIDAK terus ke /booknow — buka modal pilih pakej
                (cruise_schedule.js). data-tgd = fallback behavior lama
                kalau JSON pilihan tak tersedia. #}
-            <button type="button" class="rc-card-cta rc-sched-book"
+            <button type="button" class="btn btn-sm btn-primary rc-card-cta rc-sched-book"
                     data-trip="{{ e.trip }}" data-tgd="{{ e.tgd }}">Book Now</button>
-            <a class="rc-card-cta-outline" href="/{{ e.route }}">View Details</a>
+            <a class="btn btn-sm btn-outline-primary rc-card-cta-outline" href="/{{ e.route }}">View Details</a>
             {% else %}
-            <a class="rc-card-cta-outline" href="/{{ e.route }}">View Details</a>
+            <a class="btn btn-sm btn-outline-primary rc-card-cta-outline" href="/{{ e.route }}">View Details</a>
             {% endif %}
           </div>
 
@@ -190,44 +195,58 @@
   </div>
 
   {% else %}
-  <div class="rc-empty">
+  {# Empty state → utility BS untuk layout; rc-empty kekal sebagai
+     hook gaya jenama (ikon/h3) dalam cruise_schedule.css. #}
+  <div class="rc-empty text-center py-5">
     <i class="ti ti-calendar-off"></i>
     <h3>No sailings scheduled</h3>
     <p>Try widening your search or clearing some filters.</p>
-    <a href="/cruise-schedule" class="rc-btn-primary">Clear filters</a>
+    <a href="/cruise-schedule" class="btn btn-primary">Clear filters</a>
   </div>
   {% endif %}
 </section>
+{% endblock %}
 
-{# ── Modal pilih pakej (Book Now) — shell kosong, badan diisi
-      cruise_schedule.js daripada options_json kad yang diklik ── #}
-<div class="rc-pkgmodal" id="rcPkgModal" hidden>
-  <div class="rc-pkgmodal-overlay" data-pkgmodal-close></div>
-  <div class="rc-pkgmodal-dialog" role="dialog" aria-modal="true" aria-labelledby="rcPkgModalTitle">
-    <button type="button" class="rc-pkgmodal-x" data-pkgmodal-close aria-label="Close">
-      <i class="ti ti-x"></i>
-    </button>
-
-    <div class="rc-pkgmodal-head">
-      <span class="rc-pkgmodal-eyebrow"><i class="ti ti-anchor"></i> Choose your package</span>
-      <h3 class="rc-pkgmodal-title" id="rcPkgModalTitle"></h3>
-      <p class="rc-pkgmodal-sub" id="rcPkgModalSub"></p>
-    </div>
-
-    <div class="rc-pkgmodal-body" id="rcPkgModalBody">{# senarai variant + pakej, diisi JS #}</div>
-
-    <div class="rc-pkgmodal-foot">
-      <button type="button" class="rc-btn-ghost" data-pkgmodal-close>Cancel</button>
-      <button type="button" class="rc-btn-primary rc-pkgmodal-go" id="rcPkgModalGo" disabled>
-        Continue to Booking <i class="ti ti-arrow-right"></i>
+{# ── Modal pilih pakej (Book Now) — MARKUP BOOTSTRAP 5 (modal fade +
+      modal-dialog/modal-content). Shell kosong, badan diisi
+      cruise_schedule.js daripada options_json kad yang diklik.
+      Backdrop, body-lock & focus trap diurus bootstrap.Modal
+      (dioleh JS; fallback vanilla kekal disokong — data-pkgmodal-close
+      dikekalkan). ── #}
+{% block footer_extra %}
+<div class="modal fade rc-pkgmodal" id="rcPkgModal" tabindex="-1" aria-hidden="true" aria-labelledby="rcPkgModalTitle">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <button type="button" class="rc-pkgmodal-x" data-bs-dismiss="modal" data-pkgmodal-close aria-label="Close">
+        <i class="ti ti-x"></i>
       </button>
+
+      <div class="modal-header rc-pkgmodal-head">
+        <div>
+          <span class="rc-pkgmodal-eyebrow"><i class="ti ti-anchor"></i> Choose your package</span>
+          <h3 class="modal-title rc-pkgmodal-title" id="rcPkgModalTitle"></h3>
+          <p class="rc-pkgmodal-sub" id="rcPkgModalSub"></p>
+        </div>
+      </div>
+
+      <div class="modal-body rc-pkgmodal-body" id="rcPkgModalBody">{# senarai variant + pakej, diisi JS #}</div>
+
+      <div class="modal-footer rc-pkgmodal-foot">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-pkgmodal-close>Cancel</button>
+        <button type="button" class="btn btn-primary rc-pkgmodal-go" id="rcPkgModalGo" disabled>
+          Continue to Booking <i class="ti ti-arrow-right"></i>
+        </button>
+      </div>
     </div>
   </div>
 </div>
 
 {# Logik modal hidup di /assets/travel_booking/js/cruise_schedule.js
-   (corak sama dengan trip_detail.js); autocomplete destinasi guna
-   destination_search.js (sama dengan hero search /cruise + /tour). #}
-<script src="/assets/travel_booking/js/destination_search.js?v={{ asset_v('js/destination_search.js') }}"></script>
-<script src="/assets/travel_booking/js/cruise_schedule.js?v={{ asset_v('js/cruise_schedule.js') }}"></script>
+   (modal bootstrap.Modal; corak same seperti trip_detail.js);
+   autocomplete destinasi guna destination_search.js (sama dengan
+   hero search /cruise + /tour). Script di-`defer` supaya lari selepas
+   bootstrap.bundle.min.js (turut defer di base, sebelum block ini)
+   — global `bootstrap` sedia ada bila JS page execute. #}
+<script src="/assets/travel_booking/js/destination_search.js?v={{ asset_v('js/destination_search.js') }}" defer></script>
+<script src="/assets/travel_booking/js/cruise_schedule.js?v={{ asset_v('js/cruise_schedule.js') }}" defer></script>
 {% endblock %}

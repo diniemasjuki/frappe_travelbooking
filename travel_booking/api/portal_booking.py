@@ -201,19 +201,19 @@ def _price_hidden_for(booking, customer_name):
 def _so_accessible_by(so_name, customer_name, managed_bookings):
     """Versi _booking_accessible untuk Sales Order — SO boleh diakses bila
     milik customer user, ATAU SO itu milik booking on-behalf yang diurus
-    (Sales Order.custom_booking). Scope "All Bookings" (MANAGED_ALL):
-    semua SO boleh dilihat. Pulangkan False kalau SO tiada.
+    (rujuk registri Booking.sales_orders). Scope "All Bookings"
+    (MANAGED_ALL): semua SO boleh dilihat. Pulangkan False kalau SO tiada.
     """
-    so = frappe.db.get_value(
-        "Sales Order", so_name, ["customer", "custom_booking"], as_dict=True
-    )
+    from travel_booking.api.so_helpers import _resolve_booking_from_so
+    so = frappe.db.get_value("Sales Order", so_name, "customer", as_dict=True)
     if not so:
         return False
     if customer_name and so.customer == customer_name:
         return True
     if managed_bookings == MANAGED_ALL:
         return True
-    return bool(so.custom_booking and so.custom_booking in (managed_bookings or set()))
+    booking_name = _resolve_booking_from_so(so_name)
+    return bool(booking_name and booking_name in (managed_bookings or set()))
 
 
 def _booking_action_allowed(booking, customer_name, managed_bookings, required_level):
@@ -375,16 +375,16 @@ def _so_action_allowed(so_name, customer_name, managed_bookings, required_level)
     invois mengikut SO, bukan booking terus). Scope "All Bookings"
     (MANAGED_ALL): akses semua SO — tindakan tetap ikut Access Level
     role (Tour Operator = View → dinegafikan)."""
-    so = frappe.db.get_value(
-        "Sales Order", so_name, ["customer", "custom_booking"], as_dict=True
-    )
+    from travel_booking.api.so_helpers import _resolve_booking_from_so
+    so = frappe.db.get_value("Sales Order", so_name, "customer", as_dict=True)
     if not so:
         return False
     if customer_name and so.customer == customer_name:
         return True
     if managed_bookings == MANAGED_ALL:
         return on_behalf_level_ok(required_level)
-    if not (so.custom_booking and so.custom_booking in (managed_bookings or set())):
+    booking_name = _resolve_booking_from_so(so_name)
+    if not (booking_name and booking_name in (managed_bookings or set())):
         return False
     return on_behalf_level_ok(required_level)
 
@@ -588,7 +588,7 @@ def get_booking_data(booking_number: str):
             res.guest_postcode,
             res.guest_state,
             res.guest_country,
-            rc.room_type,
+            rc.category_group,
             f.pnr                 AS flight_pnr,
             f.home_airport        AS flight_home_airport,
             f.destination_airport AS flight_destination_airport,
@@ -629,6 +629,76 @@ def get_booking_data(booking_number: str):
         ORDER BY res.cabin_no ASC, res.creation ASC
     """, booking_name, as_dict=True)
 
+    # ── FASA 2: sintesis slot pra-bayar ────────────────────────────────
+    # Booking belum bayar ⇒ TIADA Booking Reservation (slot hanya wujud
+    # selepas bayaran pertama). Bina slot bentuk-serasi daripada Booking
+    # Item (SO utama) supaya customer boleh isi butiran traveller
+    # SEBELUM bayar — identiti disimpan pada Booking Item.traveller dan
+    # diwarisi oleh reservation semasa _activate_booking(). Gelung slot/
+    # cabin di bawah tidak berubah (bentuk baris serasi); medan yang
+    # hanya wujud pada reservation (stateroom/flight/alamat slot)
+    # diberi nilai kosong.
+    pre_payment = False
+    if not slots_raw:
+        slots_raw = frappe.db.sql("""
+            SELECT
+                bi.name              AS slot_name,
+                bi.room_category,
+                bi.cabin_no,
+                bi.pax_type,
+                ''                   AS stateroom_no,
+                0                    AS aroya_guest_no,
+                ''                   AS delegate_no,
+                ''                   AS room_id,
+                0                    AS guest_sequence,
+                ''                   AS flight,
+                t.status             AS document_status,
+                bi.traveller,
+                ''                   AS address_source,
+                ''                   AS guest_address_line1,
+                ''                   AS guest_city,
+                ''                   AS guest_postcode,
+                ''                   AS guest_state,
+                ''                   AS guest_country,
+                rc.category_group,
+                NULL                 AS flight_pnr,
+                NULL                 AS flight_home_airport,
+                NULL                 AS flight_destination_airport,
+                NULL                 AS flight_departure_date,
+                t.first_name,
+                t.last_name,
+                t.full_name,
+                t.fullname_format,
+                t.ic_number,
+                t.passport_no,
+                t.passport_expiry,
+                t.nationality,
+                t.date_of_birth,
+                t.email,
+                t.phone,
+                t.gender,
+                t.age_category,
+                t.passport_image,
+                t.visa_photo,
+                t.emergency_contact_name,
+                t.emergency_contact_phone,
+                t.emergency_contact_relationship,
+                t.dietary_requirements,
+                t.medical_conditions,
+                t.special_needs,
+                t.address_line1,
+                t.city,
+                t.postcode,
+                t.state,
+                t.country
+            FROM `tabBooking Item` bi
+            LEFT JOIN `tabTraveller` t            ON t.name  = bi.traveller
+            LEFT JOIN `tabTrip Price Category` rc ON rc.name = bi.room_category
+            WHERE bi.booking = %s AND bi.status != 'Cancelled'
+            ORDER BY bi.cabin_no ASC, bi.idx ASC
+        """, booking_name, as_dict=True)
+        pre_payment = bool(slots_raw)
+
     # Group ikut cabin_no (field EKSPLISIT pada setiap Booking Reservation
     # — diisi automatik oleh _activate_booking() untuk booking website,
     # ATAU admin isi terus semasa cipta manual di Desk). Ini gantikan
@@ -662,7 +732,7 @@ def get_booking_data(booking_number: str):
             "slot_label":        "Traveller " + str(traveller_counter) + (" (" + raw.pax_type + ")" if raw.pax_type else ""),
             "age_category":      raw.age_category      or "",
             "room_category":     raw.room_category     or "",
-            "room_type":         raw.room_type         or "",
+            "category_group":    raw.category_group    or "",
             "pax_type":          raw.pax_type          or "",
             "stateroom_no":      raw.stateroom_no      or "",
             "delegate_no":       raw.delegate_no       or "",
@@ -712,6 +782,11 @@ def get_booking_data(booking_number: str):
             "dietary_requirements": raw.dietary_requirements or "",
             "medical_conditions":   raw.medical_conditions   or "",
             "special_needs":        raw.special_needs        or "",
+            # Fasa 2: penanda jenis slot — "item" (pra-bayar, Booking
+            # Item) atau "reservation" (pasca-bayar). Laluan tulis
+            # portal_traveller menyelesaikan dwi-slot dengan nama sahaja,
+            # jadi UI tidak perlu bezakan.
+            "slot_kind":         "item" if pre_payment else "reservation",
         }
 
         slot["_cabin_no"] = raw.cabin_no or 0
@@ -964,6 +1039,20 @@ def get_booking_data(booking_number: str):
             "sales_order":        primary_so or "",
             "total_slots":        total_slots,
             "filled_count":       filled_count,
+            # Fasa 2: slot pra-bayar (Booking Item) — UI tahu butiran
+            # traveller boleh diisi sebelum bayaran pertama.
+            "pre_payment":        pre_payment,
+            # Pembatalan self-service: permohonan terbuka (jika ada) untuk
+            # paparan chip + Withdraw pada halaman booking portal.
+            "cancellation_request": (
+                {"name": cr.name, "reason": cr.reason,
+                 "requested_at": str(cr.requested_at or "")}
+                if (cr := frappe.db.get_value(
+                    "Booking Cancellation Request",
+                    {"booking": booking_name, "status": "Requested"},
+                    ["name", "reason", "requested_at"], as_dict=True,
+                )) else None
+            ),
             "booking_status":     booking.status or "",
             # Nota checkout ("Message to Us") — teks bebas customer; frontend
             # escape & kekalkan newline (white-space:pre-line).
@@ -1180,20 +1269,25 @@ def get_bookings_list():
         # Jumlah kewangan merentasi SEMUA SO booking (kecuali Cancelled) —
         # selari dengan get_booking_data()/_recompute_booking_status().
         totals = frappe.db.sql("""
-            SELECT COALESCE(SUM(grand_total), 0)  AS billed,
-                   COALESCE(SUM(advance_paid), 0) AS paid
-            FROM `tabSales Order`
-            WHERE custom_booking = %s AND docstatus != 2
+            SELECT COALESCE(SUM(so.grand_total), 0)  AS billed,
+                   COALESCE(SUM(so.advance_paid), 0) AS paid
+            FROM `tabSales Order` so
+            INNER JOIN `tabBooking Sales Order` reg
+                ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+            WHERE reg.parent = %s AND so.docstatus != 2
         """, bk.name, as_dict=True)
         billed = float(totals[0].billed or 0)
         paid   = float(totals[0].paid or 0)
 
-        # Currency: SO PERTAMA (creation asc) — wakil sah untuk booking ni.
-        # Fallback ikut currency axis (bukan hardcoded MYR).
+        # Currency: SO utama booking ni (SO pertama hidup dalam registri
+        # Booking.sales_orders) — wakil sah untuk booking ni. Fallback ikut
+        # currency axis (bukan hardcoded MYR).
         from travel_booking.api.currency_axis import get_default_currency
-        currency = frappe.db.get_value(
-            "Sales Order", {"custom_booking": bk.name},
-            "currency", order_by="creation asc"
+        from travel_booking.api.so_helpers import _get_primary_so
+        _primary_so = _get_primary_so(bk.name)
+        currency = (
+            frappe.db.get_value("Sales Order", _primary_so, "currency")
+            if _primary_so else None
         ) or get_default_currency()
         currency_symbol = frappe.db.get_value("Currency", currency, "symbol") or currency
 
@@ -1350,6 +1444,7 @@ def _booking_card_row(bk) -> dict:
     from travel_booking.api.booking import _compute_payment_status
     from travel_booking.api._helpers import get_customer_phone
     from travel_booking.api.currency_axis import get_default_currency
+    from travel_booking.api.so_helpers import _get_primary_so
 
     counts = frappe.db.sql("""
         SELECT COUNT(name) AS total,
@@ -1362,17 +1457,22 @@ def _booking_card_row(bk) -> dict:
     filled_count = int(counts[0].filled or 0)
 
     totals = frappe.db.sql("""
-        SELECT COALESCE(SUM(grand_total), 0)  AS billed,
-               COALESCE(SUM(advance_paid), 0) AS paid
-        FROM `tabSales Order`
-        WHERE custom_booking = %s AND docstatus != 2
+        SELECT COALESCE(SUM(so.grand_total), 0)  AS billed,
+               COALESCE(SUM(so.advance_paid), 0) AS paid
+        FROM `tabSales Order` so
+        INNER JOIN `tabBooking Sales Order` reg
+            ON reg.sales_order = so.name AND reg.parenttype = 'Booking'
+        WHERE reg.parent = %s AND so.docstatus != 2
     """, bk.name, as_dict=True)
     billed = float(totals[0].billed or 0)
     paid   = float(totals[0].paid or 0)
 
-    currency = frappe.db.get_value(
-        "Sales Order", {"custom_booking": bk.name},
-        "currency", order_by="creation asc"
+    # Currency: SO utama booking ni (SO pertama hidup dalam registri
+    # Booking.sales_orders) — wakil sah untuk booking ni.
+    _primary_so = _get_primary_so(bk.name)
+    currency = (
+        frappe.db.get_value("Sales Order", _primary_so, "currency")
+        if _primary_so else None
     ) or get_default_currency()
     currency_symbol = frappe.db.get_value("Currency", currency, "symbol") or currency
 

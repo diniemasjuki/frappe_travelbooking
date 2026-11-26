@@ -11,9 +11,9 @@
   "booking",
   "booking_number",
   "customer",
-  "trip_package",
+  "package_offer",
   "column_break_order",
-  "trip_date",
+  "travel_date",
   "departure_date",
   "return_date",
   "order_date",
@@ -61,11 +61,11 @@
    "search_index": 1
   },
   {
-   "fetch_from": "booking.trip_package",
-   "fieldname": "trip_package",
+   "fetch_from": "booking.package_offer",
+   "fieldname": "package_offer",
    "fieldtype": "Link",
-   "label": "Trip Package",
-   "options": "Trip Package",
+   "label": "Package Offer",
+   "options": "Package Offer",
    "read_only": 1
   },
   {
@@ -73,11 +73,10 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "booking.trip_date",
-   "fieldname": "trip_date",
+   "fieldname": "travel_date",
    "fieldtype": "Link",
-   "label": "Trip Group Date",
-   "options": "Trip Group Date",
+   "label": "Travel Date",
+   "options": "Travel Date",
    "read_only": 1
   },
   {
@@ -110,7 +109,7 @@
    "options": "Pending\nConfirmed\nCancelled"
   },
   {
-   "description": "Sync dari Sales Order (addon) untuk order ini SAHAJA \u2014 bukan agregat Booking.payment_status (yang termasuk SO cabin lain).",
+   "description": "Sync dari Sales Order (addon) untuk order ini SAHAJA — bukan agregat Booking.payment_status (yang termasuk SO cabin lain).",
    "fieldname": "payment_status",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -166,7 +165,7 @@
    "link_fieldname": "addon_order"
   }
  ],
- "modified": "2026-08-28 03:48:45.337376",
+ "modified": "2026-11-16 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Booking Addon",

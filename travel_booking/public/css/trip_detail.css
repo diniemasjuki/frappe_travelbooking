@@ -96,9 +96,6 @@
 }
 
 /* ── Video YouTube section (antara gallery + content) ── */
-.rc-video-section {
-  max-width: 1180px; margin: 28px auto 0; padding: 0 22px;
-}
 .rc-video-card {
   background: #fff; border-radius: 12px;
   box-shadow: 0 4px 25px rgba(0,0,0,.08); overflow: hidden;
@@ -128,7 +125,6 @@
 .rc-video-external i { font-size: 16px; }
 
 @media (max-width: 767px) {
-  .rc-video-section { margin-top: 20px; padding: 0 16px; }
   .rc-video-title { font-size: 17px; padding: 12px 14px 0; }
 }
 
@@ -197,8 +193,7 @@
 .rc-route-country { font-size: 12px; color: #7D7A70; }
 .rc-route-arrow { color: #7D7A70; font-size: 18px; }
 
-/* ── 2-column block ── */
-.rc-trip-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+/* ── 2-column block — Bootstrap row/col (markup); css lama dibuang ── */
 
 /* ── Chips (facilities / travel styles) ── */
 .rc-chips-block .rc-section-h { font-size: 22px; }
@@ -209,7 +204,6 @@
   padding: 7px 13px; font-size: 13px; color: #3A3730;
 }
 .rc-chip > i { font-size: 16px; color: #C9A84C; }
-.rc-chip-style { background: #1E1C18; color: #F7F5F0; border-color: #1E1C18; }
 
 /* ── Included / Excluded ── */
 .rc-feat-block { background: #fff; border: 1px solid #E8E5DF; border-radius: 12px; padding: 18px 20px; }
@@ -239,23 +233,7 @@
 /* ── Itinerary timeline ── */
 .rc-itinerary { list-style: none; margin: 0; padding: 0; }
 /* Segmented itinerary (cruise): header fasa Pre-Cruise / Cruise / Post-Cruise */
-.rc-itin-segment { margin-top: 26px; }
-.rc-itin-segment:first-of-type { margin-top: 0; }
-.rc-itin-seg-head {
-  display: flex; align-items: baseline; gap: 10px;
-  padding-bottom: 14px; margin-bottom: 20px;
-  border-bottom: 1px solid #E8E5DF;
-}
 .rc-itin-seg-head .ti { font-size: 16px; color: #C9A84C; align-self: center; }
-.rc-itin-seg-label {
-  margin: 0; font-size: 12px; font-weight: 700;
-  letter-spacing: .12em; text-transform: uppercase; color: #1E1C18;
-}
-.rc-itin-seg-days {
-  margin-left: auto; flex-shrink: 0;
-  font-size: 11px; font-weight: 600; color: #C9A84C;
-  padding: 4px 10px; border: 1px solid #C9A84C; border-radius: 999px;
-}
 .rc-itin-day {
   display: grid; grid-template-columns: 70px 1fr; gap: 18px;
   padding-bottom: 26px; position: relative;
@@ -266,10 +244,15 @@
 }
 .rc-itin-day:last-child::before { display: none; }
 .rc-itin-marker { position: relative; z-index: 1; text-align: center; }
-.rc-itin-marker span {
-  display: inline-flex; align-items: center; justify-content: center;
-  min-width: 70px; padding: 8px 6px; border-radius: 10px;
-  background: #1E1C18; color: #ffffff; font-size: 11px; font-weight: 600; line-height: 1.3;
+.rc-itin-marker .rc-itin-day-pill {
+  display: inline-flex; flex-direction: column; align-items: center;
+  justify-content: center; min-width: 70px; padding: 7px 9px;
+  border-radius: 10px; background: #1E1C18; color: #ffffff;
+  font-size: 11px; font-weight: 600; line-height: 1.3;
+}
+.rc-itin-date {
+  font-size: 9.5px; font-weight: 500; letter-spacing: .2px;
+  color: rgba(255, 255, 255, .75); white-space: nowrap;
 }
 .rc-itin-card { background: #fff; border: 1px solid #E8E5DF; border-radius: 12px; padding: 15px; }
 .rc-itin-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
@@ -309,18 +292,14 @@
 .rc-itin-all:hover { border-color: #C9A84C; color: #C9A84C; }
 .rc-itin-all .ti { font-size: 14px; }
 
-/* ── FAQ accordion ── */
-.rc-faq { border-top: 1px solid #E8E5DF; }
-.rc-faq-item { border-bottom: 1px solid #E8E5DF; }
-.rc-faq-q {
-  width: 100%; text-align: left; background: none; border: none; cursor: pointer;
-  padding: 16px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  font-size: 15px; font-weight: 600; color: #1E1C18;
+/* ── FAQ — BOOTSTRAP ACCORDION (markup accordion-item dalam trip.html;
+   interaksi diurus bootstrap bundle; warna focus/aktif di rc-theme) ── */
+.rc-faq .accordion-item { border-color: #E8E5DF; }
+.rc-faq .accordion-button {
+  font-family: var(--font-rubik); font-size: 15px; font-weight: 600; color: #1E1C18;
+  background: #fff;
 }
-.rc-faq-icon { transition: transform .25s; color: #7D7A70; font-size: 18px; flex-shrink: 0; }
-.rc-faq-item.is-open .rc-faq-icon { transform: rotate(180deg); }
-.rc-faq-a { max-height: 0; overflow: hidden; transition: max-height .3s ease; }
-.rc-faq-a-inner { padding: 0 0 16px; font-size: 14px; line-height: 1.65; color: #3A3730; }
+.rc-faq .accordion-body { font-size: 14px; line-height: 1.65; color: #3A3730; padding: 0 1rem 1rem; }
 
 /* ── Sidebar booking card — animated sticky panel di bawah viewport ──
    Sidebar direntang penuh (stretch) dan kandungan ditolak ke penghujung,
@@ -489,24 +468,32 @@
 .rc-date-trigger-text { min-width: 0; line-height: 1.4; }
 .rc-date-trigger-text strong { color: #dc2626; }
 
-/* ── Date selector modal (popup pilihan sailing/departure date) ── */
-.rc-datemodal {
-  position: fixed; inset: 0; z-index: 10000;
-  background: rgba(30,28,24,.6); backdrop-filter: blur(3px);
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; visibility: hidden;
-  transition: opacity .25s ease, visibility .25s ease;
+/* ── Cruise: tarikh terpilih — teks bold statik (tiada butang trigger;
+   penukaran tarikh hanya melalui modal Change Date kad showcase) ── */
+.rc-date-chosen { width: 100%; padding: 0; padding-bottom: 10px; }
+.rc-date-chosen strong {
+  font-family: var(--font-jost); font-size: 15px; font-weight: 700;
+  color: #1E1C18; line-height: 1.4; display: block;
 }
-.rc-datemodal-show { opacity: 1; visibility: visible; }
+
+/* ── Date selector modal — BOOTSTRAP MODAL ──
+   Markup (trip_detail.js): .modal.fade.rc-datemodal > .modal-dialog >
+   .modal-content.rc-datemodal-card. Overlay/backdrop/Esc diurus
+   bootstrap.Modal; rc-datemodal-show hanya fallback legacy bila
+   bootstrap bundle gagal dimuat. */
+.rc-datemodal .modal-dialog { max-width: min(420px, 92vw); }
 .rc-datemodal-card {
-  position: relative; background: #fff; border-radius: 16px;
-  width: 420px; max-width: 92vw; max-height: 80vh;
+  position: relative;
+  border: none; border-radius: 16px;
+  max-height: 80vh;
+  overflow-y: auto;
   display: flex; flex-direction: column;
   padding: 22px 20px 14px; box-shadow: 0 12px 48px rgba(0,0,0,.25);
-  font-family: var(--font-jost); box-sizing: border-box;
-  transform: translateY(14px) scale(.97); transition: transform .25s ease;
+  font-family: var(--font-jost);
 }
-.rc-datemodal-show .rc-datemodal-card { transform: translateY(0) scale(1); }
+.rc-datemodal.rc-datemodal-show {
+  display: flex; align-items: center; justify-content: center;
+}
 .rc-datemodal-close {
   position: absolute; top: 10px; right: 12px; background: none; border: none;
   font-size: 24px; line-height: 1; color: #9C9789; cursor: pointer;
@@ -525,7 +512,7 @@
 .rc-datemodal-chip-active:hover { background: #C9A84C; border-color: #C9A84C; color: #fff; }
 .rc-datemodal-list {
   display: flex; flex-direction: column; gap: 8px;
-  overflow-y: auto; min-height: 0; padding: 2px 4px 8px 2px;
+  padding: 2px 4px 8px 2px;
 }
 .rc-datemodal-list::-webkit-scrollbar { width: 6px; }
 .rc-datemodal-list::-webkit-scrollbar-track { background: #f5f5f5; border-radius: 3px; }
@@ -560,32 +547,14 @@
   .rc-datemodal-card { width: 94vw; padding: 18px 14px 12px; }
   .rc-datemodal-item { padding: 10px 12px; }
   .rc-datemodal-item-text { font-size: 13px; }
+  /* Change Date modal ikut saiz dialog (bukan 94vw — dialog dah diurus) */
+  .rc-datemodal-card.rc-changemodal-card { width: 100%; }
 }
 
 #rcDetailCabins { margin-bottom: 16px; min-height: 40px; }
 .rc-cabins-empty, .rc-cabins-loading, .rc-cabins-error { padding: 6px 0; }
-.rc-cabin-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-.rc-cabin-tbl th {
-  text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase;
-  letter-spacing: .04em; color: #7D7A70; border-bottom: 1px solid #E8E5DF;
-}
-.rc-cabin-tbl td { padding: 10px; border-bottom: 1px solid #F0EEE9; vertical-align: top; }
-.rc-cabin-tbl tr:hover td { background: #FBFAF7; }
-.rc-cabin-type { display: block; font-size: 12px; color: #9C9789; margin-top: 2px; }
-.rc-btn-primary {
-  display: block; width: 100%; text-align: center; text-decoration: none; cursor: pointer;
-  background: #C9A84C; color: #1E1C18; font-weight: 700; font-size: 15px;
-  padding: 14px 20px; border-radius: 10px; border: none;
-  transition: all .2s ease;
-}
-.rc-btn-primary:hover { background: #B8983F; }
-.rc-btn-share {
-  display: block; width: 100%; text-align: center; text-decoration: none; cursor: pointer;
-  background: transparent; color: #C9A84C; font-weight: 600; font-size: 13px;
-  padding: 10px 20px; border-radius: 10px; border: 1.5px solid #C9A84C;
-  margin-top: 8px; transition: all .2s ease;
-}
-.rc-btn-share:hover { background: rgba(201,168,76,.08); }
+/* Butang Book/Share — Bootstrap (btn btn-primary/btn-outline-primary);
+   hook state disabled sahaja yang kekal. */
 .rc-btn-disabled { opacity: .5; pointer-events: none; }
 
 /* ── Share toast ── */
@@ -598,21 +567,13 @@
 }
 .rc-share-toast-show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-/* ── Share modal ── */
-.rc-share-modal {
-  position: fixed; inset: 0; z-index: 10000;
-  background: rgba(30,28,24,.6); backdrop-filter: blur(3px);
-  display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: opacity .3s ease;
-}
-.rc-share-modal-show { opacity: 1; }
+/* ── Share modal — BOOTSTRAP MODAL (cangkang BS; kad jenama) ── */
+.rc-share-modal .modal-dialog { max-width: min(320px, 90vw); }
 .rc-share-card {
-  position: relative; background: #fff; border-radius: 18px;
-  padding: 32px 28px 28px; width: 320px; max-width: 90vw;
+  position: relative; border: none; border-radius: 18px;
+  padding: 32px 28px 28px;
   text-align: center; box-shadow: 0 12px 48px rgba(0,0,0,.25);
-  transform: translateY(16px) scale(.96); transition: transform .3s ease;
 }
-.rc-share-modal-show .rc-share-card { transform: translateY(0) scale(1); }
 .rc-share-close {
   position: absolute; top: 12px; right: 14px;
   background: none; border: none; font-size: 24px; line-height: 1;
@@ -639,14 +600,11 @@
 .rc-empty-inline { padding: 10px 0; color: #5C5850; font-size: 14px; }
 .rc-empty-inline a { color: #C9A84C; text-decoration: none; font-weight: 600; }
 
-/* ── Related tours grid ── */
+/* ── Related tours — grid Bootstrap row/col (markup) ── */
 .rc-related { max-width: 1180px; margin: 0 auto; padding: 0 22px 50px; }
-.rc-trip-grid-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 
 @media (max-width: 980px) {
   .rc-trip-layout { grid-template-columns: 1fr; gap: 28px; }
-  .rc-trip-grid-cards { grid-template-columns: 1fr 1fr; }
-  .rc-trip-title { font-size: 30px; }
   /* Tablet (641–980px) — card kekal dalam flow (hujung content), tak
      menunggang bawah viewport macam desktop. Telefon ≤640px pula jadi
      drawer (blok media ≤640px di bawah). Offset/max-height kecil tetap
@@ -658,9 +616,6 @@
   }
 }
 @media (max-width: 640px) {
-  .rc-trip-title { font-size: 26px; }
-  .rc-trip-grid-2 { grid-template-columns: 1fr; gap: 22px; }
-  .rc-trip-grid-cards { grid-template-columns: 1fr; }
   .rc-itin-day { grid-template-columns: 56px 1fr; gap: 12px; }
   .rc-itin-day::before { left: 27px; }
   .rc-itin-marker span { min-width: 56px; font-size: 10px; }
@@ -803,8 +758,13 @@
 }
 .rc-pkg-meta-label { color: #8A857A; white-space: nowrap; }
 .rc-pkg-meta-value { color: #1E1C18; text-align: right; min-width: 0; }
-.rc-pkg-meta-value.rc-pkg-included   { color: #2E7D32; }
-.rc-pkg-meta-value.rc-pkg-not-included { color: #B0603A; }
+
+/* ── Baris tajuk butang pakej — tajuk sahaja (badge Ground Arrangement
+   dibuang, Nov 2026) ── */
+.rc-pkg-head {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 8px; flex-wrap: wrap;
+}
 
 @media (max-width: 480px) {
   .rc-pkg-buttons { gap: 8px; }
@@ -832,18 +792,10 @@
 .rc-price-row + .rc-price-row {
   border-top: 1px solid #e8dcc8;
 }
-.rc-price-label {
-  display:inline-block;
-  width:fit-content;
-  font-size: 14px;
-  color: #c9a84c;
-  font-weight: 600;
-  margin-right:5px;
-}
 .rc-price-value {
     display: inline-block;
-    width: auto;
-    font-size: 14px;
+    width: 100%;
+    font-size: larger;
     font-weight: 400;
     color: #1E1C18;
     text-transform: uppercase;
@@ -855,12 +807,10 @@
   .rc-price-value { font-size: 16px; }
 }
 
-/* ── Price label group (label + note) ── */
-.rc-price-label-group {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
+/* ── Price label group (label + "?" info tooltip) ──
+   Nota caption (.rc-price-note) kini TERSEMBUNYI — dibawa DALAM butang
+   info "?" selepas label (trip_detail.js loadCabins) dan dipapar sebagai
+   tooltip berhias bila butang di-hover / di-focus (klik). */
 .rc-price-note {
     display: block;
     width: 100%;
@@ -869,6 +819,49 @@
     line-height: 1.1;
     margin-top: 3px;
     font-weight: 300;
+}
+.rc-price-info {
+  float: right;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0;
+  border: 1px solid #C9A84C; border-radius: 50%;
+  background: #FEF7E6; color: #C9A84C;
+  font-family: var(--font-jost); font-size: 11px; font-weight: 700; line-height: 1;
+  cursor: help; vertical-align: middle; position: absolute; right: 26px;
+  transition: background .15s ease, color .15s ease;
+}
+.rc-price-info:hover, .rc-price-info:focus {
+  background: #C9A84C; color: #fff; outline: none;
+}
+/* Tooltip bubble — anak span butang; hover/focus pada butang memaparkannya */
+.rc-price-info .rc-price-tip {
+  position: absolute; z-index: 40;
+  right: -8px; top: calc(100% + 10px);
+  width: 230px; max-width: calc(100vw - 64px);
+  margin: 0; padding: 10px 12px;
+  background: #1E1C18; color: #F5F1E8;
+  font-size: 12px; line-height: 1.5; font-weight: 300;
+  border: 1px solid rgba(201, 168, 76, .55); border-radius: 10px;
+  box-shadow: 0 8px 22px rgba(30, 28, 24, .28);
+  text-align: left; text-transform: none; letter-spacing: normal;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity .18s ease, transform .18s ease, visibility .18s;
+}
+.rc-price-info .rc-price-tip::before {
+  content: ""; position: absolute;
+  right: 14px; bottom: 100%;
+  border: 6px solid transparent; border-bottom-color: rgba(201, 168, 76, .55);
+}
+.rc-price-info .rc-price-tip::after {
+  content: ""; position: absolute;
+  right: 15px; bottom: calc(100% - 3.5px);
+  border: 5px solid transparent; border-bottom-color: #1E1C18;
+}
+.rc-price-info:hover .rc-price-tip,
+.rc-price-info:focus .rc-price-tip {
+  opacity: 1; visibility: visible; pointer-events: auto;
+  transform: translateY(0);
 }
 .rc-price-row {
   display:block;
@@ -899,3 +892,829 @@
   letter-spacing: .3px;
 }
 .rc-promo-badge .ti { margin-right: 4px; }
+
+/* ============================================================
+   SHOWCASE — DATES & PACKAGES (rc-date-cards)
+   Kad "selected departure" tunggal di layout utama: eyebrow + chip
+   kategori, tarikh hero + duration, blok sailing, BUTANG pakej
+   (pilih terus — satu langkah), footer Change Date (N) / hint
+   terkunci. Penukaran tarikh melalui modal Change Date (tapisan
+   kategori deep-link). Booking card sidebar = paparan sahaja.
+   ============================================================ */
+.rc-date-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.rc-datecard-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rc-datecard-headleft {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+/* Stack kanan-atas: chip kategori → duration → seats (float top-right) */
+.rc-datecard-topright {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+/* Eyebrow "Selected Departure" — penanda peranan kad (bukan senarai) */
+.rc-datecard-eyebrow {
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #8A857A;
+}
+/* Chip kategori trip (Travel Date.trip_category) — konteks kategori
+   sejak deep-link ?date= mengunci tarikh pada kategori terpilih */
+.rc-datecard-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(201, 168, 76, .12);
+  border: 1px solid rgba(201, 168, 76, .4);
+  color: #8A6F1E;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.rc-datecard-cat .ti { font-size: 12px; }
+/* Tarikh hero — dalam headleft (tepat di bawah eyebrow) */
+.rc-datecard-date {
+  font-family: var(--font-rubik);
+  font-size: 20px;
+  font-weight: 600;
+  color: #1E1C18;
+}
+.rc-datecard-seats {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(30, 28, 24, .05);
+  border: 1px solid #E8E5DF;
+  font-size: 12px;
+  color: #5C5850;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.rc-datecard-seats strong { color: #DC2626; }
+
+/* Chips inklusi pakej khas (addon matrix offer) — badge "Special
+   Package" DIBUANG (Nov 2026), chips kekal sebagai maklumat inklusi */
+.rc-datecard-inclusions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.rc-datecard-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(201, 168, 76, .12);
+  border: 1px solid rgba(201, 168, 76, .4);
+  color: #8A6F1E;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.rc-datecard-chip .ti { font-size: 13px; }
+
+/* Durasi — badge pill sebaris dengan tarikh hero (chip gold lembut) */
+.rc-datecard-duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(201, 168, 76, .12);
+  border: 1px solid rgba(201, 168, 76, .4);
+  font-family: var(--font-rubik);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #8A6F1E;
+}
+.rc-datecard-duration .ti {
+  color: #C9A84C;
+  font-size: 13px;
+}
+
+/* ── Seksyen Sailing Date (info card) — hanya trip cruise dengan
+   sailing date: tarikh pelayaran sebenar + kapal + port. Inset putih
+   berbingkai gold putus — konsisten skin kad kabin showcase. ── */
+.rc-sailinfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px dashed rgba(201, 168, 76, .45);
+  border-radius: 10px;
+}
+.rc-sailinfo-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #B8983F;
+}
+.rc-sailinfo-dates {
+  font-family: var(--font-rubik);
+  font-size: 14px;
+  font-weight: 400;
+  color: #1E1C18;
+}
+.rc-sailinfo-meta {
+  font-size: 12px;
+  color: #7D7A70;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.rc-sailinfo-meta .ti { color: #C9A84C; font-size: 13px; }
+
+/* Butang kecil "Change Date" — dalam information card (bawah-kanan):
+   buka modal pertukaran tarikh & pakej */
+.rc-datecard-change {
+  margin-top: 10px;
+  justify-self: start;
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1.5px solid #E8E5DF;
+  background: #fff;
+  color: #5C5850;
+  font-family: var(--font-jost);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease;
+}
+.rc-datecard-change:hover { border-color: #C9A84C; color: #1E1C18; }
+.rc-datecard-change .ti { font-size: 14px; }
+/* Badge kiraan tarikh boleh dipilih dalam butang (ikut tapisan kategori) */
+.rc-datecard-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #C9A84C;
+  color: #1E1C18;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+/* ── Information card (deep-link ?date=): bukan selectable panel —
+   papar maklumat travel date terpilih + senarai pakej dalamnya ── */
+.rc-datecard-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 20px;
+  background: rgba(201, 168, 76, .06);
+  border: 1px solid #C9A84C;
+  border-radius: 14px;
+  box-shadow: 0 0 0 1px #C9A84C inset;
+  font-family: var(--font-jost);
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
+.rc-datecard-info::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #C9A84C, #B8983F);
+  border-radius: 14px 14px 0 0;
+}
+.rc-dtpkg-block {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(201, 168, 76, .25);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rc-dtpkg-blocktitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #B8983F;
+}
+/* Row pakej = BUTANG pilih terus (satu langkah, tanpa modal). Dot radio
+   (::before) + state aktif meniru skin .rc-datemodal-item / .rc-pkg-btn
+   .rc-pkg-active — bahasa reka bentuk sama merentasi permukaan pilih. */
+.rc-dtpkg-row {
+  appearance: none;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
+  background: #fff;
+  border: 1.5px solid #E8E5DF;
+  border-radius: 10px;
+  padding: 10px 14px 10px 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.rc-dtpkg-row::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 13px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #d4c5a9;
+  background: #fff;
+  transition: border-color .15s ease, background .15s ease;
+}
+.rc-dtpkg-row:hover {
+  border-color: #C9A84C;
+  background: #FBFAF7;
+}
+.rc-dtpkg-row:hover::before { border-color: #C9A84C; }
+.rc-dtpkg-row-active {
+  border-color: #C9A84C;
+  background: #FEF7E6;
+}
+.rc-dtpkg-row-active::before {
+  border-color: #C9A84C;
+  background: #C9A84C;
+  box-shadow: inset 0 0 0 3px #fff;
+}
+.rc-dtpkg-row:focus-visible {
+  outline: 2px solid #C9A84C;
+  outline-offset: 2px;
+}
+.rc-dtpkg-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1E1C18;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.rc-dtpkg-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: #7D7A70;
+}
+.rc-dtpkg-meta .ti { font-size: 13px; margin-right: 2px; vertical-align: -2px; }
+.rc-dtpkg-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+/* Hint tarikh terpinned — ganti butang Change Date bila deep-link
+   kategori tiada tarikh lain (jelaskan kenapa tiada penukar tarikh) */
+.rc-datecard-locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12.5px;
+  color: #8A857A;
+}
+.rc-datecard-locked .ti {
+  color: #C9A84C;
+  font-size: 14px;
+}
+
+/* ============================================================
+   SHOWCASE — OTHER CATEGORIES (rcOtherCats, selepas FAQ)
+   Kategori travel-date LAIN selain kategori tarikh terpilih.
+   >1 kategori → tab pill (skin rc-cabin-tab); setiap tab → senarai
+   tarikh kategori itu (skin rc-datemodal-item, tanpa radio). Klik row
+   = pilih departure itu (selectDate) + scroll ke booking panel.
+   Klas berasingan (rc-cattab/rc-catdate-*) — wiring bebas dari tab
+   kabin. ============================================================ */
+.rc-cattabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.rc-cattab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1.5px solid #E8E5DF;
+  background: #fff;
+  color: #5C5850;
+  font-family: var(--font-jost);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+.rc-cattab:hover { border-color: #C9A84C; color: #1E1C18; }
+.rc-cattab.rc-cattab-active {
+  border-color: #C9A84C;
+  background: #C9A84C;
+  color: #1E1C18;
+}
+.rc-cattab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(30, 28, 24, .08);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.rc-cattab-active .rc-cattab-count { background: rgba(30, 28, 24, .14); }
+/* Satu kategori lain sahaja — eyebrow nama kategori, tiada tab */
+.rc-catlist-eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #8A857A;
+  margin: 0 0 8px;
+}
+.rc-catlist {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rc-catlist[hidden] { display: none; }
+.rc-catdate-item {
+  appearance: none;
+  font-family: var(--font-jost);
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1.5px solid #E8E5DF;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.rc-catdate-item:hover {
+  border-color: #C9A84C;
+  background: #FBFAF7;
+  transform: translateY(-2px);
+}
+.rc-catdate-item:focus-visible {
+  outline: 2px solid #C9A84C;
+  outline-offset: 2px;
+}
+.rc-catdate-date {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-rubik);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #1E1C18;
+  line-height: 1.4;
+}
+.rc-catdate-flag {
+  color: #C9A84C;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.rc-catdate-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: #7D7A70;
+  white-space: nowrap;
+}
+.rc-catdate-meta .ti { font-size: 13px; margin-right: 2px; vertical-align: -2px; }
+.rc-catdate-seats strong { color: #DC2626; }
+.rc-catdate-go {
+  color: #C9A84C;
+  font-size: 16px;
+  flex-shrink: 0;
+  transition: transform .15s ease;
+}
+.rc-catdate-item:hover .rc-catdate-go { transform: translateX(3px); }
+
+@media (max-width: 640px) {
+  .rc-catdate-item {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .rc-catdate-meta { white-space: normal; width: 100%; order: 3; }
+  .rc-catdate-item .rc-catdate-go { margin-left: auto; }
+}
+/* Badge pill (currency native pakej) — dipapar bila currency pakej
+   berbeza dari currency listing aktif */
+.rc-pkg-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+  padding: 1px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.rc-pkg-badge-cur {
+  background: rgba(0, 0, 0, .06);
+  color: #5C5850;
+}
+/* ── Modal Change Date — LIST dua-bahagian (rail bulan + hasil tapisan);
+   seluas wrap container (.rc-trip-layout 1180px) sedikit lebih kecil ── */
+.modal-dialog.rc-changemodal-dialog {
+  max-width: min(1100px, calc(100vw - 48px));
+  width: 100%;
+}
+.rc-changemodal-card {
+  padding: 24px 22px 18px;
+  gap: 2px;
+}
+.rc-changemodal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.rc-changemodal-headleft { flex: 1; min-width: 0; }
+.rc-changemodal-head .rc-datemodal-title { margin: 0; }
+.rc-changemodal-subtitle {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: #7D7A70;
+}
+/* Badge kategori — float top-right header (selari kad Dates & Packages) */
+.rc-changemodal-cat { flex-shrink: 0; margin-top: 2px; }
+.rc-changemodal-body { flex: 1 1 auto; min-height: 0; margin-top: 14px; }
+/* Dropdown tapis — SKRIN KECIL sahaja (rail ambil alih pada ≥641px) */
+.rc-changemodal-filter { margin-bottom: 10px; }
+.rc-changemodal-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1.5px solid #E8E5DF;
+  border-radius: 10px;
+  background: #fff;
+  color: #1E1C18;
+  font-family: var(--font-jost);
+  font-size: 13px;
+  cursor: pointer;
+}
+.rc-changemodal-select:focus {
+  outline: none;
+  border-color: #C9A84C;
+}
+/* Dua kolum skrin lebar: rail menegak pilihan bulan-tahun (kiri) +
+   hasil tapisan bulan terpilih (kanan) */
+.rc-changemodal-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rc-changemodal-rail { display: none; }
+@media (min-width: 641px) {
+  .rc-changemodal-columns {
+    display: grid;
+    grid-template-columns: 190px 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .rc-changemodal-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: calc(80vh - 180px);
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+  .rc-changemodal-filter { display: none; }
+}
+.rc-changemodal-railbtn {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1.5px solid #E8E5DF;
+  background: #fff;
+  color: #5C5850;
+  font-family: var(--font-jost);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.rc-changemodal-railbtn:hover { border-color: #C9A84C; color: #1E1C18; }
+.rc-changemodal-railbtn.rc-changemodal-railbtn-active {
+  border-color: #C9A84C;
+  background: #C9A84C;
+  color: #1E1C18;
+}
+.rc-changemodal-railbtn-label { min-width: 0; }
+.rc-changemodal-railbtn-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(30, 28, 24, .08);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.rc-changemodal-railbtn-active .rc-changemodal-railbtn-count {
+  background: rgba(30, 28, 24, .16);
+}
+/* Senarai hasil — kad tarikh dalam GRID (skrin lebar: 2–3 kolum;
+   <641px: satu kolum). Tiada overflow/max-height sendiri — senarai
+   membesar natural, kad modal (80vh + overflow-y) yang mengurus skrol. */
+.rc-changemodal-dates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  align-content: start;
+}
+@media (max-width: 640px) {
+  .rc-changemodal-dates { grid-template-columns: 1fr; }
+}
+/* Kad tarikh — layout kolum (baris tarikh + baris harga "from" dewasa);
+   radio dot di-pos absolut supaya kolum kemas */
+.rc-changemodal-dates .rc-datemodal-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 14px 12px 40px;
+  position: relative;
+}
+.rc-changemodal-dates .rc-datemodal-item::before {
+  position: absolute;
+  left: 14px;
+  top: 17px;
+}
+.rc-changemodal-dates .rc-datemodal-item-text { flex: 0 0 auto; }
+/* Julat tarikh = teks BOLD; seats/sold-out kekal gaya sedia ada */
+.rc-changemodal-dates .rc-datemodal-item-date { font-weight: 700; }
+.rc-changemodal-itemprice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  width: 100%;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(201, 168, 76, .4);
+  font-size: 12px;
+  color: #7D7A70;
+}
+.rc-changemodal-itemprice-label { font-weight: 600; }
+/* Harga "from" — muted, TIADA bold (arahan pemilik) */
+.rc-changemodal-itemprice-value {
+  font-family: var(--font-rubik);
+  font-size: 14px;
+  font-weight: 400;
+  color: #7D7A70;
+}
+.rc-changemodal-itemprice-value b { font-weight: 400; }
+.rc-changemodal-itemprice .rc-price-was { font-size: 11.5px; }
+.rc-changemodal-itemprice .rc-promo-badge { font-size: 10.5px; }
+.rc-changemodal-flag { color: #C9A84C; font-size: 14px; }
+/* Senarai pakej dalam modal DIBUANG — pakej dipilih terus pada row kad
+   Dates & Packages (rc-dtpkg-row); modal Change Date = tarikh sahaja. */
+
+@media (max-width: 640px) {
+  .rc-date-cards { grid-template-columns: 1fr; }
+  /* Kad tarikh di skrin kecil: hero tarikh lebih kecil, row pakej rapat */
+  .rc-datecard-date { font-size: 18px; }
+  .rc-datecard-info { padding: 16px; }
+  .rc-dtpkg-row { padding: 9px 12px 9px 34px; }
+  .rc-dtpkg-row::before { left: 10px; top: 12px; }
+}
+
+/* ============================================================
+   SHOWCASE — KATEGORI KABIN (rc-cabin-cards)
+   Kad penuh per room category — data dari pricing.get_booking_details
+   (room_image/capacity/pricing per kategori, bukan MIN merentasi).
+   Section shell `hidden` di server; trip_detail.js unhide selepas
+   pakej dipilih dan kabin dipulangkan.
+   ============================================================ */
+.rc-cabin-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+}
+.rc-cabin-card {
+  background: #fff;
+  border: 1px solid #E8E5DF;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.rc-cabin-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px rgba(30, 28, 24, .1);
+}
+.rc-cabin-media {
+  position: relative;
+  aspect-ratio: 4/3;
+  background: #F2EFE9;
+  overflow: hidden;
+}
+.rc-cabin-media img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transition: transform .3s ease;
+}
+.rc-cabin-card:hover .rc-cabin-media img { transform: scale(1.04); }
+.rc-cabin-cap {
+  position: absolute;
+  bottom: 10px; right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(30, 28, 24, .72);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+  backdrop-filter: blur(6px);
+}
+.rc-cabin-cap .ti { font-size: 13px; }
+
+/* Badge baki kolam kontrak sailing pada kad showcase kabin — "N left"
+   (amber, merah bila ≤3) / "Sold Out" (merah penuh) bila kategori tak
+   boleh dijual (kolam habis / tak dikonfigur dalam cabin_rates).
+   Kolam besar / offer darat → tiada badge (rujuk trip_detail.js). */
+.rc-cabin-seats {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  background: rgba(180, 83, 9, .1);
+  color: #9A5B12;
+}
+.rc-cabin-seats .ti { font-size: 13px; }
+.rc-cabin-seats--crit {
+  background: rgba(185, 28, 28, .1);
+  color: #B12C1C;
+}
+.rc-cabin-seats--out {
+  background: rgba(185, 28, 28, .12);
+  color: #9C1C10;
+}
+.rc-cabin-seats--out .ti { font-size: 12px; }
+
+.rc-cabin-body {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+.rc-cabin-name {
+  font-family: var(--font-rubik);
+  font-size: 16px;
+  font-weight: 600;
+  color: #1E1C18;
+  margin: 0;
+}
+.rc-cabin-prices {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rc-cabin-price-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: #7D7A70;
+  border-bottom: 1px dashed #E8E5DF;
+  padding-bottom: 4px;
+}
+.rc-cabin-price-row:last-child { border-bottom: none; }
+.rc-cabin-price-row b {
+  font-family: var(--font-rubik);
+  font-size: 14px;
+  color: #1E1C18;
+  white-space: nowrap;
+}
+.rc-cabin-desc {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #7D7A70;
+}
+/* Butang Reserve per kad kabin — aliran Book Now + pra-pilih kategori
+   kabin kad itu sebagai BILIK PERTAMA di wizard /booknow */
+.rc-cabin-reserve {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 10px;
+  background: #C9A84C;
+  color: #1E1C18;
+  font-family: var(--font-jost);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  cursor: pointer;
+  transition: background .15s ease, transform .15s ease;
+}
+.rc-cabin-reserve:hover:not(:disabled) { background: #B8983F; }
+.rc-cabin-reserve:active:not(:disabled) { transform: translateY(1px); }
+.rc-cabin-reserve:disabled { opacity: .5; cursor: not-allowed; }
+.rc-cabin-reserve .ti { font-size: 15px; }
+
+/* ── Tab Category Group (Cabin/Suite/Villa/Room) — papar bila trip cruise
+   ada lebih 1 group kategori; klik tab tukar set kad dipapar ── */
+.rc-cabin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.rc-cabin-tab {
+  padding: 7px 18px;
+  border-radius: 999px;
+  border: 1.5px solid #E8E5DF;
+  background: #fff;
+  color: #5C5850;
+  font-family: var(--font-jost);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.rc-cabin-tab:hover { border-color: #C9A84C; color: #1E1C18; }
+.rc-cabin-tab.rc-cabin-tab-active {
+  background: #C9A84C;
+  border-color: #C9A84C;
+  color: #1E1C18;
+}
+.rc-cabin-card.rc-cabin-card-hidden { display: none; }
+
+
+@media (max-width: 640px) {
+  .rc-cabin-cards { grid-template-columns: 1fr; }
+}

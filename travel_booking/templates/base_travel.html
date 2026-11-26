@@ -36,6 +36,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800;900&family=Rubik:wght@300;400;500;600;700;800;900&family=Sansita&family=Satisfy&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css"/>
+  {# ── LAPISAN COMMON: Bootstrap 5.3.3 (vendor lokal) + tema jenama
+     Rarecation. ORDER WAJIB: bootstrap → rc-theme → CSS custom
+     (portal.css & CSS page), supaya custom masih menang di halaman
+     yang belum dimigrasi. Rujuk public/css/rc-theme.css. #}
+  <link rel="stylesheet" href="/assets/travel_booking/css/bootstrap.min.css?v={{ asset_v('css/bootstrap.min.css') }}"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/rc-theme.css?v={{ asset_v('css/rc-theme.css') }}"/>
   <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') }}"/>
   {% block head_extra %}{% endblock %}
   {# Konfigurasi GA4 per-site (Travel Website → tab Cruise/Tour Homepage).
@@ -78,6 +84,10 @@
      supaya window.RCGA sedia bila page JS (trip_detail/booknow/dll.)
      panggil event funnel (add_to_cart, begin_checkout, purchase, dsb.). #}
   <script src="/assets/travel_booking/js/analytics.js?v={{ asset_v('js/analytics.js') }}"></script>
+  {# Bootstrap bundle (Popper included) — dropdown/collapse/carousel/
+     modal/offcanvas/accordion BS5. `defer` supaya tak blok render;
+     handler page-specific (footer_extra) tetap selepas ini. #}
+  <script src="/assets/travel_booking/js/bootstrap.bundle.min.js?v={{ asset_v('js/bootstrap.bundle.min.js') }}" defer></script>
   {% block footer_extra %}{% endblock %}
 </body>
 </html>

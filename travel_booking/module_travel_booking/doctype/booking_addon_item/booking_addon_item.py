@@ -31,8 +31,8 @@ class BookingAddonItem(Document):
 		scope: DF.Literal["Per Booking", "Per Pax"]
 		status: DF.Literal["Pending", "Confirmed", "Cancelled"]
 		traveller_name: DF.Data | None
-		trip_date: DF.Link | None
-		trip_package: DF.Link | None
+		travel_date: DF.Link | None
+		package_offer: DF.Link | None
 		unit_price: DF.Currency
 		valid_from: DF.Date | None
 		valid_to: DF.Date | None
@@ -63,12 +63,22 @@ class BookingAddonItem(Document):
 		WAKTU baris ini dicipta sahaja (before_insert, bukan validate) —
 		perubahan harga Addon Package selepas ini tak menjejaskan baris
 		sedia ada.
+
+		Currency yang dihantar (laluan checkout — addon_manager.checkout_
+		addons telah resolve harga server-side untuk currency terpilih)
+		dihormati: rate diambil untuk currency TERSEBUT sahaja, bukan baris
+		rate pertama yang kebetulan wujud (boleh currency lain → menimpa
+		harga yang betul). Tanpa currency (cipta manual di Desk), fallback
+		ke baris rate pertama enabled — tingkah laku lama. Rate tak dijumpai
+		bagi currency yang dihantar → kekal nilai checkout (sudah divalidasi
+		server-side di sana).
 		"""
 		if not self.addon_package:
 			return
 		rate = frappe.db.get_value(
 			"Trip Addon Package Rate",
-			{"parent": self.addon_package, "parenttype": "Trip Addon Package", "enabled": 1},
+			{"parent": self.addon_package, "parenttype": "Trip Addon Package",
+			 "enabled": 1, **({"currency": self.currency} if self.currency else {})},
 			["currency", "unit_price"], as_dict=True,
 			order_by="creation asc",
 		)
@@ -110,17 +120,22 @@ class BookingAddonItem(Document):
 			self.valid_to = return_date or departure
 
 	def enforce_scope(self):
-		"""Per Pax mesti ada booking_reservation MILIK booking yang sama.
+		"""Per Pax mesti ada booking_reservation MILIK booking yang sama —
+		KECUALI baris "unassigned" (booking_reservation kosong), yang
+		dicipta oleh wizard /booknow sebelum mana-mana reservation wujud:
+		Booking Reservation hanya dicipta selepas bayaran pertama masuk
+		(_activate_booking), jadi baris addon wizard mesti boleh disimpan
+		dahulu dan di-assign kemudian oleh
+		api.addon_manager._assign_unassigned_addon_items().
 		Per Booking mesti KOSONG booking_reservation — elak baris tertinggal
 		rujukan traveller yang tak relevan bila scope sebenarnya di peringkat
 		booking.
 		"""
 		if self.scope == "Per Pax":
-			if not self.booking_reservation:
-				frappe.throw("Booking Reservation is required when Scope is Per Pax.")
-			res_booking = frappe.db.get_value("Booking Reservation", self.booking_reservation, "booking")
-			if res_booking != self.booking:
-				frappe.throw("The selected Booking Reservation does not belong to this booking.")
+			if self.booking_reservation:
+				res_booking = frappe.db.get_value("Booking Reservation", self.booking_reservation, "booking")
+				if res_booking != self.booking:
+					frappe.throw("The selected Booking Reservation does not belong to this booking.")
 		else:
 			self.booking_reservation = None
 

@@ -12,7 +12,9 @@
   "inventory_key",
   "allotment",
   "sold",
-  "available"
+  "available",
+  "allotment_partner",
+  "deprecation_note"
  ],
  "fields": [
   {
@@ -22,7 +24,7 @@
    "reqd": 1,
    "in_list_view": 1,
    "columns": 4,
-   "description": "cth 'cabin:BALCONY|occ:TWIN' — unik per offer"
+   "description": "cth 'cabin:BALCONY|occ:TWIN' \u2014 unik per offer"
   },
   {
    "fieldname": "allotment",
@@ -30,6 +32,15 @@
    "label": "Allotment",
    "in_list_view": 1,
    "default": "0"
+  },
+  {
+   "description": "Fasa C: reserve kuota baris ni EXCLUSIF untuk satu Travel B2B Partner (distribusi group block / charter ke sub-agensi). Kosong = baris umum (semua saluran). Gate kapasiti: booking partner lain TIDAK boleh makan kuota baris ini.",
+   "fieldname": "allotment_partner",
+   "fieldtype": "Link",
+   "label": "Reserved For Partner (optional)",
+   "options": "Travel B2B Partner",
+   "in_list_view": 1,
+   "columns": 2
   },
   {
    "fieldname": "sold",
@@ -44,6 +55,12 @@
    "label": "Available",
    "read_only": 1,
    "in_list_view": 1
+  },
+  {
+   "fieldname": "deprecation_note",
+   "fieldtype": "HTML",
+   "label": "Legacy (read-only)",
+   "options": "<div class=\"alert alert-secondary\" style=\"padding:8px 12px\"><strong>Legacy shadow (Nov 2026).</strong> Kapasiti kini model BERLAPIS: slice pada Travel Date Rooming (child) + pool Sailing Inventory. Baris di sini adalah bayangan sejarah pra-migrasi v46/v48 \u2014 tidak lagi ditulis oleh booking. Jangan edit.</div>"
   }
  ],
  "links": [],
@@ -53,5 +70,6 @@
  "track_changes": 1,
  "istable": 1,
  "editable_grid": 1,
- "allow_bulk_edit": 1
+ "allow_bulk_edit": 1,
+ "deprecated": 1
 }

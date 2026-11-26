@@ -21,6 +21,8 @@
   "column_break_jyau",
   "trip_organizer",
   "naming_series",
+  "default_components_section",
+  "default_components",
   "tab_break_tegv",
   "section_break_hibe",
   "column_break_cahp",
@@ -47,8 +49,6 @@
   "faqs",
   "facilities",
   "itinerary_section",
-  "itinerary_title",
-  "itinerary_caption",
   "itinerary",
   "connection_tab"
  ],
@@ -151,6 +151,18 @@
    "hidden": 1,
    "options": "TRIP.YY.##",
    "reqd": 1
+  },
+  {
+   "fieldname": "default_components_section",
+   "fieldtype": "Section Break",
+   "label": "Default Products & Components"
+  },
+  {
+   "description": "Hierarki ERD: kombinasi komponen DEFAULT di peringkat trip — pakej baharu di bawah trip ini pra-isi daripada senarai ini (wizard), kemudian boleh diubah per pakej. Guna semula child table Package Component.",
+   "fieldname": "default_components",
+   "fieldtype": "Table",
+   "label": "Default Components",
+   "options": "Package Component"
   },
   {
    "fieldname": "section_break_hibe",
@@ -294,17 +306,6 @@
    "fieldname": "meta_noindex",
    "fieldtype": "Check",
    "label": "Hide from Search Engines (noindex)"
-  },
-  {
-   "default": "Itinerary",
-   "fieldname": "itinerary_title",
-   "fieldtype": "Data",
-   "label": "Itinerary Title"
-  },
-  {
-   "fieldname": "itinerary_caption",
-   "fieldtype": "Small Text",
-   "label": "Itinerary Caption"
   }
  ],
  "grid_page_length": 50,

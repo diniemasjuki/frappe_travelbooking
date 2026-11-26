@@ -13,6 +13,8 @@ class Booking(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
+		from travel_booking.module_travel_booking.doctype.booking_item.booking_item import BookingItem
+		from travel_booking.module_travel_booking.doctype.booking_sales_order.booking_sales_order import BookingSalesOrder
 
 		affiliate: DF.Link | None
 		applied_price_rules: DF.JSON | None
@@ -38,12 +40,16 @@ class Booking(Document):
 		departure_date: DF.Date | None
 		end_customer: DF.Link | None
 		get_cust_booking_phone: DF.Phone | None
+		hold_expires_on: DF.Datetime | None
 		is_a_cruise_trip: DF.Check
 		is_cruise_only: DF.Check
+		items: DF.Table[BookingItem]
 		naming_series: DF.Literal["BK.YY.MM.###"]
+		package_offer: DF.Link | None
 		package_type: DF.ReadOnly | None
 		paid_amount: DF.Currency
 		payment_due_amount: DF.Currency
+		payment_reminders_sent: DF.JSON | None
 		payment_status: DF.Literal["Pending", "Partially Paid", "Paid", "Request Refund", "Pending Refund", "Refunded", "Canceled"]
 		pre_discount_total: DF.Currency
 		price_rule_discount: DF.Currency
@@ -51,6 +57,7 @@ class Booking(Document):
 		referral_code_used: DF.Data | None
 		referral_discount: DF.Currency
 		return_date: DF.Date | None
+		sales_orders: DF.Table[BookingSalesOrder]
 		status: DF.Literal["Pending", "Accepted", "Processing", "Confirmed", "Completed", "Abandoned", "Cancelled"]
 		terms_accepted: DF.Check
 		terms_accepted_at: DF.Datetime | None
@@ -59,13 +66,8 @@ class Booking(Document):
 		total_days: DF.ReadOnly | None
 		total_night: DF.ReadOnly | None
 		trip_date: DF.Link | None
-		trip_date_group_name: DF.ReadOnly | None
-		trip_date_group_status: DF.ReadOnly | None
 		trip_name: DF.ReadOnly | None
 		trip_package: DF.Link | None
-		trip_package_name: DF.ReadOnly | None
-		trip_package_status: DF.ReadOnly | None
-		trip_status: DF.Data | None
 		trip_title: DF.ReadOnly | None
 		voucher: DF.Link | None
 		voucher_discount: DF.Currency
@@ -180,6 +182,10 @@ class Booking(Document):
 		setiap orang, bukan sekadar senarai rata 'item_name x qty'
 		seperti sebelum ini. Guest numbering reset setiap cabin baharu,
 		sama pattern dengan wizard.
+
+		FASA 0 (booking-centric): sumber utama ialah baris Booking Item
+		(per traveller, SO utama sahaja) — fallback ke parse item_name SO
+		untuk booking lama pra-backfill / SO manual admin.
 		"""
 		from travel_booking.api.booking import _get_primary_so
 		primary_so = _get_primary_so(self.name)
@@ -193,39 +199,72 @@ class Booking(Document):
 		so_currency = frappe.db.get_value("Sales Order", primary_so, "currency") or "MYR"
 		symbol = frappe.db.get_value("Currency", so_currency, "symbol") or so_currency
 
-		items = frappe.db.get_all("Sales Order Item",
-									filters={"parent": primary_so},
-									fields=["item_name", "qty", "rate"], order_by="idx")
-		if not items:
-			return ""
-
 		cabins         = []
 		cabin_map      = {}
 		discount_lines = []
 
-		for it in items:
-			name = it.item_name or ""
-			rate = float(it.rate or 0)
+		def _cabin(label):
+			if label not in cabin_map:
+				cabin_map[label] = {"label": label, "fare": 0.0, "lines": []}
+				cabins.append(cabin_map[label])
+			return cabin_map[label]
 
-			if rate < 0:
-				discount_lines.append((name, rate))
-				continue
+		# ── Laluan utama: Booking Item (per traveller) ──
+		bi = frappe.get_all("Booking Item",
+							filters={"booking": self.name,
+									 "sales_order": primary_so,
+									 "status": ["!=", "Cancelled"]},
+							fields=["room_category", "cabin_no", "pax_type",
+									"rate_basis", "unit_price"],
+							order_by="idx")
+		if bi:
+			for it in bi:
+				# Label kad = format item_name SO ("Room Category (Cabin N)")
+				# dan label pax cermin SO ("Main Guest (Single)") supaya
+				# paparan KEKAL IDENTIK dengan laluan legacy di bawah.
+				label = (it.room_category or "") + " (Cabin " + str(it.cabin_no or 0) + ")"
+				pax_type = it.pax_type or ""
+				if (it.rate_basis or "Standard") == "Single":
+					pax_type = pax_type + " (Single)"
+				cab = _cabin(label)
+				rate = float(it.unit_price or 0)
+				cab["fare"] += rate
+				cab["lines"].append((pax_type, rate))
+			# Baris diskaun legacy (rate negatif, pra-model PE deduction)
+			# kekal dipaparkan supaya pariti dengan laluan legacy — Booking
+			# Item sengaja tak menyimpan baris bukan-traveller.
+			for it in frappe.db.get_all("Sales Order Item",
+										filters={"parent": primary_so, "rate": ["<", 0]},
+										fields=["item_name", "rate"], order_by="idx"):
+				discount_lines.append((it.item_name or "", float(it.rate or 0)))
+		else:
+			# ── Fallback legacy: parse item_name SO utama ──
+			items = frappe.db.get_all("Sales Order Item",
+										filters={"parent": primary_so},
+										fields=["item_name", "qty", "rate"], order_by="idx")
+			if not items:
+				return ""
 
-			if "\u2014" in name:
-				cabin_label, pax_type = name.split("\u2014", 1)
-				cabin_label = cabin_label.strip()
-				pax_type    = pax_type.strip()
-			else:
-				cabin_label, pax_type = name, ""
+			for it in items:
+				name = it.item_name or ""
+				rate = float(it.rate or 0)
 
-			if cabin_label not in cabin_map:
-				cabin_map[cabin_label] = {"label": cabin_label, "fare": 0.0, "lines": []}
-				cabins.append(cabin_map[cabin_label])
+				if rate < 0:
+					discount_lines.append((name, rate))
+					continue
 
-			qty = int(it.qty or 0)
-			cabin_map[cabin_label]["fare"] += qty * rate
-			for _ in range(qty):
-				cabin_map[cabin_label]["lines"].append((pax_type, rate))
+				if "\u2014" in name:
+					cabin_label, pax_type = name.split("\u2014", 1)
+					cabin_label = cabin_label.strip()
+					pax_type    = pax_type.strip()
+				else:
+					cabin_label, pax_type = name, ""
+
+				cab = _cabin(cabin_label)
+				qty = int(it.qty or 0)
+				cab["fare"] += qty * rate
+				for _ in range(qty):
+					cab["lines"].append((pax_type, rate))
 
 		out = []
 		for c in cabins:

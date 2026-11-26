@@ -14,6 +14,7 @@
   "flight",
   "component_item",
   "column_break_a",
+  "age_option",
   "selection_mode",
   "qty",
   "mandatory",
@@ -53,6 +54,13 @@
   {
    "fieldname": "column_break_a",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "age_option",
+   "fieldtype": "Select",
+   "label": "Passenger Category",
+   "options": "\nADULT\nCHILD\nINFANT\nTODDLER",
+   "description": "Kosong = umum (semua kategori penumpang)"
   },
   {
    "fieldname": "selection_mode",

@@ -9,19 +9,19 @@
  "field_order": [
   "column_break_dwuz",
   "pricing_for_class",
+  "price_category",
+  "price_variant_code",
   "cabin_allotment",
   "cabin_available",
   "cabin_occupancy",
   "price_rating",
-  "price_category",
   "column_break_fqjq",
   "price_adult_single",
   "price_adult",
   "price_upperberth",
   "price_children",
   "price_toddler",
-  "price_infant",
-  "price_variant_code"
+  "price_infant"
  ],
  "fields": [
   {
@@ -34,7 +34,7 @@
   },
   {
    "default": "0",
-   "description": "(Age 12+ years old) — SEMUA harga dalam COMPANY CURRENCY",
+   "description": "(Age 12+ years old) \u2014 SEMUA harga dalam COMPANY CURRENCY",
    "fieldname": "price_adult",
    "fieldtype": "Currency",
    "in_list_view": 1,
@@ -86,7 +86,7 @@
    "sticky": 1
   },
   {
-   "fetch_from": "pricing_for_class.category_code",
+   "fetch_from": "pricing_for_class.price_category",
    "fieldname": "price_category",
    "fieldtype": "Data",
    "is_virtual": 1,
@@ -131,7 +131,7 @@
   },
   {
    "default": "0",
-   "description": "Total cabins allotted for this class on the schedule. Availability auto-syncs: Allotment − Occupancy.",
+   "description": "Total cabins allotted for this class on the schedule. Availability auto-syncs: Allotment \u2212 Occupancy.",
    "fieldname": "cabin_allotment",
    "fieldtype": "Int",
    "label": "Cabin Allotment",
@@ -153,10 +153,10 @@
   }
  ],
  "grid_page_length": 50,
- "index_web_pages_for_search": 1,
  "istable": 1,
+ "link_display_mode": "Search",
  "links": [],
- "modified": "2026-09-12 10:12:47.830",
+ "modified": "2026-11-12 05:26:47.813501",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Trip Package Price",

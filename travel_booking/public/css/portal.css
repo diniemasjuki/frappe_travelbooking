@@ -169,16 +169,10 @@ select option { background: var(--bg-primary); }
   border-radius: 20px;
   white-space: nowrap;
 }
-.p-ok   { background: #DCFCE7; color: #166534; }
 .p-warn { background: #FEF3C7; color: #92400E; }
-.p-paid { background: #DCFCE7; color: #166534; }
 .p-miss { background: #FEE2E2; color: #991B1B; }
 .p-acc  { background: var(--c-accent-mid); color: var(--c-accent-text); }
 
-.ds-ok   { font-size: 11px; font-weight: 600; letter-spacing: .03em; padding: 4px 10px; border-radius: 20px; background: #DCFCE7; color: #166534; }
-.ds-pend { font-size: 11px; font-weight: 600; letter-spacing: .03em; padding: 4px 10px; border-radius: 20px; background: #FEF3C7; color: #92400E; }
-.ds-miss { font-size: 11px; font-weight: 600; letter-spacing: .03em; padding: 4px 10px; border-radius: 20px; background: #FEE2E2; color: #991B1B; }
-.ds-rev  { font-size: 11px; font-weight: 600; letter-spacing: .03em; padding: 4px 10px; border-radius: 20px; background: #EDE9FE; color: #5B21B6; }
 
 .badge { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; }
 .bl { background: #DCFCE7; color: #166534; }
@@ -201,101 +195,12 @@ select option { background: var(--bg-primary); }
 .logo { font-family: var(--font-display); font-size: 20px; letter-spacing: -.3px; color: var(--text-primary); }
 .logo em { color: var(--text-primary); font-style: normal; }
 .logo img { height: 36px; display: block; }
-.nav-right { display: flex; align-items: center; gap: 14px; }
-.nav-nm { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
-.nav-bk { font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 20px; letter-spacing: .03em; }
-.nav-sub {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  padding: 7px 32px;
-  background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-secondary);
-  flex-shrink: 0;
-}
 /* Avatar — yellow theme */
-.av {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .05em;
-  flex-shrink: 0;
-  background: var(--c-accent-mid);
-  color: var(--c-accent-text);
-}
 
-/* ── Public Nav (customer-facing header) ── */
-.rc-public-nav {
-  position: sticky; top: 0; z-index: 50;
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 16px; padding: 12px 28px;
-  background: #fff; border-bottom: 1px solid #E8E5DF;
-}
-.rc-nav-logo { flex-shrink: 0; }
-.rc-nav-logo a { text-decoration: none; display: flex; align-items: center; gap: 8px; }
-.rc-nav-logo img { width: 140px; height: auto; display: block; }
-.rc-logo-fallback {
-  display: none; font-family: 'DM Serif Display', serif;
-  font-size: 24px; line-height: 1; color: #1E1C18;
-}
-.rc-logo-fallback em { font-style: normal; color: #C9A84C; }
-
-/* Centered menu */
-.rc-nav-menu {
-  display: flex; align-items: center; gap: 4px;
-  position: absolute; left: 50%; transform: translateX(-50%);
-}
-.rc-nav-link {
-  display: inline-flex; align-items: center;
-  padding: 8px 16px; border-radius: 8px;
-  font-size: 14px; font-weight: 500; white-space: nowrap;
-  text-decoration: none; color: #5C5850; transition: all .2s;
-}
-.rc-nav-link:hover { color: #1E1C18; background: #F7F5F0; }
-.rc-nav-link.on { color: #fff; background: #C9A84C; }
-
-/* Right action button */
-.rc-nav-btn {
-  flex-shrink: 0; padding: 9px 18px; border-radius: 9px;
-  background: #1E1C18; color: #fff;
-  font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap;
-  transition: background .2s;
-}
-.rc-nav-btn:hover { background: #333; }
-
-/* Right cluster — currency selector + CTA duduk sebelah-menepi */
-.rc-nav-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-
+/* ── Public Nav — DIMIGRASI ke Bootstrap navbar (rc-theme.css) ── */
 @media (max-width: 800px) {
-  /* Disable sticky public nav on mobile — biar scroll naturally dgn content */
-  .rc-public-nav { position: static; padding: 10px 16px; gap: 10px; flex-wrap: wrap; }
-  .rc-nav-menu {
-    position: static; left: auto; transform: none;
-    order: 3; width: 100%; justify-content: center;
-    padding: 8px 0 0; border-top: 1px solid #F0EDE7;
-    margin-top: 4px;
-  }
-  .rc-nav-link { padding: 7px 12px; font-size: 13px; }
-  .rc-nav-btn { padding: 7px 14px; font-size: 12px; }
-  .rc-nav-logo img { width: 120px; }
-
   /* Disable sticky cart card on mobile (inline style needs !important) */
   #cart-card { position: static !important; bottom: auto !important; }
-}
-
-@media (max-width: 500px) {
-  .rc-public-nav { padding: 8px 12px; }
-  .rc-nav-menu { gap: 2px; }
-  .rc-nav-link { padding: 6px 8px; font-size: 12px; }
-  .rc-nav-btn { padding: 6px 12px; font-size: 11px; }
-  .rc-nav-logo img { width: 110px; }
 }
 
 /* ── Tabs ── */
@@ -347,13 +252,6 @@ select option { background: var(--bg-primary); }
   padding: 40px;
   box-shadow: var(--shadow-lg);
 }
-.login-hint {
-  font-size: 12px;
-  color: var(--text-muted);
-  text-align: center;
-  margin-top: 16px;
-  line-height: 1.7;
-}
 
 /* ── Cards ── */
 .card {
@@ -374,16 +272,6 @@ select option { background: var(--bg-primary); }
 }
 
 /* ── Payment result screen (selepas redirect balik dari Stripe checkout) ── */
-.pr-card {
-  background: var(--bg-primary);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md, 0 2px 12px rgba(0,0,0,.06));
-  padding: 40px 32px;
-  max-width: 400px;
-  width: 100%;
-  text-align: center;
-  margin:auto;
-}
 .pr-icon {
   width: 56px;
   height: 56px;
@@ -437,81 +325,17 @@ select option { background: var(--bg-primary); }
 .pr-btn-row .btn { flex: 1; }
 
 /* ── Traveller form tabs ── */
-.tvl-tabs {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-  margin-bottom: 14px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.tvl-tabs::-webkit-scrollbar { display: none; }
-.tvl-tab {
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-secondary);
-  padding: 8px 14px;
-  border-radius: 20px;
-  white-space: nowrap;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  transition: background .15s, color .15s, border-color .15s;
-}
-.tvl-tab:hover { background: var(--border-secondary); }
 .tvl-tab.on {
   font-weight: 600;
   color: #fff;
   background: var(--c-accent-dark, #D4A312);
   border-color: var(--c-accent-dark, #D4A312);
 }
-.tvl-panel { display: none; }
 .tvl-panel.on { display: block; }
 
 /* ── Trip hero ── */
-.trip-hero {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-secondary);
-  border-radius: var(--radius-lg);
-  padding: 20px 24px;
-  margin-bottom: 16px;
-  box-shadow: var(--shadow-sm);
-  position: relative;
-  overflow: hidden;
-}
-.trip-hero::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--c-accent), transparent);
-}
-.th-lbl { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 6px; }
-.th-name { font-family: var(--font-display); font-size: 22px; line-height: 1.2; color: var(--text-primary); }
-.th-sub { font-size: 13px; color: var(--text-secondary); margin-top: 5px; }
 
 /* ── Itinerary ── */
-.itin-item { display: flex; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border-tertiary); align-items: flex-start; }
-.itin-item:last-child { border: none; }
-.itin-place { font-size: 14px; font-weight: 500; }
-.itin-desc { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
-.act-tag {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 500;
-  padding: 3px 9px;
-  border-radius: 6px;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  border: 1px solid var(--border-secondary);
-  margin-right: 4px;
-  margin-top: 6px;
-}
 
 /* ── Info notes ── */
 .info-note { padding: 12px 16px; background: #FFFBEB; border-radius: var(--radius-sm); margin-bottom: 16px; border-left: 3px solid #F59E0B; }
@@ -523,20 +347,6 @@ select option { background: var(--bg-primary); }
 /* ── Document rows ── */
 .dr { display: flex; align-items: center; justify-content: space-between; padding: 2px 0; }
 .dr-n { font-size: 13px; color: var(--text-secondary); }
-.dr-hint { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-.up-btn {
-  font-size: 11px;
-  font-weight: 600;
-  padding: 5px 12px;
-  border: 1px solid var(--border-primary);
-  border-radius: 6px;
-  cursor: pointer;
-  background: var(--bg-primary);
-  transition: var(--transition);
-  letter-spacing: .02em;
-  color: var(--c-accent-dark);
-}
-.up-btn:hover { background: var(--c-accent-light); border-color: var(--c-accent); }
 
 /* ── Upload area ── */
 .upload-area {
@@ -564,70 +374,13 @@ select option { background: var(--bg-primary); }
 .upload-sub { font-size: 12px; color: var(--text-muted); }
 
 /* ── Progress bar ── */
-.prog-box {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-secondary);
-  border-radius: var(--radius-lg);
-  padding: 18px 22px;
-  margin-bottom: 16px;
-  box-shadow: var(--shadow-sm);
-}
-.prog-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; font-weight: 500; }
-.prog-bar { height: 6px; background: var(--border-secondary); border-radius: 3px; overflow: hidden; }
-.prog-fill { height: 100%; border-radius: 3px; transition: width .5s cubic-bezier(.4,0,.2,1); background: linear-gradient(90deg, var(--c-accent), #FCE45A); }
 
 /* ── Payment table ── */
-.pay-table {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-secondary);
-  border-radius: var(--radius-lg);
-  margin-bottom: 16px;
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-}
 .pr { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border-secondary); }
 .pr:last-child { border: none; }
-.pr-l { font-size: 14px; font-weight: 400; }
-.pr-s { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
-.pr-a { font-size: 14px; font-weight: 600; color: var(--c-accent-dark); }
-.pr-total { background: var(--bg-secondary); }
-.pr-total .pr-l { font-size: 14px; font-weight: 600; }
-.pr-total .pr-a { font-size: 20px; color: var(--c-accent-dark); }
-.stat2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-.sbox { background: var(--bg-primary); border: 1px solid var(--border-secondary); border-radius: var(--radius-md); padding: 16px 20px; box-shadow: var(--shadow-sm); }
 .sbox .sl { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
-.sbox .sv { font-size: 20px; font-weight: 600; color: var(--c-accent-dark); }
 
 /* ── Download doc row ── */
-.doc-dl {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-secondary);
-  border-radius: var(--radius-md);
-  padding: 14px 18px;
-  margin-bottom: 10px;
-  box-shadow: var(--shadow-sm);
-  transition: var(--transition);
-}
-.doc-dl:hover { box-shadow: var(--shadow-md); }
-.ddl-n { font-size: 14px; font-weight: 500; }
-.ddl-s { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
-.dl-btn {
-  border-radius: var(--radius-sm);
-  padding: 7px 16px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: var(--transition);
-  letter-spacing: .02em;
-  border: 1px solid var(--border-secondary);
-  background: var(--bg-secondary);
-  color: var(--c-accent-dark);
-  font-family: var(--font-body);
-}
-.dl-btn:hover { background: var(--c-accent-mid); border-color: var(--c-accent); }
 
 /* ══════════════════════════════════════════════
    Slot Cards & Booking Cards (merged from customer.css)
@@ -710,15 +463,9 @@ select option { background: var(--bg-primary); }
 .slot-sub { font-size: 11px; color: var(--text-muted, #B0AC9F); }
 
 /* ── Forgot password link ── */
-.forgot-link { font-size: 12px; color: var(--c-accent-dark); cursor: pointer; }
-.forgot-link:hover { text-decoration: underline; }
 
 /* ── Breadcrumb ── */
 .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
-.bc-link { color: var(--text-muted, #B0AC9F); cursor: pointer; transition: color .15s; }
-.bc-link:hover { color: var(--text-primary, #1E1C18); }
-.bc-sep { color: var(--text-muted, #B0AC9F); }
-.bc-current { color: var(--text-secondary, #5C5850); }
 
 /* intl-tel-input — selaraskan dengan styling input borang kita sendiri
    (library sisip <div class="iti"> wrapper + bendera/dropdown sekeliling
@@ -734,45 +481,10 @@ select option { background: var(--bg-primary); }
   font-size: 14px;
   font-family: var(--font-body);
 }
-.iti__selected-country { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
 
-.magiclink-btn {
-  display: inline;
-  align-items: center;
-  justify-content: center;
-  font-family: 'Roboto', sans-serif;
-  font-weight: 500;
-  font-size: 14px;
-  border: none;
-  border-radius: 4px;
-  padding: 10px 16px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
 
-.google-btn {
-  display: inline;
-  align-items: center;
-  justify-content: center;
-  background-color: #4285F4; /* Google Blue */
-  color: #fff;
-  font-family: 'Roboto', sans-serif;
-  font-weight: 500;
-  font-size: 14px;
-  border: none;
-  border-radius: 4px;
-  padding: 10px 16px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
 
-.google-btn:hover {
-  background-color: #357ae8; /* darker hover */
-}
 
-.google-btn:active {
-  background-color: #2a65d6;
-}
 
 
 
@@ -834,7 +546,6 @@ select option { background: var(--bg-primary); }
 /* ── Responsive : tablet ── */
 @media (max-width: 800px) {
   .g2 { grid-template-columns: 1fr; }
-  .stat2 { grid-template-columns: 1fr; }
   .login-box { padding: 28px 24px; }
   .body { padding: 20px 16px; }
   .nav { padding: 0 16px; height: auto; min-height: 52px; flex-wrap: nowrap; gap: 8px; }
@@ -843,10 +554,7 @@ select option { background: var(--bg-primary); }
   .tab { padding: 12px 14px; font-size: 12px; }
   .trip-hero, .card { padding: 16px 18px; }
   .logo img { height: 28px; }
-  .nav-nm { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .nav-right { gap: 8px; flex-shrink: 0; min-width: 0; }
   .btn-logout { font-size: 11px; padding: 5px 10px; white-space: nowrap; }
-  .av { width: 28px; height: 28px; font-size: 10px; flex-shrink: 0; }
   .bill-so-head { padding: 14px 16px; }
   .bill-so-body { padding: 16px; }
 }
@@ -855,7 +563,6 @@ select option { background: var(--bg-primary); }
 /* ── Responsive : phone ── */
 @media (max-width: 500px) {
   .g2 { grid-template-columns: 1fr; }
-  .stat2 { grid-template-columns: 1fr; }
   .login-box { padding: 28px 24px; }
   .body { padding: 20px 16px; }
   .nav { padding: 0 16px; height: auto; min-height: 52px; flex-wrap: nowrap; gap: 8px; display:block; padding:15px; }
@@ -863,18 +570,13 @@ select option { background: var(--bg-primary); }
   .tab { padding: 12px 14px; font-size: 12px; }
   .trip-hero, .card { padding: 16px 18px; }
   .logo img { height: 28px; }
-  .nav-nm { font-size: 11px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .nav-right { gap: 8px; flex-shrink: 0; min-width: 0; justify-content: left; margin-top:10px; }
   .btn-logout { font-size: 11px; padding: 5px 10px; white-space: nowrap; position: absolute; top: 25px; right: 10px; }
-  .av { display:none; }
-  .nav-sub { display:none; }
   .bill-stats { grid-template-columns: 1fr; }
   .bill-so-head { padding: 13px 14px; }
   .bill-so-body { padding: 14px; }
 }
 
 /* dinie custom */
-.nav-sub{display:none;}
 
 /* ============================================================
    Destination autocomplete — hero search (cruise + tour + trips)

@@ -18,7 +18,7 @@ frappe.ui.form.on("Trip Group Date", {
                 return {
                     filters: [ 
                         // ikut nilai semasa field lain
-                        ["Trip Cruise Schedule", "trip_link", "=", frm.doc.trip]
+                        // [BUANG Nov 2026] schedule tiada lagi link Trip — senarai penuh
                     ]
                 };
             });
@@ -36,7 +36,7 @@ frappe.ui.form.on("Trip Group Date", {
                 return {
                     filters: [ 
                         // ikut nilai semasa field lain
-                        ["Trip Cruise Schedule", "trip_link", "=", frm.doc.trip]
+                        // [BUANG Nov 2026] schedule tiada lagi link Trip — senarai penuh
                     ]
                 };
             });
@@ -67,7 +67,7 @@ frappe.ui.form.on("Trip Group Date", {
             return {
                 filters: [ 
                     // ikut nilai semasa field lain
-                    ["Trip Cruise Schedule", "trip_link", "=", frm.doc.trip]
+                    // [BUANG Nov 2026] schedule tiada lagi link Trip — senarai penuh
                 ]
             };
         });

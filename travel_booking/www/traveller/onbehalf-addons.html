@@ -1,12 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Add-ons (On-Behalf) — {{ site_name or 'Rarecation' }} Portal</title>
-  <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
-  <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v=1"/>
-  <link rel="stylesheet" href="/assets/travel_booking/css/traveller.css?v=1"/>
+  {% with tv_title = "Add-ons (On-Behalf)" %}
+  {% include "templates/includes/traveller_head.html" %}
+  {% endwith %}
 </head>
 <body class="tv-page">
 

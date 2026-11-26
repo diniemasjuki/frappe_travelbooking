@@ -26,6 +26,9 @@
    'frappe.sessions' terus kepada template. Guest di-skip oleh Frappe. #}
 {% set rcw_csrf = web_csrf_token() %}
 <div id="rcwRoot" data-csrf="{{ rcw_csrf }}">
+  {# Form controls & buttons = Bootstrap (form-control/btn/alert);
+     fab/panel/header kekal scoped di sini (widget terapung, position
+     fixed, gaya chat — bukan komponen BS). #}
   <style>
     #rcwRoot .rcw-fab{position:fixed;left:22px;bottom:22px;z-index:9990;width:170px;height:50px;border-radius:30px;border:none;background:#C9A84C;color:#1E1C18;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(30,28,24,.35);transition:transform .15s ease,box-shadow .15s ease,background .15s ease}
     #rcwRoot .rcw-fab:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(30,28,24,.42)}
@@ -44,21 +47,14 @@
     #rcwRoot .rcw-body{padding:14px}
     #rcwRoot .rcw-f{margin-bottom:10px}
     #rcwRoot .rcw-f label{display:block;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#6E6A5F;margin-bottom:4px}
-    #rcwRoot .rcw-f input,#rcwRoot .rcw-f textarea{width:100%;box-sizing:border-box;border:1px solid #D8D3C6;border-radius:8px;padding:9px 10px;font-size:13px;font-family:inherit;color:#1E1C18;background:#FBFAF7}
-    #rcwRoot .rcw-f input:focus,#rcwRoot .rcw-f textarea:focus{outline:none;border-color:#C9A84C;box-shadow:0 0 0 2px rgba(201,168,76,.22)}
-    #rcwRoot .rcw-f textarea{resize:vertical;min-height:64px}
+    #rcwRoot .rcw-f .form-control{font-size:13px;background:#FBFAF7;border-color:#D8D3C6}
+    #rcwRoot .rcw-f textarea.form-control{resize:vertical;min-height:64px}
     #rcwRoot .iti{width:100%}
     #rcwRoot .rcw-req{color:#B42318}
     #rcwRoot .rcw-hp{position:absolute;left:-5000px;top:-5000px;width:0;height:0;opacity:0;visibility:hidden}
-    #rcwRoot .rcw-err{background:#FEF3F2;border:1px solid #FDA29B;color:#B42318;border-radius:8px;padding:8px 10px;font-size:12px;margin:0 0 10px;line-height:1.45}
-    #rcwRoot .rcw-send{width:100%;border:none;border-radius:8px;background:#C9A84C;color:#1E1C18;font-weight:700;font-size:13.5px;padding:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit}
-    #rcwRoot .rcw-send:hover{background:#D8B962}
-    #rcwRoot .rcw-send[disabled]{opacity:.6;cursor:default}
     #rcwRoot .rcw-done{text-align:center;padding:16px 6px 10px}
     #rcwRoot .rcw-done .ti{font-size:34px;color:#1B7A43}
     #rcwRoot .rcw-done p{font-size:13px;color:#1E1C18;line-height:1.5;margin:8px 0 14px}
-    #rcwRoot .rcw-again{background:none;border:1px solid #D8D3C6;border-radius:8px;padding:8px 14px;font-size:12px;cursor:pointer;color:#1E1C18;font-family:inherit}
-    #rcwRoot .rcw-again:hover{border-color:#C9A84C}
     @media (max-width:640px){
       #rcwRoot .rcw-fab{left:16px;bottom:16px}
       #rcwRoot .rcw-panel{left:16px;bottom:84px}
@@ -68,7 +64,7 @@
   <button type="button" class="rcw-fab" id="rcwFab" aria-haspopup="dialog" aria-expanded="false"
           aria-label="{{ rcw_cfg.title or 'Chat with us' }}">
     <i class="ti ti-message"></i>
-    &nbsp; Chat With Us &nbsp; 
+    &nbsp; Chat With Us &nbsp;
   </button>
 
   <div class="rcw-panel" id="rcwPanel" role="dialog" aria-label="{{ rcw_cfg.title or 'Contact us' }}" hidden>
@@ -86,27 +82,27 @@
         <input type="text" name="company_website" class="rcw-hp" tabindex="-1" autocomplete="off" aria-hidden="true"/>
         <div class="rcw-f">
           <label for="rcwName">Name <span class="rcw-req">*</span></label>
-          <input type="text" id="rcwName" name="prospect_name" maxlength="140" required placeholder="Your name"/>
+          <input type="text" class="form-control" id="rcwName" name="prospect_name" maxlength="140" required placeholder="Your name"/>
         </div>
         <div class="rcw-f">
           <label for="rcwPhone">Phone <span class="rcw-req">*</span></label>
-          <input type="tel" id="rcwPhone" name="phone" maxlength="20" required autocomplete="tel" placeholder="Your phone number"/>
+          <input type="tel" class="form-control" id="rcwPhone" name="phone" maxlength="20" required autocomplete="tel" placeholder="Your phone number"/>
         </div>
         <div class="rcw-f">
           <label for="rcwEmail">Email</label>
-          <input type="email" id="rcwEmail" name="email" maxlength="140" placeholder="you@example.com (optional)"/>
+          <input type="email" class="form-control" id="rcwEmail" name="email" maxlength="140" placeholder="you@example.com (optional)"/>
         </div>
         <div class="rcw-f">
           <label for="rcwMsg">Your question</label>
-          <textarea id="rcwMsg" name="message" rows="3" maxlength="5000" placeholder="Ask us anything (optional)"></textarea>
+          <textarea class="form-control" id="rcwMsg" name="message" rows="3" maxlength="5000" placeholder="Ask us anything (optional)"></textarea>
         </div>
-        <div class="rcw-err" id="rcwErr" role="alert" hidden></div>
-        <button type="submit" class="rcw-send" id="rcwSend">Send <i class="ti ti-send"></i></button>
+        <div class="alert alert-danger py-2 mb-2 small" id="rcwErr" role="alert" hidden></div>
+        <button type="submit" class="btn btn-primary w-100" id="rcwSend">Send <i class="ti ti-send"></i></button>
       </form>
       <div class="rcw-done" id="rcwDone" hidden>
         <i class="ti ti-circle-check"></i>
         <p id="rcwDoneMsg"></p>
-        <button type="button" class="rcw-again" id="rcwAgain">Send another question</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="rcwAgain">Send another question</button>
       </div>
     </div>
   </div>

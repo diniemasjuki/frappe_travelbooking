@@ -23,6 +23,11 @@
    Guna:
      const list = TravelBookingBookingList.create($('#pane-saya'), {
          trip_groups: ['TGD-001', 'TGD-002'],   // wajib — skop group date
+                                   // (kecuali all_scope — lihat bawah)
+         all_scope: true,          // senarai FLAT semua booking (tanpa skop
+                                   // group date — API get_all_bookings;
+                                   // kolum Group papar trip name; download
+                                   // eksport semua booking)
          state: myStateObj,        // optional — objek state dikongsi dgn page
                                    // {search, status, payment, currency, group,
                                    //  limit, custom[], cf_open, cf_match,
@@ -297,7 +302,11 @@ window.TravelBookingBookingList = (function () {
 			args: {
 				doctype: r.doctype,
 				fieldname: r.fieldname,
-				trip_groups: inst.st.group ? [inst.st.group] : inst.trip_groups,
+				// Senarai flat (all_scope) — skop semua booking (all=1);
+				// skop group — trip_groups seperti biasa.
+				...(inst.opts.all_scope && !inst.st.group
+					? { all: 1 }
+					: { trip_groups: inst.st.group ? [inst.st.group] : inst.trip_groups }),
 				limit: 100,
 			},
 		}).then((res) => {
@@ -416,8 +425,17 @@ window.TravelBookingBookingList = (function () {
 		},
 		group: {
 			th: () => __('Group'),
-			val: (b) => b.trip_date || '',
-			td: (b) => `<span class="tblk-muted">${esc(b.trip_date || '')}</span>`,
+			val: (b) => b.trip_name || b.trip_date || '',
+			td: (b) => {
+				// Senarai flat (all_scope) — trip name + sub ID group date;
+				// skop group (trip_name tiada pada payload lama) — ID sahaja
+				// (paparan sedia ada tidak berubah).
+				if (b.trip_name) {
+					return `<div class="tblk-cell-main">${esc(b.trip_name)}</div>
+						${b.trip_date ? `<div class="tblk-cell-sub">${esc(b.trip_date)}</div>` : ''}`;
+				}
+				return `<span class="tblk-muted">${esc(b.trip_date || '')}</span>`;
+			},
 		},
 		status: {
 			th: () => __('Status'),
@@ -666,7 +684,9 @@ window.TravelBookingBookingList = (function () {
 		st.sort_dir = st.sort_dir === -1 ? -1 : 1;
 
 		const trip_groups = opts.trip_groups || [];
-		const multi = trip_groups.length > 1;
+		// Kolum Group dipapar bila skop >1 group date ATAU senarai flat
+		// (all_scope — booking dari mana-mana trip, konteks trip perlu).
+		const multi = !!opts.all_scope || trip_groups.length > 1;
 		const compact = opts.columns === 'compact'
 			|| (Array.isArray(opts.columns) && opts.columns.includes('pax_info'));
 
@@ -676,6 +696,37 @@ window.TravelBookingBookingList = (function () {
 			is_attached: () => $root.closest('body').length > 0,
 			load,
 			render,
+			// Argumen tapisan senarai — SAMA dengan yang dihantar load() ke
+			// server (tanpa skop trip_groups & limit). Dipakai page booking
+			// order (travel-manager: tm_booking_view.js) supaya butang
+			// Prev/Next bergerak tepat ikut senarai yang DILIHAT user.
+			filter_args: () => ({
+				status: st.status || null,
+				payment_status: st.payment || null,
+				search: st.search || null,
+				currency: (opts.currency_filter && st.currency) ? st.currency : null,
+				custom_filters: cf_active(st.custom),
+				custom_match: st.cf_match === 'OR' ? 'OR' : 'AND',
+			}),
+			// Nama booking dalam turutan PAPARAN (selepas sort klien — bila
+			// tiada sort, turutan server).
+			ordered_names: () => sorted_rows().map((b) => b.name),
+		};
+
+		// Turutan paparan: turutan server (creation DESC) ATAU sort klien
+		// atas baris yang dimuat. SATU sumber untuk render() dan
+		// ordered_names().
+		const sorted_rows = () => {
+			const rows = (inst.data || {}).bookings || [];
+			const col = st.sort ? COLUMNS[st.sort] : null;
+			if (!col || !col.val) return rows;
+			const val = col.val, dir = st.sort_dir;
+			return rows.slice().sort((a, b) => {
+				const va = val(a), vb = val(b);
+				const c = (typeof va === 'number' && typeof vb === 'number')
+					? va - vb : String(va).localeCompare(String(vb));
+				return c * dir;
+			});
 		};
 
 		function resolve_columns() {
@@ -731,11 +782,18 @@ window.TravelBookingBookingList = (function () {
 				return;
 			}
 			$root.html(`<div class="tblk-loading">${__('Loading bookings...')}</div>`);
+			// Skop data — senarai flat semua booking (all_scope →
+			// get_all_bookings, tanpa param trip_groups) ATAU skop
+			// group/batch (get_group_bookings, corak asal).
+			const scoped = !opts.all_scope;
 			try {
 				const r = await frappe.call({
-					method: 'travel_booking.api.manage_trip_booking.get_group_bookings',
+					method: 'travel_booking.api.manage_trip_booking.'
+						+ (scoped ? 'get_group_bookings' : 'get_all_bookings'),
 					args: {
-						trip_groups: st.group ? [st.group] : trip_groups,
+						...(scoped
+							? { trip_groups: st.group ? [st.group] : trip_groups }
+							: {}),
 						status: st.status || null,
 						payment_status: st.payment || null,
 						search: st.search || null,
@@ -750,7 +808,7 @@ window.TravelBookingBookingList = (function () {
 				render();
 				if (typeof opts.on_loaded === 'function') opts.on_loaded(inst.data);
 			} catch (err) {
-				console.error('TravelBookingBookingList: get_group_bookings failed', err);
+				console.error('TravelBookingBookingList: load failed', err);
 				$root.html(`<div class="tblk-empty">${__('Error loading bookings.')}</div>`);
 				frappe.show_alert({ message: __('Error loading data'), indicator: 'red' }, 5);
 			}
@@ -761,20 +819,10 @@ window.TravelBookingBookingList = (function () {
 			// supaya fallback fmtCurRows(fmtMoney 0) ikut instance aktif.
 			_currency = opts.currency || 'MYR';
 			const data = inst.data || {};
-			// Sort client-side (baris yang dimuat sahaja — turutan server
-			// kekal bila st.sort kosong). Corak sama dengan TV_SORTS pakej
-			// traveller: klik header tukar kolum, klik lagi tukar arah.
-			let rows = data.bookings || [];
-			if (st.sort && COLUMNS[st.sort]?.val) {
-				const val = COLUMNS[st.sort].val;
-				const dir = st.sort_dir;
-				rows = rows.slice().sort((a, b) => {
-					const va = val(a), vb = val(b);
-					const c = (typeof va === 'number' && typeof vb === 'number')
-						? va - vb : String(va).localeCompare(String(vb));
-					return c * dir;
-				});
-			}
+			// Turutan paparan — turutan server, atau sort klien (baris yang
+			// dimuat sahaja; corak sama dengan TV_SORTS pakej traveller:
+			// klik header tukar kolum, klik lagi tukar arah).
+			const rows = sorted_rows();
 			const tot = data.totals || {};
 			const cols = resolve_columns();
 			const m = { compact, bcur, dt, money_total };
@@ -793,13 +841,16 @@ window.TravelBookingBookingList = (function () {
 			// Baris atas — carian (dengan butang ✕ kosongkan) + togol panel
 			// penapis dinamik.
 			const showCards = opts.show_cards !== false;
-			// Skop muat turun — ikut tapisan group aktif (group tunggal bila
-			// ditapis, selain itu seluruh skop batch).
-			const dlBase = '/api/method/travel_booking.api.manage_trip_booking.';
-			const dlGroups = st.group ? [st.group] : trip_groups;
-			const dlQuery = dlGroups.length
-				? 'trip_groups=' + encodeURIComponent(JSON.stringify(dlGroups)) : '';
-			const showDl = !!dlQuery;
+			// Skop muat turun — senarai flat (all_scope) → all=1 (semua
+				// booking); skop group ikut tapisan group aktif (group tunggal
+				// bila ditapis, selain itu seluruh skop batch).
+				const dlBase = '/api/method/travel_booking.api.manage_trip_booking.';
+				const dlQuery = opts.all_scope
+					? 'all=1'
+					: ((st.group ? [st.group] : trip_groups).length
+						? 'trip_groups=' + encodeURIComponent(JSON.stringify(st.group ? [st.group] : trip_groups))
+						: '');
+				const showDl = !!dlQuery;
 			// Kotak carian — PAKEJ STANDARD TravelBookingSearchBox (markup
 			// .mba-searchwrap + butang ✕ .mba-search-clear; auto-bind
 			// document menguruskan keterlihatan & tindakan kosongkan).
@@ -855,7 +906,7 @@ window.TravelBookingBookingList = (function () {
 
 			const title = opts.show_title
 				? `
-				<div class="tblk-section-title">🧾 ${__('Booking Reservations')}
+				<div class="tblk-section-title">${esc(opts.title || '🧾 ' + __('Booking Reservations'))}
 					<span class="tblk-count-pill">${data.count ?? 0}</span>
 				</div>` : '';
 
@@ -878,7 +929,7 @@ window.TravelBookingBookingList = (function () {
 					</div>
 					<div class="tblk-bkcard-cust">${esc(b.customer_name)}</div>
 					<div class="tblk-bkcard-meta">
-						${b.pax} ${__('pax')} · ${b.rooms} ${__('rooms')}${multi && b.trip_date ? ' · ' + esc(b.trip_date) : ''}
+						${b.pax} ${__('pax')} · ${b.rooms} ${__('rooms')}${multi && (b.trip_name || b.trip_date) ? ' · ' + esc(b.trip_name || b.trip_date) : ''}
 					</div>
 					<div class="tblk-bkcard-meta ${(b.pending_docs || 0) > 0 ? 'tblk-danger' : ''}">
 						${__('Docs')} ${b.docs_verified || 0}/${b.docs_submitted || 0}
@@ -945,12 +996,14 @@ window.TravelBookingBookingList = (function () {
 					· <span class="${(d.balance || 0) > 0.009 ? 'tblk-danger' : ''}">${fmtMoney(d.balance, d.currency)} ${__('due')}</span></div>` : '';
 
 			// Mesej kosong — bezakan "tiada padanan penapis" vs "tiada
-			// booking langsung" (corak render_bkg_travellers).
-			const hasFilters = !!(st.search || st.status || st.payment
-				|| (opts.currency_filter && st.currency) || cf_active(st.custom).length);
-			const emptyMsg = hasFilters
-				? __('No bookings found for this filter.')
-				: __('No bookings found for this group.');
+				// booking langsung" (corak render_bkg_travellers).
+				const hasFilters = !!(st.search || st.status || st.payment
+					|| (opts.currency_filter && st.currency) || cf_active(st.custom).length);
+				const emptyMsg = hasFilters
+					? __('No bookings found for this filter.')
+					: (opts.all_scope
+						? __('No bookings found.')
+						: __('No bookings found for this group.'));
 
 			const showing = `
 				<div class="tblk-showing">

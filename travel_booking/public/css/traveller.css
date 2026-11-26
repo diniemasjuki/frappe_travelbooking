@@ -86,9 +86,6 @@
   padding: 32px 20px 60px;
 }
 
-.tv-container--narrow {
-  max-width: 680px;
-}
 
 /* ── Navigation Bar ── */
 .tv-nav {
@@ -290,60 +287,13 @@
 }
 
 /* Sub-navigation (booking context) */
-.tv-subnav {
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-light);
-}
 
-.tv-subnav-inner {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 0 20px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
 
-.tv-breadcrumb {
-  font-family: var(--font-body);
-  font-size: 13px;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
 
-.tv-breadcrumb a {
-  color: var(--text-secondary);
-  text-decoration: none;
-}
 
-.tv-breadcrumb a:hover {
-  color: var(--c-gold-dark);
-}
 
-.tv-subnav-tabs {
-  display: flex;
-  gap: 4px;
-  margin-left: auto;
-}
 
-.tv-tab {
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  text-decoration: none;
-  padding: 6px 16px;
-  border-radius: var(--radius-sm);
-  transition: var(--transition);
-}
 
-.tv-tab:hover {
-  color: var(--text-primary);
-  background: var(--bg-card);
-}
 
 .tv-tab.on {
   color: var(--text-primary);
@@ -375,13 +325,6 @@
   pointer-events: none;
 }
 
-.tv-card__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 16px;
-  gap: 12px;
-}
 
 .tv-card__title {
   font-family: var(--font-heading);
@@ -391,12 +334,6 @@
   margin: 0;
 }
 
-.tv-card__subtitle {
-  font-family: var(--font-body);
-  font-size: 13px;
-  color: var(--text-muted);
-  margin-top: 4px;
-}
 
 /* Card Section Divider */
 .tv-sec {
@@ -489,41 +426,10 @@
   padding-right: 6px;
 }
 
-.tv-bk-card__meta {
-  font-family: var(--font-body);
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  /* gap: 16px; */
-  flex-wrap: wrap;
-}
 
 /* Cruise route + sailing info (small, sits between name and meta) */
-.tv-bk-card__info {
-  margin: 6px 0 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
 
-.tv-bk-card__info-row {
-  font-family: var(--font-body);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  line-height: 1.5;
-}
 
-.tv-bk-card__info-k {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-right: 4px;
-}
 
 .tv-bk-card__info-arrow {
   color: var(--text-muted);
@@ -774,8 +680,6 @@
 .tv-bk-table__row { transition: background 0.15s ease; }
 .tv-bk-table__row[data-href] { cursor: pointer; }
 .tv-bk-table__row[data-href]:hover { background: var(--bg-tertiary); }
-.tv-bk-table__row--highlight { background: var(--c-gold-light); }
-.tv-bk-table__row--highlight[data-href]:hover { background: var(--c-gold-mid); }
 .tv-bk-table__row--muted { opacity: 0.55; }
 
 .tv-bk-table__cell { font-size: 13px; color: var(--text-primary); }
@@ -848,13 +752,6 @@
 .tv-badge--neutral  { background: var(--bg-tertiary);    color: var(--text-tertiary); }
 
 /* ── Trip Hero (Detail Page) ── */
-.tv-trip-hero {
-  background: linear-gradient(135deg, var(--c-gold-light) 0%, var(--bg-card) 100%);
-  border-radius: var(--radius-md);
-  padding: 28px;
-  margin-bottom: 24px;
-  border: 1px solid var(--c-gold-mid);
-}
 
 .tv-th-ref {
   font-family: 'SF Mono', Monaco, monospace;
@@ -873,22 +770,7 @@
   line-height: 1.2;
 }
 
-.tv-th-sub {
-  font-family: var(--font-body);
-  font-size: 15px;
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
 
-.tv-th-status {
-  margin-top: 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 
 /* ── Progress Bar ── */
 .tv-progress {
@@ -923,20 +805,8 @@
 .tv-progress-label--success { color: var(--c-success); }
 
 /* ── Collapsible Card ── */
-.tv-collapse-header {
-  padding: 4px 0;
-  user-select: none;
-}
 
-.tv-collapse-arrow {
-  display: inline-block;
-  transition: transform .2s ease;
-}
 
-.tv-collapse-body {
-  border-top: 1px solid var(--border-light);
-  margin-top:16px;
-}
 
 /* ── Transaction Card (Collapsible, Standalone) ── */
 .tv-tx-card {
@@ -1057,15 +927,9 @@
   gap: 16px;
 }
 
-.tv-grid--3col {
-  grid-template-columns: repeat(3, 1fr);
-}
 
 @media (max-width: 640px) {
   .tv-grid,
-  .tv-grid--3col {
-    grid-template-columns: 1fr;
-  }
   .tv-bk-card__fin-row {
     grid-template-columns: 1fr 1fr;
   }
@@ -1089,33 +953,9 @@
 }
 
 /* ── Summary Stats Row ── */
-.tv-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-  margin: 16px 0;
-}
 
-.tv-stat {
-  text-align: center;
-  padding: 16px 12px;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
-}
 
-.tv-stat__value {
-  font-family: var(--font-heading);
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-primary);
-}
 
-.tv-stat__label {
-  font-family: var(--font-body);
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-top: 4px;
-}
 
 /* ── Buttons ── */
 .tv-btn {
@@ -1165,14 +1005,7 @@
 }
 
 /* Success */
-.tv-btn--success {
-  background: var(--c-success);
-  color: #fff;
-}
 
-.tv-btn--success:hover {
-  background: #059669;
-}
 
 /* Small */
 .tv-btn--sm {
@@ -1448,46 +1281,15 @@
 
 
 /* ── Accordion (Billing SO cards) ── */
-.tv-accordion {
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  margin-bottom: 16px;
-  overflow: hidden;
-}
 
-.tv-acc-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 20px;
-  cursor: pointer;
-  background: var(--bg-card);
-  transition: var(--transition);
-  user-select: none;
-}
 
-.tv-acc-header:hover {
-  background: var(--bg-secondary);
-}
 
 .tv-acc-header.open {
   background: var(--c-gold-light);
   border-bottom: 1px solid var(--c-gold-mid);
 }
 
-.tv-acc-title {
-  font-family: var(--font-heading);
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
 
-.tv-acc-body {
-  display: none;
-  padding: 20px;
-  background: var(--bg-card);
-  border-top: 1px solid var(--border-light);
-}
 
 .tv-acc-body.open {
   display: block;
@@ -1546,13 +1348,6 @@
   margin-top: 4px;
 }
 
-.tv-tx-amount {
-  font-family: var(--font-heading);
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-primary);
-  white-space: nowrap;
-}
 
 .tv-tx-actions {
   display: flex;
@@ -1630,23 +1425,8 @@
   gap: 12px;
 }
 
-.tv-login-footer {
-  text-align: center;
-  margin-top: 24px;
-  font-family: var(--font-body);
-  font-size: 13px;
-  color: var(--text-muted);
-}
 
-.tv-login-footer a {
-  color: var(--c-gold-dark);
-  text-decoration: none;
-  font-weight: 500;
-}
 
-.tv-login-footer a:hover {
-  text-decoration: underline;
-}
 
 /* ── Second card: navigation to tour / cruise ── */
 .tv-login-nav-card {
@@ -1991,11 +1771,6 @@
   background: var(--c-gold-light);
 }
 
-.tv-file-upload__icon {
-  font-size: 24px;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-}
 
 .tv-file-upload__text {
   font-family: var(--font-body);
@@ -2148,19 +1923,7 @@ button.tv-cabin__header:focus-visible {
     flex-wrap: wrap;
   }
 
-  .tv-subnav-inner {
-    flex-wrap: wrap;
-    height: auto;
-    padding: 12px 16px;
-    gap: 12px;
-  }
 
-  .tv-subnav-tabs {
-    width: 100%;
-    justify-content: center;
-    margin-left: 0;
-    margin-top: 8px;
-  }
 
   .tv-container {
     padding: 20px 16px 48px;
@@ -2170,14 +1933,7 @@ button.tv-cabin__header:focus-visible {
     padding: 18px 16px;
   }
 
-  .tv-stats {
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 10px;
-  }
 
-  .tv-stat__value {
-    font-size: 18px;
-  }
 
   .tv-th-name {
     font-size: 22px;
@@ -2222,9 +1978,6 @@ button.tv-cabin__header:focus-visible {
     padding: 8px 10px;
   }
 
-  .tv-stats {
-    grid-template-columns: 1fr 1fr;
-  }
 
   .tv-grid {
     grid-template-columns: 1fr;
@@ -2242,12 +1995,6 @@ button.tv-cabin__header:focus-visible {
     flex-wrap: wrap;
   }
 
-  .tv-tx-amount {
-    width: 100%;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid var(--border-light);
-  }
 }
 
 /* ── Animations ── */
@@ -2269,26 +2016,8 @@ button.tv-cabin__header:focus-visible {
 
 /* ── Utility Classes ── */
 .tv-text-center { text-align: center; }
-.tv-text-right  { text-align: right; }
-.tv-text-muted  { color: var(--text-muted); }
-.tv-text-success{ color: var(--c-success); }
-.tv-text-danger { color: var(--c-danger); }
-.tv-text-gold   { color: var(--c-gold-dark); }
-.tv-mt-0 { margin-top: 0; }
-.tv-mb-0 { margin-bottom: 0; }
-.tv-mt-16 { margin-top: 16px; }
-.tv-mb-16 { margin-bottom: 16px; }
-.tv-mb-24 { margin-bottom: 24px; }
-.tv-flex { display: flex; }
-.tv-flex-center { align-items: center; }
-.tv-flex-between { justify-content: space-between; }
-.tv-gap-8 { gap: 8px; }
-.tv-gap-16 { gap: 16px; }
 
 /* ── Info Grid Items (Booking Detail Hero) ── */
-.tv-info-item {
-  min-width: 0;
-}
 
 .tv-info-label {
   font-size: 11px;
@@ -2299,13 +2028,6 @@ button.tv-cabin__header:focus-visible {
   font-weight: 500;
 }
 
-.tv-info-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.4;
-  word-break: break-word;
-}
 
 /* ── Hero Grid — 3-column layout for booking detail ── */
 .tv-hero-grid {
@@ -2409,41 +2131,8 @@ button.tv-cabin__header:focus-visible {
    ada .tvl-tab gaya pil (radius 20px). Property yang bertindih diulang
    DI SINI supaya gaya deterministik (bug 2026-09-13: pil + underline
    bercampur → tab nampak tidak kemas). */
-.tvl-tabs {
-  display: flex;
-  gap: 0;
-  padding-bottom: 0;
-  margin-bottom: 0;
-  overflow: hidden;
-  border-bottom: 2px solid var(--border-default);
-  background: var(--bg-card);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-}
 
-.tvl-tab {
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-muted);
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  padding: 13px 20px;
-  cursor: pointer;
-  position: relative;
-  transition: color .2s ease, background .2s ease;
-  flex: 1;
-  min-width: 0;
-  text-align: center;
-  white-space: nowrap;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-}
 
-.tvl-tab:hover {
-  color: var(--text-secondary);
-  background: var(--bg-secondary);
-}
 
 .tvl-tab.on {
   color: var(--c-gold-dark);
@@ -2462,10 +2151,6 @@ button.tv-cabin__header:focus-visible {
 }
 
 /* Tab Panels */
-.tvl-panel {
-  display: none;
-  padding: 20px 0;
-}
 
 .tvl-panel.on {
   display: block;
@@ -2542,10 +2227,6 @@ button.tv-cabin__header:focus-visible {
 
 /* Tablet: tips grid stays 2-col but tighter */
 @media (max-width: 768px) {
-  .wiz-tips-grid {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 8px !important;
-  }
 
   /* Passport preview card: stack vertically */
   #passport-uploaded > div > div {
@@ -2560,23 +2241,12 @@ button.tv-cabin__header:focus-visible {
   }
 
   /* Tab buttons: smaller text */
-  .tvl-tab {
-    font-size: 12px;
-    padding: 10px 12px;
-  }
 }
 
 /* Mobile: tips grid → 1 column, tabs scroll */
 @media (max-width: 480px) {
-  .wiz-tips-grid {
-    grid-template-columns: 1fr !important;
-  }
 
   /* Tabs: sama lebar, teks kecil — tanpa scroll mendatar */
-  .tvl-tab {
-    font-size: 12px;
-    padding: 10px 8px;
-  }
 
   /* Contoh passport (kiri) + upload area (kanan) → stack menegak */
   .pp-upload-grid {
@@ -2603,9 +2273,6 @@ button.tv-cabin__header:focus-visible {
   }
 
   /* Form panels: less padding */
-  .tvl-panel {
-    padding: 16px 0;
-  }
 
   /* Confirm button: full width */
   #tvl-confirm-btn {

@@ -1,0 +1,39 @@
+{# ══════════════════════════════════════════════════════════════════
+   Itinerary timeline — LIST sahaja (tanpa header seksyen).
+
+   Include KONGSI antara DUA render (satu sumber kebenaran markup):
+     1. Render awal page detail trip (trip.html).
+     2. Fragmen itinerary EFEKTIF — package_catalog.get_effective_itinerary
+        (warisan Trip ← Travel Date ← Package Offer) yang diswap oleh
+        trip_detail.js ke #rcItinList bila tarikh/pakej dipilih.
+
+   Context:
+     itinerary          — baris enriched (day, day_title,
+                          destination_name, country, meals, day_image,
+                          description, day_date — tarikh kalendar Day N
+                          bila anchor berlepas dibekalkan server)
+   [Nov 2026] Segmen cruise (Pre/Cruise/Post-Cruise) dibuang bersama
+   medan doctype — timeline dirender FLAT.
+   ══════════════════════════════════════════════════════════════════ #}
+{% macro itin_timeline(rows) %}
+<ol class="rc-itinerary">
+  {% for row in rows %}
+  <li class="rc-itin-day" data-day="{{ row.day }}">
+    <div class="rc-itin-marker"><span class="rc-itin-day-pill"><span class="rc-itin-day-num">Day {{ row.day }}</span>{% if row.day_date %}<span class="rc-itin-date">{{ row.day_date }}</span>{% endif %}</span></div>
+    <div class="rc-itin-card">
+      <div class="rc-itin-head">
+        <h3 class="rc-itin-title">{{ row.day_title }}</h3>
+        {% if row.destination_name %}<span class="rc-itin-dest">{{ row.destination_name }}{% if row.country %} · {{ row.country }}{% endif %}</span>{% endif %}
+      </div>
+      {% if row.day_image %}
+      <img src="{{ row.day_image }}" alt="{{ row.day_title }}" class="rc-itin-img" onerror="this.style.display='none'"/>
+      {% endif %}
+      {% if row.description %}<div class="rc-itin-desc">{{ row.description }}</div>{% endif %}
+      {% if row.meals %}<p class="rc-itin-meals"><i class="ti ti-tools-kitchen2"></i> {{ row.meals }}</p>{% endif %}
+      <button type="button" class="rc-itin-toggle">hide</button>
+    </div>
+  </li>
+  {% endfor %}
+</ol>
+{% endmacro %}
+{{ itin_timeline(itinerary) }}

@@ -13,6 +13,7 @@
  "field_order": [
   "naming_series",
   "trip",
+  "travel_package",
   "column_break_a",
   "flight_mode",
   "preferred_airline",
@@ -37,13 +38,21 @@
   {
    "fieldname": "trip",
    "fieldtype": "Link",
-   "label": "Trip",
+   "label": "Trip (default template)",
    "options": "Trip",
    "reqd": 1,
-   "unique": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "Satu arrangement per Trip (1:1)"
+   "description": "Arrangement default peringkat TRIP — pakej tanpa override menggunakan ini."
+  },
+  {
+   "description": "OVERRIDE pakej: bila diisi, arrangement ini milik EKSKLUSIF pakej tersebut (cth KUL vs SIN). Kosong = template trip. Unik per pakej divalidasi controller.",
+   "fieldname": "travel_package",
+   "fieldtype": "Link",
+   "label": "Travel Package (override)",
+   "options": "Travel Package",
+   "in_list_view": 1,
+   "in_standard_filter": 1
   },
   {
    "fieldname": "column_break_a",

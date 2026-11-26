@@ -234,13 +234,277 @@ def get_wizard_confirmation(booking_number: str, pr: str = None):
     }
 
 
+def _get_booking_details_offer(offer_name: str):
+    """Mod OFFER (F5 struktur baharu) untuk get_booking_details: baca kabin
+    + harga daripada Package Offer — kontrak pulangan SERASI dengan aliran
+    legacy (trip / trip_group_date / cabins) supaya booknow.js Step 1 dan
+    trip_detail.js tidak perlu diubah.
+
+    Sumber: tarikh & trip daripada Travel Date (satu sumber kebenaran);
+    harga daripada Price Matrix offer; availabiliti kabin daripada kolam
+    cabin_rates Trip Cruise Schedule (allotment − occupancy live)."""
+    offer = frappe.db.get_value(
+        "Package Offer", offer_name,
+        ["name", "offer_name", "travel_date", "currency",
+         "cruise_schedule", "status_editorial"],
+        as_dict=True,
+    )
+    if not offer:
+        frappe.throw("Package Offer not found.")
+    if offer.status_editorial != "Active":
+        frappe.throw("This package offer is no longer active.")
+
+    td = frappe.db.get_value(
+        "Travel Date", offer.travel_date,
+        ["name", "trip", "departure_date", "return_date",
+         "sailing_start", "sailing_end", "ship_name", "ship_code"],
+        as_dict=True,
+    )
+    if not td:
+        frappe.throw("Travel Date {0} not found.".format(offer.travel_date))
+
+    trip = frappe.db.get_value(
+        "Trip", td.trip,
+        ["name", "trip_name", "description", "is_a_cruise_trip", "trip_image"],
+        as_dict=True,
+    )
+    if not trip:
+        frappe.throw("Trip not found.")
+
+    # ── Price Matrix offer (child Trip Package Price parenttype=
+    # 'Package Offer') + metadata kategori — resolve kod kanonik v47 →
+    # docname (corak _get_offer_pricing_map). ──
+    rows = frappe.get_all(
+        "Trip Package Price",
+        filters={"parent": offer_name, "parenttype": "Package Offer",
+                 "parentfield": "price_matrix"},
+        fields=["pricing_for_class", "price_adult_single", "price_adult",
+                "price_upperberth", "price_children", "price_toddler",
+                "price_infant"],
+        order_by="idx asc",
+    )
+    if not rows:
+        frappe.throw(
+            "Offer {0} has no price matrix rows - configure its Price "
+            "Matrix before selling.".format(offer_name)
+        )
+
+    cat_by_code, cat_by_name = {}, {}
+    for c in frappe.get_all(
+        "Trip Price Category",
+        fields=["name", "category_code", "category_name", "category_group",
+                "capacity", "max_capacity", "description", "room_profile",
+                "read_more_url", "youtube_url"],
+    ):
+        if c.category_code:
+            cat_by_code[c.category_code] = c
+        cat_by_name[c.name] = c
+
+    pricing_rows = []
+    for r in rows:
+        cat = (cat_by_code.get(r.pricing_for_class)
+               or cat_by_name.get(r.pricing_for_class))
+        if not cat:
+            continue
+        row = frappe._dict({
+            "room_category": cat.name,
+            "category_name": cat.category_name,
+            "category_group": cat.category_group,
+            "capacity": cat.capacity,
+            "max_capacity": cat.max_capacity,
+            "description": cat.description,
+            "room_profile": cat.room_profile,
+            "read_more_url": cat.read_more_url,
+            "youtube_url": cat.youtube_url,
+            "price_adult_single": r.price_adult_single,
+            "price_adult": r.price_adult,
+            "price_upperberth": r.price_upperberth,
+            "price_children": r.price_children,
+            "price_toddler": r.price_toddler,
+            "price_infant": r.price_infant,
+        })
+        pricing_rows.append(row)
+    if not pricing_rows:
+        frappe.throw(
+            "Offer {0} price matrix has no valid room categories.".format(
+                offer_name)
+        )
+
+    # Gallery kabin — sumber SAMA dengan aliran legacy (Attachment Gallery
+    # Trip Price Category, hanya fail imej PUBLIC).
+    gallery_map = {}
+    cat_names = [r.room_category for r in pricing_rows]
+    if cat_names:
+        for f in frappe.get_all(
+            "File",
+            filters={
+                "attached_to_doctype": "Trip Price Category",
+                "attached_to_name": ["in", cat_names],
+                "is_folder": 0,
+                "is_private": 0,
+            },
+            fields=["attached_to_name", "file_url"],
+            order_by="creation asc",
+            limit_page_length=0,
+        ):
+            if f.file_url and f.file_url.lower().endswith(
+                (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif")
+            ):
+                gallery_map.setdefault(f.attached_to_name, []).append(f.file_url)
+
+    # Travel Price Rule — ctx daripada Travel Date (scoping trip/tarikh);
+    # scoping pakej/group-date legacy tidak terpakai untuk offer.
+    from travel_booking.api.price_rule import (
+        apply_price_rules, dominant_rule_info,
+    )
+    rule_ctx = {
+        "trip": td.trip,
+        "trip_group_date": None,
+        "trip_package": None,
+        "currency": offer.currency,
+        "departure_date": td.departure_date,
+    }
+    eff_map, applied_info = apply_price_rules(
+        {r.room_category: r for r in pricing_rows}, rule_ctx
+    )
+
+    # ── Surcaj ADDON — Total pakej = promo(base) + Σ addon_price_matrix ──
+    # Snapshot harga base asal SEBELUM mutasi: bila tiada rule aktif,
+    # apply_price_rules pulangkan map ASAL (eff_map ialah objek row yang
+    # sama dengan pricing_rows), jadi snapshot awal menjamin original_
+    # pricing like-for-like (base asal + Σ addon) untuk strikethrough.
+    addon_totals = _get_offer_addon_totals(offer_name)
+    orig_base = {
+        r.room_category: {c: float(getattr(r, c) or 0) for c in PRICE_SLOT_COLS}
+        for r in pricing_rows
+    }
+    _apply_addon_totals(eff_map, addon_totals)
+
+    # Availabiliti kabin — kolam cabin_rates schedule (kongsi semua offer
+    # satu sailing). cabin_available = allotment − occupancy dipulangkan
+    # SEBAGAI ANGKA (pool_cabins_left) supaya wizard boleh hadkan pilihan
+    # SEMASA pemilihan bilik — bukan tunggu gate check_offer_capacity di
+    # confirm_booking sahaja (customer tak sampai ke checkout baru tau
+    # penuh). Inventori mengira KABIN (occupancy = DISTINCT room_id),
+    # bukan penumpang. Kategori TIADA dalam kolam:
+    #   - offer darat (tiada schedule / schedule terhapus) → tiada had,
+    #     jualan terbuka (padan gate: return awal, tiada semakan kolam);
+    #   - offer CRUISE ber-schedule tapi kategori tak dikonfigur dalam
+    #     cabin_rates → available=0 — gate confirm akan menolaknya
+    #     ("tiada dalam kolam kategori sailing"), jadi jangan benarkan
+    #     dipilih langsung.
+    pool: dict = {}
+    has_schedule_pool = bool(offer.cruise_schedule) and frappe.db.exists(
+        "Trip Cruise Schedule", offer.cruise_schedule
+    )
+    if has_schedule_pool:
+        for r in frappe.get_all(
+            "Trip Package Price",
+            filters={
+                "parent": offer.cruise_schedule,
+                "parenttype": "Trip Cruise Schedule",
+            },
+            fields=["pricing_for_class", "cabin_available"],
+        ):
+            pool[r.pricing_for_class] = int(r.cabin_available or 0)
+
+    from frappe.utils import date_diff
+    nights = date_diff(td.return_date, td.departure_date) if (
+        td.return_date and td.departure_date) else 0
+
+    cabins = []
+    for row in pricing_rows:
+        available = 1
+        pool_left = None
+        if has_schedule_pool:
+            if row.room_category in pool:
+                # Boleh negative (isyarat overbooking utk admin — rujuk
+                # refresh_cabin_availability); customer lihat 0.
+                pool_left = max(0, pool[row.room_category])
+                available = 1 if pool_left > 0 else 0
+            else:
+                available = 0
+        eff = eff_map.get(row.room_category) or row
+        applied = applied_info.get(row.room_category)
+
+        cabin = {
+            "room_category": row.room_category,
+            "room_name":     row.category_name or row.room_category,
+            "category_group": row.category_group,
+            "capacity":      row.capacity or 2,
+            "max_capacity":  row.max_capacity if row.max_capacity is not None else (row.capacity or 2),
+            "description":   row.description or "",
+            "room_image":    row.room_profile or "",
+            "room_gallery":  gallery_map.get(row.room_category, []),
+            "read_more_url": row.read_more_url or "",
+            "room_video_url": row.youtube_url or "",
+            "pricing": {
+                "price_adult_single":     float(eff.price_adult_single     or 0),
+                "price_adult":            float(eff.price_adult           or 0),
+                "price_upperberth": float(eff.price_upperberth or 0),
+                "price_children":         float(eff.price_children        or 0),
+                "price_infant":           float(eff.price_infant          or 0),
+            },
+            "available":    available,
+            "is_available": available > 0,
+            # Baki KABIN kolam kontrak sailing utk kategori ni (allotment
+            # − occupancy live — keduanya unit KABIN; dikongsi semua offer
+            # satu sailing). null = tiada kolam (offer darat) → wizard tak
+            # menghadkan pilihan. Dipakai booknow.js utk had bilangan
+            # bilik per kategori + badge "N cabins left".
+            "pool_cabins_left": pool_left,
+        }
+        if applied:
+            ob = orig_base[row.room_category]
+            cabin["original_pricing"] = {
+                "price_adult_single": ob["price_adult_single"] + addon_totals.get("price_adult_single", 0),
+                "price_adult":        ob["price_adult"]        + addon_totals.get("price_adult", 0),
+                "price_upperberth":   ob["price_upperberth"]   + addon_totals.get("price_upperberth", 0),
+                "price_children":     ob["price_children"]     + addon_totals.get("price_children", 0),
+                "price_infant":       ob["price_infant"]       + addon_totals.get("price_infant", 0),
+            }
+            cabin["price_rule"] = dominant_rule_info(applied)
+        cabins.append(cabin)
+
+    return {
+        "trip": {
+            "name":             trip.name,
+            "trip_name":        trip.trip_name,
+            "description":      trip.description or "",
+            "is_a_cruise_trip": bool(trip.is_a_cruise_trip),
+            "trip_image":       trip.trip_image or "/assets/travel_booking/img/defaultaroya.jpg",
+        },
+        "trip_group_date": {
+            "name":             td.name,
+            "trip_group_name":  offer.offer_name or td.name,
+            "trip_group_code":  "",
+            "departure_date":   str(td.departure_date) if td.departure_date else "",
+            "return_date":      str(td.return_date)    if td.return_date    else "",
+            "total_days":       (nights + 1) if nights else 0,
+            "total_nights":     nights,
+            "ship_name":        td.ship_name or "",
+            "ship_code":        td.ship_code or "",
+        },
+        "cabins": cabins,
+    }
+
+
 @frappe.whitelist(allow_guest=True)
-def get_booking_details(trip_group_date: str, trip_package: str = None):
+def get_booking_details(trip_group_date: str, trip_package: str = None,
+                        package_offer: str = None):
     """Return trip + sailing info + cabin categories with pricing.
     Pricing dibaca dari Trip Package Price (child Trip Package), setiap
     row berkait dengan satu Trip Price Category (kategori bilik/kabin).
     Room Availability dibuang — inventori bilik diurus manual oleh admin.
+
+    package_offer (F5 struktur baharu): bila dihantar, mod OFFER dijalankan
+    — kabin + harga dibaca terus daripada OFFER (Price Matrix child Trip
+    Package Price parenttype='Package Offer'), tarikh/ops daripada Travel
+    Date, availabiliti kabin daripada kolam cabin_rates Trip Cruise
+    Schedule. trip_group_date/trip_package (nama legacy) diabaikan.
     """
+    if package_offer:
+        return _get_booking_details_offer(package_offer)
     td = frappe.db.get_value(
         "Trip Group Date", trip_group_date,
         ["name", "trip", "trip_group_name", "trip_group_code", "status",
@@ -276,7 +540,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
         SELECT
             tpp.pricing_for_class AS room_category,
             tpc.category_name,
-            tpc.room_type,
+            tpc.category_group,
             tpc.capacity,
             tpc.max_capacity,
             tpc.description,
@@ -344,7 +608,7 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
         cabin = {
             "room_category": row.room_category,
             "room_name":     row.category_name or row.room_category,
-            "room_type":     row.room_type,
+            "category_group": row.category_group,
             "capacity":      row.capacity or 2,
             # max_capacity == 0 eksplisit -> UNLIMITED (jangan fallback ke
             # capacity). None/kosong -> fallback capacity (behavior sedia).
@@ -585,6 +849,112 @@ def convert_amount(amount: float, to_currency: str) -> dict:
     }
 
 
+def _get_offer_pricing_map(offer_name):
+	"""MODEL OFFER-MODE (Nov 2026): bina pricing map SAMA bentuk dengan
+	_get_pricing_map() — {category_docname: frappe._dict(price_adult,
+	price_adult_single, price_upperberth, price_children, price_toddler,
+	price_infant)}.
+
+	SUMBER TUNGGAL — Package Offer.price_matrix (child Trip Package
+	Price): 1 baris per room category, lajur slot penuh (adult/single/
+	upper/child/toddler/infant). [BUANG Nov 2026] fallback Offer Price —
+	medan legacy itu telah ditanggalkan daripada Package Offer.
+
+	Kunci = docname Trip Price Category (kod kanonik v47 -> resolve
+	docname). Oksidan: offer tanpa baris matrix -> throw jelas (jangan
+	jual offer kosong).
+
+	[Rombakan konsep Nov 2026] price_matrix = BASE (Room Category
+	sahaja); addons Flight/Hotel/Transport/Meal dikumpulkan dalam
+	addon_price_matrix berasingan — rujuk _get_offer_addons_map.
+	Total pakej = base (kategori dipilih × slot) + Σ addons."""
+	map_ = _matrix_map(offer_name, "price_matrix")
+	if not map_:
+		frappe.throw(
+			"Offer {0} has no price matrix rows - configure its Price "
+			"Matrix before selling.".format(offer_name))
+	return map_
+
+
+def _get_offer_addons_map(offer_name):
+	"""ADDONS offer (Nov 2026) — Flight/Hotel/Transport/Meal daripada
+	Package Offer.addon_price_matrix (child Trip Package Price). Bentuk
+	sama dengan map base; total pakej = base + Σ addons. Tiada throw
+	bila kosong — pakej boleh dijual tanpa addon."""
+	return _matrix_map(offer_name, "addon_price_matrix")
+
+
+# Lajur harga slot — kunci lajur Trip Package Price yang membawa surcaj
+# addon (sama set lajur dengan map base).
+PRICE_SLOT_COLS = ("price_adult_single", "price_adult", "price_upperberth",
+				   "price_children", "price_toddler", "price_infant")
+
+
+def _get_offer_addon_totals(offer_name):
+	"""Σ surcaj addon per LAJUR slot — jumlah merentasi SEMUA baris
+	addon_price_matrix offer (Flight + Hotel + Transport + Meal sekali).
+
+	Kontrak harga pakej (rujuk description addon_price_matrix):
+	    Total pakej = base (Room Category × slot) + Σ addons.
+	Surcaj ni DITAMBAH SELEPAS harga promo base (Travel Price Rule
+	menyasarkan kadar bilik; addon ialah komponen tetap pakej).
+
+	KEMBALI: {"price_adult": Σ, ...} — {} bila offer tiada addon."""
+	addons = _get_offer_addons_map(offer_name)
+	if not addons:
+		return {}
+	totals = {c: 0.0 for c in PRICE_SLOT_COLS}
+	for a in addons.values():
+		for c in PRICE_SLOT_COLS:
+			totals[c] += float(getattr(a, c) or 0)
+	return totals
+
+
+def _apply_addon_totals(pricing_map, addon_totals):
+	"""Campurkan surcaj addon per lajur kepada SETIAP baris map harga
+	(in-place; map = {kategori: row lajur harga}). Dipakai bersama di
+	titik paparan (get_booking_details) dan titik caj (confirm_booking)
+	supaya paparan laman == jumlah yang dicas."""
+	if not addon_totals:
+		return pricing_map
+	for price in (pricing_map or {}).values():
+		for c, v in addon_totals.items():
+			setattr(price, c, float(getattr(price, c) or 0) + v)
+	return pricing_map
+
+
+def _matrix_map(offer_name, parentfield):
+	cat_by_code, cat_by_name = {}, {}
+	for c in frappe.get_all("Trip Price Category",
+			fields=["name", "category_code"]):
+		if c.category_code:
+			cat_by_code[c.category_code] = c.name
+		cat_by_name[c.name] = c.name
+
+	rows = frappe.get_all(
+		"Trip Package Price",
+		filters={"parent": offer_name, "parenttype": "Package Offer",
+				 "parentfield": parentfield},
+		fields=["pricing_for_class", "price_adult", "price_adult_single",
+				"price_upperberth", "price_children", "price_toddler",
+				"price_infant"],
+		order_by="idx asc")
+	map_ = {}
+	for r in rows:
+		code = r.pricing_for_class
+		cat = cat_by_code.get(code) or cat_by_name.get(code)
+		if not cat:
+			continue
+		map_[cat] = frappe._dict(
+			price_adult=r.price_adult,
+			price_adult_single=r.price_adult_single,
+			price_upperberth=r.price_upperberth,
+			price_children=r.price_children,
+			price_toddler=r.price_toddler,
+			price_infant=r.price_infant)
+	return map_
+
+
 def _get_pricing_map(trip_package):
     """Return {pricing_for_class: {...}} dari Trip Package Price (child
     Trip Package). Setiap row berkait dengan satu Trip Price Category
@@ -745,6 +1115,108 @@ def _validate_selection_capacity(selections, cabin_info_map, is_cruise=True):
             frappe.throw("Infant for " + str(room_category) + " exceeds the limit (" + str(max_infant) + ").")
 
 
+# ── ITEMIZED GUESTS (Stage 1 wizard) ──────────────────────────────────────
+# Kategori umur sah yang diterima daripada wizard itemized guests.
+# "toddler" DIKECUALIKAN buat sekarang — lajur price_toddler belum
+# beroperasi (menunggu keputusan harga Fasa B); kontrak ditutup rapat
+# supaya payload tak boleh memintas dengan kategori tanpa harga.
+_GUEST_CATEGORIES = ("adult", "child", "infant")
+_GUEST_SLOTS = ("main", "extra_bed", "infant")
+
+
+def _validate_guest_list(selections, is_cruise=True):
+    """Sahkan medan additive 'guests' (itemized per-guest) pada setiap
+    selection — WAJIB konsisten dengan kaunter agregat yang menjadi asas
+    harga/kapasiti. Payload TANPA 'guests' (klien lama / panggilan API
+    langsung) terus sah — itemization bersifat optional.
+
+    Bentuk: guests: [{slot: "main"|"extra_bed"|"infant",
+                      category: "adult"|"child"|"infant"}]
+
+    Cruise (model SLOT): slot diwajibkan — bilangan setiap slot mesti
+      sepadan kaunter (main=main_guests, extra_bed=extra_beds,
+      infant=infants). Guest PERTAMA mesti slot main + category adult
+      (lead guest — selari peraturan wizard di mana Guest 1 dikunci).
+    Non-cruise (model UMUR): slot optional (diderive daripada kategori:
+      adult->main, child->extra_bed, infant->infant); bilangan kategori
+      mesti sepadan kaunter (adult=main_guests, child=extra_beds,
+      infant=infants). Guest pertama mesti adult.
+    """
+    for sel in selections or []:
+        if not isinstance(sel, dict):
+            frappe.throw("Invalid selection entry.")
+        guests = sel.get("guests")
+        if guests in (None, []):
+            continue  # klien lama — kaunter agregat sahaja, terus sah
+        if not isinstance(guests, list):
+            frappe.throw("'guests' must be a list for room " + str(sel.get("room_category")) + ".")
+
+        mg  = int(sel.get("main_guests", 0) or 0)
+        eb  = int(sel.get("extra_beds", 0) or 0)
+        inf = int(sel.get("infants", 0) or 0)
+        if len(guests) != mg + eb + inf:
+            frappe.throw(
+                "Guest list does not match the number of passengers for "
+                + str(sel.get("room_category")) + "."
+            )
+
+        cats, slots = [], []
+        for g in guests:
+            if not isinstance(g, dict):
+                frappe.throw("Invalid guest entry for " + str(sel.get("room_category")) + ".")
+            cat = (g.get("category") or "").strip().lower()
+            if cat not in _GUEST_CATEGORIES:
+                frappe.throw(
+                    "Invalid age category '" + str(cat) + "' for "
+                    + str(sel.get("room_category")) + "."
+                )
+            slot = (g.get("slot") or "").strip().lower()
+            if slot:
+                if slot not in _GUEST_SLOTS:
+                    frappe.throw(
+                        "Invalid guest slot '" + str(slot) + "' for "
+                        + str(sel.get("room_category")) + "."
+                    )
+            elif is_cruise:
+                frappe.throw("Guest slot is required for cruise rooms.")
+            else:
+                # Non-cruise: wizard tak hantar slot — derive daripada
+                # kategori (pemetaan payload agregat sedia ada).
+                slot = {"adult": "main", "child": "extra_bed", "infant": "infant"}[cat]
+            cats.append(cat)
+            slots.append(slot)
+
+        if is_cruise:
+            if (slots.count("main"), slots.count("extra_bed"), slots.count("infant")) != (mg, eb, inf):
+                frappe.throw(
+                    "Guest slots do not match the passenger counts for "
+                    + str(sel.get("room_category")) + "."
+                )
+        else:
+            if (cats.count("adult"), cats.count("child"), cats.count("infant")) != (mg, eb, inf):
+                frappe.throw(
+                    "Guest age categories do not match the passenger counts for "
+                    + str(sel.get("room_category")) + "."
+                )
+            # Slot (jika dihantar) mesti sepadan kategori — elak konflik
+            # antara dua perwakilan pada model umur.
+            derived = {"adult": "main", "child": "extra_bed", "infant": "infant"}
+            for cat, slot in zip(cats, slots):
+                if slot != derived[cat]:
+                    frappe.throw(
+                        "Guest slot does not match the age category for "
+                        + str(sel.get("room_category")) + "."
+                    )
+
+        # Lead guest: wajib adult (cruise: juga slot main berth) — selari
+        # UI wizard di mana Guest 1 dikunci sebagai adult main berth.
+        if cats[0] != "adult" or (is_cruise and slots[0] != "main"):
+            frappe.throw(
+                "The first guest must be an adult"
+                + (" main berth guest" if is_cruise else "")
+                + " for " + str(sel.get("room_category")) + "."
+            )
+
 
 # DEPRECATED: Diagnostic test endpoint — should not be in production
 @frappe.whitelist(allow_guest=True)
@@ -756,7 +1228,7 @@ def test_endpoint():
 
 
 @frappe.whitelist(allow_guest=True)
-def get_price_category_config(trip_type="non_cruise"):
+def get_price_category_config(trip_type: str = "non_cruise"):
     """
     Return active price category labels untuk trip type tertentu.
     Configurable dalam Travel Settings > Price Category Labels.
@@ -837,7 +1309,7 @@ def search_packages_by_date(start_date: str, end_date: str, trip: str = None):
                tp.package_title, tp.package_type, tp.airport_form,
                ap.airport_name, tp.currency, cur.symbol AS currency_symbol,
                tgd.departure_date, tgd.return_date, tgd.sailing_start, tgd.sailing_end,
-               tgd.total_days, tgd.total_nights, tgd.is_cruise_only, tp.ground_arrangement
+               tgd.total_days, tgd.total_nights, tgd.is_cruise_only
         FROM `tabTrip Package` AS tp
         JOIN `tabTrip Package Group Date Select` AS sel ON sel.parent = tp.name
         JOIN `tabTrip Group Date` AS tgd ON tgd.name = sel.trip_group_date
@@ -868,7 +1340,7 @@ def search_packages_by_date(start_date: str, end_date: str, trip: str = None):
                    tp.package_title, tp.package_type, tp.airport_form,
                    ap.airport_name, tp.currency, cur.symbol AS currency_symbol,
                    tgd.departure_date, tgd.return_date, tgd.sailing_start, tgd.sailing_end,
-                   tgd.total_days, tgd.total_nights, tgd.is_cruise_only, tp.ground_arrangement
+                   tgd.total_days, tgd.total_nights, tgd.is_cruise_only
             FROM `tabTrip Package` AS tp
             JOIN `tabTrip Package Group Date Select` AS sel ON sel.parent = tp.name
             JOIN `tabTrip Group Date` AS tgd ON tgd.name = sel.trip_group_date
@@ -907,7 +1379,6 @@ def search_packages_by_date(start_date: str, end_date: str, trip: str = None):
             "total_days": p.total_days,
             "total_nights": p.total_nights,
             "is_cruise_only": bool(p.is_cruise_only),
-            "ground_arrangement": bool(p.ground_arrangement),
         })
     return result
 

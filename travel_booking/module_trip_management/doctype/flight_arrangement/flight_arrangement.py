@@ -22,6 +22,7 @@ class FlightArrangement(Document):
 		naming_series: DF.Literal["FA-.YYYY.-.####"]
 		notes: DF.SmallText | None
 		preferred_airline: DF.Link | None
+		travel_package: DF.Link | None
 		trip: DF.Link
 		via_airports: DF.Table[FlightArrangementVia]
 	# end: auto-generated types
@@ -35,3 +36,33 @@ class FlightArrangement(Document):
 			frappe.throw("Final Destination diperlukan untuk mode Return.")
 		if self.flight_mode == "Multi-City" and self.final_destination:
 			frappe.throw("Final Destination hanya untuk mode Return — guna Via Airports untuk Multi-City.")
+		# Hierarki ERD: FA peringkat trip = TEMPLATE default; FA dengan
+		# travel_package = OVERRIDE eksklusif pakej itu (cth KUL vs SIN).
+		# Pakej tidak boleh ada dua override; trip tetap maksimum SATU
+		# template (constraint unique:1 lama kini longgar — divalidasi di
+		# sini supaya baris override boleh wujud di bawah trip yang sama).
+		if self.travel_package:
+			pkg_trip = frappe.db.get_value(
+				"Travel Package", self.travel_package, "trip")
+			if pkg_trip and pkg_trip != self.trip:
+				frappe.throw(
+					"Travel Package override ({0}) bukan milik trip {1}.".format(
+						self.travel_package, self.trip))
+			dup = frappe.db.exists("Flight Arrangement", {
+				"travel_package": self.travel_package,
+				"name": ["!=", self.name],
+			})
+			if dup:
+				frappe.throw(
+					"Pakej {0} sudah mempunyai Flight Arrangement override "
+					"({1}).".format(self.travel_package, dup))
+		else:
+			dup = frappe.db.exists("Flight Arrangement", {
+				"trip": self.trip,
+				"travel_package": ["is", "not set"],
+				"name": ["!=", self.name],
+			})
+			if dup:
+				frappe.throw(
+					"Trip {0} sudah mempunyai template Flight Arrangement "
+					"({1}).".format(self.trip, dup))

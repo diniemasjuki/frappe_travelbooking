@@ -120,6 +120,7 @@ def get_booking_kanban(status: str = None, trip: str = None, date_from: str = No
 					'customer_name': customer_name,
 					'cust_email': getattr(booking_doc, 'cust_email', '') or '',
 					'trip_name': getattr(booking_doc, 'trip_name', '') or '',
+					'trip_date': getattr(booking_doc, 'trip_date', '') or '',
 					'trip_package': getattr(booking_doc, 'trip_package', '') or '',
 					'departure_date': str(getattr(booking_doc, 'departure_date', None) or ''),
 					'return_date': str(getattr(booking_doc, 'return_date', None) or ''),
@@ -1051,8 +1052,11 @@ def generate_pay_link(booking_name: str) -> str:
 	try:
 		booking = frappe.get_doc('Booking', booking_name)
 
-		# Cari Sales Order utama untuk booking ni
-		so_name = frappe.db.get_value("Sales Order", {"custom_booking": booking_name}, "name")
+		# Cari Sales Order utama untuk booking ni — [Nov 2026] melalui
+		# registri Booking.sales_orders (SO tidak lagi memegang link
+		# custom_booking ke Booking).
+		from travel_booking.api.so_helpers import _get_primary_so
+		so_name = _get_primary_so(booking_name)
 		if not so_name:
 			frappe.throw(_("No Sales Order found for this booking."))
 
@@ -1149,14 +1153,10 @@ def get_linked_sales_order(booking_name: str) -> str:
 		return None
 	
 	try:
-		so = frappe.db.get_value(
-			'Sales Order',
-			{'custom_booking': booking_name},
-			['name', 'status', 'grand_total'],
-			as_dict=True,
-			order_by='creation asc'
-		)
-		return so.name if so else None
+		# [Nov 2026] SO utama (hidup) melalui registri Booking.sales_orders —
+		# SO tidak lagi memegang link custom_booking ke Booking.
+		from travel_booking.api.so_helpers import _get_primary_so
+		return _get_primary_so(booking_name)
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), 'Get Linked SO Error')
 		return None

@@ -4,18 +4,10 @@
 
 {% block head_extra %}
 <style>
-  .btc-wrap { max-width: 860px; margin: 0 auto; padding: 40px 20px 80px; }
-  .btc-card {
-    background: #fff;
-    border: 1px solid #E8E5DF;
-    border-radius: 14px;
-    padding: 36px 40px;
-    box-shadow: 0 2px 10px rgba(30, 28, 24, .05);
-  }
-  .btc-eyebrow {
-    font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
-    color: #C9A84C; font-weight: 700; margin: 0 0 8px;
-  }
+  {# MIGRASI BOOTSTRAP 5: layout (wrap/card/btn) pakai utility Bootstrap
+     (container, card, btn btn-outline-primary) + rc-eyebrow daripada
+     rc-theme.css. Yang kekal di sini hanya tipografi kandungan kaya
+     (dari DB), kad kosong jenama, dan hook print. #}
   .btc-title { font-size: 26px; font-weight: 800; color: #1E1C18; margin: 0 0 6px; }
   .btc-meta { font-size: 12px; color: #B0AC9F; margin: 0 0 20px; }
   .btc-content { font-size: 14px; color: #3B382F; line-height: 1.75; }
@@ -27,41 +19,33 @@
     background: #F7F5F0; border: 1px dashed #E8E5DF; border-radius: 12px;
     padding: 28px; font-size: 14px; color: #6E6A5F; text-align: center;
   }
-  .btc-actions { margin-top: 24px; display: flex; gap: 10px; flex-wrap: wrap; }
-  .btc-btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-size: 13px; font-weight: 600; text-decoration: none; cursor: pointer;
-    padding: 9px 16px; border-radius: 10px; border: 1px solid #C9A84C;
-    color: #1E1C18; background: #fff;
-  }
-  .btc-btn:hover { background: #F7F1E3; }
   @media print {
     .rc-public-nav, .rc-public-footer, .btc-actions { display: none !important; }
-    .btc-card { border: none; box-shadow: none; padding: 0; }
+    .btc-card { border: none !important; box-shadow: none !important; padding: 0 !important; max-width: none !important; }
   }
 </style>
 {% endblock %}
 
 {% block page_content %}
-<div class="btc-wrap">
-  <div class="btc-card">
+<div class="container py-5">
+  <div class="card btc-card mx-auto" style="max-width:860px;padding:36px 40px;">
     {% if booking_terms %}
-      <p class="btc-eyebrow">Booking Terms &amp; Conditions</p>
+      <p class="rc-eyebrow mb-2">Booking Terms &amp; Conditions</p>
       <h1 class="btc-title">{{ booking_terms.title }}</h1>
       {% if terms_updated_on %}
         <p class="btc-meta">Last updated {{ terms_updated_on }}</p>
       {% endif %}
       <div class="btc-content">{{ booking_terms.content }}</div>
-      <div class="btc-actions">
-        <button type="button" class="btc-btn" onclick="window.print()">
+      <div class="btc-actions d-flex flex-wrap gap-2 mt-4">
+        <button type="button" class="btn btn-outline-primary" onclick="window.print()">
           <i class="ti ti-printer"></i> Print / Save as PDF
         </button>
-        <a class="btc-btn" href="/booknow">
+        <a class="btn btn-outline-primary" href="/booknow">
           <i class="ti ti-arrow-left"></i> Back to Booking
         </a>
       </div>
     {% else %}
-      <p class="btc-eyebrow">Booking Terms &amp; Conditions</p>
+      <p class="rc-eyebrow mb-3">Booking Terms &amp; Conditions</p>
       <div class="btc-empty">
         Our booking Terms &amp; Conditions are currently being updated.
         Please check back later or contact us for the latest copy.

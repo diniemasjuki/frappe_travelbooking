@@ -153,8 +153,8 @@ const cur_sub_line = (a, cur, field) => {
 	};
 	const RES_STATUS_COLORS = {
 		'Waiting Document': 'yellow', 'Document Completed': 'green',
-		'Document Expired': 'red', 'Preparation Complete': 'blue',
-		'Trip OnProgress': 'orange', 'Completed': 'gray', 'Cancelled': 'red',
+		'Document Expired': 'red', 'Preparation Completed': 'blue',
+		'Trip On Progress': 'orange', 'Completed': 'gray', 'Cancelled': 'red',
 	};
 	// Status doctype Booking (panel Booking modal) — cermin DF.Literal
 	// booking.json; warna badge paparan butang status.
@@ -365,6 +365,27 @@ const cur_sub_line = (a, cur, field) => {
 				.catch((err) => {
 					console.error('ManageBookingApp API Error:', method, err);
 					frappe.show_alert({ message: __('Error loading data'), indicator: 'red' }, 5);
+					reject(err);
+				});
+		});
+
+	/* ---------- API helper (Fasa 1a booking_edit module) ---------- */
+	const api_edit = (method, args = {}) =>
+		new Promise((resolve, reject) => {
+			frappe.call({
+				method: 'travel_booking.api.booking_edit.' + method,
+				args,
+				freeze: false,
+			})
+				.then((r) => resolve(r?.message ?? null))
+				.catch((err) => {
+					// mesej server (frappe.throw) sampai sebagai objek
+					// exc_type/_server_messages — papar alert jelas.
+					const msg = err?.message?.error_message
+						|| (Array.isArray(err?.messages) && err.messages[0])
+						|| (typeof err?.message === 'string' && err.message)
+						|| __('Error');
+					frappe.show_alert({ message: msg, indicator: 'red' }, 6);
 					reject(err);
 				});
 		});
@@ -821,6 +842,14 @@ const cur_sub_line = (a, cur, field) => {
 			ev.preventDefault();
 			const b = $(this).data('booking');
 			if (b) open_payment_link_dialog(b);
+		});
+		$d.on('click', '.mba-bkg-editpax-btn', function () {
+			const b = $(this).data('booking');
+			if (b) open_edit_pax_dialog(b);
+		});
+		$d.on('click', '.mba-bkg-resched-btn', function () {
+			const b = $(this).data('booking');
+			if (b) open_reschedule_dialog(b);
 		});
 		$d.on('click', '.mba-open-form', function () {
 			const g = $(this).data('group');
@@ -3147,6 +3176,12 @@ function footer_agg(items) {
 						<span class="mba-crumb mba-crumb--cur">${esc(p.booking_number || p.name)}</span>
 					</nav>
 					<div class="mba-bkg-actions">
+						<button type="button" class="mba-bkg-editpax-btn" data-booking="${esc(p.name)}"
+							title="${esc(__('Edit guests — add or remove, changes propagate to the Sales Order'))}">
+							${__('Edit Pax')} ${frappe.utils.icon('users-edit', 'xs')}</button>
+						<button type="button" class="mba-bkg-resched-btn" data-booking="${esc(p.name)}"
+							title="${esc(__('Move this booking to another departure date or package (same trip)'))}">
+							${__('Reschedule')} ${frappe.utils.icon('calendar-event', 'xs')}</button>
 						<a class="mba-bkg-form-link" href="/app/booking/${esc(p.name)}"
 							target="_blank" rel="noopener"
 							title="${esc(__('Open the Booking form in a new tab'))}">
@@ -3340,6 +3375,39 @@ function footer_agg(items) {
 			</div>`;
 	}
 
+	// ── Fasa A (G1/G2): strip jadual bayaran (Deposit/Balance SO) + tarikh
+	// akhir hold. Dipaparkan hanya bila ada baris jadual / hold aktif —
+	// booking lama (pra-Fasa A) kekal tanpa blok ini. ──
+	function bkg_schedule_strip(d) {
+		const rows = (d.payment_schedule || []).filter((r) => r.description);
+		const p = d.profile || {};
+		const hold = (p.checkout_method === 'Held Booking' && p.hold_expires_on)
+			? `<div class="mba-mitem mba-mitem--warn" style="min-width:150px">
+					<div class="mba-mitem-l">${__('Hold Expires')}</div>
+					<div class="mba-mitem-v" style="color:${new Date(p.hold_expires_on) < new Date() ? '#d93025' : 'inherit'}">
+						${frappe.datetime.str_to_user(p.hold_expires_on)}</div>
+					</div>` : '';
+		if (!rows.length && !hold) return '';
+		const sched = rows.length ? `
+			<div class="mba-sched">
+				<div class="mba-sched-title">${__('Payment Schedule')}</div>
+				<table class="mba-sched-table">
+					<thead><tr><th>${__('Term')}</th><th>${__('Due Date')}</th>
+						<th class="num">${__('Amount')}</th><th class="num">${__('Outstanding')}</th></tr></thead>
+					<tbody>${rows.map((r) => {
+						const overdue = r.outstanding > 0.009 && r.due_date && new Date(r.due_date) < new Date();
+						return `<tr class="${overdue ? 'mba-sched-overdue' : ''}">
+							<td>${esc(__(r.description))}</td>
+							<td>${r.due_date ? frappe.datetime.str_to_user(r.due_date) : '—'}</td>
+							<td class="num">${fmtMoney(r.payment_amount, r.currency)}</td>
+							<td class="num">${r.outstanding > 0.009 ? fmtMoney(r.outstanding, r.currency) : '<span class="mba-muted">✓</span>'}</td>
+						</tr>`;
+					}).join('')}</tbody>
+				</table>
+			</div>` : '';
+		return `${hold ? `<div class="mba-bkg-money">${hold}</div>` : ''}${sched}`;
+	}
+
 	// ── Modal Payment Link — butang ikon kecil selepas label BALANCE (strip
 	// wang). Urus pautan bayaran baki tertunggak: pilih SATU atau LEBIH
 	// Sales Order (digabungkan dalam SATU pembayaran Stripe), jana pautan
@@ -3414,6 +3482,357 @@ function footer_agg(items) {
 				</div>
 			</div>`;
 	};
+
+	/* ---------- Fasa 1c: dialog Reschedule (tukar tarikh/pakej, unpaid) ---------- */
+	function open_reschedule_dialog(booking) {
+		let state = null;
+		let dlg = null;
+
+		const fmt_money2 = (v, cur) => (cur || '') + ' ' + flt(v).toFixed(2);
+
+		const selected = () => ({
+			tgd: dlg.$body.find('.mba-resched-datesel').val() || '',
+			pkg: dlg.$body.find('.mba-resched-pkgsel').val() || '',
+		});
+
+		const render_body = () => {
+			const s = state;
+			if (!s) return `<div class="text-muted">${__('Loading…')}</div>`;
+			let html = '';
+			if ((s.blocked || []).length) {
+				html += `<div class="mba-editpax-blocked">${
+					s.blocked.map((x) => `<div>⚠ ${esc(__(x))}</div>`).join('')}</div>`;
+			}
+			if (!(s.dates || []).length) {
+				if (!(s.blocked || []).length) {
+					html += `<div class="text-muted">${__('No other dates available for this trip.')}</div>`;
+				}
+				return html;
+			}
+			html += `
+				<div class="mba-editpax-reason">
+					<label>${__('Reason for reschedule')} <span class="text-danger">*</span></label>
+					<input type="text" class="mba-editpax-reason-input form-control"
+						placeholder="${esc(__('e.g. customer requested a later departure'))}" maxlength="500"/>
+				</div>
+				<div class="mba-editpax-row mba-editpax-catrow">
+					<span>${__('Departure Date')}</span>
+					<select class="form-control mba-resched-datesel" style="max-width:220px;font-size:12px;padding:3px 6px;">
+						${s.dates.map((d) => `
+							<option value="${esc(d.trip_group_date)}">
+								${esc(frappe.datetime.str_to_user(d.departure_date))} — ${esc(d.group_name || d.trip_group_date)}
+							</option>`).join('')}
+					</select>
+				</div>
+				<div class="mba-editpax-row mba-editpax-catrow">
+					<span>${__('Package')}</span>
+					<select class="form-control mba-resched-pkgsel" style="max-width:260px;font-size:12px;padding:3px 6px;"></select>
+					<span class="mba-resched-estimate text-muted"></span>
+				</div>
+				<div class="mba-editpax-row mba-editpax-catrow">
+					<span></span>
+					<button type="button" class="btn btn-sm btn-secondary mba-resched-confirm" disabled>
+						${__('Confirm Reschedule')}</button>
+					<span class="text-muted" style="font-size:11px;">${esc(__('creates a new Sales Order at current rates; the old one is cancelled'))}</span>
+				</div>`;
+			return html;
+		};
+
+		const render_pkgs = () => {
+			const { tgd } = selected();
+			const d = (state.dates || []).find((x) => x.trip_group_date === tgd);
+			const $sel = dlg.$body.find('.mba-resched-pkgsel');
+			const $est = dlg.$body.find('.mba-resched-estimate');
+			const $btn = dlg.$body.find('.mba-resched-confirm');
+			if (!d) { $sel.empty(); $est.text(''); $btn.prop('disabled', true); return; }
+			$sel.html((d.packages || []).map((p) => `
+				<option value="${esc(p.offer || p.package)}" data-pkg="${esc(p.package)}"
+					${p.eligible ? '' : 'disabled'}
+					data-est="${p.estimate_total || ''}" ${p.eligible ? '' : `title="${esc(p.reason)}"`}>
+					${esc(p.package_type || p.package)}${p.eligible && p.estimate_total ? ' — ' + esc(fmt_money2(p.estimate_total, state.current_currency)) : ''}${p.eligible ? '' : ' — ' + esc(p.reason)}
+				</option>`).join(''));
+			// Lalai = pakej LAYAK pertama (bukan option pertama — option
+			// disabled tak boleh dipilih dan confirm akan gagal sisi server).
+			const firstEligible = (d.packages || []).find((p) => p.eligible);
+			if (firstEligible) {
+				$sel.val(firstEligible.offer || firstEligible.package);
+			}
+			$sel.trigger('change');
+		};
+
+		const refresh = () =>
+			api_edit('get_booking_reschedule_options', { booking }).then((payload) => {
+				state = payload;
+				if (!dlg) return;
+				dlg.$body.html(render_body());
+				if ((state.dates || []).length) {
+					render_pkgs();
+					dlg.$body.find('.mba-resched-datesel').on('change', render_pkgs);
+					dlg.$body.find('.mba-resched-pkgsel').on('change', function () {
+						const $opt = $(this).find('option:selected');
+						const est = $opt.data('est');
+						dlg.$body.find('.mba-resched-estimate')
+							.text(est ? __('New total:') + ' ' + fmt_money2(est, state.current_currency) : '');
+						update_btn();
+					});
+				}
+			});
+
+		const update_btn = () => {
+			const reason = dlg.$body.find('.mba-editpax-reason-input').val().trim();
+			const { tgd, pkg } = selected();
+			dlg.$body.find('.mba-resched-confirm').prop('disabled', !(reason && tgd && pkg));
+		};
+
+		dlg = new frappe.ui.Dialog({
+			title: __('Reschedule Booking'),
+			size: 'large',
+		});
+		dlg.$body.html(render_body());
+		refresh();
+		dlg.show();
+		dlg.$body.on('input', '.mba-editpax-reason-input', update_btn);
+
+		dlg.$body.on('click', '.mba-resched-confirm', function () {
+			const reason = dlg.$body.find('.mba-editpax-reason-input').val().trim();
+			const { tgd, pkg } = selected();
+			if (!reason || !tgd || !pkg) return;
+			const $btn = $(this).prop('disabled', true);
+			const $opt = dlg.$body.find('.mba-resched-pkgsel option:selected');
+			api_edit('reschedule_booking', {
+				booking,
+				new_trip_group_date: tgd,
+				new_package_offer: pkg,
+				new_trip_package: $opt.data('pkg') || '',
+				reason,
+			}).then((r) => {
+				frappe.show_alert({
+					message: __('Rescheduled to {0}. New Sales Order {1} ({2}).',
+						[frappe.datetime.str_to_user(r.departure_date), r.new_sales_order, fmt_money2(r.grand_total, r.currency)]),
+					indicator: 'green',
+				}, 7);
+				dlg.hide();
+				// Muat semula paparan L3 penuh
+				const cur = frappe.get_route();
+				if (cur && cur[0] === 'manage-booking-app') {
+					show_booking(booking);
+				}
+			}).catch(() => {
+				$btn.prop('disabled', false);
+			});
+		});
+	}
+
+	/* ---------- Fasa 1a: dialog Edit Pax (booking → SO propagation) ---------- */
+	function open_edit_pax_dialog(booking) {
+		let state = null;
+		let dlg = null;
+
+		const fmt_money = (v, cur) =>
+			(cur || 'RM') + ' ' + flt(v).toFixed(2);
+
+		const so_state_badge = (st) => {
+			const map = {
+				unpaid: ['gray', __('Unpaid')],
+				partial: ['orange', __('Partially Paid')],
+				paid_uninvoiced: ['green', __('Paid')],
+				paid_invoiced: ['red', __('Paid + Invoiced')],
+				missing: ['red', __('No Sales Order')],
+			};
+			const m = map[st] || ['gray', st];
+			return badge(__(m[1]), m[0]);
+		};
+
+		const render_body = () => {
+			const s = state;
+			if (!s) return `<div class="text-muted">${__('Loading…')}</div>`;
+			let html = '';
+
+			if ((s.blocked || []).length) {
+				html += `<div class="mba-editpax-blocked">${
+					s.blocked.map((b) => `<div>⚠ ${esc(__(b))}</div>`).join('')}</div>`;
+			}
+
+			// Medan sebab — WAJIB sebelum sebarang tindakan.
+			html += `
+				<div class="mba-editpax-reason">
+					<label>${__('Reason for change')} <span class="text-danger">*</span></label>
+					<input type="text" class="mba-editpax-reason-input form-control"
+						placeholder="${esc(__('e.g. customer requested one fewer guest'))}" maxlength="500"/>
+				</div>`;
+
+			// Keadaan SO
+			if (s.so_state && s.so_state.state !== 'missing') {
+				html += `
+					<div class="mba-editpax-sostate">
+						<span>${esc(s.primary_so)}</span>
+						${so_state_badge(s.so_state.state)}
+						<span class="text-muted">${esc(__('Paid'))} ${esc(fmt_money(s.so_state.advance_paid, s.so_state.currency))}
+							/ ${esc(fmt_money(s.so_state.grand_total, s.so_state.currency))}</span>
+					</div>`;
+			}
+
+			// Kabin + pax semasa (buang) + tukar kategori (1b)
+			if ((s.cabins || []).length) {
+				html += `<div class="mba-editpax-section">${__('Remove Guests')}</div>`;
+				html += `<div class="mba-editpax-cabins">`;
+				for (const c of s.cabins) {
+					const catOpts = (c.category_options || []).filter((o) => o.eligible || o.reason);
+					html += `
+						<div class="mba-editpax-cabin">
+							<div class="mba-editpax-cabin-h">
+								${__('Cabin')} ${c.cabin_no} — ${esc(c.room_category)}
+								${c.room_privacy ? `<span class="text-muted">(${esc(c.room_privacy)})</span>` : ''}
+							</div>
+							${(c.pax || []).map((p) => `
+								<div class="mba-editpax-row">
+									<span>${esc(p.pax_type)} × ${p.count}</span>
+									<span class="text-muted">${esc(fmt_money(p.unit_price, s.so_state?.currency))}</span>
+									<button type="button" class="btn btn-xs btn-secondary mba-editpax-remove"
+										data-cabin="${c.cabin_no}" data-pax="${esc(p.pax_type)}">
+										${__('Remove 1')}</button>
+								</div>`).join('')}
+							${catOpts.length ? `
+								<div class="mba-editpax-row mba-editpax-catrow">
+									<span>${__('Room Category')}</span>
+									<select class="form-control mba-editpax-catsel" data-cabin="${c.cabin_no}"
+										style="max-width:170px;font-size:11px;padding:2px 6px;">
+										${catOpts.map((o) => `
+											<option value="${esc(o.category)}" ${o.eligible ? '' : 'disabled'}
+												data-delta="${flt(o.delta || 0)}" data-total="${flt(o.new_total || 0)}"
+												${o.eligible ? '' : `title="${esc(o.reason)}"`}>
+												${esc(o.category)}${o.eligible && o.delta ? ' (' + (o.delta > 0 ? '+' : '') + esc(fmt_money(Math.abs(o.delta), s.so_state?.currency)) + ')' : ''}${o.eligible ? '' : ' — ' + esc(o.reason)}
+											</option>`).join('')}
+									</select>
+									<button type="button" class="btn btn-xs btn-secondary mba-editpax-changecat"
+										data-cabin="${c.cabin_no}">${__('Change')}</button>
+								</div>` : ''}
+						</div>`;
+				}
+				html += `</div>`;
+			}
+
+			// Pilihan tambah (kabin shareable)
+			const add = s.add_options;
+			if (add && !add.unavailable && (add.cabins || []).length) {
+				html += `<div class="mba-editpax-section">${__('Add Guest')} <span class="text-muted">(${esc(__('creates a new Sales Order'))})</span></div>`;
+				html += `<div class="mba-editpax-cabins">`;
+				for (const c of add.cabins) {
+					html += `
+						<div class="mba-editpax-cabin">
+							<div class="mba-editpax-cabin-h">${__('Cabin')} ${c.cabin_no} — ${esc(c.room_category)}
+								${c.eligible ? '' : `<span class="text-muted">(${esc(__('full'))})</span>`}</div>
+							${(c.categories || []).map((k) => `
+								<div class="mba-editpax-row">
+									<span>${esc(k.label || k.key)}</span>
+									<span class="text-muted">${esc(fmt_money(k.net_rate, add.currency))}</span>
+									<button type="button" class="btn btn-xs btn-secondary mba-editpax-add"
+										data-cabin="${c.cabin_no}" data-cat="${esc(k.key)}"
+										${(k.disabled || !c.eligible) ? 'disabled title="' + esc(k.disabled_reason || __('Not available')) + '"' : ''}>
+										${__('Add')}</button>
+								</div>`).join('')}
+						</div>`;
+				}
+				html += `</div>`;
+			}
+
+			return html;
+		};
+
+		const refresh = () =>
+			api_edit('get_booking_edit_state', { booking }).then((payload) => {
+				state = payload;
+				if (dlg) dlg.$body.html(render_body());
+			});
+
+		dlg = new frappe.ui.Dialog({
+			title: __('Edit Pax') + ' — ' + (state?.booking_number || booking),
+			size: 'large',
+		});
+		dlg.$body.html(render_body());
+		refresh();
+		dlg.show();
+
+		// Reason wajib — butang tindakan aktif hanya bila diisi.
+		dlg.$body.on('input', '.mba-editpax-reason-input', function () {
+			const ok = !!$(this).val().trim();
+			dlg.$body.find('.mba-editpax-remove, .mba-editpax-add').prop('disabled', !ok);
+		});
+		// Keadaan awal: butang tidak aktif sehingga sebab diisi.
+		dlg.$body.find('.mba-editpax-remove, .mba-editpax-add, .mba-editpax-changecat').prop('disabled', true);
+
+		dlg.$body.on('click', '.mba-editpax-changecat', function () {
+			const reason = dlg.$body.find('.mba-editpax-reason-input').val().trim();
+			if (!reason) return;
+			const $btn = $(this).prop('disabled', true);
+			const $row = $btn.closest('.mba-editpax-catrow');
+			const $sel = $row.find('.mba-editpax-catsel');
+			const newCat = $sel.val();
+			if (!newCat) return;
+			api_edit('change_booking_cabin_category', {
+				booking,
+				cabin_no: $btn.data('cabin'),
+				new_category: newCat,
+				reason,
+			}).then((r) => {
+				frappe.show_alert({
+					message: __('Category changed to {0}. New total: {1}.', [r.new_category, fmt_money(r.grand_total, r.currency)]),
+					indicator: 'green',
+				}, 6);
+				refresh();
+			}).catch(() => {
+				$btn.prop('disabled', false);
+				refresh();
+			});
+		});
+
+		dlg.$body.on('click', '.mba-editpax-remove', function () {
+			const reason = dlg.$body.find('.mba-editpax-reason-input').val().trim();
+			if (!reason) return;
+			const $btn = $(this).prop('disabled', true);
+			api_edit('remove_booking_pax', {
+				booking,
+				cabin_no: $btn.data('cabin'),
+				pax_type: $btn.data('pax'),
+				qty: 1,
+				reason,
+			}).then((r) => {
+				const credit = r && r.credit_balance > 0
+					? __(' Credit balance: {0}.', [fmt_money(r.credit_balance, r.currency)])
+					: '';
+				frappe.show_alert({
+					message: __('Removed. New total: {0}.{1}', [fmt_money(r.grand_total, r.currency), credit]),
+					indicator: 'green',
+				}, 6);
+				refresh();
+			}).catch(() => {
+				$btn.prop('disabled', false);
+				refresh();
+			});
+		});
+
+		dlg.$body.on('click', '.mba-editpax-add', function () {
+			const reason = dlg.$body.find('.mba-editpax-reason-input').val().trim();
+			if (!reason) return;
+			const $btn = $(this).prop('disabled', true);
+			api_edit('add_booking_pax', {
+				booking,
+				cabin_no: $btn.data('cabin'),
+				category: $btn.data('cat'),
+				reason,
+			}).then((r) => {
+				frappe.show_alert({
+					message: __('Added. Sales Order {0} created ({1}).',
+						[r.sales_order, fmt_money(r.grand_total, r.currency)]),
+					indicator: 'green',
+				}, 6);
+				refresh();
+			}).catch(() => {
+				$btn.prop('disabled', false);
+				refresh();
+			});
+		});
+	}
 
 	function open_payment_link_dialog(booking) {
 		api('get_booking_payment_links', { booking }).then((payload) => {
@@ -3743,7 +4162,7 @@ function footer_agg(items) {
 		// Strip wang (Order → Paid → Balance + Payment Status) berada dalam
 		// kandungan tab Overview — bahagian atas, sebelum Order Summary.
 		$('#mba-detail').find(`.mba-group[data-item="${key}"] .mba-tab-pane[data-pane="ov"]`)
-			.html(`${bkg_money_strip(d.profile)}${bkg_order_summary(d)}${bkg_timeline(d)}`);
+			.html(`${bkg_money_strip(d.profile)}${bkg_schedule_strip(d)}${bkg_order_summary(d)}${bkg_timeline(d)}`);
 	}
 
 	// ── Tab Rooms L3 — PAKEJ ROOMING LIST (rooms_list.js) diguna semula
@@ -3855,7 +4274,7 @@ function footer_agg(items) {
 					<span class="mba-bkcard-no">${esc(a.name)}</span>
 					${badge(a.status, ADDON_STATUS_COLORS[a.status])}
 				</div>
-				<div class="mba-bkcard-cust">${esc(a.trip_package || a.booking_number || '—')}</div>
+				<div class="mba-bkcard-cust">${esc(a.package_offer || a.booking_number || '—')}</div>
 				<div class="mba-bkcard-foot">
 					${badge(a.payment_status, PAYMENT_STATUS_COLORS[a.payment_status])}
 					<span><b>${fmtMoney(a.total_amount, a.currency || S.currency)}</b> · ${a.item_count} ${__('items')}</span>

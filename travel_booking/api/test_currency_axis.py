@@ -124,11 +124,16 @@ class TripAddonPackageRateTestCase(UnitTestCase):
 		self.assertEqual(price, 30)
 		self.assertEqual(source, "rates")
 
-	def test_legacy_fallback_only_when_currency_matches(self):
+	def test_no_legacy_fallback_even_when_currency_matches(self):
+		# DOKTRIN SEMASA (kawalan perubahan sengaja, rujuk docstring
+		# get_rate_for_currency): "tiada fallback legacy" — baris rate
+		# enabled adalah SATU-SATUNYA sumber harga; legacy unit_price
+		# tidak dipakai langsung. Ujian lama (pra-perubahan ini) menuntut
+		# fallback legacy — telah dibuang bersama model converter lama.
 		doc = self._pkg([], legacy_currency="MYR", legacy_unit_price=100)
 		price, source = doc.get_rate_for_currency("MYR")
-		self.assertEqual(price, 100)
-		self.assertEqual(source, "legacy")
+		self.assertIsNone(price)
+		self.assertIsNone(source)
 
 	def test_no_conversion_when_no_rate(self):
 		# Inti model: BUKAN converter — tiada rate = tak dijual (None),
@@ -138,8 +143,10 @@ class TripAddonPackageRateTestCase(UnitTestCase):
 		self.assertIsNone(price)
 		self.assertIsNone(source)
 
-	def test_disabled_rate_row_skipped_falls_back_legacy(self):
+	def test_disabled_rate_row_means_not_sold(self):
+		# Baris rate disabled = tidak dijual dalam currency itu — TIDAK
+		# jatuh balik ke legacy price (doktrin sama dengan atas).
 		doc = self._pkg([("SGD", 30, 0)], legacy_currency="SGD", legacy_unit_price=28)
 		price, source = doc.get_rate_for_currency("SGD")
-		self.assertEqual(price, 28)
-		self.assertEqual(source, "legacy")
+		self.assertIsNone(price)
+		self.assertIsNone(source)

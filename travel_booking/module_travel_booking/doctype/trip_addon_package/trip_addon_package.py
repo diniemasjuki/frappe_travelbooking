@@ -112,52 +112,54 @@ class TripAddonPackage(Document):
 
 		if self.applicable_to == "Specific Trips Only" and not scopings:
 			frappe.throw(
-				"This addon is marked as 'Specific Trips Only' but no trip/date/package "
+				"This addon is marked as 'Specific Trips Only' but no trip/travel date/offer "
 				"scoping is specified. Please add at least one entry in 'Trip & Date Scoping' table."
 			)
 
-	def is_applicable_for_trip_package(self, trip_package_name=None, group_date_name=None, trip_name=None):
-		"""Check if this addon package is applicable for a given trip / group date / package.
+	def is_applicable_for_context(self, package_offer_name=None, travel_date_name=None, trip_name=None):
+		"""Check if this addon package is applicable for a given offer /
+		travel date / trip context.
 
 		Returns True if:
 		- applicable_to = 'All Trips' (global, available for all bookings)
-		- OR scoping exists and matches the given trip_package/group_date/trip
+		- OR scoping exists and matches the given package_offer/travel_date/trip
 
 		Semantik row scoping (kepihakan lebih spesifik menang):
-		- row dengan trip_package → hanya booking dengan Trip Package sama
-		- row dengan group_date  → hanya booking dengan Trip Group Date sama
-		- row dengan trip SAHAJA (tiada date/package) → SEMUA booking bagi
-		  Trip tersebut. (Bug lama: padanan trip-level hanya berjalan bila
-		  booking TIADA package & group date — hampir mustahil untuk booking
-		  sebenar — menyebabkan addon scoped "trip sahaja" tak pernah muncul
-		  di page booking_addons.)
+		- row dengan package_offer → hanya booking dengan Package Offer sama
+		  (RECONDITION Nov 2026 — dahulu Trip Package)
+		- row dengan travel_date   → hanya booking dengan Travel Date sama
+		  (RECONDITION Nov 2026 — dahulu Trip Group Date)
+		- row dengan trip SAHAJA (tiada date/offer) → SEMUA booking bagi
+		  Trip tersebut.
 		"""
-		scopings = frappe.get_all("Trip Scoping", {"parent": self.name}, ["trip_package", "group_date", "trip"])
+		scopings = frappe.get_all(
+			"Trip Scoping", {"parent": self.name}, ["package_offer", "travel_date", "trip"]
+		)
 
 		if self.applicable_to == "All Trips":
 			return True
 
 		for scope in scopings:
-			# Row trip+package (tiada group date): sah untuk package tertentu
-			# pada TRIP tersebut sahaja — semua tarikh yang package itu sah.
+			# Row trip+offer (tiada travel date): sah untuk offer tertentu
+			# pada TRIP tersebut sahaja — semua tarikh yang offer itu sah.
 			# Row yang nyatakan trip mengkehendaki booking dari trip sama.
-			if scope.trip_package and trip_package_name and scope.trip_package == trip_package_name:
+			if scope.package_offer and package_offer_name and scope.package_offer == package_offer_name:
 				if not scope.trip or not trip_name or scope.trip == trip_name:
 					return True
-			if scope.group_date and group_date_name and scope.group_date == group_date_name:
+			if scope.travel_date and travel_date_name and scope.travel_date == travel_date_name:
 				return True
 			if (
 				scope.trip
-				and not scope.group_date
-				and not scope.trip_package
+				and not scope.travel_date
+				and not scope.package_offer
 				and trip_name
 				and scope.trip == trip_name
 			):
 				return True
 
-		# Legacy: booking tanpa konteks langsung (tiada package/date/trip) —
-		# sebarang row scoping trip dianggap padanan.
-		if not trip_package_name and not group_date_name and not trip_name:
+		# Booking tanpa konteks langsung (tiada offer/date/trip) — sebarang
+		# row scoping trip dianggap padanan.
+		if not package_offer_name and not travel_date_name and not trip_name:
 			return any(s.trip for s in scopings)
 
 		return False

@@ -1,0 +1,106 @@
+{
+ "actions": [],
+ "creation": "2026-11-17 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "banner_image",
+  "banner_tag",
+  "banner_title",
+  "banner_subtitle",
+  "column_break_banner",
+  "banner_cta_label",
+  "banner_link_url",
+  "is_active",
+  "sort_order"
+ ],
+ "fields": [
+  {
+   "fieldname": "banner_image",
+   "fieldtype": "Attach Image",
+   "label": "Background Image",
+   "description": "Image shown as the background of this slide. Recommended size: 1920x1080px.",
+   "make_attachment_public": 1,
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 3
+  },
+  {
+   "fieldname": "banner_tag",
+   "fieldtype": "Data",
+   "label": "Tag Line",
+   "description": "Small line shown above the title (optional).",
+   "length": 60,
+   "in_list_view": 0
+  },
+  {
+   "fieldname": "banner_title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "description": "Caption heading of the slide. HTML allowed, e.g. &lt;em&gt;text&lt;/em&gt; for italic.",
+   "length": 140,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "banner_subtitle",
+   "fieldtype": "Small Text",
+   "label": "Subtitle",
+   "description": "Caption text under the title (optional). HTML allowed.",
+   "in_list_view": 0
+  },
+  {
+   "fieldname": "column_break_banner",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "banner_cta_label",
+   "fieldtype": "Data",
+   "label": "Button Label",
+   "description": "Text on the call-to-action button, e.g. View Cruises. Empty = use the Default Button Label set in Travel Website.",
+   "length": 60,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "banner_link_url",
+   "fieldtype": "Data",
+   "label": "Button URL",
+   "description": "Where the button goes, e.g. /cruises. Leave empty to hide the button on this slide.",
+   "length": 200,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "label": "Active",
+   "description": "Untick to hide this slide without deleting it.",
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "label": "Sort Order",
+   "description": "Slides are shown from the lowest number first.",
+   "in_list_view": 1,
+   "columns": 2
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-25 02:59:20.491831",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Website Banner Slide",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "sort_order",
+ "sort_order": "ASC",
+ "states": {}
+}

@@ -1,17 +1,17 @@
 {
  "actions": [],
- "creation": "2026-11-05 09:00:00.000000",
+ "allow_rename": 1,
+ "autoname": "OFF-.YYYY.-.####",
+ "creation": "2026-11-05 09:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
- "module": "Module Trip Management",
- "name": "Package Offer",
- "modified": "2026-11-05 09:00:00.000000",
- "modified_by": "Administrator",
- "owner": "Administrator",
  "field_order": [
   "naming_series",
+  "travel_date",
+  "trip",
   "package",
   "offer_name",
+  "currency",
   "column_break_a",
   "status_editorial",
   "status_operational",
@@ -34,15 +34,27 @@
   "embarkation_port",
   "disembarkation_port",
   "section_capacity",
-  "max_pax",
-  "current_pax",
   "column_break_e",
   "days_before_closure",
   "public_slug",
+  "section_payment_terms",
+  "deposit_percent",
+  "final_payment_days",
+  "column_break_pmt",
+  "sale_mode",
+  "group_block_code",
+  "matrix_components_section",
+  "matrix_room",
+  "matrix_flight",
+  "matrix_hotel",
+  "matrix_transport",
+  "matrix_meal",
   "section_children",
-  "inventory",
-  "prices",
-  "components",
+  "price_matrix",
+  "addon_price_matrix",
+  "section_itinerary",
+  "overwrite_itinerary",
+  "itinerary",
   "legacy_tgd",
   "legacy_trip_package"
  ],
@@ -52,16 +64,35 @@
    "fieldtype": "Select",
    "label": "Naming Series",
    "options": "OFF-.YYYY.-.####",
-   "reqd": 1,
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "description": "Travel Date induk (hierarki ERD: Trip >> Travel Date >> Packages). Medan tarikh/sailing/ship/port pada offer ialah SALINAN yang disinkronkan oleh Travel Date — jangan edit terus.",
+   "fieldname": "travel_date",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Travel Date",
+   "options": "Travel Date"
+  },
+  {
+   "description": "Diwarisi DARIPADA Travel Date (Travel Date.trip) oleh controller validate — bukan diambil terus dari mana-mana field lain. Readonly.",
+   "fieldname": "trip",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Trip",
+   "options": "Trip",
    "read_only": 1
   },
   {
+   "description": "LEGACY (Travel Package deprecated Nov 2026): pautan templat warisan v40. Offer baharu (identiti sendiri) tiada nilai. Dikekalkan sehingga pembersihan rujukan terakhir (Stage 3).",
    "fieldname": "package",
    "fieldtype": "Link",
-   "label": "Travel Package",
+   "hidden": 1,
+   "label": "Travel Package (legacy)",
+   "no_copy": 1,
    "options": "Travel Package",
-   "reqd": 1,
-   "in_standard_filter": 1
+   "read_only": 1
   },
   {
    "fieldname": "offer_name",
@@ -74,24 +105,24 @@
    "fieldtype": "Column Break"
   },
   {
+   "default": "Draft",
    "fieldname": "status_editorial",
    "fieldtype": "Select",
-   "label": "Editorial Status",
-   "options": "Draft\nActive\nCancelled",
-   "default": "Draft",
-   "reqd": 1,
-   "in_list_view": 1,
-   "in_standard_filter": 1
-  },
-  {
-   "fieldname": "status_operational",
-   "fieldtype": "Select",
-   "label": "Operational Status (auto)",
-   "options": "Scheduled\nRunning\nSailing\nFull\nClosed\nCompleted",
-   "default": "Scheduled",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "description": "Di-set oleh auto-job sahaja (Fasa B guard)"
+   "label": "Editorial Status",
+   "options": "Draft\nActive\nCancelled",
+   "reqd": 1
+  },
+  {
+   "default": "Scheduled",
+   "description": "Di-set oleh auto-job sahaja (tarikh-derivasi). Keadaan 'penuh' dilihat pada kolam Sailing (cabin_rates schedule) — bukan per offer.",
+   "fieldname": "status_operational",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Operational Status (auto)",
+   "options": "Scheduled\nRunning\nSailing\nClosed\nCompleted"
   },
   {
    "fieldname": "section_dates",
@@ -101,14 +132,15 @@
   {
    "fieldname": "departure_date",
    "fieldtype": "Date",
+   "in_list_view": 1,
    "label": "Departure Date",
-   "reqd": 1,
-   "in_list_view": 1
+   "read_only": 1
   },
   {
    "fieldname": "return_date",
    "fieldtype": "Date",
-   "label": "Return Date"
+   "label": "Return Date",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_b",
@@ -117,12 +149,16 @@
   {
    "fieldname": "total_days",
    "fieldtype": "Int",
-   "label": "Total Days"
+   "hidden": 1,
+   "label": "Total Days",
+   "read_only": 1
   },
   {
    "fieldname": "total_nights",
    "fieldtype": "Int",
-   "label": "Total Nights"
+   "hidden": 1,
+   "label": "Total Nights",
+   "read_only": 1
   },
   {
    "fieldname": "section_sailing",
@@ -132,22 +168,28 @@
   {
    "fieldname": "sailing_start",
    "fieldtype": "Date",
-   "label": "Sailing Start"
+   "hidden": 1,
+   "label": "Sailing Start",
+   "read_only": 1
   },
   {
    "fieldname": "sailing_end",
    "fieldtype": "Date",
-   "label": "Sailing End"
+   "hidden": 1,
+   "label": "Sailing End",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_c",
    "fieldtype": "Column Break"
   },
   {
+   "description": "Satu-satunya link ops rujukan offer — diwarisi daripada Travel Date (satu sailing per tarikh; dikongsi semua offer tarikh itu).",
    "fieldname": "cruise_schedule",
    "fieldtype": "Link",
    "label": "Cruise Schedule (ops source)",
-   "options": "Trip Cruise Schedule"
+   "options": "Trip Cruise Schedule",
+   "read_only": 1
   },
   {
    "fieldname": "flight",
@@ -158,17 +200,22 @@
   {
    "fieldname": "section_ship",
    "fieldtype": "Section Break",
+   "hidden": 1,
    "label": "Ship / Ports"
   },
   {
    "fieldname": "ship_name",
    "fieldtype": "Data",
-   "label": "Ship Name"
+   "hidden": 1,
+   "label": "Ship Name",
+   "read_only": 1
   },
   {
    "fieldname": "ship_code",
    "fieldtype": "Data",
-   "label": "Ship Code"
+   "hidden": 1,
+   "label": "Ship Code",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_d",
@@ -177,29 +224,21 @@
   {
    "fieldname": "embarkation_port",
    "fieldtype": "Data",
-   "label": "Embarkation Port"
+   "hidden": 1,
+   "label": "Embarkation Port",
+   "read_only": 1
   },
   {
    "fieldname": "disembarkation_port",
    "fieldtype": "Data",
-   "label": "Disembarkation Port"
+   "hidden": 1,
+   "label": "Disembarkation Port",
+   "read_only": 1
   },
   {
    "fieldname": "section_capacity",
    "fieldtype": "Section Break",
    "label": "Capacity & Window"
-  },
-  {
-   "fieldname": "max_pax",
-   "fieldtype": "Int",
-   "label": "Max Pax (0 = unlimited)",
-   "default": "0"
-  },
-  {
-   "fieldname": "current_pax",
-   "fieldtype": "Int",
-   "label": "Current Pax",
-   "read_only": 1
   },
   {
    "fieldname": "column_break_e",
@@ -208,99 +247,212 @@
   {
    "fieldname": "days_before_closure",
    "fieldtype": "Int",
-   "label": "Days Before Closure"
+   "hidden": 1,
+   "label": "Days Before Closure",
+   "read_only": 1
   },
   {
+   "description": "Token rawak untuk URL awam (jangan guna nama berjujukan)",
    "fieldname": "public_slug",
    "fieldtype": "Data",
    "label": "Public Slug",
    "read_only": 1,
-   "unique": 1,
-   "description": "Token rawak untuk URL awam (jangan guna nama berjujukan)"
+   "unique": 1
+  },
+  {
+   "fieldname": "section_payment_terms",
+   "fieldtype": "Section Break",
+   "label": "Payment Terms (Fasa A)"
+  },
+  {
+   "default": "0",
+   "description": "Deposit % untuk offer ini — override Travel Settings (global). Kosong/0 = guna default global. Direfleksikan pada jadual bayaran Sales Order (baris Deposit + Balance) semasa booking.",
+   "fieldname": "deposit_percent",
+   "fieldtype": "Percent",
+   "label": "Deposit Percent (0 = Global Default)",
+   "non_negative": 1,
+   "precision": "0"
+  },
+  {
+   "default": "0",
+   "description": "Baki bayaran LENGKAP berapa hari sebelum tarikh berlepas (amalan cruise: 30-120 hari). Kosong/0 = guna Travel Settings > Default Final Payment Days. Booking dibuat DALAM tetingkap ini dikehendaki bayar penuh serta-merta.",
+   "fieldname": "final_payment_days",
+   "fieldtype": "Int",
+   "label": "Final Payment Due (Days Before Departure)",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_pmt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Public",
+   "description": "Fasa C: Public = jualan FIT biasa; Group Block = blok kumpulan (rujukan kontrak di Group Block Code); Full Charter = seluruh inventori offer dijual/diserah kepada satu charterer (guna Reserved For Partner pada baris inventori untuk distribusi sub-agensi); Private = tidak tersenarai awam (jualan manual/OTA tertutup).",
+   "fieldname": "sale_mode",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Sale Mode",
+   "options": "Public\nGroup Block\nFull Charter\nPrivate"
+  },
+  {
+   "depends_on": "eval:doc.sale_mode==='Group Block'",
+   "description": "Fasa C: kod blok kontrak kumpulan dengan cruise line (rujukan allotment/reduction dates) — untuk pelaporan & padanan manifest.",
+   "fieldname": "group_block_code",
+   "fieldtype": "Data",
+   "label": "Group Block Code"
   },
   {
    "fieldname": "section_children",
    "fieldtype": "Section Break",
-   "label": "Inventory / Prices / Components"
+   "label": "Components"
   },
   {
-   "fieldname": "inventory",
+   "description": "SUMBER HARGA UTAMA (Nov 2026): 1 baris per room category — lajur slot penuh (adult/single/upper/child/toddler/infant). Kolum allotment/availability pada baris DIABAIKI untuk offer cruise (kapasiti = Sailing Inventory kongsi). Enjin checkout baca matrix ini dahulu; Offer Price hanya fallback legacy.",
+   "fieldname": "price_matrix",
    "fieldtype": "Table",
-   "label": "Inventory (per variant option)",
-   "options": "Offer Inventory"
-  },
-  {
-   "fieldname": "prices",
-   "fieldtype": "Table",
-   "label": "Prices (matrix)",
-   "options": "Offer Price"
-  },
-  {
-   "fieldname": "components",
-   "fieldtype": "Table",
-   "label": "Resolved Components",
-   "options": "Offer Component"
+   "label": "Price Matrix (Room Category × Slot)",
+   "options": "Trip Package Price"
   },
   {
    "fieldname": "legacy_tgd",
    "fieldtype": "Data",
-   "label": "Legacy TGD (migration)",
-   "read_only": 1,
    "hidden": 1,
-   "no_copy": 1
+   "label": "Legacy TGD (migration)",
+   "no_copy": 1,
+   "read_only": 1
   },
   {
    "fieldname": "legacy_trip_package",
    "fieldtype": "Data",
-   "label": "Legacy Trip Package (migration)",
-   "read_only": 1,
    "hidden": 1,
-   "no_copy": 1
+   "label": "Legacy Trip Package (migration)",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "description": "Currency jualan offer ini (universal: digunakan enjin pricing, import Price Matrix & penukaran kurs). Dahulu dari Travel Package.default_currency.",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "matrix_components_section",
+   "fieldtype": "Section Break",
+   "label": "Matrix Components (seksi harga aktif)"
+  },
+  {
+   "fieldname": "matrix_room",
+   "fieldtype": "Check",
+   "default": "1",
+   "label": "Room Category",
+   "read_only": 1,
+   "description": "Harga asas — sentiasa aktif (terkunci)."
+  },
+  {
+   "fieldname": "matrix_flight",
+   "fieldtype": "Check",
+   "default": "0",
+   "label": "Flight",
+   "description": "Aktifkan seksi PRICE MATRIX Flight utk offer ini."
+  },
+  {
+   "fieldname": "matrix_hotel",
+   "fieldtype": "Check",
+   "default": "0",
+   "label": "Hotel",
+   "description": "Aktifkan seksi PRICE MATRIX Hotel utk offer ini."
+  },
+  {
+   "fieldname": "matrix_transport",
+   "fieldtype": "Check",
+   "default": "0",
+   "label": "Transport",
+   "description": "Aktifkan seksi PRICE MATRIX Transport utk offer ini."
+  },
+  {
+   "fieldname": "matrix_meal",
+   "fieldtype": "Check",
+   "default": "0",
+   "label": "Meal",
+   "description": "Aktifkan seksi PRICE MATRIX Meal utk offer ini."
+  },
+  {
+   "fieldname": "addon_price_matrix",
+   "fieldtype": "Table",
+   "label": "Addon Price Matrix (Flight · Hotel · Transport · Meal)",
+   "options": "Trip Package Price",
+   "description": "KOMPONEN TAMBAHAN (Nov 2026) — dikumpulkan dalam child table berasingan daripada base. Total pakej = base (Room Category dipilih × slot) + Σ addon. Room Category KEKAL sebagai base price."
+  },
+  {
+   "fieldname": "section_itinerary",
+   "fieldtype": "Section Break",
+   "label": "Itinerary (mengatasi Travel Date)"
+  },
+  {
+   "default": "0",
+   "description": "Tandakan untuk guna itinerary offer ini mengatasi warisan Travel Date (yang mewarisi Trip). Jika tidak ditanda (atau table kosong), itinerary diwarisi daripada Travel Date.",
+   "fieldname": "overwrite_itinerary",
+   "fieldtype": "Check",
+   "label": "Overwrite Itinerary"
+  },
+  {
+   "description": "Baris di sini hanya diguna bila Overwrite Itinerary ditanda. Guna butang \"Salin dari Travel Date\" di Travel Manager untuk pra-isi.",
+   "fieldname": "itinerary",
+   "fieldtype": "Table",
+   "label": "Itinerary",
+   "no_copy": 1,
+   "options": "Trip Itinerary"
   }
  ],
+ "link_display_mode": "Search",
  "links": [],
+ "modified": "2026-11-13 08:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Module Trip Management",
+ "name": "Package Offer",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "track_changes": 1,
- "autoname": "OFF-.YYYY.-.####",
- "naming_rule": "By \"Naming Series\" field",
- "allow_rename": 1,
- "index_web_pages_for_search": 1,
- "permissions": [
-  {
-   "role": "System Manager",
-   "read": 1,
-   "write": 1,
-   "create": 1,
-   "delete": 1,
-   "print": 1,
-   "email": 1,
-   "export": 1,
-   "report": 1,
-   "share": 1,
-   "submit": 0
-  },
-  {
-   "role": "Tour Manager",
-   "read": 1,
-   "write": 1,
-   "create": 1,
-   "delete": 1,
-   "print": 1,
-   "email": 1,
-   "export": 1,
-   "report": 1,
-   "share": 1
-  },
-  {
-   "role": "Tour Operator",
-   "read": 1,
-   "write": 1,
-   "create": 1,
-   "export": 1,
-   "report": 1,
-   "share": 1
-  }
- ]
+ "track_changes": 1
 }

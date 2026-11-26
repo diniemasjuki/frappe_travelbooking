@@ -18,6 +18,7 @@
   "deposit_and_payment_section",
   "payment_gateway",
   "default_deposit_percent",
+  "default_final_payment_days",
   "online_payment_min_amount",
   "column_break_zykz",
   "manual_transfer_cashback_enabled",
@@ -30,6 +31,8 @@
   "booking_automation_section",
   "pending_abandoned_days",
   "max_cabins_per_booking",
+  "hold_expiry_hours",
+  "enable_payment_reminders",
   "referral_and_voucher_section",
   "default_referral_discount_percent",
   "price_category_section",
@@ -105,6 +108,14 @@
    "fieldname": "default_deposit_percent",
    "fieldtype": "Percent",
    "label": "Default Deposit Percent"
+  },
+  {
+   "default": "30",
+   "description": "Fasa A (G1): baki bayaran LENGKAP berapa hari sebelum tarikh berlepas (fallback global — boleh di-override per offer pada Package Offer > Payment Terms). Amalan cruise line: 30-120 hari. Booking dibuat dalam tetingkap ini dikehendaki bayar penuh serta-merta. Dipakai pada jadual bayaran Sales Order + emel peringatan T-30/T-7/T-1.",
+   "fieldname": "default_final_payment_days",
+   "fieldtype": "Int",
+   "label": "Default Final Payment Due (Days Before Departure)",
+   "non_negative": 1
   },
   {
    "default": "0",
@@ -188,6 +199,21 @@
    "fieldtype": "Int",
    "label": "Max Cabins Per Booking (0 = Unlimited)",
    "non_negative": 1
+  },
+  {
+   "default": "72",
+   "description": "Fasa A (G2): hayat pegangan (jam) untuk tempahan 'Held Booking' (Pay Later) — amalan cruise: courtesy hold 24-72 jam. Job harian membatalkan booking (cascade SO/Payment Request + pulangkan kuota offer) selepas tampoh ini. Isi 0 = matikan ciri (tiada tarikh akhir, kelakuan lama).",
+   "fieldname": "hold_expiry_hours",
+   "fieldtype": "Int",
+   "label": "Held Booking Expiry (Hours, 0 = Off)",
+   "non_negative": 1
+  },
+  {
+   "default": "1",
+   "description": "Fasa A (G4): emel peringatan bayaran baki pada T-30/T-7/T-1 hari sebelum due date baki (jadual bayaran Sales Order). Satu emel per ambang per booking.",
+   "fieldname": "enable_payment_reminders",
+   "fieldtype": "Check",
+   "label": "Enable Payment Balance Reminders"
   },
   {
    "fieldname": "referral_and_voucher_section",

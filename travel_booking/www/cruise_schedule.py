@@ -51,15 +51,25 @@ def _ship_names(schedule_names) -> dict:
 
 
 def _package_min_prices(package_names) -> dict:
-    """Trip Package -> MIN(price_adult) (SATU query untuk semua pakej modal).
-    Harga pakej dalam currency NATIVE pakej — currency yang sama digunakan
-    untuk billing booking, jadi modal papar harga ikut currency pakej itu."""
+    """Pakej -> TOTAL harga "dari" (SATU query untuk semua pakej modal):
+    MIN(price_adult) baris BASE + Σ(price_adult) baris ADDON.
+
+    Parent boleh Trip Package (legacy, parentfield='package_pricing')
+    ATAU Package Offer (struktur baharu) — base = price_matrix /
+    package_pricing, addon = addon_price_matrix (offer khas dengan
+    Flight/Hotel/Transport/Meal; Total pakej = base + Σ addon — kontrak
+    sama dengan wizard & page detail). Harga dalam currency NATIVE
+    pakej — currency yang sama digunakan untuk billing booking."""
     names = [p for p in package_names if p]
     if not names:
         return {}
     rows = frappe.db.sql(
         """
-        SELECT parent, MIN(price_adult) AS min_price
+        SELECT parent,
+               MIN(CASE WHEN parentfield IN ('price_matrix', 'package_pricing')
+                   THEN price_adult END) AS min_price,
+               COALESCE(SUM(CASE WHEN parentfield = 'addon_price_matrix'
+                   THEN price_adult ELSE 0 END), 0) AS addon_sum
         FROM `tabTrip Package Price`
         WHERE parent IN %(names)s
         GROUP BY parent
@@ -67,7 +77,11 @@ def _package_min_prices(package_names) -> dict:
         {"names": names},
         as_dict=True,
     )
-    return {r.parent: (float(r.min_price) if r.min_price else None) for r in rows}
+    out = {}
+    for r in rows:
+        if r.min_price:
+            out[r.parent] = float(r.min_price) + float(r.addon_sum or 0)
+    return out
 
 
 def _variant_label(group: dict) -> str:
@@ -172,7 +186,6 @@ def _attach_booking_options(dates: list, trip_packages: dict) -> None:
                                 if p.get("total_days")
                                 else ""
                             ),
-                            "ground": bool(p.get("ground_arrangement")),
                         }
                         for p in pkgs
                     ],

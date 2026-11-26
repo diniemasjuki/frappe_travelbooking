@@ -1,0 +1,295 @@
+{
+ "actions": [],
+ "autoname": "TD-.YYYY.-.####",
+ "creation": "2026-11-08 16:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "trip",
+  "is_a_cruise_trip",
+  "travel_date_name",
+  "column_break_a",
+  "status_editorial",
+  "section_dates",
+  "departure_date",
+  "return_date",
+  "total_days",
+  "total_nights",
+  "column_break_b",
+  "days_before_closure",
+  "trip_category",
+  "destination",
+  "section_cruise",
+  "cruise_schedule",
+  "ship_name",
+  "ship_code",
+  "column_break_c",
+  "sailing_start",
+  "sailing_end",
+  "embarkation_port",
+  "disembarkation_port",
+  "section_meta",
+  "description",
+  "section_itinerary",
+  "overwrite_itinerary",
+  "itinerary",
+  "legacy_tgd"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Naming Series",
+   "options": "TD-.YYYY.-.####",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "trip",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trip",
+   "options": "Trip",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "0",
+   "description": "Diwarisi daripada Trip (fetch). Trip cruise WAJIB ada Cruise Schedule.",
+   "fetch_from": "trip.is_a_cruise_trip",
+   "fieldname": "is_a_cruise_trip",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "is a Cruise Trip",
+   "read_only": 1
+  },
+  {
+   "fieldname": "travel_date_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Travel Date Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_a",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Draft",
+   "description": "Active/Cancelled memerlukan Tour Manager (gate API). Operational offer kekal auto-job.",
+   "fieldname": "status_editorial",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Editorial Status",
+   "options": "Draft\nActive\nCancelled",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_dates",
+   "fieldtype": "Section Break",
+   "label": "Dates"
+  },
+  {
+   "fieldname": "departure_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Departure Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "return_date",
+   "fieldtype": "Date",
+   "label": "Return Date"
+  },
+  {
+   "description": "Kosong/0 \u2192 auto kira daripada Departure/Return (nights + 1).",
+   "fieldname": "total_days",
+   "fieldtype": "Int",
+   "label": "Total Days",
+   "non_negative": 1
+  },
+  {
+   "description": "Kosong/0 \u2192 auto kira daripada Departure/Return (date_diff).",
+   "fieldname": "total_nights",
+   "fieldtype": "Int",
+   "label": "Total Nights",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_b",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "days_before_closure",
+   "fieldtype": "Int",
+   "label": "Days Before Closure",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "trip_category",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Trip Category",
+   "options": "Trip Category"
+  },
+  {
+   "fieldname": "destination",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Destination"
+  },
+  {
+   "depends_on": "eval:doc.is_a_cruise_trip",
+   "fieldname": "section_cruise",
+   "fieldtype": "Section Break",
+   "label": "Cruise (auto-sync dari schedule)"
+  },
+  {
+   "description": "SATU cruise schedule per travel date (trip cruise). Semua offer anak berkongsi sailing \u2014 inventori kabin fizikal dikongsi melalui Sailing Inventory schedule ini. Medan sailing/ship/port di bawah DISINKRON dari sini.",
+   "fieldname": "cruise_schedule",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Cruise Schedule",
+   "options": "Trip Cruise Schedule",
+   "search_index": 1
+  },
+  {
+   "fieldname": "ship_name",
+   "fieldtype": "Data",
+   "label": "Ship Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ship_code",
+   "fieldtype": "Data",
+   "label": "Ship Code",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_c",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sailing_start",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Sailing Start",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sailing_end",
+   "fieldtype": "Date",
+   "label": "Sailing End",
+   "read_only": 1
+  },
+  {
+   "fieldname": "embarkation_port",
+   "fieldtype": "Data",
+   "label": "Embarkation Port",
+   "read_only": 1
+  },
+  {
+   "fieldname": "disembarkation_port",
+   "fieldtype": "Data",
+   "label": "Disembarkation Port",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_meta",
+   "fieldtype": "Section Break",
+   "label": "Meta"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "section_itinerary",
+   "fieldtype": "Section Break",
+   "label": "Itinerary (mengatasi Trip)"
+  },
+  {
+   "default": "0",
+   "description": "Tandakan untuk guna itinerary Travel Date ini mengatasi warisan Trip. Jika tidak ditanda (atau table kosong), itinerary diwarisi daripada Trip.",
+   "fieldname": "overwrite_itinerary",
+   "fieldtype": "Check",
+   "label": "Overwrite Itinerary"
+  },
+  {
+   "description": "Baris di sini hanya diguna bila Overwrite Itinerary ditanda. Guna butang \"Salin dari Trip\" di Travel Manager untuk pra-isi.",
+   "fieldname": "itinerary",
+   "fieldtype": "Table",
+   "label": "Itinerary",
+   "no_copy": 1,
+   "options": "Trip Itinerary"
+  },
+  {
+   "fieldname": "legacy_tgd",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Legacy TGD (migration)",
+   "no_copy": 1,
+   "read_only": 1
+  }
+ ],
+ "link_display_mode": "Search",
+ "links": [
+  {
+   "group": "Packages (Offers)",
+   "link_doctype": "Package Offer",
+   "link_fieldname": "travel_date"
+  }
+ ],
+ "modified": "2026-11-22 11:32:28.562183",
+ "modified_by": "Administrator",
+ "module": "Module Trip Management",
+ "name": "Travel Date",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Tour Operator",
+   "write": 1
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "role": "Accounts User"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "departure_date",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

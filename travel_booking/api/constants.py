@@ -47,6 +47,14 @@ INSURANCE_ITEM_CODE = "TRAVEL-INSURANCE"
 # auto oleh _get_or_create_travel_item() kali pertama addon dicheckout.
 ADDON_PACKAGE_ITEM_CODE = "Trip Addon Package"
 
+# Item code untuk SO tambahan "Cabin Upgrade" (booking_edit.
+# create_cabin_upgrade_order — kes PENUH + BERINVOIS, SO utama kekal).
+# MESTI berbeza daripada TRAVEL_ITEM_CODE supaya agregat booked_pax
+# (SUM qty TRAVEL-PKG) dan _share_so_lines / _pending_share_sos
+# (penapis item TRAVEL-PKG) tidak tersilak mengira delta upgrade sebagai
+# pax/share order — corak sama ADDON_ITEM_CODE.
+UPGRADE_ITEM_CODE = "TRAVEL-UPG"
+
 # Prefix nombor booking ("RC" + 6 aksara rawak, rujuk _generate_booking_number).
 BOOKING_NUMBER_PREFIX = "RC"
 

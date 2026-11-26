@@ -1,16 +1,28 @@
 /* ============================================================
    travel_booking/public/css/trips.css
-   Styles untuk PAGE katalog /trips (hero, filters, result meta).
-   
-   NOTE: Komponen rc-trip-card sudah dipindahkan ke trip_card.css
-         File ini HANYA untuk page-specific styles.
-   
+   Styles untuk PAGE katalog /trips /tours /cruises /cruise-schedule
+   (hero, filters, result meta) — DIMIGRASI ke Bootstrap 5.
+
+   Bootstrap (btn / form-control / form-select / row-col grid) datang
+   daripada bootstrap.min.css + rc-theme.css (dimuat base_travel.html).
+   Fail ini HANYA blok jenama page katalog yang tiada padanan Bootstrap:
+   rc-catalog / rc-catalog-hero / rc-filters / rc-filter-* / rc-field* /
+   rc-catalog-meta.
+
+   NOTE: Komponen rc-trip-card ada di rc-theme.css (blok "KAD TRIP");
+         rc-btn-primary & rc-btn-ghost diganti btn Bootstrap (dipadam);
+         rc-empty tiada dalam fail ini sebelumnya (ada di trip_card.css
+         untuk halaman yang belum dimigrasi). trip.html (doctype) yang
+         masih guna rc-btn-primary/rc-field-label di-cover trip_detail.css
+         yang dimuat selepas fail ini.
+
    Tema: gold #C9A84C, dark #1E1C18, muted #5C5850/#7D7A70,
    bg #F7F5F0, border #E8E5DF.
    Font: Rubik (heading) + Jost (body) + Satisfy (tag)
    ============================================================ */
 
-/* ── Font variables ── */
+/* ── Font variables (diduplikasi di rc-theme.css; dikekalkan di sini
+   sebagai safety untuk halaman yang tidak melalui base_travel) ── */
 :root {
   --font-rubik: "Rubik", sans-serif;
   --font-jost: "Jost", sans-serif;
@@ -19,11 +31,11 @@
 }
 
 /* Page container */
-.rc-catalog { 
-  font-family: var(--font-jost); 
-  max-width: 1180px; 
-  margin: 0 auto; 
-  padding: 24px 22px 60px; 
+.rc-catalog {
+  font-family: var(--font-jost);
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 22px 60px;
 }
 
 /* ── Hero Section ── */
@@ -45,7 +57,7 @@
   font-size: 15px;
 }
 
-/* ── Filter Bar ── */
+/* ── Filter Bar (jenama; kawalan dalaman = form-control/form-select BS) ── */
 .rc-filters {
   background: #fff;
   border: 1px solid #E8E5DF;
@@ -114,37 +126,6 @@
   align-items: flex-end;
 }
 
-/* Buttons */
-.rc-btn-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 18px;
-  border-radius: 9px;
-  background: #C9A84C;
-  color: #1E1C18;
-  font-size: 14px;
-  font-weight: 700;
-  font-family: var(--font-jost);
-  border: none;
-  cursor: pointer;
-  text-decoration: none;
-  transition: background .15s ease;
-}
-.rc-btn-primary:hover { background: #B8983F; }
-.rc-btn-ghost {
-  padding: 8px 14px;
-  border-radius: 9px;
-  background: transparent;
-  border: 1px solid #E8E5DF;
-  color: #5C5850;
-  font-size: 14px;
-  font-family: var(--font-jost);
-  text-decoration: none;
-  transition: border-color .15s, color .15s;
-}
-.rc-btn-ghost:hover { border-color: #C9A84C; color: #1E1C18; }
-
 /* Result meta (count, sort) */
 .rc-catalog-meta {
   display: flex;
@@ -158,10 +139,6 @@
 }
 
 /* ── Responsive ── */
-@media (max-width: 980px) {
-  /* Grid responsive is in trip_card.css */
-}
-
 @media (max-width: 640px) {
   .rc-catalog-hero h1 { font-size: 32px; }
   .rc-filter-row { gap: 10px; }

@@ -3,8 +3,17 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  {# Keselamatan: token guest link dibawa dalam URL (?token=...) — larang
+     header Referer bocor ke CSS/JS CDN pihak ketiga pada halaman ni. #}
+  <meta name="referrer" content="no-referrer"/>
   <title>Submit Passport Details — Rarecation</title>
   <link rel="icon" href="/assets/travel_booking/img/faviconportal.png"/>
+  {# MIGRASI BOOTSTRAP 5: Bootstrap + rc-theme dimuatkan SEBELUM
+     portal.css (order sama seperti base_travel.html: bootstrap →
+     rc-theme → portal.css) supaya skin portal kekal menang untuk
+     class yang ia definisikan sendiri (.card, .btn-p, .upload-area…). #}
+  <link rel="stylesheet" href="/assets/travel_booking/css/bootstrap.min.css?v={{ asset_v('css/bootstrap.min.css') if asset_v is defined else '1' }}"/>
+  <link rel="stylesheet" href="/assets/travel_booking/css/rc-theme.css?v={{ asset_v('css/rc-theme.css') if asset_v is defined else '1' }}"/>
   <link rel="stylesheet" href="/assets/travel_booking/css/portal.css?v={{ asset_v('css/portal.css') if asset_v is defined else '1' }}"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/25.2.0/build/css/intlTelInput.min.css"/>
 </head>

@@ -465,6 +465,51 @@ def _send_status_email(booking_name, status, email_override=None):
         frappe.log_error("Status email (" + status + ") failed: " + str(e), "Booking Email Error")
 
 
+def _send_payment_reminder_email(booking_name, due_date, balance_amount, days_left):
+    """FASA A (G4): emel peringatan bayaran baki — dihantar oleh scheduler
+    send_payment_schedule_reminders() pada T-30/T-7/T-1 sebelum due date
+    baris 'Balance Payment' SO (amalan cruise line: final payment reminder).
+
+    Context asas datang dari _booking_email_context (supaya template boleh
+    guna vars sama seperti emel status: {{ first_name }}, {{ trip_name }},
+    {{ grand_total }}, {{ currency }}, dsb.) + vars khusus peringatan:
+    {{ due_date }}, {{ balance_amount }}, {{ days_left }}, {{ portal_url }}.
+
+    Penerima: contact BIL (partner untuk saluran B2B) — peringatan ni
+    kewangan, bukan pemakluman perjalanan; varian traveller tidak wajar.
+
+    Baki yang dipapar = amaun baris jadual DITOLAK apa yang sudah dibayar
+    (jadual ialah TERMA, bukan lejar) — elak sampaikan nombor lebih tinggi
+    dari hutang sebenar. Skip senyap bila tiada baki (bayaran masuk antara
+    query scheduler dan pemprosesan) atau template belum di-seed."""
+    ctx = _booking_email_context(booking_name)
+    if not ctx or not ctx.get("email"):
+        return
+    if not frappe.db.exists("Email Template", "Final Payment Reminder"):
+        return
+
+    # Baki SEBENAR semasa emel dihantar — bukan amaun jadual statik.
+    advance = float(ctx.get("advance_paid") or 0)
+    outstanding = max(0.0, round(float(balance_amount or 0) - advance, 2))
+    if outstanding <= 0.01:
+        return  # sudah settle antara query & hantar — jangan kelirukan customer
+
+    site_url = get_site_url()
+    template = frappe.get_doc("Email Template", "Final Payment Reminder")
+    context = dict(ctx)
+    context.update({
+        "first_name": ctx["full_name"].split()[0] if ctx["full_name"] else "Customer",
+        "due_date": frappe.utils.format_date(due_date),
+        "balance_amount": outstanding,
+        "days_left": days_left,
+        "portal_url": site_url.rstrip("/") + "/traveller/billing",
+    })
+    subject = frappe.render_template(template.subject, context)
+    message = template.get_formatted_response(context)
+    frappe.sendmail(recipients=[ctx["email"]], subject=subject,
+                    message=message, now=True)
+
+
 # ══════════════════════════════════════════════
 # RECEIPT EMAIL
 # ══════════════════════════════════════════════

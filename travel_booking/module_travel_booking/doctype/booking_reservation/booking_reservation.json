@@ -113,6 +113,14 @@
   "traveller_medicine_treatment",
   "traveller_dietary_requirements",
   "traveller_medical_conditions",
+  "guest_address_section",
+  "address_source",
+  "guest_address_line1",
+  "guest_city",
+  "guest_postcode",
+  "column_break_gadl",
+  "guest_state",
+  "guest_country",
   "rooming_and_flight_tab",
   "flight_announcement_section",
   "flight_announcement",
@@ -157,7 +165,8 @@
   "column_break_gplt",
   "passport_link_email",
   "passport_link_expires_on",
-  "inventory_key"
+  "inventory_key",
+  "sales_order"
  ],
  "fields": [
   {
@@ -248,7 +257,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "booking.trip_package",
    "fieldname": "trip_package",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -319,7 +327,6 @@
    "label": "Reservation Date"
   },
   {
-   "fetch_from": "booking.trip_date",
    "fieldname": "date_selection",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -343,7 +350,6 @@
   {
    "default": "0",
    "depends_on": "eval:doc.is_a_cruise",
-   "fetch_from": "booking.is_a_cruise_trip",
    "fieldname": "is_a_cruise",
    "fieldtype": "Read Only",
    "label": "is a cruise",
@@ -489,7 +495,6 @@
   },
   {
    "depends_on": "eval:doc.is_a_cruise",
-   "fetch_from": "date_selection.cruise_schedule",
    "fieldname": "trip_cruise_schedule",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -1143,12 +1148,63 @@
    "read_only": 1,
    "no_copy": 1,
    "description": "Kunci pool stok struktur baharu (cth cabin:CODE) — auto dari Room Category (F3)"
+  },
+  {
+   "fieldname": "guest_address_section",
+   "fieldtype": "Section Break",
+   "label": "Guest Address"
+  },
+  {
+   "description": "Sumber alamat tetamu slot: disalin dari alamat billing Booking semasa slot diaktifkan (\"From Booking\") atau diisi/di-edit manual oleh admin (\"Custom\").",
+   "fieldname": "address_source",
+   "fieldtype": "Select",
+   "label": "Address Source",
+   "options": "\nFrom Booking\nCustom"
+  },
+  {
+   "fieldname": "guest_address_line1",
+   "fieldtype": "Data",
+   "label": "Street Address"
+  },
+  {
+   "fieldname": "guest_city",
+   "fieldtype": "Data",
+   "label": "City"
+  },
+  {
+   "fieldname": "guest_postcode",
+   "fieldtype": "Data",
+   "label": "Postcode"
+  },
+  {
+   "fieldname": "column_break_gadl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "guest_state",
+   "fieldtype": "Data",
+   "label": "State"
+  },
+  {
+   "fieldname": "guest_country",
+   "fieldtype": "Link",
+   "label": "Country",
+   "options": "Country"
+  },
+  {
+   "description": "SO asal slot (slot tambahan cabin-sharing / share-traveller) — kunci idempotensi supaya slot tidak dicipta dua kali untuk SO yang sama.",
+   "fieldname": "sales_order",
+   "fieldtype": "Link",
+   "label": "Source Sales Order",
+   "no_copy": 1,
+   "options": "Sales Order",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "link_display_mode": "Search",
  "links": [],
- "modified": "2026-10-29 07:21:48.826872",
+ "modified": "2026-11-18 15:10:00.000000",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Booking Reservation",

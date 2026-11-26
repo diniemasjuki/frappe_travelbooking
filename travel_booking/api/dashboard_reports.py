@@ -365,16 +365,16 @@ def get_revenue_by_package(from_date: str = None, to_date: str = None) -> list:
 	_require_dashboard_access()
 	try:
 		packages = frappe.db.sql("""
-			SELECT 
-				tp.package_title,
-				tp.name,
+			SELECT
+				po.offer_name,
+				po.name,
 				COUNT(DISTINCT bao.name) as sales_count,
 				SUM(ba.amount) as revenue
 			FROM `tabBooking Addon` bao
 			INNER JOIN `tabBooking Addon Item` ba ON ba.addon_order = bao.name
-			RIGHT JOIN `Trip Package` tp ON tp.name = bao.trip_package
+			RIGHT JOIN `tabPackage Offer` po ON po.name = bao.package_offer
 			WHERE bao.creation BETWEEN %s AND %s
-			GROUP BY tp.name, tp.package_title
+			GROUP BY po.name, po.offer_name
 			ORDER BY revenue DESC
 			LIMIT 10
 		""", (from_date or '2024-01-01', to_date or '2030-12-31'), as_dict=True)

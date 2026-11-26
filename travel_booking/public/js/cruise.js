@@ -1,104 +1,26 @@
 /* travel_booking/public/js/cruise.js
-   Interactions for /cruise homepage:
-   - Testimonial auto-slider with dots
-   - Smooth scroll for anchor links
-   - Hero search widget enhancement */
+   Interactions for /cruise homepage — DIMIGRASI ke Bootstrap 5:
+   - Hero banner + testimonial slider kini komponen Bootstrap
+     carousel (data-bs-ride) — tiada JS slider custom lagi.
+   Yang kekal di sini:
+   - Pecahan Sailing Month gabungan ke month=&year= semasa submit
+   - Smooth scroll untuk anchor links */
 
 (function () {
   "use strict";
 
-  /* ── Testimonial Slider ── */
-  var slider = document.getElementById("rcTestimonialSlider");
-  if (slider) {
-    var track = slider.querySelector(".rc-track");
-    var dotsContainer = document.getElementById("rcSliderDots");
-    var cards = track ? track.querySelectorAll(".rc-testi-card") : [];
-    var current = 0;
-    var total = cards.length;
-    var autoInterval;
-
-    if (total > 0 && dotsContainer) {
-      // Create dots
-      for (var i = 0; i < total; i++) {
-        (function (idx) {
-          var dot = document.createElement("button");
-          dot.setAttribute("type", "button");
-          dot.setAttribute("aria-label", "Go to testimonial " + (idx + 1));
-          dot.addEventListener("click", function () { goTo(idx); });
-          dotsContainer.appendChild(dot);
-        })(i);
-      }
-
-      function updateDots() {
-        var dots = dotsContainer.querySelectorAll("button");
-        for (var j = 0; j < dots.length; j++) {
-          dots[j].classList.toggle("active", j === current);
-        }
-      }
-
-      function goTo(idx) {
-        current = idx;
-        var cardWidth = cards[0] ? cards[0].offsetWidth : 300;
-        var gap = 24;
-        if (track) {
-          track.style.transform = "translateX(-" + (current * (cardWidth + gap)) + "px)";
-        }
-        updateDots();
-        resetAuto();
-      }
-
-      function next() {
-        goTo((current + 1) % total);
-      }
-
-      function resetAuto() {
-        clearInterval(autoInterval);
-        autoInterval = setInterval(next, 5000);
-      }
-
-      // Initialize
-      updateDots();
-      resetAuto();
-
-      // Pause on hover
-      slider.addEventListener("mouseenter", function () { clearInterval(autoInterval); });
-      slider.addEventListener("mouseleave", resetAuto);
-
-      // Touch/swipe support for mobile
-      var startX = 0;
-      var isDragging = false;
-
-      if (track) {
-        track.addEventListener("touchstart", function (e) {
-          startX = e.touches[0].clientX;
-          isDragging = true;
-        }, { passive: true });
-
-        track.addEventListener("touchend", function (e) {
-          if (!isDragging) return;
-          isDragging = false;
-          var diff = startX - e.changedTouches[0].clientX;
-          if (Math.abs(diff) > 50) {
-            if (diff > 0) next();
-            else goTo((current - 1 + total) % total);
-          }
-        }, { passive: true });
-      }
-    }
-  }
-
-  /* ── Hero Search Enhancement ── */
-  var heroSearch = document.querySelector(".rc-hero-search");
-  if (heroSearch) {
-    // Add subtle animation on focus
-    var inputs = heroSearch.querySelectorAll("input, select");
-    inputs.forEach(function (input) {
-      input.addEventListener("focus", function () {
-        heroSearch.style.boxShadow = "0 24px 70px rgba(201,168,76,.18)";
-      });
-      input.addEventListener("blur", function () {
-        heroSearch.style.boxShadow = "";
-      });
+  /* ── Search bar homepage (rcHomeFilters) — pecahkan Sailing Month
+     gabungan "YYYY-MM" ke hidden month= & year= semasa submit (GET →
+     /cruises yang terima bulan/tahun berasingan). ── */
+  var homeForm = document.getElementById("rcHomeFilters");
+  if (homeForm) {
+    homeForm.addEventListener("submit", function () {
+      var sel = document.getElementById("rcHomeMonthYear");
+      var m = homeForm.querySelector('input[name="month"]');
+      var y = homeForm.querySelector('input[name="year"]');
+      var v = (sel && sel.value) ? sel.value.split("-") : null;
+      if (m) m.value = v ? String(parseInt(v[1], 10) || "") : "";
+      if (y) y.value = v ? v[0] : "";
     });
   }
 
