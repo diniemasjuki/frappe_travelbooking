@@ -1,6 +1,11 @@
 {
- "charts": [],
- "content": "[{\"id\": \"hdr_welcome\", \"type\": \"header\", \"data\": {\"text\": \"Welcome to Travel Booking Workspace\", \"col\": 12}}, {\"id\": \"hdr_trip\", \"type\": \"header\", \"data\": {\"text\": \"Manage Trip & Cruise\", \"col\": 12}}, {\"id\": \"card_core_trip\", \"type\": \"card\", \"data\": {\"card_name\": \"Core Trip Management\", \"col\": 3}}, {\"id\": \"card_cruise\", \"type\": \"card\", \"data\": {\"card_name\": \"Cruise Operations\", \"col\": 3}}, {\"id\": \"card_trip_content\", \"type\": \"card\", \"data\": {\"card_name\": \"Trip Content & Destinations\", \"col\": 3}}, {\"id\": \"card_trip_settings\", \"type\": \"card\", \"data\": {\"card_name\": \"Trip Settings & Configuration\", \"col\": 3}}, {\"id\": \"hdr_booking\", \"type\": \"header\", \"data\": {\"text\": \"Manage Booking & Flight\", \"col\": 12}}, {\"id\": \"card_booking_ops\", \"type\": \"card\", \"data\": {\"card_name\": \"Booking Operations\", \"col\": 4}}, {\"id\": \"card_flight_ops\", \"type\": \"card\", \"data\": {\"card_name\": \"Flight Operations\", \"col\": 4}}, {\"id\": \"nc_pending\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Pending (for Payment)\", \"col\": 3}}, {\"id\": \"nc_accepted\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Accepted (Ready to Process)\", \"col\": 3}}, {\"id\": \"nc_processing\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Currently Processing\", \"col\": 3}}, {\"id\": \"nc_abandoned\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Abandoned\", \"col\": 3}}, {\"id\": \"chart_enrollment\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Traveller Enrollment\", \"col\": 12}}, {\"id\": \"hdr_addon\", \"type\": \"header\", \"data\": {\"text\": \"Manage Addon & Services\", \"col\": 12}}, {\"id\": \"card_addon_catalog\", \"type\": \"card\", \"data\": {\"card_name\": \"Addon Catalog\", \"col\": 6}}, {\"id\": \"card_addon_orders\", \"type\": \"card\", \"data\": {\"card_name\": \"Addon Orders\", \"col\": 6}}, {\"id\": \"hdr_sales\", \"type\": \"header\", \"data\": {\"text\": \"Manage Sales & Payment\", \"col\": 12}}, {\"id\": \"card_invoicing\", \"type\": \"card\", \"data\": {\"card_name\": \"Invoicing\", \"col\": 4}}, {\"id\": \"card_payments\", \"type\": \"card\", \"data\": {\"card_name\": \"Payments\", \"col\": 4}}, {\"id\": \"card_vouchers\", \"type\": \"card\", \"data\": {\"card_name\": \"Vouchers & Promotions\", \"col\": 4}}, {\"id\": \"hdr_dashboards\", \"type\": \"header\", \"data\": {\"text\": \"Dashboards & Analytics\", \"col\": 12}}, {\"id\": \"sc_dashboard\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Dashboard & Reports\", \"col\": 4}}, {\"id\": \"sc_manage_trip\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Manage Trip & Booking\", \"col\": 4}}, {\"id\": \"sc_booking_hub\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Booking Hub\", \"col\": 4}}, {\"id\": \"sc_trip_cmd\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Trip Command Center\", \"col\": 4}}, {\"id\": \"card_dashboard_pages\", \"type\": \"card\", \"data\": {\"card_name\": \"Dashboard Pages\", \"col\": 6}}, {\"id\": \"card_portals\", \"type\": \"card\", \"data\": {\"card_name\": \"Portal Links\", \"col\": 6}}, {\"id\": \"hdr_resources\", \"type\": \"header\", \"data\": {\"text\": \"Manage Resources & Crew\", \"col\": 12}}, {\"id\": \"card_resources\", \"type\": \"card\", \"data\": {\"card_name\": \"Resources Management\", \"col\": 12}}]",
+ "charts": [
+  {
+   "chart_name": "Traveller Enrollment",
+   "label": "Traveller Enrollment"
+  }
+ ],
+ "content": "[{\"id\": \"hdr_welcome\", \"type\": \"header\", \"data\": {\"text\": \"Welcome to Travel Booking Workspace\", \"col\": 12}}, {\"id\": \"hdr_trip\", \"type\": \"header\", \"data\": {\"text\": \"Manage Trip & Cruise\", \"col\": 12}}, {\"id\": \"card_core_trip\", \"type\": \"card\", \"data\": {\"card_name\": \"Core Trip Management\", \"col\": 3}}, {\"id\": \"card_cruise\", \"type\": \"card\", \"data\": {\"card_name\": \"Cruise Operations\", \"col\": 3}}, {\"id\": \"card_trip_content\", \"type\": \"card\", \"data\": {\"card_name\": \"Trip Content & Destinations\", \"col\": 3}}, {\"id\": \"card_trip_settings\", \"type\": \"card\", \"data\": {\"card_name\": \"Trip Settings & Configuration\", \"col\": 3}}, {\"id\": \"hdr_booking\", \"type\": \"header\", \"data\": {\"text\": \"Manage Booking & Flight\", \"col\": 12}}, {\"id\": \"card_booking_ops\", \"type\": \"card\", \"data\": {\"card_name\": \"Booking Operations\", \"col\": 4}}, {\"id\": \"card_flight_ops\", \"type\": \"card\", \"data\": {\"card_name\": \"Flight Operations\", \"col\": 4}}, {\"id\": \"nc_pending\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Pending (for Payment)\", \"col\": 3}}, {\"id\": \"nc_accepted\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Accepted (Ready to Process)\", \"col\": 3}}, {\"id\": \"nc_processing\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Currently Processing\", \"col\": 3}}, {\"id\": \"nc_abandoned\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Abandoned\", \"col\": 3}}, {\"id\": \"chart_enrollment\", \"type\": \"chart\", \"data\": {\"chart_name\": \"Traveller Enrollment\", \"col\": 12}}, {\"id\": \"hdr_addon\", \"type\": \"header\", \"data\": {\"text\": \"Manage Addon & Services\", \"col\": 12}}, {\"id\": \"card_addon_catalog\", \"type\": \"card\", \"data\": {\"card_name\": \"Addon Catalog\", \"col\": 6}}, {\"id\": \"card_addon_orders\", \"type\": \"card\", \"data\": {\"card_name\": \"Addon Orders\", \"col\": 6}}, {\"id\": \"hdr_sales\", \"type\": \"header\", \"data\": {\"text\": \"Manage Sales & Payment\", \"col\": 12}}, {\"id\": \"card_invoicing\", \"type\": \"card\", \"data\": {\"card_name\": \"Invoicing\", \"col\": 4}}, {\"id\": \"card_payments\", \"type\": \"card\", \"data\": {\"card_name\": \"Payments\", \"col\": 4}}, {\"id\": \"card_vouchers\", \"type\": \"card\", \"data\": {\"card_name\": \"Vouchers & Promotions\", \"col\": 4}}, {\"id\": \"hdr_dashboards\", \"type\": \"header\", \"data\": {\"text\": \"Dashboards & Analytics\", \"col\": 12}}, {\"id\": \"sc_manage_booking\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Manage Booking\", \"col\": 4}}, {\"id\": \"sc_trip_manager\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Trip Manager\", \"col\": 4}}, {\"id\": \"sc_trip_cmd\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Trip Command Center\", \"col\": 4}}, {\"id\": \"sc_ongoing_today\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Ongoing Today\", \"col\": 4}}, {\"id\": \"card_dashboard_pages\", \"type\": \"card\", \"data\": {\"card_name\": \"Dashboard Pages\", \"col\": 6}}, {\"id\": \"card_b2b\", \"type\": \"card\", \"data\": {\"card_name\": \"B2B & Leads\", \"col\": 6}}, {\"id\": \"hdr_resources\", \"type\": \"header\", \"data\": {\"text\": \"Manage Resources & Crew\", \"col\": 12}}, {\"id\": \"card_resources\", \"type\": \"card\", \"data\": {\"card_name\": \"Resources Management\", \"col\": 12}}]",
  "creation": "2026-10-16 10:48:55.795372",
  "custom_blocks": [],
  "docstatus": 0,
@@ -15,6 +20,16 @@
  "link_to": "manage-booking-app",
  "link_type": "Page",
  "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Trip Manager",
+   "link_count": 0,
+   "link_to": "trip-manager",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
   {
    "dependencies": "",
    "hidden": 0,
@@ -71,7 +86,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Cruise Operations",
-   "link_count": 2,
+   "link_count": 3,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -93,6 +108,17 @@
    "label": "Rooming Aroya",
    "link_count": 0,
    "link_to": "Rooming Aroya",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Cruise Cabin",
+   "link_count": 0,
+   "link_to": "Cruise Cabin",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -172,7 +198,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Booking Operations",
-   "link_count": 3,
+   "link_count": 4,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -202,6 +228,17 @@
    "dependencies": "",
    "hidden": 0,
    "is_query_report": 0,
+   "label": "Booking Amendment",
+   "link_count": 0,
+   "link_to": "Booking Amendment",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Traveller",
    "link_count": 0,
    "link_to": "Traveller",
@@ -213,7 +250,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Flight Operations",
-   "link_count": 3,
+   "link_count": 4,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -224,6 +261,17 @@
    "label": "Flight",
    "link_count": 0,
    "link_to": "Flight",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Flight Schedule",
+   "link_count": 0,
+   "link_to": "Flight Schedule",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -374,7 +422,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Vouchers & Promotions",
-   "link_count": 2,
+   "link_count": 3,
    "onboard": 0,
    "type": "Card Break"
   },
@@ -401,12 +449,97 @@
    "type": "Link"
   },
   {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Travel Price Rule",
+   "link_count": 0,
+   "link_to": "Travel Price Rule",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
    "hidden": 0,
    "is_query_report": 0,
    "label": "Dashboard Pages",
    "link_count": 4,
    "onboard": 0,
    "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Manage Booking",
+   "link_count": 0,
+   "link_to": "manage-booking-app",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Trip Manager",
+   "link_count": 0,
+   "link_to": "trip-manager",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Trip Command Center",
+   "link_count": 0,
+   "link_to": "trip-command-center",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Ongoing Today",
+   "link_count": 0,
+   "link_to": "ongoing-today",
+   "link_type": "Page",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "B2B & Leads",
+   "link_count": 2,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Travel B2B Partner",
+   "link_count": 0,
+   "link_to": "Travel B2B Partner",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Travel Inquiry",
+   "link_count": 0,
+   "link_to": "Travel Inquiry",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   },
   {
    "hidden": 0,
@@ -450,11 +583,28 @@
    "type": "Link"
   }
  ],
- "modified": "2026-10-19 09:26:39.620362",
+ "modified": "2026-11-03 06:00:00.000000",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Travel Booking",
- "number_cards": [],
+ "number_cards": [
+  {
+   "label": "Pending (for Payment)",
+   "number_card_name": "Pending (for Payment)"
+  },
+  {
+   "label": "Accepted (Ready to Process)",
+   "number_card_name": "Accepted (Ready to Process)"
+  },
+  {
+   "label": "Currently Processing",
+   "number_card_name": "Currently Processing"
+  },
+  {
+   "label": "Abandoned",
+   "number_card_name": "Abandoned"
+  }
+ ],
  "owner": "Administrator",
  "parent_page": "Home",
  "public": 1,
@@ -473,6 +623,24 @@
    "doc_view": "",
    "label": "Manage Booking",
    "link_to": "manage-booking-app",
+   "type": "Page"
+  },
+  {
+   "doc_view": "",
+   "label": "Trip Manager",
+   "link_to": "trip-manager",
+   "type": "Page"
+  },
+  {
+   "doc_view": "",
+   "label": "Trip Command Center",
+   "link_to": "trip-command-center",
+   "type": "Page"
+  },
+  {
+   "doc_view": "",
+   "label": "Ongoing Today",
+   "link_to": "ongoing-today",
    "type": "Page"
   }
  ],

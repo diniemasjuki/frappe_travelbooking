@@ -3,11 +3,13 @@
 
 import frappe
 
-@frappe.whitelist(roles=["System Manager", "Tour Manager"])
+@frappe.whitelist(methods=["GET"])
 def check_data():
 	"""
 	Check jika Trip, Trip Group Date, dan Trip Package ada data dan connect.
 	"""
+	# Restrict kepada role dalaman sahaja — endpoint diagnostik bukan untuk umum.
+	frappe.only_for(["System Manager", "Tour Manager"])
 	result = {
 		'trips': [],
 		'connectivity': {

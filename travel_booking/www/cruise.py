@@ -25,13 +25,24 @@ def get_context(context):
     from travel_booking.www.trips import _get_currency_filter
     currency = _get_currency_filter()
 
-    # 1. Get ALL cruise trips (cruise=1 filter) as "featured"
-    cruise_data = get_catalog_trips({"cruise": "1", "sort": "date", "currency": currency})
+    # 1. Featured cruises — Trip.featured_trip dipakai SEBENAR (Fasa 5A):
+    #    trip berbendera diutamakan; baki diisi teratas ikut tarikh
+    #    (behavior lama bila admin belum benderakan apa-apa).
+    from travel_booking.utils.featured_catalog import (
+        get_featured_trips, get_featured_packages)
+    featured_cruises, cruise_data = get_featured_trips(
+        "cruise", limit=6, currency=currency)
     all_cruises = cruise_data["trips"]
     trip_group_dates = cruise_data["trip_group_dates"]
 
     # Enrich with cruise-specific fields for card display
-    featured_cruises = _enrich_cruise_cards(all_cruises[:6], trip_group_dates)
+    featured_cruises = _enrich_cruise_cards(featured_cruises, trip_group_dates)
+
+    # 1b. Featured PACKAGES (Fasa 5A) — pakej berbendera
+    # Trip Package.featured; beberapa pakej boleh share group date sama,
+    # setiap satu dipaparkan sebagai kad sendiri.
+    featured_packages = get_featured_packages(
+        "cruise", limit=6, currency=currency)["packages"]
 
     # 2. Popular destinations — hanya destinasi yang ada trip cruise aktif,
     # disusun ikut bilangan cruise. options.destinations juga tertapis ke
@@ -41,6 +52,7 @@ def get_context(context):
 
     # 3. Pass to template
     context.featured_cruises = featured_cruises
+    context.featured_packages = featured_packages
     context.trip_group_dates = trip_group_dates  # untuk trip_card.html (gds)
     context.popular_destinations = popular_destinations
     context.options = options

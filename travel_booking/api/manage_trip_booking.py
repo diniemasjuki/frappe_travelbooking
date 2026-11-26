@@ -3348,72 +3348,8 @@ def get_group_rooming(trip_group: str = None, trip_groups: list = None, booking:
 		entry["capacity"] = meta.get("capacity", 0)
 		entry["max_capacity"] = meta.get("max_capacity", 0)
 
-	# Nama paparan tersuai per bilik (Booking Room Alias) — dipisahkan
-	# daripada room_id (yang kekal mekanikal/auto). Kunci: booking + cabin_no.
-	alias_rows = frappe.get_all("Booking Room Alias",
-		filters={"booking": ["in", list({e["booking"] for e in rooms if e["booking"]})]},
-		fields=["booking", "cabin_no", "custom_name"])
-	alias_map = {(a.booking, _i(a.cabin_no)): a.custom_name for a in alias_rows}
-	for entry in rooms:
-		entry["custom_name"] = alias_map.get(
-			(entry["booking"], entry.get("cabin_no") or 0), "")
-
 	return {"rooms": rooms, "shown": len(rooms), "count": total_rooms,
 	        "categories": categories}
-
-
-@frappe.whitelist()
-def rename_booking_room(booking: str, cabin_no: int, custom_name: str = "") -> dict:
-	"""Tetapkan / buang NAMA PAPARAN tersuai bagi satu bilik (papan
-	Rooming Board — butang rename ✎).
-
-	Opsyen A (reka bentuk): nama paparan disimpan BERASINGAN dalam
-	Booking Room Alias (sekali per booking+cabin) — Booking Reservation
-	.room_id TIDAK disentuh (kekalan mekanikal/auto), jadi pergerakan
-	tetamu tidak pernah mempengaruhi nama bilik. custom_name kosong =
-	padam alias (kembali kepada label auto).
-	"""
-	_require_access()
-	if not booking or not frappe.db.exists("Booking", booking):
-		frappe.throw(_("Booking {0} not found").format(booking))
-	try:
-		cabin_no = _i(cabin_no)
-	except Exception:
-		frappe.throw(_("Invalid cabin number"))
-	if cabin_no < 1:
-		frappe.throw(_("Invalid cabin number"))
-
-	alias_name = "ROOMALIAS-{0}-{1}".format(booking, cabin_no)
-	custom_name = str(custom_name or "").strip()
-
-	if not custom_name:
-		# Kosong — padam alias (kembali kepada label auto).
-		if frappe.db.exists("Booking Room Alias", alias_name):
-			frappe.delete_doc("Booking Room Alias", alias_name,
-				ignore_permissions=True)
-		return {"booking": booking, "cabin_no": cabin_no,
-		        "custom_name": "", "renamed": False}
-
-	if frappe.db.exists("Booking Room Alias", alias_name):
-		alias = frappe.get_doc("Booking Room Alias", alias_name)
-		alias.custom_name = custom_name
-		alias.save(ignore_permissions=True)
-	else:
-		# Nama pendua dalam sebooking disekat validate() doctype —
-		# beri mesej jelas di sini sebelum itu.
-		if frappe.db.exists("Booking Room Alias",
-				{"booking": booking, "custom_name": custom_name}):
-			frappe.throw(_("Room name {0} is already used in this booking")
-				.format(frappe.bold(custom_name)))
-		frappe.get_doc({
-			"doctype": "Booking Room Alias",
-			"booking": booking,
-			"cabin_no": cabin_no,
-			"custom_name": custom_name,
-		}).insert(ignore_permissions=True)
-
-	return {"booking": booking, "cabin_no": cabin_no,
-	        "custom_name": custom_name, "renamed": True}
 
 
 def _booking_rooming_source_order(booking_name: str) -> list:

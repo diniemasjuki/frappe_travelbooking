@@ -1,11 +1,13 @@
 # Debug endpoint untuk check apa yang dikembalikan oleh get_trips_list
 import frappe
 
-@frappe.whitelist(roles=["System Manager", "Tour Manager"])
+@frappe.whitelist(methods=["GET"])
 def debug_trip_names():
 	"""
 	Return raw trip names dari database untuk diagnosis.
 	"""
+	# Restrict kepada role dalaman sahaja — endpoint debug bukan untuk umum.
+	frappe.only_for(["System Manager", "Tour Manager"])
 	try:
 		# Query langsung untuk dapatkan nama trips
 		trips = frappe.db.sql("""

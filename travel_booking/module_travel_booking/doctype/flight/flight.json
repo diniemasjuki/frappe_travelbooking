@@ -30,8 +30,7 @@
   "max_seat",
   "flight_itinerary_section",
   "flight_itinerary",
-  "section_break_eume",
-  "flight_price_category"
+  "section_break_eume"
  ],
  "fields": [
   {
@@ -201,12 +200,6 @@
   {
    "fieldname": "section_break_eume",
    "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "flight_price_category",
-   "fieldtype": "Table",
-   "label": "Flight Price Category",
-   "options": "Trip Package Price"
   }
  ],
  "grid_page_length": 50,

@@ -263,7 +263,7 @@
    "read_only": 1
   },
   {
-   "description": "Snapshot diskaun voucher order-level semasa booking disahkan (SO kekal GROSS; diskaun diserap sebagai Payment Entry deduction ke akaun Marketing Expenses).",
+   "description": "Catatan diskaun voucher order-level semasa booking disahkan (diskaun dibawa pada SO sebagai additional discount — grand_total NET; field ini snapshot/catatan sahaja).",
    "fieldname": "voucher_discount",
    "fieldtype": "Currency",
    "label": "Voucher Discount Amount",
@@ -286,7 +286,7 @@
    "read_only": 1
   },
   {
-   "description": "Snapshot diskaun referral/affiliate order-level semasa booking disahkan (% atas baki selepas voucher).",
+   "description": "Catatan diskaun referral/affiliate order-level semasa booking disahkan (% atas baki selepas voucher; dibawa pada SO sebagai additional discount — field ini snapshot/catatan sahaja).",
    "fieldname": "referral_discount",
    "fieldtype": "Currency",
    "label": "Referral Discount Amount",

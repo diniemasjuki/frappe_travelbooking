@@ -26,6 +26,13 @@ add_to_apps_screen = [
 # bodies instead of form-encoded, per-key JSON-stringified values.
 use_json_request_body = True
 
+# Doctype tambahan yang disegerakkan daripada fail app semasa migrate
+# (frappe/model/sync.py get_doc_files baca hook ini). Lalai fork hanya sync
+# Sidebar/Workspace/Page/Report dll — number_card & dashboard_chart perlu
+# didaftarkan di sini supaya kad ruang kerja & carta app ini sampai ke semua
+# site melalui migrate, bukan import manual.
+importable_doctypes = ["number_card", "dashboard_chart"]
+
 # Desk assets — paket generik senarai booking (window.TravelBookingBookingList):
 # satu komponen drop-in (data + toolbar + render + event) yang diguna semula
 # merentas section desk — kini tab Booking page Manage Booking App &
@@ -43,6 +50,7 @@ app_include_js = [
 app_include_css = [
 	"/assets/travel_booking/css/search_box.css?v=20261026-1",
 	"/assets/travel_booking/css/booking_list.css?v=20261024-2",
+	"/assets/travel_booking/css/trip_manager.css?v=20261102-3",
 ]
 
 # Fix realtime has_permission untuk dokumen belum disimpan (room
@@ -116,6 +124,10 @@ doc_events = {
 		"on_update_after_submit": "travel_booking.api.booking_engine.on_sales_order_change",
 		"on_cancel": "travel_booking.api.booking_engine.on_sales_order_change",
 		"on_trash": "travel_booking.api.booking_engine.on_sales_order_change",
+		# Fasa 3 — merchandise stok: reserve stok (Stock Reservation Entry
+		# standard ERPNext) sebaik SO yang menjual item stok disubmit.
+		# No-op senyap untuk SO tanpa baris stok (booking cabin biasa).
+		"on_submit": "travel_booking.api.merchandise.reserve_so_stock",
 	},
 	# Sync occupancy & availability kabin pada Trip Cruise Schedule setiap
 	# kali reservasi berubah. Pemetaan: reservation.trip_cruise_schedule +
@@ -125,7 +137,13 @@ doc_events = {
 	# termasuk rekod yang sedang dipadam.
 	"Booking Reservation": {
 		"after_insert": "travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
-		"on_update": "travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
+		"on_update": [
+			"travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
+			# Fasa 4A — registry bilik fizikal: refresh status Cruise Cabin
+			# (Assigned ↔ Available) bila stateroom slot berubah. Senyap
+			# bila schedule belum ada registry.
+			"travel_booking.api.cabin_registry.sync_reservation_to_registry",
+		],
 		"after_delete": "travel_booking.module_travel_booking.doctype.trip_cruise_schedule.trip_cruise_schedule.sync_cabin_availability",
 	},
 	# on_update berjalan selepas insert & setiap save — sync Trip Group
@@ -204,24 +222,17 @@ pages = [
 		'script': 'module_travel_booking.page.trip_command_center.trip_command_center',
 	},
 	{
-		'name': 'booking-hub',
-		'label': 'Booking Operations Hub',
-		'icon': 'briefcase',
-		'roles': ['Tour Manager', 'Tour Operator'],
-		'script': 'module_travel_booking.page.booking_hub.booking_hub',
-	},
-	{
-		'name': 'dashboard-reports',
-		'label': 'Dashboard & Reports',
-		'icon': 'chart',
-		'roles': ['Tour Manager', 'Tour Operator'],
-		'script': 'module_travel_booking.page.dashboard_reports.dashboard_reports',
-	},
-	{
-			'name': 'travel-resources',
+		'name': 'travel-resources',
 			'label': 'Travel Resources',
 			'icon': 'users',
 			'roles': ['Tour Manager', 'Tour Operator'],
 			'script': 'resources_management.page.travel_resources.travel_resources',
 		},
+	{
+		'name': 'trip-manager',
+		'label': 'Trip Manager',
+		'icon': 'world',
+		'roles': ['System Manager', 'Tour Manager', 'Tour Operator'],
+		'script': 'module_admin_portal.page.trip_manager.trip_manager',
+	},
 ]

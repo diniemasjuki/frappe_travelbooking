@@ -128,7 +128,13 @@ def _share_context(booking_number):
         "Sales Order", so_name,
         ["name", "currency", "transaction_date"], as_dict=True)
 
-    pricing_map = _get_pricing_map(booking.trip_package) if booking.trip_package else {}
+    # Slot tambahan ikut currency BOOKING ASAL (SO utama) — bila booking
+    # dibuat dalam matrix currency tertentu (patch v41), traveller tambahan
+    # turut dikira dalam matrix yang sama (bukan native pakej semasa).
+    pricing_map = (
+        _get_pricing_map(booking.trip_package, primary_so.currency)
+        if booking.trip_package else {}
+    )
 
     trip_name, _departure = _trip_context(booking)
     group_label = frappe.db.get_value("Trip Group Date", booking.trip_date, "trip_group_name") or ""
@@ -177,12 +183,24 @@ def _cabin_no_from_description(description):
         return None
 
 
+def _line_cabin_no(line):
+    """Cabin no satu baris SO — custom field berstruktur dahulu (v39),
+    fallback parse description untuk baris lama. `line` ialah row
+    _share_so_lines() (bawa custom_cabin_no) atau dict dengan
+    description sahaja."""
+    if line.get("custom_cabin_no"):
+        return int(line["custom_cabin_no"])
+    return _cabin_no_from_description(line.get("description"))
+
+
 def _extra_cabin_layout(booking_name, primary_layout):
     """Cabin TAMBAHAN (order 'cabin baharu & traveller' —
     create_new_cabin_order) yang cabin_no-nya melampaui layout SO utama.
 
-    Corak sumber tunggal: cabin + kategori dibaca dari description item SO
-    tambahan ('Trip | Group | Room Category | Cabin N | Pax Type | ...').
+    Corak sumber tunggal: cabin + kategori dibaca dari custom fields
+    berstruktur baris SO tambahan (custom_room_category / custom_cabin_no
+    — v39), fallback ke parse description item SO tambahan untuk baris
+    lama ('Trip | Group | Room Category | Cabin N | Pax Type | ...').
     pax SENGAJA 0 — penghuni cabin tambahan TIDAK dikira di sini kerana
     _activated_extras_for/_pending_extras_for sudah membaca SO tambahan
     yang sama (kira berganda kalau pax diisi); entri ini cukup sekadar
@@ -194,12 +212,16 @@ def _extra_cabin_layout(booking_name, primary_layout):
     primary_nos = {c.get("cabin_no") for c in (primary_layout or [])}
     extras = {}
     for line in _share_so_lines(booking_name):
-        cabin_no = _cabin_no_from_description(line["description"])
+        cabin_no = _line_cabin_no(line)
         if cabin_no is None or cabin_no in primary_nos:
             continue
-        parts = (line["description"] or "").split(" | ")
-        room_category = parts[2].strip() if len(parts) >= 5 else ""
-        pax_type      = parts[4].strip() if len(parts) >= 5 else ""
+        if line.get("custom_room_category"):
+            room_category = line["custom_room_category"]
+            pax_type      = line.get("custom_pax_type") or ""
+        else:
+            parts = (line["description"] or "").split(" | ")
+            room_category = parts[2].strip() if len(parts) >= 5 else ""
+            pax_type      = parts[4].strip() if len(parts) >= 5 else ""
         if cabin_no not in extras:
             extras[cabin_no] = {"cabin_no": cabin_no, "room_category": room_category,
                                 "pax": 0, "pax_breakdown": {}, "room_privacy": "",
@@ -228,11 +250,18 @@ def _share_so_lines(booking_name):
     dikecualikan. Status aktivasi setiap SO dibaca dari stamp
     Booking Reservation.sales_order (di-stamp oleh
     _activate_share_traveller_reservation).
+
+    Bawa custom fields cabin berstruktur (v39) di samping description —
+    pembaca (_extra_cabin_layout, _pending_share_lines) guna fields ni
+    dahulu, fallback ke parse description untuk baris lama.
     """
     primary_so = _get_primary_so(booking_name)
     return frappe.db.sql("""
         SELECT so.name AS so_name, soi.description AS description,
                soi.qty AS qty, soi.rate AS rate,
+               soi.custom_room_category AS custom_room_category,
+               soi.custom_cabin_no AS custom_cabin_no,
+               soi.custom_pax_type AS custom_pax_type,
                EXISTS(SELECT 1 FROM `tabBooking Reservation` br
                       WHERE br.sales_order = so.name) AS activated
         FROM `tabSales Order` so
@@ -260,7 +289,7 @@ def _activated_extras_for(booking_name, cabin_no=None):
     for line in _share_so_lines(booking_name):
         if not line["activated"]:
             continue
-        if cabin_no is not None and _cabin_no_from_description(line["description"]) != cabin_no:
+        if cabin_no is not None and _line_cabin_no(line) != cabin_no:
             continue
         total += int(line["qty"] or 0) or 1
     return total
@@ -281,7 +310,7 @@ def _pending_share_lines(booking_name):
             continue
         lines.append({
             "so":       line["so_name"],
-            "cabin_no": _cabin_no_from_description(line["description"]),
+            "cabin_no": _line_cabin_no(line),
             "qty":      int(line["qty"] or 0) or 1,
         })
     return lines
@@ -587,6 +616,11 @@ def create_additional_traveller_order(booking_number: str, cabin_no: int,
         "description": (ctx["trip_name"] + " | " + ctx["group_label"] + " | " +
                         room_category + " | Cabin " + str(cabin_no) +
                         " | " + pax_type + " | " + fare_note),
+        # Struktur cabin berstruktur (rujuk patches/v39) — sepadan dengan
+        # apa yang _so_line() tulis untuk SO utama.
+        "custom_room_category": room_category,
+        "custom_cabin_no":      cabin_no,
+        "custom_pax_type":      pax_type,
     }
 
     _original_user = frappe.local.session.user
@@ -796,6 +830,11 @@ def create_new_cabin_order(booking_number: str, room_category: str,
             "description": (ctx["trip_name"] + " | " + ctx["group_label"] + " | " +
                             room_category + " | Cabin " + str(cabin_no) +
                             " | " + pax_type + " | " + fare_note),
+            # Struktur cabin berstruktur (rujuk patches/v39) — sepadan dengan
+            # apa yang _so_line() tulis untuk SO utama.
+            "custom_room_category": room_category,
+            "custom_cabin_no":      cabin_no,
+            "custom_pax_type":      pax_type,
         }
 
     lines = []
@@ -919,7 +958,8 @@ def _activate_share_traveller_reservation(so_name, force=False):
         "Sales Order Item",
         filters={"parent": so_name, "parenttype": "Sales Order",
                  "item_code": TRAVEL_ITEM_CODE},
-        fields=["description", "qty"], order_by="idx")
+        fields=["description", "qty", "custom_room_category",
+                "custom_cabin_no", "custom_pax_type"], order_by="idx")
     if not items:
         return None
     if not frappe.db.exists("Booking Reservation", {"sales_order": so.name}):
@@ -927,29 +967,37 @@ def _activate_share_traveller_reservation(so_name, force=False):
     if float(so.advance_paid or 0) < float(so.grand_total or 0) - _EPS:
         return None  # belum dibayar penuh
 
-    # Parse cabin + kategori + pax_type SETIAP baris dahulu — baris yang
-    # gagal resolve ialah masalah data; log & batal keseluruhan (aktivasi
-    # boleh diulang selepas data dibetulkan, idempoten melalui pautan
-    # sales_order).
+    # Resolve cabin + kategori + pax_type SETIAP baris dahulu — custom
+    # fields berstruktur (v39) dahulu, fallback parse description untuk
+    # baris lama. Baris yang gagal resolve ialah masalah data; log & batal
+    # keseluruhan (aktivasi boleh diulang selepas data dibetulkan,
+    # idempoten melalui pautan sales_order).
     plans = []
     for item in items:
+        room_category = item.get("custom_room_category")
+        pax_type      = item.get("custom_pax_type")
+        cabin_no      = item.get("custom_cabin_no")
         parts = (item.description or "").split(" | ")
-        room_category = parts[2].strip() if len(parts) >= 5 else None
-        cabin_no = _cabin_no_from_description(item.description)
+        if not room_category and len(parts) >= 5:
+            room_category = parts[2].strip()
+        if not cabin_no:
+            cabin_no = _cabin_no_from_description(item.description)
         if not room_category or not cabin_no or not frappe.db.exists("Trip Price Category", room_category):
             frappe.log_error(
                 "Share traveller SO " + str(so_name) + ": room_category/cabin tidak dapat "
-                "diresolve dari description item. Reservation perlu dibuat manual.",
+                "diresolve dari baris item. Reservation perlu dibuat manual.",
                 "Share Traveller Activation Error")
             return None
 
-        # Kategori pax dari segment 5 description — "Main Guest (Single)" /
-        # "Main Guest" / "Main Guest (Additional)" / "Extra Bed
-        # (Additional)" / "Infant (Additional)". Buang akhiran
-        # "(Additional)" supaya pax_type reservation seragam dengan slot
-        # booking utama; SO lama tanpa segmen berkenaan kekal "Main Guest".
+        # Kategori pax — "Main Guest (Single)" / "Main Guest" / "Main Guest
+        # (Additional)" / "Extra Bed (Additional)" / "Infant (Additional)".
+        # Buang akhiran "(Additional)" supaya pax_type reservation seragam
+        # dengan slot booking utama; SO lama tanpa segmen berkenaan kekal
+        # "Main Guest".
         res_pax_type = "Main Guest"
-        if len(parts) >= 5:
+        if pax_type:
+            res_pax_type = pax_type.replace(" (Additional)", "") or "Main Guest"
+        elif len(parts) >= 5:
             res_pax_type = parts[4].strip().replace(" (Additional)", "") or "Main Guest"
 
         plans.append((room_category, cabin_no, res_pax_type,

@@ -37,6 +37,9 @@
   "cruise_trip",
   "cruise_code",
   "cruise_schedule_title",
+  "flight_info_section",
+  "flight_schedule",
+  "flight_schedule_title",
   "cruise_section",
   "info_column",
   "ship_name",
@@ -424,6 +427,21 @@
    "read_only": 1
   },
   {
+   "description": "Set penerbangan (PNR pergi/balik/GIT) untuk tarikh group ini \u2014 perkhidmatan fizikal per-tarikh, selari cruise_schedule. Kosong untuk TGD cruise-only.",
+   "fieldname": "flight_schedule",
+   "fieldtype": "Link",
+   "label": "Flight Schedule",
+   "options": "Flight Schedule"
+  },
+  {
+   "fetch_from": "flight_schedule.schedule_code",
+   "fieldname": "flight_schedule_title",
+   "fieldtype": "Data",
+   "label": "Flight Schedule Title",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
    "depends_on": "eval:doc.cruise_schedule",
    "fetch_from": "cruise_schedule.total_nights",
    "fieldname": "cruise_nights",
@@ -436,12 +454,18 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Group Batch"
+  },
+  {
+   "fieldname": "flight_info_section",
+   "fieldtype": "Section Break",
+   "label": "Flight Info"
   }
  ],
  "grid_page_length": 50,
  "is_calendar_and_gantt": 1,
+ "link_display_mode": "Search",
  "links": [],
- "modified": "2026-10-16 14:25:08.534669",
+ "modified": "2026-11-03 07:41:53.419869",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Trip Group Date",

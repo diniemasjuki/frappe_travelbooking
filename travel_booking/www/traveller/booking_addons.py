@@ -84,6 +84,7 @@ def get_context(context):
     # MULTI-COMPANY: currency selector addon — param ?currency= (bebas pilih
     # antara currency yang diisytiharkan; default = currency booking utama).
     available_addons = []
+    cabin_upgrades = []
     addon_currency = ""
     addon_currency_symbol = ""
     addon_currency_options = []
@@ -95,12 +96,14 @@ def get_context(context):
             booking_ref, currency=_get_query_param("currency") or None
         )
         available_addons = addons_data.get("addons") or []
+        cabin_upgrades = addons_data.get("cabin_upgrades") or []
         addon_currency = addons_data.get("currency") or ""
         addon_currency_symbol = addons_data.get("currency_symbol") or ""
         addon_currency_options = addons_data.get("currency_options") or []
     except Exception as e:
         frappe.log_error(title="booking_addons: load addons failed", message=e)
         available_addons = []
+        cabin_upgrades = []
 
     context.addon_currency = addon_currency
     context.addon_currency_symbol = addon_currency_symbol
@@ -110,6 +113,7 @@ def get_context(context):
         "booking_ref": booking_ref,
         "travellers": travellers,  # Add travellers to page_data for JS
         "available_addons": available_addons,
+        "cabin_upgrades": cabin_upgrades,
         "currency": addon_currency,
         "currency_symbol": addon_currency_symbol,
         "currency_options": addon_currency_options,

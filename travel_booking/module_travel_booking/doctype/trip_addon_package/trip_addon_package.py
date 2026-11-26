@@ -81,12 +81,18 @@ class TripAddonPackage(Document):
 	def get_rate_for_currency(self, currency):
 		"""Harga jualan dalam currency tertentu, atau None.
 
-		Hanya guna baris rate enabled dalam currency_rates — tiada
-		fallback legacy. Pulangkan (unit_price, 'rates') atau (None, None).
+		Baris rate enabled dalam currency_rates diutamakan. Fallback
+		legacy (currency + unit_price peringkat pakej) HANYA bila
+		currency legacy sepadan dengan currency diminta — bukan
+		converter. Pulangkan (unit_price, 'rates'|'legacy') atau
+		(None, None) bila tak dijual dalam currency ini.
 		"""
 		for row in (self.currency_rates or []):
 			if row.currency == currency and row.enabled:
 				return float(row.unit_price or 0), "rates"
+		# Fallback legacy: sah hanya bila currency pakej == currency diminta.
+		if self.currency == currency and self.unit_price:
+			return float(self.unit_price), "legacy"
 		return None, None
 
 	def validate_validity_rule(self):

@@ -663,6 +663,8 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 			"group_dates": [],
 			"group_date_groups": [],
 			"trip_packages": {},
+			"package_dates": {},
+			"package_meta": {},
 			"sailing_tgds": {},
 			"starting_from_price": None,
 			"destinations": [],
@@ -699,6 +701,7 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 		SELECT td.name, td.trip, td.trip_group_name, td.trip_group_code,
 		       td.departure_date, td.return_date, td.total_days, td.total_nights,
 		       td.sailing_start, td.sailing_end, td.cruise_schedule,
+		       td.flight_schedule,
 		       td.max_participants, td.is_cruise_only
 		FROM `tabTrip Group Date` td
 		WHERE td.trip = %(t)s
@@ -750,6 +753,36 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 	# Bug silam: hanya `mx = ...` yang dalam loop; baki blok laksana sekali
 	# dengan baris TERAKHIR — page detail papar satu sailing date sahaja.
 	group_dates: list = []
+	# Semua entri gd SEBELUM dedupe sailing — sumber index package-first
+	# (pakej yang dijual pada TGD fly-cruise mesti kekal jumpa tarikhnya
+	# walaupun TGD itu disingkirkan dari senarai tarikh deduped).
+	_all_gd_entries: list = []
+
+	# ── Snapshot set penerbangan per TGD (patch v43 — derive, bukan BOM) ──
+	# flight_schedule pada TGD → senarai PNR ringkas untuk paparan
+	# "Package Includes" ikut tarikh. Satu query pukal (elak N+1).
+	fs_names = list({d.flight_schedule for d in dates if getattr(d, "flight_schedule", None)})
+	fs_pnrs: dict = {}
+	if fs_names:
+		for r in frappe.db.sql("""
+			SELECT fsf.parent AS fs, f.pnr, f.airline,
+			       f.home_airport, f.destination_airport,
+			       f.departure_date, f.ticket_type, fsf.role
+			FROM `tabFlight Schedule Flight` fsf
+			JOIN `tabFlight` f ON f.name = fsf.flight
+			WHERE fsf.parent IN %(fs)s AND fsf.parenttype = 'Flight Schedule'
+			ORDER BY fsf.parent, fsf.idx
+		""", {"fs": fs_names}, as_dict=True):
+			fs_pnrs.setdefault(r.fs, []).append({
+				"pnr":                r.pnr or "",
+				"airline":            r.airline or "",
+				"home_airport":       r.home_airport or "",
+				"destination_airport": r.destination_airport or "",
+				"departure_date":     str(r.departure_date) if r.departure_date else "",
+				"ticket_type":        r.ticket_type or "",
+				"role":               r.role or "",
+			})
+
 	for d in dates:
 		mx = int(d.max_participants or 0)
 		bk = int(booked.get(d.name, 0))
@@ -785,8 +818,13 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 				"seats_left": None if mx == 0 else max(0, mx - bk),
 				"sailing_group": sailing_group,
 				"sailing_label": sailing_label,
+				# Elemen fizikal per-tarikh (derive, patch v43): set
+				# penerbangan + senarai PNR ringkas untuk paparan Includes.
+				"flight_schedule": getattr(d, "flight_schedule", None) or "",
+				"flight_pnrs": fs_pnrs.get(getattr(d, "flight_schedule", None), []),
 			}
 		)
+		_all_gd_entries.append(group_dates[-1])
 	# Cruise disusun ikut sailing_start (sepadan get_ready_bundle).
 	# Initialize merge tracker di sini supaya wujud scope function (untuk
 	# code merge yang jalankan selepas ini, di luar if block).
@@ -833,9 +871,13 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 	# — JANGAN overwrite ke TGD yang disimpan semasa dedupe sailing. Overwrite
 	# silam menyebabkan package Cruise Only (RTRC2604) dibawa bersama TGD Fly
 	# Cruise (RTRC2605) ke /booknow → wizard papar trip_group_date salah.
-	# Frontend (trip_detail.js) yang union-kan pakej ikut sailing date yang
-	# dipilih melalui peta sailing_tgds di bawah.
-	trip_packages: dict = {}
+		# Frontend (trip_detail.js) yang union-kan pakej ikut sailing date yang
+		# dipilih melalui peta sailing_tgds di bawah.
+		trip_packages: dict = {}
+		# Index package-first (inversi aliran): {pkg: [gd names]} +
+		# {pkg: meta} — dikumpul daripada query yang sama.
+		_package_gds: dict = {}
+		_package_meta_rows: dict = {}
 	if dates:
 		# Filter currency pakej: hanya pakej dalam currency terpilih;
 		# fallback semua native (currency_native_only). Group date tanpa
@@ -887,26 +929,96 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 					"is_cruise_only": bool(p.is_cruise_only),
 					"ground_arrangement": bool(p.ground_arrangement),
 				}
+			)
+			# Package-first: gd list per pakej + meta per pakej (sekali sahaja
+			# per pakej — varian pakej×TGD kongsi meta yang sama).
+			_package_gds.setdefault(p.name, []).append(p.trip_group_date)
+			if p.name not in _package_meta_rows:
+				_package_meta_rows[p.name] = {
+					"name":             p.name,
+					"package_name":     p.package_title or "",
+					"package_type":     p.package_type or "",
+					"flight":           p.airport_form or "",
+					"flight_label":     flight_label,
+					"currency":         p.currency or "MYR",
+					"currency_symbol":  p.currency_symbol or (p.currency or "MYR"),
+					"is_cruise_only":   bool(p.is_cruise_only),
+					"ground_arrangement": bool(p.ground_arrangement),
+					"from_price":       None,  # diisi _attach_package_from_prices bawah
+				}
+
+		# ── Peta sailing → SEMUA group date (SEBELUM dedupe) ──
+		# Frontend guna ni untuk (a) union pakej bagi sailing yang dipilih di page
+		# trip, dan (b) tentukan kandidat TGD ikut (pakej + sailing) semasa klik
+		# [Book Now] — termasuk popup bila ada lebih dari satu departure date.
+		sailing_tgds: dict = {}
+		if is_cruise:
+			for d in dates:
+				sail = str(d.sailing_start) if d.sailing_start else ""
+				if not sail:
+					continue
+				sailing_tgds.setdefault(sail, []).append(
+					{
+						"name": d.name,
+						"departure_date": str(d.departure_date) if d.departure_date else "",
+						"trip_group_name": d.trip_group_name or "",
+						"is_cruise_only": bool(d.is_cruise_only),
+					}
 				)
 
-	# ── Peta sailing → SEMUA group date (SEBELUM dedupe) ──
-	# Frontend guna ni untuk (a) union pakej bagi sailing yang dipilih di page
-	# trip, dan (b) tentukan kandidat TGD ikut (pakej + sailing) semasa klik
-	# [Book Now] — termasuk popup bila ada lebih dari satu departure date.
-	sailing_tgds: dict = {}
-	if is_cruise:
-		for d in dates:
-			sail = str(d.sailing_start) if d.sailing_start else ""
-			if not sail:
-				continue
-			sailing_tgds.setdefault(sail, []).append(
-				{
-					"name": d.name,
-					"departure_date": str(d.departure_date) if d.departure_date else "",
-					"trip_group_name": d.trip_group_name or "",
-					"is_cruise_only": bool(d.is_cruise_only),
-				}
+		# ── PACKAGE-FIRST INDEX (inversi aliran produk) ──
+		# package_dates: {package_name: [gd dicts]} — senarai tarikh yang
+		# PAKEJ itu dijual, bina daripada peta gd name → entri group_dates
+		# penuh (shape sama supaya frontend render radio tarikh guna semula
+		# kod populateDates). Cruise: dedupe ikut sailing_start supaya
+		# pakej Cruise+Flight & Cruise Only pada sailing sama tak duplikat.
+		# package_meta: {package_name: {meta + from_price}} — maklumat untuk
+		# render BUTANG pakej sebelum sebarang tarikh dipilih.
+		gd_full_by_name: dict = {}
+		for _g in _all_gd_entries:
+			gd_full_by_name[_g["name"]] = _g
+
+		package_dates: dict = {}
+		package_meta: dict = {}
+		for _pkg_name, _pkg_gds in _package_gds.items():
+			entries = [gd_full_by_name[g] for g in _pkg_gds if g in gd_full_by_name]
+			if is_cruise:
+				_seen_sail_pkg: set = set()
+				_deduped_pkg: list = []
+				for _g in entries:
+					_sail_key = _g.get("sailing_start") or ""
+					if _sail_key and _sail_key in _seen_sail_pkg:
+						continue
+					if _sail_key:
+						_seen_sail_pkg.add(_sail_key)
+					_deduped_pkg.append(_g)
+				entries = _deduped_pkg
+			entries.sort(key=lambda g: g.get("sailing_start") or g.get("departure_date") or "")
+			package_dates[_pkg_name] = entries
+
+		for _pkg_name, _meta in _package_meta_rows.items():
+			package_meta[_pkg_name] = _meta
+
+		# From-price per pakej: MIN(price_adult) group by parent (corak
+		# _package_min_prices cruise_schedule.py — harga currency NATIVE
+		# pakej, sepadan currency billing). Kosong -> None (frontend
+		# sembunyi baris harga).
+		if _package_meta_rows:
+			_fp_rows = frappe.db.sql(
+				"""
+				SELECT parent, MIN(price_adult) AS min_price
+				FROM `tabTrip Package Price`
+				WHERE parent IN %(names)s AND parenttype = 'Trip Package'
+				GROUP BY parent
+				""",
+				{"names": list(_package_meta_rows.keys())},
+				as_dict=True,
 			)
+			for _r in _fp_rows:
+				if _r.min_price is not None:
+					package_meta.setdefault(_r.parent, {})["from_price"] = float(_r.min_price)
+
+
 
 	# --- starting_from_price: MIN price_adult dalam currency terpilih
 	# (fallback: merentasi SEMUA pakej native bila currency_native_only).
@@ -1030,6 +1142,8 @@ def get_trip_detail(trip_name: str, currency: str | None = None) -> dict:
 		"group_dates": group_dates,
 		"group_date_groups": group_date_groups,
 		"trip_packages": trip_packages,
+		"package_dates": package_dates,
+		"package_meta": package_meta,
 		"sailing_tgds": sailing_tgds,
 		"starting_from_price": starting_from_price,
 		"original_starting_from_price": original_starting_from_price,

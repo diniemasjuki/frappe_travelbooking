@@ -302,6 +302,15 @@ def get_available_addons(booking_number: str, currency: str = None):
                 pkg["currency"] = ""
                 pkg["purchasable"] = False
 
+    # UPGRADE CABIN (Fasa 1B) — senarai berasingan daripada addons biasa
+    # supaya UI portal boleh papar seksyen "Upgrade Your Cabin" tersendiri.
+    # Beli melalui cart yang sama (checkout_addons) — sah kerana upgrade
+    # juga Trip Addon Package (dengan fields upgrade tambahan).
+    cabin_upgrades = []
+    if not hide_prices:
+        from travel_booking.api.cabin_upgrade import get_cabin_upgrade_options
+        cabin_upgrades = get_cabin_upgrade_options(booking_number, currency)["upgrades"]
+
     # Meta currency untuk selector portal (pilihan bebas — setiap currency
     # yang diisytiharkan dalam axis, walaupun tiada addon punya rate
     # untuknya; frontend hanya disable/hide pilihan tanpa hasil).
@@ -313,6 +322,7 @@ def get_available_addons(booking_number: str, currency: str = None):
 
     return {
         "addons": out,
+        "cabin_upgrades": cabin_upgrades,
         "currency": currency,
         "currency_symbol": _currency_symbol(currency),
         "currency_options": currency_options,
@@ -403,7 +413,8 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
             ["name", "addon", "addon_title", "addon_package_name", "scope",
              "applicable_to", "status",
              "sales_cutoff_enabled", "sales_cutoff_days_before_departure",
-             "max_qty_per_booking", "max_total_qty", "current_qty_sold"],
+             "max_qty_per_booking", "max_total_qty", "current_qty_sold",
+             "is_cabin_upgrade", "upgrade_from_category", "upgrade_to_category"],
             as_dict=True
         )
         if not ap or ap.status != "Active":
@@ -469,6 +480,21 @@ def checkout_addons(booking_number: str, lines: str, payment_method: str = "Onli
 
         if ap.max_total_qty and (ap.current_qty_sold or 0) + qty > ap.max_total_qty:
             frappe.throw(ap.addon_title + " has reached its maximum quantity available.")
+
+        # UPGRADE CABIN (Fasa 1B) — baris upgrade mesti masih SAH untuk
+        # booking ni saat checkout: kategori semasa cabin mesti padan
+        # upgrade_from_category (elak upgrade berganda / selepas admin
+        # dah tukar kategori manual). Rate/allotment dah divalidasi oleh
+        # get_cabin_upgrade_options semasa katalog; semakan ni adalah
+        # pertahanan kedua server-side.
+        if getattr(ap, "is_cabin_upgrade", 0):
+            from travel_booking.api.cabin_upgrade import _upgrade_applicable_for_reservations
+            if not _upgrade_applicable_for_reservations(ap_name, booking.name):
+                frappe.throw(
+                    (ap.addon_title or "Cabin upgrade") +
+                    " is no longer applicable for your current cabin category.",
+                    title="Cabin Upgrade Not Applicable",
+                )
 
         validated_lines.append({
             "addon_package":      ap.name,

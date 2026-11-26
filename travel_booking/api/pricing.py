@@ -226,7 +226,8 @@ def get_wizard_confirmation(booking_number: str, pr: str = None):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_booking_details(trip_group_date: str, trip_package: str = None):
+def get_booking_details(trip_group_date: str, trip_package: str = None,
+                        currency: str = None):
     """Return trip + sailing info + cabin categories with pricing.
     Pricing dibaca dari Trip Package Price (child Trip Package), setiap
     row berkait dengan satu Trip Price Category (kategori bilik/kabin).
@@ -263,9 +264,14 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
 
     # Pricing rows dari Trip Package Price (child Trip Package), JOIN
     # Trip Price Category untuk dapatkan maklumat kategori bilik/kabin.
+    # Patch v41 (harga per-currency): bila `currency` diberikan, baris
+    # bercurrency itu diutamakan per kategori; kategori tanpa baris itu
+    # jatuh balik ke native (currency kosong). Resolve dilakukan selepas
+    # fetch supaya logic map tunggal (elak SQL duplikasi).
     pricing_rows = frappe.db.sql("""
         SELECT
             tpp.pricing_for_class AS room_category,
+            tpp.currency AS price_currency,
             tpc.category_name,
             tpc.room_type,
             tpc.capacity,
@@ -284,6 +290,31 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
         WHERE tpp.parent = %s AND tpp.parenttype = 'Trip Package'
         ORDER BY tpp.idx ASC
 	    """, trip_package, as_dict=True)
+
+    # Currency sebenar yang dicaj: (a) currency terpilih bila pakej ada
+    # matrix untuknya, (b) native pakej sebaliknya. Frontend (booknow.js)
+    # guna nilai ini untuk nota "Charged in" + simbol harga.
+    charge_currency = None
+    if currency:
+        wanted = currency.strip().upper()
+        has_matrix = any(
+            (r.price_currency or "").strip().upper() == wanted
+            for r in pricing_rows
+        )
+        if has_matrix:
+            charge_currency = wanted
+            # Map per kategori: baris wanted menang, native fallback.
+            resolved = {}
+            for r in pricing_rows:
+                cur = (r.price_currency or "").strip().upper()
+                if cur == wanted:
+                    resolved[r.room_category] = r
+                elif r.room_category not in resolved and not cur:
+                    resolved[r.room_category] = r
+            pricing_rows = list(resolved.values())
+    if not charge_currency:
+        charge_currency = frappe.db.get_value(
+            "Trip Package", trip_package, "currency") or "MYR"
 
     # Gallery kabin — slide gambar diambil dari Attachment Gallery kategori
     # (rekod File yang dilampir pada Trip Price Category, sama sumber dengan
@@ -394,6 +425,9 @@ def get_booking_details(trip_group_date: str, trip_package: str = None):
             "ship_code":        td.ship_code or "",
         },
         "cabins": cabins,
+        # Currency sebenar yang dicaj untuk set harga ini (patch v41) —
+        # currency terpilih bila matrix wujud, native pakej sebaliknya.
+        "currency": charge_currency,
     }
 
 
@@ -576,10 +610,16 @@ def convert_amount(amount: float, to_currency: str) -> dict:
     }
 
 
-def _get_pricing_map(trip_package):
+def _get_pricing_map(trip_package, currency=None):
     """Return {pricing_for_class: {...}} dari Trip Package Price (child
     Trip Package). Setiap row berkait dengan satu Trip Price Category
     (kategori bilik/kabin) melalui field 'pricing_for_class'.
+
+    currency (opsyenal, patch v41 — harga per-currency): bila diberikan,
+    baris yang bawa currency itu DIUTAMAKAN; kategori tanpa baris currency
+    itu jatuh balik ke baris native (currency kosong). Bila tiada baris
+    bercurrency langsung, keseluruhan map = native — tingkah laku lama
+    terpelihara sepenuhnya (167 baris sedia ada semua native).
     """
     # Guardrail migrasi currency: harga pakej yang berflag
     # 'price_review_required' belum disemak/diisi semula dalam company
@@ -593,13 +633,33 @@ def _get_pricing_map(trip_package):
         )
 
     rows = frappe.db.sql("""
-        SELECT pricing_for_class AS room_category,
+        SELECT pricing_for_class AS room_category, currency,
                price_adult_single, price_adult, price_upperberth,
                price_children, price_toddler, price_infant
         FROM `tabTrip Package Price`
         WHERE parent = %s AND parenttype = 'Trip Package'
     """, trip_package, as_dict=True)
-    return {r.room_category: r for r in rows}
+
+    if not currency:
+        # Tingkah laku lama: baris native sahaja (currency kosong).
+        # Pakej lama semua baris kosong → sama seperti sebelum v41.
+        native = [r for r in rows if not (r.currency or "").strip()]
+        if native:
+            return {r.room_category: r for r in native}
+        return {r.room_category: r for r in rows}
+
+    # Harga per-currency: baris currency diutamakan per kategori;
+    # kategori tanpa baris itu jatuh balik ke native.
+    currency = currency.strip().upper()
+    by_category = {}
+    for r in rows:
+        row_cur = (r.currency or "").strip().upper()
+        cat = r.room_category
+        if row_cur == currency:
+            by_category[cat] = r          # menang — overwrite native/fallback
+        elif cat not in by_category and not row_cur:
+            by_category[cat] = r          # native fallback
+    return by_category
 
 
 def _price_selection(price, main_guests, extra_beds, infants, is_cruise=True):

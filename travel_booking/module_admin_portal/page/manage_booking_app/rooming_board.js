@@ -44,7 +44,7 @@
 	   moving this traveller from [old] into [new]" + checkbox
 	   pengesahan WAJIB (kiri) + butang Move (kanan; aktif selepas tick).
 	   Label bilik kedua-dua modal guna FORMAT ROOM ID BETUL
-	   (rb_room_label: BOOKING_NO-Room_<cabin> + alias) — BUKAN docname.
+	   (rb_room_label: BOOKING_NO-Room_<cabin>) — BUKAN docname.
 
 	   MODEL DRAF:
 	   • RB.cols — kolum bilik draf [{booking, booking_number, cabin_no,
@@ -150,7 +150,6 @@
 				if (!col) {
 					col = unassigned[booking] = rb_new_col(booking, booking_number, 0, '', r);
 					col.customer_name = r.customer_name || '';
-					col.custom_name = r.custom_name || '';
 					list.push(col);
 				}
 				col.guests.push(...(r.guests || []));
@@ -159,7 +158,6 @@
 
 			list.push(Object.assign(rb_new_col(booking, booking_number, r.cabin_no, r.room_category, r), {
 				customer_name: r.customer_name || '',
-				custom_name: isCustom ? String(r.room_id) : (r.custom_name || ''),
 				room_privacy: r.room_privacy || '',
 				stateroom_no: r.stateroom_no || '',
 				delegate_no: r.delegate_no || '',
@@ -190,12 +188,9 @@
 			? { capacity: src.capacity || 0, max_capacity: src.max_capacity || 0 }
 			: (RB.categories[room_category] || { capacity: 0, max_capacity: 0 });
 		return {
-			id: 'c' + (++RB.seq),
-			booking, booking_number, cabin_no, customer_name: '',
-			// Nama paparan tersuai bilik (Booking Room Alias) — berasingan
-			// daripada room_id mekanikal (Opsyen A).
-			custom_name: '',
-			room_category: room_category === 'Unassigned' ? '' : (room_category || ''),
+		id: 'c' + (++RB.seq),
+		booking, booking_number, cabin_no, customer_name: '',
+		room_category: room_category === 'Unassigned' ? '' : (room_category || ''),
 			room_privacy: '', stateroom_no: '', delegate_no: '', confirmed: false,
 			capacity: meta.capacity || 0, max_capacity: meta.max_capacity || 0,
 			isNew: false, guests: [],
@@ -270,9 +265,7 @@
 					<div class="mba-rb-col-title-main">
 						${isUnassigned
 							? `<span class="mba-rb-col-id">${__('Unassigned')}</span>`
-							: `<span class="mba-rb-col-id" title="${esc(col.isCustom ? col.room_id : rb_auto_room_id(col))}">${esc(rb_room_display(col))}${col.isNew ? ' ' + __('(new)') : ''}</span>
-						${col.isCustom ? '' : `<button type="button" class="mba-rb-rename" data-col="${col.id}" ${col.confirmed ? 'disabled' : ''}
-							title="${esc(__('Rename room display name'))}">✎</button>`}`}
+							: `<span class="mba-rb-col-id" title="${esc(col.isCustom ? col.room_id : rb_auto_room_id(col))}">${esc(rb_room_display(col))}${col.isNew ? ' ' + __('(new)') : ''}</span>`}
 						${rb_occ_html(col)}
 					</div>
 					${col.customer_name ? `<div class="mba-rb-col-cust" title="${esc(__('Customer'))}: ${esc(col.customer_name)}">${esc(col.customer_name)}</div>` : ''}
@@ -404,10 +397,10 @@
 			const q = RB.q.toLowerCase();
 			const roomLabel = col.cabin_no
 				? col.booking_number + '-Room_' + col.cabin_no : 'unassigned';
-			// Hay carian — bilik (ID auto + ALIAS nama tersuai + CustomRoom_),
-			// booking, kategori, stateroom, customer dan nama semua penghuni.
+			// Hay carian — bilik (ID auto + CustomRoom_), booking,
+			// kategori, stateroom, customer dan nama semua penghuni.
 			const hay = [col.booking_number, roomLabel, col.room_id,
-				col.custom_name, col.room_category,
+				col.room_category,
 				col.stateroom_no, col.customer_name, ...col.guests.map((g) => g.name)]
 				.join(' \u0001 ').toLowerCase();
 			if (!hay.includes(q)) return false;
@@ -498,20 +491,15 @@
 	// BETUL 'BOOKING_NO-Room_<cabin>' (rujuk spesifikasi room_id), TANPA
 	// tambahan. booking_number (cth 'R3FEPM42609'), BUKAN docname Booking
 	// (kolum `name` DB) — itulah punca format salah pada modal sebelum ni.
-	// Nama alias (Booking Room Alias) sengaja TIDAK dilampirkan di sini:
-	// ia nama paparan mesra untuk TAJUK KOLUM sahaja, dan alias lama
-	// pernah mengandungi ID mekanikal bilik lain (patch v33 salah tafsir
-	// penempatan Open Sharing merentas booking) — campurannya menghasilkan
-	// label berpanjangan seperti 'X-Room_1 (Y-Room_1)' yang mengelirukan.
 	function rb_room_label(col) {
 		if (!col.cabin_no) return __('Unassigned');
 		return rb_auto_room_id(col);
 	}
 
-	// Paparan utama kolum/kad — nama tersuai jika ada, else label auto.
+	// Paparan utama kolum/kad — label auto 'booking_number · Room N'.
 	function rb_room_display(col) {
 		// Bilik CustomRoom_ (cabin 0) — papar nama CustomRoom_ sendiri.
-		if (col.custom_name && (col.cabin_no || col.isCustom)) return col.custom_name;
+		if (col.isCustom) return col.room_id || 'CustomRoom_';
 		return (col.cabin_no
 			? `${col.booking_number} · ${__('Room')} ${col.cabin_no}`
 			: __('Unassigned'));
@@ -521,42 +509,7 @@
 	// / 'Unassigned'.
 	const roomLabel = (c) => (c.cabin_no
 		? c.booking_number + ' · Room ' + c.cabin_no
-		: (c.isCustom ? (c.room_id || c.custom_name || 'CustomRoom_') : 'Unassigned'));
-
-	// RENAME NAMA PAPARAN bilik — klik ikon ✎ pada tajuk kolum → input
-	// inline. Enter/blur = komit (endpoint rename_booking_room — alias
-	// Booking Room Alias, BERASINGAN daripada room_id mekanikal);
-	// Escape = batal. Kosong = padam alias (kembali label auto).
-	async function rb_start_rename($col) {
-		const col = rb_col(String($col.data('col')));
-		if (!col || !col.cabin_no || $col.find('.mba-rb-rename-input').length) return;
-		const $span = $col.find('.mba-rb-col-id');
-		const $input = $(`<input type="text" class="form-control mba-rb-rename-input" />`)
-			.val(col.custom_name || '');
-		$span.replaceWith($input);
-		$input.trigger('focus').trigger('select');
-
-		let committed = false;
-		const commit = async () => {
-			if (committed) return;
-			committed = true;
-			const v = String($input.val() || '').trim();
-			try {
-				const out = await api('rename_booking_room', {
-					booking: col.booking, cabin_no: col.cabin_no, custom_name: v,
-				});
-				col.custom_name = (out && out.custom_name) || '';
-			} catch (e) {
-				// api() dah papar alert — nilai kolum tak berubah
-			}
-			rb_render();
-		};
-		$input.on('keydown', function (ev) {
-			if (ev.key === 'Enter') { ev.preventDefault(); $input.trigger('blur'); }
-			else if (ev.key === 'Escape') { committed = true; rb_render(); }
-		});
-		$input.on('blur', commit);
-	}
+		: (c.isCustom ? (c.room_id || 'CustomRoom_') : 'Unassigned'));
 
 	// Kriteria pax-type bilik sasaran SELEPAS mutasi — mirror
 	// validate_cabin_capacity doctype: Extra Bed hanya bila Main Guest
@@ -1045,15 +998,6 @@
 			if (resv && col) rb_drop_move(String(resv), col);
 		});
 
-		// ── Rename Room ID — ikon ✎ pada tajuk kolum ──
-		$b.on('click', '.mba-rb-rename', function (ev) {
-			ev.stopPropagation();
-			const $col = $(this).closest('.mba-rb-col');
-			// Panel disahkan — rename turut dikunci (butang pun disabled).
-			if ($col.hasClass('is-confirmed')) return;
-			rb_start_rename($col);
-		});
-
 		// ── Klik kad (semua saiz) → dialog pindah — laluan mobile ──
 		$b.on('click', '.mba-rb-card', function () {
 			const resv = String($(this).data('reservation'));
@@ -1183,7 +1127,7 @@
 		const optLabel = (c) => {
 			if (!c.cabin_no && !c.isCustom)
 				return __('No Arrangement (Unassigned)') + ' — ' + c.guests.length;
-			const rid = c.isCustom ? (c.room_id || c.custom_name) : rb_room_label(c);
+			const rid = c.isCustom ? (c.room_id || 'CustomRoom_') : rb_room_label(c);
 			// Nama traveller penghuni pertama yang sah; fallback customer.
 			const trav = (c.guests.map((g) =>
 				(g.name && g.name !== '-') ? g.name : '').find(Boolean))
@@ -1494,7 +1438,6 @@
 				bnum_of(guest.booking) || guest.booking, 0,
 				guest.room_category || '', null);
 			dst.room_id = `CustomRoom_${guest.reservation}`;
-			dst.custom_name = dst.room_id;
 			dst.room_privacy = guest.room_privacy || '';
 			dst.isNew = true;
 			dst.isCustom = true;

@@ -14,7 +14,7 @@ class Crew(Document):
         crew_name: DF.Data
         department: DF.Literal["Operations", "Transport", "Hospitality"]
         email: DF.Data | None
-        grade: DF.Literal["Captain", "Co-Captain"]
+        grade: DF.Literal["Captain", "Co-Captain", "Crew"]
         notes: DF.SmallText | None
         phone: DF.Phone | None
         photo: DF.AttachImage | None

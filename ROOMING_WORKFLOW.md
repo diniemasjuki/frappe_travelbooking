@@ -18,9 +18,8 @@
 | UI — modal traveller | `traveller_list.js` → `show_traveller_dialog()` | Panel Rooming & Cruise Cabin per-tetamu |
 | API baca | `api/manage_trip_booking.py` → `get_group_rooming()` (L2767) | Senarai bilik + penghuni + kategori untuk satu group/batch; parameter `booking` = skop satu booking (L3) |
 | API simpan | `api/manage_trip_booking.py` → `arrange_group_rooming()` (L3083) | Simpan placement penuh (batch atomik) |
-| API nama bilik | `api/manage_trip_booking.py` → `rename_booking_room()` (L3016) | Alias nama paparan bilik (Booking Room Alias) |
 | Doctype | `module_travel_booking/doctype/booking_reservation/booking_reservation.py` | Validasi kapasiti/kategori + penjanaan Room ID + status auto |
-| Doctype sokongan | `Booking Room Alias`, `Trip Price Category` (capacity/max_capacity) | Nama paparan bilik; metadata kapasiti kategori |
+| Doctype sokongan | `Trip Price Category` (capacity/max_capacity) | Metadata kapasiti kategori |
 
 Route `/rooming/batch/###` ditangani oleh `manage_booking_app.js → route_apply()
 → show_rooming_board() → open_rooming_board(key)`; key = item batch/group
@@ -51,9 +50,11 @@ Medan rooming pada Booking Reservation (tab Accomodation):
 | `stateroom_no`, `delegate_no`, `aroya_guest_no` | Pengenal cruise line |
 | `cabin_is_confirmed` | Bilik telah disahkan — placement beku (kini di-enforce server) |
 
-`Booking Room Alias` (`ROOMALIAS-{booking}-{cabin_no}`) menyimpan NAMA
-PAPARAN tersuai bilik — berasingan daripada `room_id` mekanikal, jadi
-pergerakan tetamu tidak menyentuh nama bilik.
+> Nota: doctype `Booking Room Alias` (nama paparan tersuai bilik) telah
+> dibuang sepenuhnya — bilik sentiasa dilabel ID auto
+> `<booking_number>-Room_<n>` (atau `CustomRoom_<reservation>` untuk
+> bilik ad-hoc). Patch `v44_drop_booking_room_alias` membersihkan
+> saki-bakinya di site sedia ada.
 
 ---
 
@@ -136,9 +137,6 @@ FUNGSI get_group_rooming(trip_group | trip_groups, search, privacy, limit):
     categories ← get_all(Trip Price Category, ikut jenis trip)
                  + kategori bilik sedia ada (fallback kapasiti)
 
-    # ALIAS nama paparan — satu query untuk semua booking terlibat
-    alias_map ← get_all(Booking Room Alias, booking IN ...) → custom_name
-
     PULANG {rooms, shown, count: total_rooms, categories}
 ```
 
@@ -162,7 +160,7 @@ FUNGSI rb_move_reject(guest, src, target):        # dikongsi semua laluan
     → pulangkan senarai masalah (kosong = layak)
 
 FUNGSI rb_room_label(col):                        # FORMAT ROOM ID BETUL
-    'BOOKING_NO-Room_<cabin>' + alias nama (bila ada) — booking_number,
+    'BOOKING_NO-Room_<cabin>' — booking_number,
     BUKAN docname Booking (kolum `name` DB; punca bug format lama).
 
 FUNGSI rb_move(resv, target):                    # draf — tiada tulisan

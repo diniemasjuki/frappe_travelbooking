@@ -35,7 +35,9 @@
   "import_from_cruise_rate",
   "package_pricing",
   "price_review_required",
-  "ground_arrangement"
+  "ground_arrangement",
+  "components_section",
+  "components"
  ],
  "fields": [
   {
@@ -168,6 +170,18 @@
   {
    "fieldname": "column_break_eemr",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "components_section",
+   "fieldtype": "Section Break",
+   "label": "Package Components (BOM)"
+  },
+  {
+   "description": "Komposisi pakej — gabungan alacarte elemen produk (cruise segment, flight, activity, transfer, merchandise, misc). Komponen 'Included' menjana SO line tambahan semasa checkout; 'Post-booking Addon' muncul dalam katalog addon portal; 'Optional' untuk pra-pilihan. package_type kekal label paparan (rujuk validasi derive).",
+   "fieldname": "components",
+   "fieldtype": "Table",
+   "label": "Components",
+   "options": "Trip Package Component"
   },
   {
    "fetch_from": "trip_link.trip_name",

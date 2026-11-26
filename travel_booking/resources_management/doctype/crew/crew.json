@@ -95,7 +95,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Grade",
-   "options": "Captain\nCo-Captain"
+   "options": "Captain\nCo-Captain\nCrew"
   },
   {
    "fieldname": "role_position",
@@ -130,9 +130,9 @@
    "fieldtype": "Column Break"
   }
  ],
- "index_web_pages_for_search": 1,
+ "link_display_mode": "Search",
  "links": [],
- "modified": "2026-09-05 19:35:52.757318",
+ "modified": "2026-11-09 15:55:22.441491",
  "modified_by": "Administrator",
  "module": "Resources Management",
  "name": "Crew",

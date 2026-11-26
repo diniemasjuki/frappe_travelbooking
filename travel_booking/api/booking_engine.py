@@ -129,7 +129,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
                     bank_transfer_date: str = "", bank_transfer_note: str = "",
                     booking_number: str = None, on_behalf: bool = False,
                     terms_accepted: bool = False, terms_reference: str = "",
-                    customer_message: str = ""):
+                    customer_message: str = "", checkout_currency: str = None):
     if isinstance(selections, str):
         selections = json.loads(selections)
     if isinstance(billing, str):
@@ -366,8 +366,34 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     if not trip_package:
         frappe.throw("Please select a package first.")
 
-    # Backend pricing (dari Trip Package yang dipilih)
-    pricing_map = _get_pricing_map(trip_package)
+    # ── HARGA PER-CURRENCY (patch v41) ─────────────────────────────────
+    # checkout_currency (opsyenal, dari selector currency wizard) hanya
+    # berkesan bila pakej ada matrix harga untuk currency itu; jika tidak,
+    # kekal native pakej (tingkah laku lama). Currency juga mesti
+    # diisytiharkan dalam paksi — guard sama seperti addon/merch.
+    native_currency = frappe.db.get_value("Trip Package", trip_package, "currency")
+    effective_currency = (native_currency or "").strip()
+    if checkout_currency:
+        wanted = checkout_currency.strip().upper()
+        from travel_booking.api.currency_axis import get_declared_currencies
+        declared = get_declared_currencies()
+        if declared and wanted not in declared:
+            frappe.throw(
+                "Currency '{0}' is not available. Available currencies: {1}.".format(
+                    wanted, ", ".join(sorted(declared))),
+                title="Currency Not Available",
+            )
+        has_matrix = frappe.db.sql("""
+            SELECT COUNT(*) FROM `tabTrip Package Price`
+            WHERE parent = %s AND parenttype = 'Trip Package'
+              AND UPPER(IFNULL(currency, '')) = %s
+        """, (trip_package, wanted))[0][0] > 0
+        if has_matrix:
+            effective_currency = wanted
+
+    # Backend pricing (dari Trip Package yang dipilih) — dalam currency
+    # berkesan (matrix bila wujud; native fallback sepenuhnya).
+    pricing_map = _get_pricing_map(trip_package, effective_currency)
 
     # Travel Price Rule (promosi price-slash): harga jualan berkesan =
     # harga promo. SO dibina atas harga NET (promo) — harga runcit asal
@@ -452,7 +478,29 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         else:
             s["room_privacy"] = ""
 
-    so_items    = _build_so_items(selections, eff_pricing_map, trip_name, td.trip_group_name, is_cruise)
+    so_items    = _build_so_items(selections, eff_pricing_map, trip_name, td.trip_group_name, is_cruise,
+                                  trip_package=trip_package, trip_group_date=trip_group_date)
+
+    # Fasa 2A — komposisi pakej: komponen 'Included' (merchandise / misc
+    # priced / activity priced) menjana SO line tambahan. Komponen
+    # dokumentasi (cruise segment / flight) tidak — harga cabin/flight
+    # sudah termaktub dalam package_pricing. Rate diselesaikan dari DB.
+    try:
+        from travel_booking.api.package_components import get_included_component_lines
+        component_lines = get_included_component_lines(
+            trip_package, incoming_pax, frappe.db.get_value("Trip Package", trip_package, "currency")
+        )
+    except Exception as e:
+        # Komposisi tidak pernah menghalang checkout — log & terus tanpa
+        # komponen (admin boleh betulkan konfigurasi kemudian).
+        frappe.log_error(
+            title="Package Components - Checkout Error",
+            message="Failed to build component lines for Trip Package {0}: {1}".format(
+                trip_package, e),
+        )
+        component_lines = []
+    if component_lines:
+        so_items = so_items + component_lines
     grand_total = sum(float(it["rate"]) * int(it["qty"]) for it in so_items)  # NET — harga promo
 
     # Harga runcit asal (sebelum price rule) — snapshot untuk komisen
@@ -487,11 +535,14 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # Voucher — hantar selections + trip_package supaya diskaun dikira ikut
     # scope (subtotal cabin yang match sahaja), bukan grand_total keseluruhan.
     #
-    # MODEL BARU (PE deduction): SO kekal GROSS — diskaun TIDAK lagi
-    # ditolak daripada grand_total dan TIADA baris item rate negatif.
-    # Jumlah diskaun disimpan pada Booking (voucher_discount) dan
-    # diserap sebagai deduction ke akaun Marketing Expenses pada Payment
-    # Entry (corak sama dengan cashback Manual Transfer).
+    # MODEL DISKAUN PADA SO: voucher/referral ialah catatan jualan — jumlah
+    # diskaun dibawa sebagai ADDITIONAL DISCOUNT standard ERPNext pada SO
+    # (apply_discount_on = "Grand Total", corak sama dengan harga net B2B),
+    # jadi SO dah NET. Snapshot kekal disimpan pada Booking
+    # (voucher_discount/referral_discount) sebagai catatan/audit sahaja.
+    # Payment Entry TIDAK lagi membawa baris deduction diskaun — ia rakam
+    # cash tulen sahaja (cashback Manual Transfer kekal sebagai deduction,
+    # ia benefit transaksional ikut kaedah bayaran).
     voucher_discount = 0
     if voucher_code:
         vr = validate_voucher(voucher_code, trip_group_date, grand_total,
@@ -564,14 +615,13 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     else:
         delivery_date = frappe.utils.today()
 
-    # Model multi-company: currency NATIVE pakej (dari DB — sumber
-    # kebenaran, bukan payload) menentukan company yang mengeluarkan
-    # SO/bil. SO tetap dalam company currency company berkenaan dengan
-    # conversion_rate=1.0 — tiada conversion accounting. Kalau pakej
-    # tiada currency (data lama), fallback company default.
-    package_currency = frappe.db.get_value("Trip Package", trip_package, "currency")
-    if not package_currency:
-        package_currency = get_company_currency()
+    # Model multi-company: currency berkesan menentukan company yang
+    # mengeluarkan SO/bil. Default = currency NATIVE pakej (tingkah laku
+    # lama); bila checkout_currency dipilih DAN pakej ada matrix harga
+    # untuknya (patch v41), currency itulah yang dicaj — SO dikeluarkan
+    # oleh company berkenaan (paksi multi-company), conversion_rate=1.0,
+    # tiada conversion accounting.
+    package_currency = effective_currency or get_company_currency()
     so_currency, so_company, so_price_list, so_conversion_rate = \
         _resolve_so_currency_and_rate(package_currency)
 
@@ -615,11 +665,11 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
             # ke grand_total sahaja (rujuk juga booking.py properties,
             # portal_booking.py, portal_payment.py, stripe_checkout.py).
             "disable_rounded_total": 1,
-            # DISKAUN ORDER-LEVEL (model PE deduction) — SO kekal GROSS;
-            # jumlah diskaun voucher/referral disimpan pada Booking (bukan
-            # SO) sebagai sumber rujukan pencipta Payment Entry
-            # (wizard/portal/Stripe) untuk menyerapnya sebagai deduction ke
-            # akaun Marketing Expenses. Rujuk _build_discount_deduction_rows().
+            # DISKAUN ORDER-LEVEL (voucher/referral) — dibawa PADA SO
+            # sebagai additional discount (branch berasingan di bawah);
+            # snapshot catatan kekal pada Booking. Rujuk
+            # so_helpers._so_carries_order_discount() untuk guard laluan
+            # bayaran rekod lama (SO GROSS + PE deduction).
         }
         if sales_partner:
             so_payload["sales_partner"] = sales_partner
@@ -679,6 +729,19 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
                 "apply_discount_on":              "Grand Total",
                 "additional_discount_percentage": b2b_percent,
             })
+        if voucher_discount > 0 or referral_discount > 0:
+            # DISKAUN VOUCHER/REFERRAL — catatan jualan dibawa terus pada
+            # SO sebagai additional discount (jumlah tetap, bukan % —
+            # referral dah dikira atas baki selepas voucher, Tier B).
+            # Branch BERASINGAN dari blok cashback/B2B di atas: voucher
+            # boleh co-exist dengan cashback Manual Transfer (cashback
+            # kekal deduction PE), dan B2B memang menyekat voucher/referral
+            # dari awal (throw) jadi tiada pertindihan slot additional
+            # discount. grand_total SO selepas ini sudah NET.
+            so_payload.update({
+                "apply_discount_on": "Grand Total",
+                "discount_amount":   round(voucher_discount + referral_discount, 2),
+            })
 
         # PENTING: item 'TRAVEL-PKG' dikongsi untuk SEMUA jenis pax (Main
         # Guest/Extra Bed/Infant/Voucher/Referral) dengan rate berbeza-beza
@@ -713,12 +776,14 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     # dari grand_total, jadi guna grand_total terus tanpa fallback.
     grand_total = float(so.grand_total or 0)
 
-    # NET PAYABLE — gross SO ditolak diskaun order-level (voucher/referral)
-    # yang kini diserap sebagai PE deduction, BUKAN ditolak pada SO (SO
-    # kekal GROSS). Semua pengiraan jumlah BAYARAN customer (deposit/full/
-    # cashback base) kekal atas nilai NET ini — sama math yang customer
-    # nampak di wizard.
-    net_total = round(grand_total - voucher_discount - referral_discount, 2)
+    # NET PAYABLE — SO sudah membawa diskaun voucher/referral sebagai
+    # additional discount (grand_total dah NET), jadi net payable = grand
+    # total SO terus. Semua pengiraan jumlah BAYARAN customer (deposit/
+    # full/cashback base) kekal atas nilai NET ini — sama math yang
+    # customer nampak di wizard. (Booking lama pra-refactor: SO masih
+    # GROSS dan diskaun diserap via PE deduction — laluan lama di-guard
+    # oleh _so_carries_order_discount() di so_helpers.)
+    net_total = round(float(so.grand_total or 0), 2)
 
     # ══════════════════════════════════════════════
     # SECURITY FIX (v2): Deposit calc server-side sahaja
@@ -734,7 +799,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     if payment_method == "Online Payment" and online_min and net_total < online_min:
         frappe.throw(
             _("Online payment requires a minimum total of {0}. Please choose Manual Transfer or Held Booking.").format(
-                frappe.utils.fmt_currency(online_min, currency=so.currency or "MYR")
+                frappe.utils.fmt_money(online_min, currency=so.currency or "MYR")
             ),
             title="Below Online Payment Minimum"
         )
@@ -757,29 +822,23 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         frappe.throw(
             _("Minimum deposit is {0}% ({1}) of total ({2}).").format(
                 default_deposit_percent,
-                frappe.utils.fmt_currency(std_deposit),
-                frappe.utils.fmt_currency(net_total)
+                frappe.utils.fmt_money(std_deposit),
+                frappe.utils.fmt_money(net_total)
             ),
             title="Invalid Payment Amount"
         )
 
-    # CASHBACK Manual Transfer — deposit_amount ialah bahagian NET yang
-    # dibetulkan (sebelum diskaun order-level & cashback diangkat ke GROSS
-    # dalam PE). Cash sebenar yang customer transfer = net DITOLAK cashback;
-    # bahagian cashback + diskaun voucher/referral masuk Payment Entry
-    # sebagai DEDUCTION ke akaun Marketing Expenses company (received +
-    # deductions = allocated → PE seimbang).
+    # CASHBACK Manual Transfer — deposit_amount ialah bahagian NET (SO dah
+    # net). Cash sebenar yang customer transfer = deposit DITOLAK cashback;
+    # bahagian cashback masuk Payment Entry sebagai DEDUCTION ke akaun
+    # Marketing Expenses company (received + deductions = allocated → PE
+    # seimbang). Diskaun voucher/referral TIDAK dilibatkan pada PE langsung
+    # — ia dah dibawa pada SO (additional discount), PE allocate cash
+    # tulen sahaja.
     cashback_pe_amount = 0
     if cashback_percent > 0:
         cashback_pe_amount = round(deposit_amount * (cashback_percent / 100), 2)
     cash_due = round(deposit_amount - cashback_pe_amount, 2)
-    # Bahagian GROSS SO untuk allocation PE manual = net deposit DITAMBAH
-    # semula diskaun order-level yang diserap pada PE ni (di-cap ke gross SO
-    # — kes edge: diskaun melebihi net deposit).
-    gross_allocated_pe = round(min(
-        grand_total,
-        deposit_amount + voucher_discount + referral_discount,
-    ), 2)
 
     # Semua booking mula sebagai "Pending" (belum bayar langsung). Bila
     # bayaran PERTAMA masuk (Partially Paid atau Paid), status auto-tukar
@@ -812,14 +871,14 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
         # Entry deduction (beza daripada voucher/referral di bawah).
         "price_rule_discount":  round(price_rule_discount or 0, 2),
         "applied_price_rules":  _price_rules_json(applied_price_info, rule_ctx),
-        # SNAPSHOT diskaun order-level — sumber kebenaran untuk semua
-        # pencipta Payment Entry (wizard manual, portal, Stripe settlement)
-        # menyerap diskaun sebagai deduction ke akaun Marketing Expenses,
-        # sementara SO kekal GROSS (rujuk so_helpers.
-        # _get_booking_discount_snapshot()). Nilai dah dikira di awal —
-        # sebelum SO wujud — jadi selamat ditulis terus di sini. Kelayakan
-        # cashback pula TIDAK di-snapshot di sini — ia dibaca semasa
-        # bayaran daripada checkout_method + Travel Settings semasa
+        # CATATAN diskaun jualan (voucher/referral) — snapshot semasa
+        # booking disahkan. Diskaun sebenar dibawa PADA SO (additional
+        # discount, grand_total NET); field ini catatan/audit sahaja
+        # (laporan, komposisi wizard, guard laluan bayaran lama melalui
+        # so_helpers._so_carries_order_discount()). Nilai dah dikira di
+        # awal — sebelum SO wujud — jadi selamat ditulis terus di sini.
+        # Kelayakan cashback pula TIDAK di-snapshot di sini — ia dibaca
+        # semasa bayaran daripada checkout_method + Travel Settings semasa
         # (benefit transaksional, rujuk _get_booking_discount_snapshot()).
         "voucher_discount":     round(voucher_discount or 0, 2),
         "referral_discount":    round(referral_discount or 0, 2),
@@ -939,8 +998,9 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
     payment_url = ""
     payment_error = None
     if payment_method == "Online Payment":
-        # Caj Stripe atas NET payable (SO gross, diskaun diserap kemudian
-        # oleh _create_discount_settlement_entry() lewat webhook).
+        # Caj Stripe atas NET payable (SO dah NET — diskaun voucher/referral
+        # pada additional discount SO; PE ERPNext allocate cash net terus,
+        # tiada settlement entry diperlukan).
         pay_amount = deposit_amount if payment_type == "Deposit" else net_total
         payment_url, payment_error = _create_payment_url(
             customer_name = customer_name,
@@ -949,12 +1009,11 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
             booking_number = booking.booking_number,
         )
     elif payment_method == "Manual Transfer" and receipt and cash_due > 0:
-        # PE manual: cash = net deposit tolak cashback; bahagian GROSS SO
-        # yang diallocate = cash + cashback + diskaun order-level — beza tu
-        # masuk sebagai baris deduction ke akaun Marketing Expenses.
-        # cash_due <= 0 (diskaun meliputi keseluruhan deposit): tiada cash
-        # untuk ditransfer — PE dig_SKIP; diskaun kekal untuk diserap pada
-        # bayaran seterusnya melalui portal.
+        # PE manual: cash = deposit tolak cashback sahaja. SO dah NET
+        # (diskaun voucher/referral pada additional discount), jadi PE
+        # allocate bahagian NET deposit (cash + cashback) tanpa sebarang
+        # baris deduction diskaun. cash_due <= 0 (cashback meliputi
+        # keseluruhan deposit): tiada cash untuk ditransfer — PE di-SKIP.
         _create_manual_payment_entry(
             so_name       = so.name,
             customer_name = customer_name,
@@ -965,11 +1024,7 @@ def confirm_booking(trip_group_date: str, selections: str, billing: str,
             payment_date  = bank_transfer_date,
             note          = bank_transfer_note,
             cashback_percent  = cashback_percent,
-            allocated_amount  = gross_allocated_pe,
-            discount_components = [
-                ("Voucher " + voucher_code, voucher_discount),
-                ("Referral " + (affiliate_code or ""), referral_discount),
-            ] if (voucher_discount > 0 or referral_discount > 0) else None,
+            allocated_amount  = deposit_amount,
         )
     elif payment_method == "Pay Later":
         # Tiada bayaran cuba dibuat sekarang — SO + Booking dah cipta
@@ -1068,13 +1123,12 @@ def _recompute_booking_status(so_name, exclude_current=False, fire_flows=True):
 
     Semantik pre_discount_total (live-sync): jumlah GROSS semua SO —
     grand_total + additional discount SO (harga runcit sebelum diskaun
-    B2B yang dibawa pada SO itu sendiri). Diskaun voucher/referral TIDAK
-    ditolak di sini kerana model baharu SO kekal GROSS (diskaun diserap
-    sebagai PE deduction) — jadi untuk booking runcit biasa
-    pre_discount_total == jumlah grand_total (sama dengan total_amount);
-    hanya B2B yang berbeza (grand_total = net). Ini kekal makna asal
-    snapshot (harga runcit → margin partner = pre_discount_total − net)
-    tetapi tak lagi stale bila SO diedit.
+    yang dibawa pada SO itu sendiri — sama ada diskaun B2B % mahupun
+    diskaun voucher/referral order-level). Formula add-back ni meliputi
+    kedua-duanya automatik, jadi pre_discount_total == harga runcit untuk
+    SEMUA booking (makna asal snapshot terpelihara: margin partner =
+    pre_discount_total − net; komposisi wizard = grand_total − voucher −
+    referral) dan tak lagi stale bila SO diedit.
 
     PENTING (flow status baharu):
     - "Pending" -> "Accepted": auto, sebaik bayaran PERTAMA masuk (Partially

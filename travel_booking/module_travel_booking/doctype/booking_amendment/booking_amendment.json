@@ -1,0 +1,206 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:BAM-{booking}-{#####}",
+ "creation": "2026-11-02 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "amendment_details_section",
+  "booking",
+  "column_break_details",
+  "status",
+  "amendment_type",
+  "reason",
+  "before_section",
+  "before_snapshot",
+  "after_section",
+  "new_trip_group_date",
+  "new_trip_package",
+  "column_break_after",
+  "price_difference",
+  "financials_section",
+  "settlement_method",
+  "settlement_amount",
+  "credit_note",
+  "column_break_fin",
+  "sales_order",
+  "applied_on",
+  "applied_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "amendment_details_section",
+   "fieldtype": "Section Break",
+   "label": "Amendment Details"
+  },
+  {
+   "fieldname": "booking",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Booking",
+   "options": "Booking",
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "column_break_details",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nApplied\nCancelled"
+  },
+  {
+   "fieldname": "amendment_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Amendment Type",
+   "options": "Change Date\nChange Package\nChange Date & Package",
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason / Notes"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "before_section",
+   "fieldtype": "Section Break",
+   "label": "Before (auto-snapshot)"
+  },
+  {
+   "description": "Snapshot JSON keadaan booking semasa dokumen dicipta: trip_date, trip_package, booked_pax, total_amount, paid_amount, reservations.",
+   "fieldname": "before_snapshot",
+   "fieldtype": "Code",
+   "label": "Before Snapshot",
+   "options": "JSON",
+   "read_only": 1
+  },
+  {
+   "fieldname": "after_section",
+   "fieldtype": "Section Break",
+   "label": "After (perubahan diminta)"
+  },
+  {
+   "description": "Tarikh perjalanan BAHARU (Trip Group Date).",
+   "fieldname": "new_trip_group_date",
+   "fieldtype": "Link",
+   "label": "New Trip Group Date",
+   "options": "Trip Group Date"
+  },
+  {
+   "description": "Pakej BAHARU (kosong = kekal pakej sama).",
+   "fieldname": "new_trip_package",
+   "fieldtype": "Link",
+   "label": "New Trip Package",
+   "options": "Trip Package"
+  },
+  {
+   "fieldname": "column_break_after",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Perbezaan harga (new − old). Positif = customer perlu bayar tambahan; negatif = kredit refund.",
+   "fieldname": "price_difference",
+   "fieldtype": "Currency",
+   "label": "Price Difference",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "financials_section",
+   "fieldtype": "Section Break",
+   "label": "Settlement"
+  },
+  {
+   "default": "None",
+   "description": "None = tiada penyelesaian kewangan (pertukaran harga sama). Additional Payment = customer bayar beza. Credit Note = jana credit note ERPNext untuk beza negatif. Waiver = serap beza (kasih).",
+   "fieldname": "settlement_method",
+   "fieldtype": "Select",
+   "label": "Settlement Method",
+   "options": "None\nAdditional Payment\nCredit Note\nWaiver"
+  },
+  {
+   "depends_on": "eval:doc.settlement_method && doc.settlement_method !== 'None'",
+   "description": "Jumlah penyelesaian (auto dari price_difference; boleh laraskan untuk waiver separa).",
+   "fieldname": "settlement_amount",
+   "fieldtype": "Currency",
+   "label": "Settlement Amount",
+   "options": "currency"
+  },
+  {
+   "depends_on": "eval:doc.settlement_method === 'Credit Note'",
+   "description": "Sales Invoice credit note yang dijana semasa apply.",
+   "fieldname": "credit_note",
+   "fieldtype": "Link",
+   "label": "Credit Note",
+   "options": "Sales Invoice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_fin",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "SO baharu yang menjual pakej/tarikh baharu (dicipta semasa apply).",
+   "fieldname": "sales_order",
+   "fieldtype": "Link",
+   "label": "New Sales Order",
+   "options": "Sales Order",
+   "read_only": 1
+  },
+  {
+   "fieldname": "applied_on",
+   "fieldtype": "Datetime",
+   "label": "Applied On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "applied_by",
+   "fieldtype": "Link",
+   "label": "Applied By",
+   "options": "User",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [
+  {
+   "group": "Booking",
+   "link_doctype": "Booking",
+   "link_fieldname": "name"
+  }
+ ],
+ "modified": "2026-11-02 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Booking Amendment",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

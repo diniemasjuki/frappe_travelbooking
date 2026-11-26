@@ -899,3 +899,7 @@
   letter-spacing: .3px;
 }
 .rc-promo-badge .ti { margin-right: 4px; }
+
+/* ── Package Includes (BOM composition, patch v42) ── */
+.rc-include-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#555;padding:3px 0;}
+.rc-include-row .ti{color:#B0862A;font-size:14px;}

@@ -13,10 +13,12 @@ class TripPackage(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
+		from travel_booking.module_travel_booking.doctype.trip_package_component.trip_package_component import TripPackageComponent
 		from travel_booking.module_travel_booking.doctype.trip_package_group_date_select.trip_package_group_date_select import TripPackageGroupDateSelect
 		from travel_booking.module_travel_booking.doctype.trip_package_price.trip_package_price import TripPackagePrice
 
 		airport_form: DF.Link | None
+		components: DF.Table[TripPackageComponent]
 		currency: DF.Link
 		ground_arrangement: DF.Check
 		is_a_cruise_trip: DF.Check
@@ -86,7 +88,45 @@ class TripPackage(Document):
 			self.package_title = (self.trip_name or "") + " : " + (self.package_type or "") + " : " + airport
 
 	
+		self.validate_price_currencies()
+
 		domain = frappe.utils.get_url()
 		self.my_url = domain + "/booking/?trip=" + self.name
+
+	def validate_price_currencies(self):
+		"""Harga per-currency (patch v41): baris Trip Package Price boleh
+		bawa currency berbeza dari native parent. Semak:
+
+		1. Setiap currency baris mesti diisytiharkan dalam paksi
+		   (Travel Settings > Multi Currency Account) — SO hanya boleh
+		   dikeluarkan oleh company currency yang diisytiharkan.
+		2. AMARAN (bukan throw) bila kategori sama muncul dengan currency
+		   berbeza — itu matrix sah (MYR + SGD per kategori), tapi kalau
+		   TIDAK disengajakan ia tanda salah isian.
+
+		Baris kosong currency = native parent — semantic sedia ada,
+		tidak divalidasi di sini (parent currency dah divalidasi
+		di validate() atas)."""
+		from travel_booking.api.currency_axis import get_declared_currencies
+		declared = get_declared_currencies()
+
+		row_currencies = set()
+		by_category = {}
+		for row in (self.package_pricing or []):
+			cur = (row.currency or "").strip()
+			if not cur:
+				continue  # native parent — bukan scope sini
+			row_currencies.add(cur)
+			by_category.setdefault(row.pricing_for_class, set()).add(cur)
+
+		# 1. Currency mesti diisytiharkan dalam axis.
+		for cur in sorted(row_currencies):
+			if declared and cur not in declared:
+				frappe.throw(
+					"Price row currency '{0}' is not declared in Travel "
+					"Settings > Multi Currency Account. Available: {1}.".format(
+						cur, ", ".join(sorted(declared))),
+					title="Invalid Price Currency",
+				)
 
 		

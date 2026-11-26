@@ -32,6 +32,8 @@ class TripGroupDate(Document):
 		disembarkation_port: DF.Link | None
 		embarkation_port: DF.Link | None
 		filter_by_trip: DF.Check
+		flight_schedule: DF.Link | None
+		flight_schedule_title: DF.Data | None
 		group_batch: DF.Data | None
 		group_organizer: DF.Link | None
 		is_a_cruise_trip: DF.Check

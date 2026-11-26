@@ -666,6 +666,15 @@ def update_cabin_assignment(reservation_name: str, stateroom_no: str = None, aro
 	
 	try:
 		res = frappe.get_doc('Booking Reservation', reservation_name)
+
+		# Fasa 4A — sahkan bilik terhadap registry Cruise Cabin (kalau
+		# registry telah di-import untuk schedule tu): bilik mesti wujud
+		# dan bukan Maintenance/Blocked. No-op untuk schedule tanpa
+		# registry (tingkah laku lama kekal).
+		if stateroom_no:
+			from travel_booking.api.cabin_registry import validate_stateroom_assignment
+			validate_stateroom_assignment(
+				res.trip_cruise_schedule, stateroom_no, reservation_name)
 		
 		if stateroom_no is not None:
 			res.stateroom_no = stateroom_no
@@ -685,6 +694,109 @@ def update_cabin_assignment(reservation_name: str, stateroom_no: str = None, aro
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), 'Cabin Assignment Error')
 		frappe.throw(_('Failed to update stateroom: {0}').format(str(e)))
+
+
+@frappe.whitelist()
+def bulk_assign_flight(booking_name: str, flight_name: str,
+                       reservation_names: str = None,
+                       flight_request: str = None) -> dict:
+	"""Fasa 2B — assign SATU Flight kepada semua (atau subset) slot pax
+	Booking Reservation satu booking.
+
+	Args:
+	    booking_name: Name of the Booking document.
+	    flight_name: Flight doctype name (PNR) untuk di-assign.
+	    reservation_names: optional JSON list — subset reservation name;
+	                       default: SEMUA slot aktif booking.
+	    flight_request: optional Flight Request name — bila diberikan,
+	                    status request ditukar ke Fulfilled + link flight.
+
+	Snapshot flight (itinerary/airport/tarikh/ticket type) auto-fetch
+	daripada Link flight (fetch_from pada Booking Reservation) — cukup
+	set field flight sahaja. flight_info_lock TIDAK disentuh — slot yang
+	dilock admin kekal terpelihara (dilangkau dengan amaran).
+	Seat count Flight dikira semula oleh controller Flight (refresh_seats)
+	pada on_update reservation.
+	"""
+	# SECURITY: Write operation — require Booking Hub role
+	_require_booking_manager()
+	if not booking_name or not flight_name:
+		frappe.throw(_('Booking and Flight are required'))
+
+	flight = frappe.db.get_value(
+		'Flight', flight_name,
+		['name', 'status', 'max_seat', 'seats_occupied'], as_dict=True)
+	if not flight:
+		frappe.throw(_('Flight {0} not found').format(flight_name))
+	if flight.status in ('Closed', 'Completed'):
+		frappe.throw(
+			_('Flight {0} is {1} and cannot be assigned').format(
+				flight_name, flight.status))
+
+	# Target slots: subset sahaja atau SEMUA slot aktif booking.
+	if reservation_names:
+		if isinstance(reservation_names, str):
+			reservation_names = json.loads(reservation_names)
+		slots = [frappe.get_doc('Booking Reservation', r)
+		         for r in (reservation_names or [])]
+		for s in slots:
+			if s.booking != booking_name:
+				frappe.throw(
+					_('Reservation {0} does not belong to booking {1}').format(
+						s.name, booking_name))
+	else:
+		slots = frappe.get_all(
+			'Booking Reservation',
+			filters={'booking': booking_name, 'status': ['!=', 'Cancelled']},
+			pluck='name')
+		slots = [frappe.get_doc('Booking Reservation', r) for r in slots]
+
+	if not slots:
+		frappe.throw(_('No active reservations found for this booking'))
+
+	# Kapasiti seat — elak assign melebihi max_seat flight.
+	free = int(flight.max_seat or 0) - int(flight.seats_occupied or 0)
+	to_assign = [s for s in slots if s.flight != flight_name]
+	if flight.max_seat and len(to_assign) > free:
+		frappe.throw(
+			_('Flight {0} has only {1} seat(s) left but {2} reservation(s) '
+			  'need assignment').format(flight_name, free, len(to_assign)))
+
+	updated, skipped_locked, errors = 0, [], []
+	for res in to_assign:
+		if res.flight_info_lock:
+			skipped_locked.append(res.name)
+			continue
+		try:
+			res.flight = flight_name
+			res.save(ignore_permissions=True)
+			updated += 1
+		except Exception as e:
+			errors.append('{0}: {1}'.format(res.name, str(e)))
+
+	# Flight Request fulfilment (opsyenal).
+	request_updated = False
+	if flight_request:
+		if frappe.db.exists('Flight Request', flight_request):
+			frappe.db.set_value(
+				'Flight Request', flight_request,
+				{'flight': flight_name, 'status': 'Fulfilled'})
+			request_updated = True
+
+	frappe.db.commit()
+
+	message = _('Flight assigned to {0} reservation(s)').format(updated)
+	if skipped_locked:
+		message += _(', {0} skipped (flight info locked)').format(len(skipped_locked))
+
+	return {
+		'success': True,
+		'message': message,
+		'updated': updated,
+		'skipped_locked': skipped_locked,
+		'errors': errors,
+		'flight_request_updated': request_updated,
+	}
 
 
 @frappe.whitelist()

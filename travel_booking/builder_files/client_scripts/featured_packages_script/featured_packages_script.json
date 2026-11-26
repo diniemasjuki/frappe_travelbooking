@@ -1,0 +1,13 @@
+{
+ "creation": "2026-11-02 00:00:00",
+ "docstatus": 0,
+ "doctype": "Builder Client Script",
+ "idx": 0,
+ "modified": "2026-11-02 08:10:27.261410",
+ "modified_by": "Administrator",
+ "name": "featured-packages-script",
+ "owner": "Administrator",
+ "public_url": "/files/page_scripts/featured-packages-script-6931fbaeb2.js?v=03616e53a1",
+ "script": "/featured_packages_builder.js",
+ "script_type": "JavaScript"
+}

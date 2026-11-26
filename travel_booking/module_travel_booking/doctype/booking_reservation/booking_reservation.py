@@ -527,19 +527,26 @@ class BookingReservation(Document):
 		# PENTING: room_category MESTI konsisten dalam satu cabin — satu
 		# cabin FIZIKAL tak boleh jadi 2 jenis bilik serentak (beza dengan
 		# stateroom_no, yang consistency check-nya kita TANGGUHKAN sengaja
-		# — rujuk perbincangan sebelum ni). Kalau ada sibling dengan
+		# rujuk perbincangan sebelum ni). Kalau ada sibling dengan
 		# room_category BERBEZA, block terus — jangan senyap terima label
 		# dari slot PERTAMA sahaja (itu punca bug: admin isi "Balcony
 		# Superior Cabin" untuk cabin_no yang sibling-nya sudah "Balcony
 		# Cabin", tapi grouping portal cuma papar label slot pertama,
 		# menyembunyikan percanggahan tanpa disedari).
-		mismatched = [s for s in siblings if s.room_category and s.room_category != self.room_category]
-		if mismatched:
-			frappe.throw(
-				"Cabin " + str(self.cabin_no) + " is already set as '" + str(mismatched[0].room_category) +
-				"' — cannot change to '" + str(self.room_category) + "' for only some slots. " +
-				"Update ALL records in this cabin at once to change the room type."
-			)
+		#
+		# Escape hatch 'skip_cabin_category_consistency': dipasang oleh
+		# cabin_upgrade.apply_cabin_upgrade_for_order() yang menukar
+		# SEMUA slot cabin secara berurutan (slot pertama masih nampak
+		# sibling lama ketika save — kitaran perubahan sah, bukan
+		# percanggahan). Validasi lain (kapasiti, link) kekal berjalan.
+		if not self.flags.get("skip_cabin_category_consistency"):
+			mismatched = [s for s in siblings if s.room_category and s.room_category != self.room_category]
+			if mismatched:
+				frappe.throw(
+					"Cabin " + str(self.cabin_no) + " is already set as '" + str(mismatched[0].room_category) +
+					"' — cannot change to '" + str(self.room_category) + "' for only some slots. " +
+					"Update ALL records in this cabin at once to change the room type."
+				)
 
 		def _count(pax_type):
 			n = sum(1 for s in siblings if s.pax_type == pax_type)

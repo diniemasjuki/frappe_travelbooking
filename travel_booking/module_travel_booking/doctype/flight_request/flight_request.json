@@ -6,18 +6,190 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "section_break_wqu2"
+  "section_break_wqu2",
+  "request_details_section",
+  "request_title",
+  "column_break_req",
+  "status",
+  "priority",
+  "trip_context_section",
+  "trip_package",
+  "column_break_tctx",
+  "booking",
+  "pax_count",
+  "flight_spec_section",
+  "ticket_type",
+  "flight_class",
+  "column_break_fspec",
+  "origin_airport",
+  "destination_airport",
+  "travel_dates_section",
+  "departure_date",
+  "column_break_dates",
+  "return_date",
+  "assignment_section",
+  "flight",
+  "column_break_assign",
+  "requested_by",
+  "notes_section",
+  "notes"
  ],
  "fields": [
   {
    "fieldname": "section_break_wqu2",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "request_details_section",
+   "fieldtype": "Section Break",
+   "label": "Request Details"
+  },
+  {
+   "fieldname": "request_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Request Title"
+  },
+  {
+   "fieldname": "column_break_req",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Requested",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Requested\nQuoted\nBooked\nFulfilled\nCancelled"
+  },
+  {
+   "default": "Normal",
+   "fieldname": "priority",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Priority",
+   "options": "Normal\nHigh\nUrgent"
+  },
+  {
+   "fieldname": "trip_context_section",
+   "fieldtype": "Section Break",
+   "label": "Trip Context"
+  },
+  {
+   "fieldname": "trip_package",
+   "fieldtype": "Link",
+   "label": "Trip Package",
+   "options": "Trip Package"
+  },
+  {
+   "fieldname": "column_break_tctx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "booking",
+   "fieldtype": "Link",
+   "label": "Booking",
+   "options": "Booking"
+  },
+  {
+   "description": "Bilangan penumpang untuk permintaan flight ni.",
+   "fieldname": "pax_count",
+   "fieldtype": "Int",
+   "label": "Pax Count"
+  },
+  {
+   "fieldname": "flight_spec_section",
+   "fieldtype": "Section Break",
+   "label": "Flight Specification"
+  },
+  {
+   "default": "FIT",
+   "description": "FIT = individu/kecil (tarif publish); GIT = group (tarif kontrak group).",
+   "fieldname": "ticket_type",
+   "fieldtype": "Select",
+   "label": "Ticket Type",
+   "options": "FIT\nGIT"
+  },
+  {
+   "default": "Economy",
+   "fieldname": "flight_class",
+   "fieldtype": "Select",
+   "label": "Flight Class",
+   "options": "Economy\nEconomy Plus\nPremium Economy\nBusiness Class\nFirst Class"
+  },
+  {
+   "fieldname": "column_break_fspec",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "origin_airport",
+   "fieldtype": "Link",
+   "label": "Origin Airport",
+   "options": "Flight Airport"
+  },
+  {
+   "fieldname": "destination_airport",
+   "fieldtype": "Link",
+   "label": "Destination Airport",
+   "options": "Flight Airport"
+  },
+  {
+   "fieldname": "travel_dates_section",
+   "fieldtype": "Section Break",
+   "label": "Travel Dates"
+  },
+  {
+   "fieldname": "departure_date",
+   "fieldtype": "Date",
+   "label": "Departure Date"
+  },
+  {
+   "fieldname": "column_break_dates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "return_date",
+   "fieldtype": "Date",
+   "label": "Return Date"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "assignment_section",
+   "fieldtype": "Section Break",
+   "label": "Fulfilment"
+  },
+  {
+   "description": "Flight sebenar yang menunaikan permintaan ni — set bila status Booked.",
+   "fieldname": "flight",
+   "fieldtype": "Link",
+   "label": "Flight",
+   "options": "Flight"
+  },
+  {
+   "fieldname": "column_break_assign",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "requested_by",
+   "fieldtype": "Link",
+   "label": "Requested By",
+   "options": "User"
+  },
+  {
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text Editor",
+   "label": "Notes"
   }
  ],
- "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-12 14:54:04.695896",
+ "modified": "2026-11-02 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Module Travel Booking",
  "name": "Flight Request",
@@ -36,9 +208,8 @@
    "write": 1
   }
  ],
- "row_format": "Dynamic",
- "rows_threshold_for_grid_search": 20,
  "sort_field": "creation",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "row_format": "Dynamic"
 }

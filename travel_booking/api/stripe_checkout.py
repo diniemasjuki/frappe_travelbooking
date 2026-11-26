@@ -187,12 +187,15 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     (endpoint ni whitelisted sendiri — jangan percaya caller).
     """
     so = frappe.db.get_value("Sales Order", sales_order,
-                             ["customer", "currency", "grand_total", "advance_paid"], as_dict=True)
+                             ["customer", "currency", "grand_total", "advance_paid", "company"], as_dict=True)
     if not so:
         frappe.throw("Sales Order not found.")
-    # Snapshot diskaun order-level disimpan pada Booking (SO kekal GROSS) —
-    # rujuk _get_booking_discount_snapshot().
-    from travel_booking.api.so_helpers import _get_booking_discount_snapshot
+    # Snapshot diskaun order-level pada Booking — hanya dipakai untuk
+    # MODEL LAMA (SO GROSS, pra-refactor; rujuk _so_carries_order_discount()).
+    from travel_booking.api.so_helpers import (
+        _get_booking_discount_snapshot,
+        _so_carries_order_discount,
+    )
     so_voucher_discount, so_referral_discount, _so_cashback_pct = \
         _get_booking_discount_snapshot(sales_order)
 
@@ -248,11 +251,16 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
         online_min = 0
 
     effective_so_total = float(so.grand_total or 0)
-    # NET PAYABLE — SO kekal GROSS; diskaun order-level (voucher/referral,
-    # snapshot pada Booking) diserap sebagai PE deduction/settlement, jadi
-    # jumlah yang dicaj customer ialah gross ditolak diskaun tu. Min deposit
-    # & pengecualian full-payment diukur atas nilai NET ni.
-    net_payable = round(effective_so_total - so_voucher_discount - so_referral_discount, 2)
+    # NET PAYABLE — MODEL SEMASA: SO dah NET (diskaun voucher/referral
+    # dibawa sebagai additional discount SO), jadi net payable = grand
+    # total terus. MODEL LAMA (rekod pra-refactor, SO GROSS): snapshot
+    # diskaun pada Booking ditolak di sini — diskaun diserap kemudian
+    # sebagai PE deduction/settlement. Min deposit & pengecualian
+    # full-payment diukur atas nilai NET ni.
+    if _so_carries_order_discount(sales_order):
+        net_payable = round(effective_so_total, 2)
+    else:
+        net_payable = round(effective_so_total - so_voucher_discount - so_referral_discount, 2)
     min_deposit = round(net_payable * (min_deposit_pct / 100), 2)
 
     # Jika amount kurang dari minimum deposit (dan bukan full payment), reject
@@ -261,8 +269,8 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
             _("Minimum payment is {0}% ({1}) of total order amount {2}. "
               "Please contact support for special arrangements.").format(
                 min_deposit_pct,
-                frappe.utils.fmt_currency(min_deposit, currency=so.currency or default_currency),
-                frappe.utils.fmt_currency(net_payable, currency=so.currency or default_currency)
+                frappe.utils.fmt_money(min_deposit, currency=so.currency or default_currency),
+                frappe.utils.fmt_money(net_payable, currency=so.currency or default_currency)
             ),
             title="Amount Below Minimum"
         )
@@ -275,7 +283,7 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
     if online_min and amount < online_min:
         frappe.throw(
             _("Online payment requires a minimum of {0}.").format(
-                frappe.utils.fmt_currency(online_min, currency=so.currency or default_currency)
+                frappe.utils.fmt_money(online_min, currency=so.currency or default_currency)
             ),
             title="Below Online Payment Minimum"
         )
@@ -356,6 +364,15 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
         "payment_request_type":    "Inward",
         "party_type":              "Customer",
         "party":                   so.customer,
+        # company MESTI dari SO — tanpa ni DocField default mengisi
+        # company lalai site (cth SDN BHD) dan validate_reference_company()
+        # ERPNext throw "Company X does not match the company Y of Sales
+        # Order" untuk SO entity lain (cth RTSG/Singapore) dalam setup
+        # multi-company. Payment Gateway Account per-currency pula dah
+        # betul dari Travel Settings.currency_accounts (Stripe-RTSG utk
+        # SGD → ledger RTSG), jadi PR + gateway + PE kemudian konsisten
+        # semua dalam entity SO ni.
+        "company":                 so.company,
         "reference_doctype":       "Sales Order",
         "reference_name":          sales_order,
         "grand_total":             pr_amount,
@@ -363,6 +380,17 @@ def create_payment_intent(sales_order: str, amount: float, source: str = "portal
         "email_to":                email or "",
         "mute_email":              1,
     })
+    # PENTING: flag ni melangkau ref_doc.check_permission("read") dalam
+    # PaymentRequest.validate() — ERPNext semak read atas Sales Order
+    # rujukan SEBAGAI SESSION USER (Guest wizard / customer portal), dan
+    # ignore_permissions pada insert TIDAK menutup laluan tu (semakan
+    # dibuat ke atas ref_doc yang di-fetch semula di sisi ERPNext, bukan
+    # PR ini). Ownership SO sudah disahkan caller: portal path melalui
+    # _so_action_allowed() (portal_payment.create_payment_request),
+    # wizard path melalui SO yang baru confirm_booking() cipta dalam
+    # request yang sama. Ini escape hatch rasmi ERPNext — flag yang sama
+    # dipakai oleh payment_request.make_payment_request() untuk portal.
+    pr.flags.portal_payment = True
     pr.insert(ignore_permissions=True)
     pr.submit()
 
@@ -818,16 +846,23 @@ def _mark_payment_request_paid(pr_name):
         pr.run_method("set_as_paid")
         frappe.db.commit()
 
-        # DISKAUN ORDER-LEVEL (voucher/referral) — PE ERPNext allocate cash
-        # net sahaja; serap BAKI diskaun yang belum diserap supaya SO settle
-        # tepat selepas bayaran penuh secara net. Di-run SELEPAS commit
-        # pengesahan bayaran: error di-log sahaja, TIDAK PERNAH gagalkan
-        # rekod bayaran customer.
+        # DISKAUN ORDER-LEVEL (voucher/referral) — LEGACY sahaja: PE ERPNext
+        # allocate cash net sahaja; rekod lama (SO GROSS, pra-refactor)
+        # perlukan serapan BAKI diskaun supaya settle tepat selepas bayaran
+        # penuh secara net. MODEL SEMASA (diskaun pada SO, grand_total NET)
+        # WAJIB skip — formula residue TAK tahu diskaun dah dalam
+        # grand_total, jadi ia akan cipta PE hantu bila deposit dibayar
+        # dulu. Di-run SELEPAS commit pengesahan bayaran: error di-log
+        # sahaja, TIDAK PERNAH gagalkan rekod bayaran customer.
         try:
             if pr.reference_doctype == "Sales Order" and pr.reference_name:
-                from travel_booking.api.so_helpers import _settle_order_discount_residue
-                _settle_order_discount_residue(pr.reference_name)
-                frappe.db.commit()
+                from travel_booking.api.so_helpers import (
+                    _settle_order_discount_residue,
+                    _so_carries_order_discount,
+                )
+                if not _so_carries_order_discount(pr.reference_name):
+                    _settle_order_discount_residue(pr.reference_name)
+                    frappe.db.commit()
         except Exception as settle_err:
             frappe.db.rollback()
             frappe.log_error(

@@ -3849,7 +3849,8 @@ function refreshOrderSummaryTotal() {
   if (depEl) depEl.textContent = fmt(getEffectiveMin());
 
   // Cashback row — papar hanya bila Manual Transfer dipilih & cashback aktif
-  // (B2B: tidak layak cashback — slot additional discount dipakai untuk net)
+  // (B2B: tidak layak cashback — slot additional discount SO dipakai untuk
+  // harga net kontrak partner; voucher/referral juga disekat dalam B2B)
   var cashbackRow = document.getElementById("bnwCashbackDiscountRow");
   if (!cashbackRow) return;
 
@@ -4655,9 +4656,10 @@ function calcDiscountedTotal() {
 
   // Manual Transfer cashback — dikira di UI untuk paparan sahaja; jumlah
   // sebenar yang dicaj tetap dikira & disahkan semula di backend
-  // (booking_engine.confirm_booking). SO kekal GROSS — cashback direkodkan
-  // sebagai DEDUCTION pada Payment Entry manual (debit ke akaun Marketing
-  // Expenses company), bukan Additional Discount SO lagi.
+  // (booking_engine.confirm_booking). SO membawa diskaun voucher/referral
+  // sebagai Additional Discount (grand_total NET); cashback sahaja yang
+  // direkodkan sebagai DEDUCTION pada Payment Entry manual (debit ke akaun
+  // Marketing Expenses company).
   // (B2B tidak layak cashback — slot additional discount dipakai untuk net.)
   if (state_payment_method === "Manual Transfer" &&
       state_payment_settings.cashback_enabled &&

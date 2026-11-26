@@ -75,6 +75,8 @@
     <div style="display:flex;gap:24px;align-items:flex-start;">
       <!-- Left column (2/3): Addon catalog -->
       <div style="flex:2;min-width:0;">
+        <!-- Cabin upgrades (Fasa 1B — populated by JS; hidden when none) -->
+        <div id="cabin-upgrades-container" style="display:none;margin-bottom:24px;"></div>
         <div style="margin-bottom:4px;">
           <h2 style="font-size:18px;color:#1E1C18;margin:0 0 4px;">Add-on Catalog</h2>
           <p style="font-size:13px;color:#7D7A70;margin:0 0 16px;">Select extras to enhance your trip experience</p>
@@ -123,6 +125,7 @@
 // Global state
 var selectedAddons = {};
 var availableAddons = [];
+var cabinUpgrades = [];
 var bookingRef = '';
 var travellers = [];
 var activeFilter = 'All';
@@ -155,6 +158,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (pd.available_addons && Array.isArray(pd.available_addons)) {
       availableAddons = pd.available_addons;
+      cabinUpgrades = pd.cabin_upgrades || [];
+      renderCabinUpgrades();
       renderFilterBar();
       renderAddonCatalog(availableAddons);
     } else {
@@ -184,13 +189,15 @@ function loadAvailableAddons() {
   })
   .then(function(result) {
     var msg = result.message;
-    // Resp baharu: {addons, currency, currency_symbol, currency_options}
+    // Resp baharu: {addons, cabin_upgrades, currency, currency_symbol, currency_options}
     if (msg && Array.isArray(msg.addons)) {
       availableAddons = msg.addons;
+      cabinUpgrades = msg.cabin_upgrades || [];
       addonCurrency = msg.currency || addonCurrency;
       addonCurrencySymbol = msg.currency_symbol || addonCurrencySymbol;
       addonCurrencyOptions = msg.currency_options || addonCurrencyOptions;
       renderAddonCurrencyBar();
+      renderCabinUpgrades();
       renderFilterBar();
       renderAddonCatalog(availableAddons);
     } else if (Array.isArray(msg)) {  // backward-compat resp lama
@@ -202,6 +209,108 @@ function loadAvailableAddons() {
   .catch(function(error) {
     console.error('Error loading addons:', error);
     showError('Failed to load add-ons. Please try again.');
+  });
+}
+
+// ── Fasa 1B: UPGRADE CABIN ─────────────────────────────────────────
+// cabin_upgrades = [{addon_package, addon_title, package_name, from_category,
+// to_category, rate, currency, cabins, available}] — beli melalui cart
+// yang sama (checkout_addons); apply automatik bila dibayar penuh.
+
+function renderCabinUpgrades() {
+  var container = document.getElementById('cabin-upgrades-container');
+  if (!container) return;
+
+  if (!cabinUpgrades || cabinUpgrades.length === 0) {
+    container.innerHTML = '';
+    container.style.display = 'none';
+    return;
+  }
+
+  var html = '';
+  html += '<div style="margin-bottom:8px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">';
+  html += '<h2 style="font-size:17px;font-weight:600;color:#1E1C18;margin:0;">Upgrade Your Cabin</h2>';
+  html += '<span style="font-size:12px;color:#8A8577;">Move to a higher cabin category — applied automatically once payment is complete</span>';
+  html += '</div>';
+
+  html += '<div class="upgrade-list">';
+
+  cabinUpgrades.forEach(function(up, i) {
+    var uid = 'upg-' + i;
+    var soldOut = (up.available !== null && up.available !== undefined && up.available <= 0);
+    var cabinsLabel = (up.cabins && up.cabins.length)
+      ? 'Cabin ' + up.cabins.join(', Cabin ')
+      : '';
+
+    html += '<div class="upgrade-row" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:linear-gradient(135deg,#FDF9F0,#FAF4E8);border:1px solid #E8D9B8;border-radius:12px;margin-bottom:10px;' + (soldOut ? 'opacity:0.55;' : '') + '">';
+
+    // Icon
+    html += '<div style="flex-shrink:0;width:44px;height:44px;border-radius:10px;background:#C47900;color:white;display:flex;align-items:center;justify-content:center;font-size:20px;">&#9650;</div>';
+
+    // Info
+    html += '<div style="flex:1;min-width:0;">';
+    html += '<div style="font-size:14px;font-weight:600;color:#1E1C18;">' + escapeHtml(up.addon_title) + '</div>';
+    html += '<div style="font-size:12.5px;color:#6B675E;margin-top:2px;">';
+    html += escapeHtml(up.from_category || '') + ' &rarr; <strong>' + escapeHtml(up.to_category || '') + '</strong>';
+    if (cabinsLabel) html += ' &middot; ' + escapeHtml(cabinsLabel);
+    html += '</div>';
+    if (up.available !== null && up.available !== undefined) {
+      html += '<div style="font-size:11.5px;color:' + (up.available > 0 ? '#7D7A70' : '#B33A3A') + ';margin-top:2px;">';
+      html += (up.available > 0 ? up.available + ' left' : 'Fully booked');
+      html += '</div>';
+    }
+    html += '</div>';
+
+    // Price + button
+    html += '<div style="text-align:right;flex-shrink:0;">';
+    html += '<div style="font-size:15px;font-weight:700;color:#1E1C18;">' + escapeHtml(up.currency || '') + ' ' + Number(up.rate || 0).toFixed(2) + '</div>';
+    html += '<button id="' + uid + '-btn" onclick="addUpgradeToCart(\'' + escapeAttr(up.addon_package) + '\', \'' + escapeAttr(up.from_category || '') + '\', \'' + escapeAttr(up.to_category || '') + '\', this)" ' + (soldOut ? 'disabled' : '') + ' style="margin-top:6px;padding:7px 18px;border-radius:8px;border:1px solid #C47900;background:#C47900;color:white;cursor:pointer;font-size:13px;font-weight:500;' + (soldOut ? 'opacity:0.5;cursor:not-allowed;' : '') + '">Add to Cart</button>';
+    html += '</div>';
+
+    html += '</div>';
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+  container.style.display = 'block';
+}
+
+function addUpgradeToCart(addonPackage, fromCategory, toCategory, btn) {
+  // Upgrade = baris addon Per Booking (qty 1) — checkout & apply melalui
+  // aliran addon biasa; server re-validate kategori semasa saat checkout.
+  if (btn) { btn.disabled = true; btn.textContent = 'Adding...'; }
+
+  var csrfToken = '';
+  try {
+    var dataEl = document.getElementById('pageData');
+    if (dataEl) csrfToken = JSON.parse(dataEl.textContent).csrf_token || '';
+  } catch (e) {}
+
+  fetch('/api/method/travel_booking.api.addon_manager.checkout_addons', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': csrfToken },
+    body: JSON.stringify({
+      booking_number: bookingRef,
+      lines: JSON.stringify([{ addon_package: addonPackage, qty: 1 }])
+    })
+  })
+  .then(function(response) {
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return response.json();
+  })
+  .then(function(result) {
+    var msg = result.message || {};
+    if (msg.billing_url) {
+      window.location.href = msg.billing_url;
+    } else {
+      alert('Upgrade added. Please proceed to billing.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Add to Cart'; }
+    }
+  })
+  .catch(function(error) {
+    console.error('Error adding upgrade:', error);
+    alert('Could not add the upgrade. It may no longer be applicable to your cabin.');
+    if (btn) { btn.disabled = false; btn.textContent = 'Add to Cart'; }
   });
 }
 

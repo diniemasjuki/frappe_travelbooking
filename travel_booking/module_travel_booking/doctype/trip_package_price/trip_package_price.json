@@ -9,6 +9,7 @@
  "field_order": [
   "column_break_dwuz",
   "pricing_for_class",
+  "currency",
   "cabin_allotment",
   "cabin_available",
   "cabin_occupancy",
@@ -84,6 +85,14 @@
    "options": "Trip Price Category",
    "reqd": 1,
    "sticky": 1
+  },
+  {
+   "description": "Currency baris harga ini. KOSONG = currency native pakej (Trip Package.currency). Bila diisi, baris menjadi matrix harga currency tersebut — checkout dalam currency itu guna baris ini (fallback ke native bila tiada).",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Currency",
+   "options": "Currency"
   },
   {
    "fetch_from": "pricing_for_class.category_code",

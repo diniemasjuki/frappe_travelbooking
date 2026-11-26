@@ -1,0 +1,132 @@
+{
+ "app": "travel_booking",
+ "authenticated_access": 0,
+ "blocks": [
+  {
+   "baseStyles": {
+    "alignItems": "center",
+    "backgroundColor": "var(--rarecation-ivory)",
+    "display": "flex",
+    "flexDirection": "column",
+    "fontFamily": "var(--rarecation-body)",
+    "position": "static",
+    "width": "100%"
+   },
+   "blockId": "root",
+   "blockName": "body",
+   "children": [
+    {
+     "baseStyles": {
+      "alignItems": "center",
+      "backgroundColor": "#1E1C18",
+      "display": "flex",
+      "flexDirection": "column",
+      "paddingBottom": "56px",
+      "paddingTop": "72px",
+      "width": "100%"
+     },
+     "blockId": "hero-section",
+     "blockName": "hero",
+     "children": [
+      {
+       "baseStyles": {
+        "color": "#C8973A",
+        "fontSize": "12px",
+        "letterSpacing": "2px",
+        "marginBottom": "12px",
+        "textTransform": "uppercase"
+       },
+       "blockId": "hero-tag",
+       "blockName": "hero tag",
+       "element": "p",
+       "innerHTML": "RareCruise Packages"
+      },
+      {
+       "baseStyles": {
+        "color": "#F7F5F0",
+        "fontFamily": "var(--rarecation-display)",
+        "fontSize": "40px",
+        "margin": "0",
+        "textAlign": "center"
+       },
+       "blockId": "hero-title",
+       "blockName": "hero title",
+       "element": "h1",
+       "innerHTML": "Featured Cruise Packages"
+      },
+      {
+       "baseStyles": {
+        "color": "#B5AFA5",
+        "fontSize": "16px",
+        "marginTop": "12px",
+        "textAlign": "center"
+       },
+       "blockId": "hero-sub",
+       "blockName": "hero subtitle",
+       "element": "p",
+       "innerHTML": "Curated package deals — pick the one that fits you"
+      }
+     ],
+     "element": "section"
+    },
+    {
+     "attributes": {
+      "id": "rc-featured-grid"
+     },
+     "baseStyles": {
+      "display": "flex",
+      "flexWrap": "wrap",
+      "gap": "24px",
+      "justifyContent": "center",
+      "maxWidth": "1200px",
+      "padding": "0 24px 48px",
+      "width": "100%"
+     },
+     "blockId": "pkg-grid",
+     "blockName": "package grid",
+     "element": "div",
+     "innerHTML": "{% if packages %}\n  {% for p in packages %}\n  <a class=\"rcp-card\" href=\"{{ p.trip_route or '/cruises' }}\">\n    {% if p.trip_image %}<div class=\"rcp-img\"><img src=\"{{ p.trip_image }}\" alt=\"{{ p.package_title }}\" loading=\"lazy\"></div>{% endif %}\n    <div class=\"rcp-body\">\n      <div class=\"rcp-type\">{{ p.package_type or 'Package' }}</div>\n      <div class=\"rcp-title\">{{ p.package_title }}</div>\n      <div class=\"rcp-trip\">{{ p.trip_name }}</div>\n      {% if p.group_dates %}\n      <div class=\"rcp-dates\">📅 {{ p.group_dates[0].label }}\n        {% if p.group_dates[1] %}<span style=\"color:#999;\">+ more dates</span>{% endif %}\n      </div>\n      {% endif %}\n      <div class=\"rcp-foot\">\n        {% if p.from_price %}<div><span class=\"rcp-from\">From</span><span class=\"rcp-amount\">{{ p.currency }} {{ '%.2f' | format(p.from_price) }}</span></div>{% endif %}\n        <span class=\"rcp-view\">View →</span>\n      </div>\n    </div>\n  </a>\n  {% endfor %}\n{% else %}\n  <p style=\"color:#7D7A70;font-size:15px;grid-column:1/-1;\">No featured packages right now - check back soon.</p>\n{% endif %}"
+    },
+    {
+     "baseStyles": {
+      "display": "none"
+     },
+     "blockId": "pkg-assets",
+     "blockName": "assets",
+     "element": "__raw_html__",
+     "innerHTML": "<style>\n.rcp-card{display:flex;flex-direction:column;width:340px;max-width:100%;background:#fff;border:1px solid #E5E0D5;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;transition:transform .15s,box-shadow .15s;}\n.rcp-card:hover{transform:translateY(-3px);box-shadow:0 10px 28px rgba(30,28,24,.12);}\n.rcp-img{height:170px;overflow:hidden;}\n.rcp-img img{width:100%;height:100%;object-fit:cover;}\n.rcp-body{display:flex;flex-direction:column;gap:7px;padding:16px 18px 18px;flex:1;}\n.rcp-type{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#B0862A;}\n.rcp-title{font-size:16.5px;font-weight:600;color:#1E1C18;line-height:1.35;}\n.rcp-trip{font-size:12.5px;color:#7D7A70;}\n.rcp-dates{font-size:12.5px;color:#555;}\n.rcp-foot{margin-top:auto;padding-top:12px;display:flex;align-items:baseline;justify-content:space-between;border-top:1px solid #F0EDE6;}\n.rcp-from{font-size:11px;color:#999;margin-right:6px;}\n.rcp-amount{font-size:17px;font-weight:700;color:#C47900;}\n.rcp-view{font-size:13px;color:#C47900;font-weight:600;}\n</style>\n<script src=\"/assets/travel_booking/js/featured_packages_builder.js\" defer></script>"
+    }
+   ],
+   "element": "section"
+  }
+ ],
+ "body_html": "",
+ "canonical_url": "",
+ "client_scripts": [],
+ "creation": "2026-11-02 00:00:00",
+ "disable_indexing": 0,
+ "docstatus": 0,
+ "doctype": "Builder Page",
+ "draft_blocks": null,
+ "dynamic_route": 0,
+ "head_html": "",
+ "idx": 0,
+ "is_standard": 1,
+ "is_template": 0,
+ "language": "",
+ "meta_description": "Featured cruise packages — curated package deals from RareCruise by Rarecation.",
+ "meta_image": "",
+ "modified": "2026-11-02 08:17:05.417834",
+ "modified_by": "Administrator",
+ "name": "page-featuredpkgs01",
+ "owner": "Administrator",
+ "page_data_script": "# Featured packages (server-render) — frappe.call ke API whitelisted\ntry:\n    out = frappe.call(\n        \"travel_booking.utils.featured_catalog.api_featured_packages\",\n        vertical=\"cruise\", limit=12)\n    data.packages = (out or {}).get(\"packages\") or []\nexcept Exception:\n    data.packages = []\n",
+ "page_name": "page-featuredpkgs01",
+ "page_title": "Featured Cruise Packages — RareCruise",
+ "preview": "/assets/builder/images/fallback.png",
+ "project_folder": "travel_booking",
+ "published": 1,
+ "published_at": "2026-11-02 00:00:00",
+ "route": "featured_cruise_packages",
+ "staging": 0
+}

@@ -2949,15 +2949,6 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 }
 .mba-rb-conf input { margin: 0; }
 
-/* Kontrol props — gaya lembut minimal: latar hampir lut sinar + garis
-   bawah halus (bukan kotak penuh). !important mengatasi gaya asas
-   select/input kolum & gaya form framework (input-with-feedback). */
-.input-with-feedback, input.mba-rb-stateroom, input.mba-rb-delegate, .mba-rb-privacy {
-	background: #00000005 !important;
-	border-radius: 3px !important;
-	border-bottom: 0.5px solid #0000001a !important;
-}
-
 /* Kolum is-confirmed (panel Confirmed) — kunci penuh: SEMUA control
    disabled (termasuk Stateroom & Delegate No) + background hijau lembut
    sebagai isyarat visual "disahkan"; kad tak boleh drag (cursor
@@ -2971,7 +2962,6 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 	background: color-mix(in srgb, var(--text-muted) 8%, var(--control-bg, var(--bg-color)));
 	opacity: 0.75;
 }
-.mba-rb-col.is-confirmed .mba-rb-rename:disabled { cursor: not-allowed; opacity: 0.5; }
 .mba-rb-col.is-confirmed .mba-rb-card { cursor: default; }
 .mba-rb-col.is-confirmed .mba-rb-card:hover { border-color: var(--border-color); }
 
@@ -3253,18 +3243,6 @@ button.mba-crumb:hover { color: var(--brand-primary, var(--blue-500, #4f7bfd)); 
 	width: 100%; height: 30px; padding: 3px 10px; font-size: 12.5px;
 	border: 1px solid var(--border-color); border-radius: var(--border-radius);
 	background: var(--control-bg, var(--bg-color)); color: var(--text-color);
-}
-
-/* Butang rename Room ID (ikon ✎) + input inline dalam tajuk kolum. */
-.mba-rb-rename {
-	border: none; background: transparent; cursor: pointer;
-	font-size: 11px; line-height: 1; padding: 2px 3px;
-	color: var(--text-muted); border-radius: var(--border-radius);
-}
-.mba-rb-rename:hover { color: var(--primary-color, #2490ef); background: var(--control-bg, var(--bg-color)); }
-.mba-rb-rename-input {
-	height: 26px; padding: 2px 6px; font-size: 12px; font-weight: 600;
-	max-width: 190px;
 }
 
 /* Control Frappe terakhir dalam wrapper board — buang margin bawah

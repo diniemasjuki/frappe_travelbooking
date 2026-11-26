@@ -505,6 +505,7 @@ def submit_manual_payment(amount: float, payment_date: str,
         _build_discount_deduction_rows,
         _get_absorbed_order_discount,
         _get_booking_discount_snapshot,
+        _so_carries_order_discount,
         _safe_date,
     )
 
@@ -610,16 +611,18 @@ def submit_manual_payment(amount: float, payment_date: str,
         # CASHBACK + DISKAUN ORDER-LEVEL Manual Transfer — Booking SO ni
         # layak cashback bila checkout_method == "Manual Transfer" DAN
         # promosi masih aktif di Travel Settings (benefit transaksional —
-        # dibaca semasa bayaran, tiada snapshot; SO kekal GROSS), dan
-        # boleh membawa baki diskaun voucher/referral (voucher_discount +
-        # referral_discount pada Booking) yang belum diserap mana-mana PE
-        # terdahulu (deposit wizard manual dah serap; deposit Stripe
-        # tidak). Cash yang customer transfer ialah NET; PE diterjemah
-        # balik ke bahagian GROSS SO untuk allocation, dengan beza tu
-        # sebagai DEDUCTION ke akaun Marketing Expenses company tersebut
-        # (received + deductions = allocated → PE seimbang). SO lama /
-        # bukan cashback tanpa baki diskaun: allocated = cash penuh
-        # (behavior lama).
+        # dibaca semasa bayaran, tiada snapshot; cashback KEKAL sebagai
+        # deduction PE untuk kedua-dua model diskaun).
+        #
+        # Baki diskaun voucher/referral (voucher_discount + referral_discount
+        # pada Booking) yang belum diserap HANYA relevan untuk MODEL LAMA
+        # (SO GROSS, pra-refactor): cash yang customer transfer ialah NET;
+        # PE diterjemah balik ke bahagian GROSS SO untuk allocation, dengan
+        # beza tu sebagai DEDUCTION ke akaun Marketing Expenses company
+        # tersebut (received + deductions = allocated → PE seimbang).
+        # MODEL SEMASA (diskaun pada SO, grand_total NET): order_discount
+        # dipaksa 0 — residue kekal 0, tiada baris diskaun, PE allocate
+        # cash + bahagian cashback sahaja.
         cash = round(float(amount), 2)
         allocated = cash
         _b_voucher_disc, _b_ref_disc, cashback_percent = _get_booking_discount_snapshot(target_so)
@@ -627,7 +630,10 @@ def submit_manual_payment(amount: float, payment_date: str,
         cashback_row = None
         disc_rows = None
         outstanding = round(float(so.grand_total or 0) - float(so.advance_paid or 0), 2)
-        order_discount = round(_b_voucher_disc + _b_ref_disc, 2)
+        order_discount = (
+            0 if _so_carries_order_discount(target_so)
+            else round(_b_voucher_disc + _b_ref_disc, 2)
+        )
         residue = 0.0
         if order_discount > 0 and outstanding > 0:
             residue = round(order_discount - _get_absorbed_order_discount(

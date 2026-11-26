@@ -1,0 +1,137 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-11-02 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "component_type",
+  "column_break_type",
+  "inclusion_mode",
+  "link_section",
+  "trip_addon_package",
+  "merchandise_item",
+  "misc_description",
+  "column_break_links",
+  "misc_amount",
+  "config_section",
+  "qty",
+  "per_pax",
+  "column_break_config",
+  "item_code_override",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "component_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Component Type",
+   "options": "Activity\nExcursion\nTransfer\nMerchandise\nMiscellaneous",
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "column_break_type",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Included",
+   "fieldname": "inclusion_mode",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Inclusion Mode",
+   "options": "Included\nOptional (pre-trip selection)\nPost-booking Addon",
+   "reqd": 1
+  },
+  {
+   "fieldname": "link_section",
+   "fieldtype": "Section Break",
+   "label": "Component"
+  },
+  {
+   "depends_on": "eval:['Activity','Excursion','Transfer'].includes(doc.component_type)",
+   "fieldname": "trip_addon_package",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Trip Addon Package",
+   "options": "Trip Addon Package"
+  },
+  {
+   "depends_on": "eval:doc.component_type=='Merchandise'",
+   "fieldname": "merchandise_item",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Merchandise Item",
+   "options": "Item"
+  },
+  {
+   "depends_on": "eval:doc.component_type=='Miscellaneous'",
+   "fieldname": "misc_description",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Description"
+  },
+  {
+   "fieldname": "column_break_links",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.component_type=='Miscellaneous'",
+   "description": "Harga per unit untuk komponen Misc (SOFar null = tidak dijual berasingan, maklumat sahaja).",
+   "fieldname": "misc_amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "options": "currency"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "config_section",
+   "fieldtype": "Section Break",
+   "label": "Configuration"
+  },
+  {
+   "default": "1",
+   "description": "Kuantiti unit komponen (untuk Merchandise: bilangan unit item; komponen lain kekal 1).",
+   "fieldname": "qty",
+   "fieldtype": "Int",
+   "label": "Qty"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.component_type=='Merchandise' || doc.component_type=='Activity / Excursion' || doc.component_type=='Transfer' || doc.component_type=='Miscellaneous'",
+   "description": "Komponen di-charge PER PAX (setiap traveller dapat satu) \u2014 Relevant untuk Merchandise & Activity. Tick = qty dikalikan bilangan pax booking.",
+   "fieldname": "per_pax",
+   "fieldtype": "Check",
+   "label": "Per Pax"
+  },
+  {
+   "fieldname": "column_break_config",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Item code SO eksplisit untuk baris komponen ni (override). Kosong = auto-derive: merchandise_item / 'Trip Addon Package' / 'TRAVEL-PKG'.",
+   "fieldname": "item_code_override",
+   "fieldtype": "Data",
+   "label": "Item Code Override"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-11-02 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Trip Package Component",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

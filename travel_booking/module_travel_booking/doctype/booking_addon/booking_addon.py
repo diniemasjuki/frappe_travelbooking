@@ -75,3 +75,20 @@ class BookingAddon(Document):
 				SET status = 'Confirmed'
 				WHERE addon_order = %s AND status = 'Pending'
 			""", self.name)
+			# UPGRADE CABIN (Fasa 1B) — order yang mengandungi baris
+			# is_cabin_upgrade: apply tukaran kategori bilik pada Booking
+			# Reservation sebaik order Confirmed (fully paid). Baris addon
+			# biasa no-op. Exception ditangkap supaya status bayaran tetap
+			# direkodkan walau apply gagal (admin boleh re-run manual —
+			# corak sama _activate_booking).
+			try:
+				from travel_booking.api.cabin_upgrade import apply_cabin_upgrade_for_order
+				apply_cabin_upgrade_for_order(self.name)
+			except Exception as e:
+				frappe.log_error(
+					title="Cabin Upgrade Apply Error",
+					message="Booking Addon " + str(self.name) +
+					" (booking " + str(self.booking) + "): gagal apply upgrade cabin — " +
+					str(e) + ". Status bayaran order tetap Confirmed; semak & " +
+					"apply upgrade manual pada Booking Reservation.",
+				)

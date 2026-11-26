@@ -122,6 +122,22 @@ class Trip(Document):
 		context.group_dates_json = json.dumps(context.group_dates)
 		context.trip_packages_json = json.dumps(d["trip_packages"])
 		context.sailing_tgds_json = json.dumps(context.sailing_tgds)
+		# PACKAGE-FIRST (inversi aliran): index pakej → tarikh + meta pakej
+		# (termasuk from_price) — sumber render widget baharu trip_detail.js
+		# (pilih pakej dahulu, senarai tarikh pakej itu kemudian).
+		context.package_dates_json = json.dumps(d.get("package_dates") or {})
+		context.package_meta_json = json.dumps(d.get("package_meta") or {})
+		# Ringkasan komposisi pakej (BOM — Trip Package Component; backfill
+		# patch v42) untuk seksyen "Package Includes" di page detail —
+		# ringkasan PER PAKEJ {pkg: [rows]} (trip page package-first).
+		try:
+			from travel_booking.api.package_components import get_component_summary
+			context.component_summary = {
+				_pkg: get_component_summary(_pkg)
+				for _pkg in (d.get("package_meta") or {})
+			}
+		except Exception:
+			context.component_summary = {}
 		context.trip_image = self.trip_image or "/assets/travel_booking/img/defaultaroya.jpg"
 		# Organizer (Link -> Trip Organizer): papar nama + logo, bukan ID.
 		context.organizer_name = (

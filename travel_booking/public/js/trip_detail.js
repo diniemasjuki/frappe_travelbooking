@@ -38,9 +38,7 @@
   // default guna ni; SYM bertukar kepada currency NATIVE pakej yang
   // dipilih (1 pakej = 1 currency — itulah currency yang dicaj).
   var LISTING_CURRENCY = DATA.currency || "";
-  var _pkgMap = {};   // {"package_name|group_date": pkg_dict} — keyed per VARIAN
-                      // (satu pakej boleh dipaut ke beberapa group date)
-  var groupDatesData = DATA.group_dates || [];
+  var groupDatesData = DATA.group_dates || [];   // sumber tarikh aktif (bertukar ikut pakej terpilih)
   var is_cruise = !!DATA.is_cruise;
   var TRIP_TYPE = is_cruise ? "cruise" : "non_cruise";
   var PRICE_LABELS = [];
@@ -51,8 +49,9 @@
   var _dateTrigger = null;
   var _dateModal = null;
 
-  // NOTE: packages TIDAK di-preload. populatePackages() buat AJAX call
-  // ke search_packages_by_date bila user pilih tarikh.
+  // PACKAGE-FIRST: senarai pakej + senarai tarikh per pakej di-preload
+  // pelayan (index package_meta / package_dates dari trip_catalog) —
+  // tiada AJAX date→package lagi.
 
   var gdSel = document.getElementById("rcDetailGroupDate");
   var pkgSel = document.getElementById("rcDetailPackage");
@@ -100,23 +99,29 @@
     return d.innerHTML;
   }
 
-  // ── Pakej union untuk sesuatu tarikh ──
-  // Cruise: semua pakej dari SEMUA TGD yang berkongsi sailing (peta
-  // sailing_tgds) — sama logik dengan populatePackages(). Non-cruise: pakej
-  // TGD terus. Guna untuk (a) union pakej ikut sailing, (b) kesan tarikh
-  // yang ada pilihan penerbangan (ikon pesawat dalam date selector).
+  // ── Pakej untuk sesuatu tarikh (modal date selector) ──
+  // PACKAGE-FIRST: ikon pesawat dalam popup tarikh menunjukkan tarikh yang
+  // ada pakej ber-flight. Dalam senarai tarikh PAKEJ terpilih, semak meta
+  // pakej itu sendiri + pakej lain yang berkongsi sailing (Cruise + Flight
+  // pada sailing sama) supaya ikon kekal bermakna.
   function pkgsForDate(gdData) {
+    // Pakej semasa sentiasa kandidat.
+    var pkgs = _selectedPkgData ? [_selectedPkgData] : [];
     var preloaded = DATA.trip_packages || {};
     if (is_cruise) {
       var sail = gdData.sailing_start || gdData.departure_date || "";
       var tgdList = (DATA.sailing_tgds || {})[sail] || [];
-      var pkgs = [];
       tgdList.forEach(function (t) {
-        (preloaded[t.name] || []).forEach(function (p) { pkgs.push(p); });
+        (preloaded[t.name] || []).forEach(function (p) {
+          if (!pkgs.some(function (x) { return x.name === p.name; })) pkgs.push(p);
+        });
       });
       return pkgs;
     }
-    return preloaded[gdData.name] || [];
+    (preloaded[gdData.name] || []).forEach(function (p) {
+      if (!pkgs.some(function (x) { return x.name === p.name; })) pkgs.push(p);
+    });
+    return pkgs;
   }
   // Tarikh ada pilihan "cruise/flight" bila SESUATU pakej dalam tarikh itu
   // membawa flight (airport_form) — cth pakej Cruise + Flight / Fly Package.
@@ -189,24 +194,31 @@
     ];
   }
 
-  // ════ STEP 2: Populate date radios from DATA.group_dates ════
-  // Cruise: sailing_start → sailing_end
-  // Non-cruise: departure_date → return_date
-  // >1 tarikh: senarai radio inline diganti BUTANG TRIGGER + POPUP MODAL
-  // date selector (filter bulan + ikon pesawat pada tarikh yang ada pilihan
-  // penerbangan). 1 tarikh: radio inline seperti sedia ada.
-  function populateDates() {
+  // ════ STEP 2: Populate date radios — PACKAGE-FIRST ════
+  // Sumber tarikh: package_dates[pakej terpilih] (senarai tarikh yang PAKEJ
+  // itu dijual). Cruise: sailing_start → sailing_end; non-cruise:
+  // departure_date → return_date. >1 tarikh: senarai radio inline diganti
+  // BUTANG TRIGGER + POPUP MODAL date selector (filter bulan + ikon pesawat
+  // pada tarikh yang ada pilihan penerbangan). 1 tarikh: radio inline.
+  function populateDates(gdList) {
     gdSel.innerHTML = "";
-    if (!groupDatesData.length) {
-      gdSel.innerHTML = '<p class="rc-muted">No dates available.</p>';
+    var gds = gdList || [];
+    if (!gds.length) {
+      gdSel.innerHTML = '<p class="rc-muted">No dates available for this package.</p>';
+      _allRadios = [];
+      _dateMeta = [];
+      updateBookLink();
       return;
     }
+    // Simpan sumber semasa supaya helper lain (renderDateModal dsb.) tidak
+    // perlu diubah — groupDatesData kekal sebagai sumber DEFAULT lama.
+    groupDatesData = gds;
 
-    var multi = groupDatesData.length > 1;
+    var multi = gds.length > 1;
     _allRadios = [];
     _dateMeta = [];
 
-    groupDatesData.forEach(function (gdData, idx) {
+    gds.forEach(function (gdData, idx) {
       var radioId = "gd_" + idx;
 
       // value = actual dates (for SQL query: sailing_start:sailing_end or departure_date:return_date)
@@ -256,13 +268,41 @@
     if (multi) {
       renderDateTrigger();
       renderDateModal();
-      updateDateTriggerLabel();
-    } else {
-      renderInlineDateLabel(0);
     }
 
-    // Auto-select first date → AJAX fetch packages
-    populatePackages();
+    // PACKAGE-FIRST: tarikh dipilih → muat kabin/harga terus (pakej sudah
+    // dipilih sebelum ini). Auto-select first date (atau _wishGd match).
+    var wishIdx = 0;
+    if (_wishGd) {
+      for (var wi = 0; wi < gds.length; wi++) {
+        if (gds[wi].name === _wishGd) { wishIdx = wi; break; }
+      }
+    }
+    _wishGd = "";  // consume wish — only apply once
+    _allRadios[wishIdx].checked = true;
+    _allRadios[wishIdx].setAttribute("checked", "checked");
+    if (multi) {
+      updateDateTriggerLabel();
+      markModalActiveItem();
+    } else {
+      renderInlineDateLabel(wishIdx);
+    }
+    // Duration meta bar — dikira daripada TARIH TERPILIH senarai pakej ini
+    // (package_meta tak bawa tarikh variant; sumber lama _pkgMap dah tiada).
+    if (metaDurationEl) {
+      var gd = gds[wishIdx] || {};
+      var st = is_cruise ? (gd.sailing_start || gd.departure_date) : gd.departure_date;
+      var en = is_cruise ? (gd.sailing_end || gd.return_date) : gd.return_date;
+      if (st && en) {
+        var nn = Math.round((new Date(en) - new Date(st)) / 86400000);
+        if (nn >= 0) {
+          metaDurationEl.innerHTML = '<i class="ti ti-clock-2"></i> ' + fmtDuration(nn + 1, nn);
+        }
+      }
+    }
+    // Package Includes ikut tarikh aktif (derive cruise/flight + BOM).
+    renderPackageIncludes(_selectedPkg, gds[wishIdx]);
+    loadCabins();
   }
 
   // ── 1 tarikh: label inline (tingkah laku sedia ada) ──
@@ -274,7 +314,8 @@
     label.className = "rc-date-radio-label";
     label.innerHTML = '<span class="rc-date-radio-text">' + esc(meta.dateText) + meta.seatsHtml + '</span>';
 
-    // Click handler — force update checked state, then AJAX fetch packages
+    // Click handler — force update checked state, then Includes (ikut
+    // tarikh) + cabins (PACKAGE-FIRST: pakej sudah dipilih).
     radio.addEventListener("click", function () {
       Array.prototype.forEach.call(_allRadios, function (r) {
         r.checked = false;
@@ -282,7 +323,8 @@
       });
       this.checked = true;
       this.setAttribute("checked", "checked");
-      populatePackages();
+      renderPackageIncludes(_selectedPkg, groupDatesData[_allRadios.indexOf(this)]);
+      loadCabins();
     });
 
     label.addEventListener("click", function (e) {
@@ -320,14 +362,16 @@
       esc(meta.dateText) + meta.seatsHtml;
   }
 
-  // Pilih tarikh (dari modal) → sync radio hidden → refresh trigger + pakej
+  // Pilih tarikh (dari modal) → sync radio hidden → refresh trigger +
+  // Includes (ikut tarikh baharu) + kabin.
   function selectDate(idx) {
     Array.prototype.forEach.call(_allRadios, function (r, i) {
       r.checked = i === idx;
     });
     updateDateTriggerLabel();
     markModalActiveItem();
-    populatePackages();
+    renderPackageIncludes(_selectedPkg, groupDatesData[idx]);
+    loadCabins();
   }
 
   function markModalActiveItem() {
@@ -465,15 +509,13 @@
     if (e.key === "Escape") closeDateModal();
   });
 
-  // ════ STEP 3: Load packages for selected date ════
-  // CRUISE: radio tarikh mewakili SAILING date (di-dedupe pelayan) — pakej
-  // di-union dari SEMUA TGD yang berkongsi sailing itu (peta DATA.sailing_tgds),
-  // dan setiap pakej kekal bawa trip_group_date SEBENAR pautannya. Ini
-  // memastikan pakej Cruise Only dibawa bersama TGD Cruise Only (bukan TGD
-  // Cruise + Flight yang disimpan semasa dedupe).
-  // Non-cruise: pakej diambil terus dari TGD radio (tiada dedupe).
-  function populatePackages() {
-    pkgSel.innerHTML = '<p class="rc-muted">Loading packages…</p>';
+  // ════ STEP 3 (PACKAGE-FIRST): Senarai pakej trip ni — render TERUS
+  // semasa init daripada DATA.package_meta (index baharu trip_catalog:
+  // {pkg: meta + from_price}), TANPA menunggu pilihan tarikh. Klik pakej
+  // → populateDates(DATA.package_dates[pkg]) → auto-pilih tarikh pertama
+  // → loadCabins(). Aliran: Pakej → Tarikh → Kabin.
+  function populatePackageList() {
+    pkgSel.innerHTML = "";
     _selectedPkg = "";
     _selectedPkgGd = "";
     _selectedPkgData = null;
@@ -481,125 +523,85 @@
     cabinsEl.innerHTML = '<p class="rc-muted">Pick a package to see room options and prices.</p>';
     updateBookLink();
 
-    var dateValue = getSelectedDateValue();
-    if (!dateValue) {
-      pkgSel.innerHTML = '<p class="rc-muted">Pick a date first.</p>';
-      return;
-    }
-
-    var gdId = getSelectedGroupDateId();
-    var preloaded = DATA.trip_packages || {};
-
-    var pkgs = null;
-    if (is_cruise) {
-      // Union pakej semua TGD yang berkongsi sailing_start — TANPA dedupe
-      // ikut nama pakej. Satu pakej boleh dipaut ke beberapa TGD dalam
-      // sailing yang sama (tarikh berlepas penerbangan berbeza), jadi setiap
-      // varian (pakej × TGD) dipapar sebagai butang sendiri dengan tarikh
-      // "Departs" masing-masing — user pilih tarikh penerbangan terus dari
-      // senarai butang, menggantikan popup pilihan departure di Book Now.
-      var sailStart = dateValue.split(":")[0];
-      pkgs = pkgsForDate({ sailing_start: sailStart });
-    } else {
-      pkgs = preloaded[gdId] || null;
-    }
-
-    if (pkgs && pkgs.length) {
-      renderPackageButtons(pkgs);
-      return;
-    }
-
-    // Fallback: AJAX fetch if preloaded data is missing
-    var parts = dateValue.split(":");
-    var startDate = parts[0];
-    var endDate = parts[1] || "";
-
-    var url = "/api/method/travel_booking.api.pricing.search_packages_by_date"
-      + "?start_date=" + encodeURIComponent(startDate)
-      + "&end_date=" + encodeURIComponent(endDate)
-      + "&trip=" + encodeURIComponent(DATA.trip_master || "");
-
-    fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } })
-      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-      .then(function (res) {
-        var pkgs = (res && res.message) ? res.message : res;
-        renderPackageButtons(pkgs);
-      })
-      .catch(function () {
-        pkgSel.innerHTML = '<p class="rc-muted">Couldn\x27t load packages. Please try again.</p>';
+    var metas = DATA.package_meta || {};
+    var names = Object.keys(metas)
+      .filter(function (n) { return (DATA.package_dates || {})[n] && (DATA.package_dates[n] || []).length; })
+      .sort(function (a, b) {
+        // Susun ikut tarikh pertama pakej, kemudian nama — stabil.
+        var da = (DATA.package_dates[a][0].sailing_start || DATA.package_dates[a][0].departure_date || "");
+        var db = (DATA.package_dates[b][0].sailing_start || DATA.package_dates[b][0].departure_date || "");
+        return da === db ? a.localeCompare(b) : (da < db ? -1 : 1);
       });
-  }
-
-  function renderPackageButtons(pkgs) {
-    pkgSel.innerHTML = "";
-    if (!pkgs || !pkgs.length) {
-      pkgSel.innerHTML = '<p class="rc-muted">No packages available for this date.</p>';
+    if (!names.length) {
+      pkgSel.innerHTML = '<p class="rc-muted">No packages available.</p>';
       return;
     }
-    pkgs.forEach(function (p) {
-      _pkgMap[p.name + "|" + p.trip_group_date] = p;
+    names.forEach(function (n) {
+      var p = metas[n];
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "rc-pkg-btn";
-      btn.setAttribute("data-value", p.name);
-      btn.setAttribute("data-gd-id", p.trip_group_date);
-      // Tajuk butang = JENIS pakej sahaja ("Cruise + Flight" / "Cruise Only" /
-      // "Ground Only" / "Fly Package" / "Customed") — BUKAN nama pakej penuh
-      // (package_title/trip_group_name dah mengandungi nama trip + tarikh +
-      // jenis yang bertindih). KECUALI: trip cruise yang BUKAN cruise-only —
-      // jenis + " from " + kod lapangan terbang (p.flight = link airport_form,
-      // namanya sendiri kod IATA cth "KUL"). Fallback nama pakej bila jenis
-      // kosong.
-      var type = (p.package_type || "").trim() || p.package_name || p.name;
+      btn.setAttribute("data-value", n);
+      // Tajuk butang = JENIS pakej sahaja (corak lama) — BUKAN nama pakej
+      // penuh. Cruise bukan-cruise-only: jenis + " from " + kod lapangan
+      // terbang. Fallback nama pakej bila jenis kosong.
+      var type = (p.package_type || "").trim() || p.package_name || n;
       var labelHtml;
       if (is_cruise && !p.is_cruise_only && p.flight) {
         labelHtml = esc(type) + " from <b>" + esc(p.flight) + "</b>";
       } else {
         labelHtml = esc(type);
       }
-      // Badge currency native pakej (paksi multi-company) — dipapar bila
-      // currency pakej BERBEZA dari currency listing aktif (cth fallback
-      // native page detail trip MYR semasa browse SGD).
+      // Badge currency native pakej bila berbeza dari currency listing.
       if (p.currency && p.currency !== LISTING_CURRENCY) {
         labelHtml += ' <span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:999px;background:rgba(0,0,0,.06);vertical-align:middle;">' + esc(p.currency_symbol || p.currency) + " " + esc(p.currency) + '</span>';
       }
-      // Meta varian dipapar DALAM setiap butang — departure/return, duration,
-      // ground arrangement. Susunan ikut reka bentuk rujukan:
-      //   [radio]  Tajuk pakej (bold)
-      //            Departure          29 Sep 2026
-      //            Return             12 Oct 2026
-      //            Duration           1D/10N
-      //            Ground Arrangement Not Included
-      btn.innerHTML = '<span><div class="rc-pkg-title">' + labelHtml + '</div>' + pkgMetaHtml(p) + '</span>';
-      btn.addEventListener("click", function () { selectPackage(p.name, p.trip_group_date, p); });
+      // HARGA "FROM" — harga termurah pakej (MIN price_adult merentasi semua
+      // tarikh/kategori pakej itu, currency native pakej). Kosong → tiada
+      // baris harga. Tarikh belum dipilih — harga tunjuk sebelum pilih.
+      var fromHtml = "";
+      if (p.from_price != null && p.from_price !== "") {
+        var fpSym = p.currency_symbol || p.currency || SYM;
+        var fpNum = Number(p.from_price);
+        var fpStr = fpNum % 1 === 0 ? String(fpNum) : fpNum.toFixed(2);
+        fromHtml = '<div class="rc-pkg-meta-row"><span class="rc-pkg-meta-label">From</span><span class="rc-pkg-meta-value rc-pkg-from-price">' + esc(fpSym) + " " + esc(fpStr) + '</span></div>';
+      }
+      // Meta ringkas dalam butang: bilangan tarikh tersedia + harga From.
+      var gds = DATA.package_dates[n] || [];
+      var datesHtml = '<div class="rc-pkg-meta">';
+      datesHtml += _metaRow(is_cruise ? "Sailings" : "Departures",
+        gds.length + (gds.length === 1 ? " date available" : " dates available"));
+      datesHtml += fromHtml;
+      datesHtml += _metaRow("Ground Arrangement", p.ground_arrangement ? "Included" : "Not Included",
+        p.ground_arrangement ? "rc-pkg-included" : "rc-pkg-not-included");
+      datesHtml += '</div>';
+      btn.innerHTML = '<span><div class="rc-pkg-title">' + labelHtml + '</div>' + datesHtml + '</span>';
+      btn.addEventListener("click", function () { selectPackage(n); });
       pkgSel.appendChild(btn);
     });
-    var _wishMatch = _wishPkg
-      ? pkgs.find(function (p) { return p.name === _wishPkg && (!_wishGd || p.trip_group_date === _wishGd); })
-      : null;
-    if (!_wishMatch && _wishPkg) {
-      _wishMatch = pkgs.find(function (p) { return p.name === _wishPkg; });
+
+    // Preselect: _wishPkg (?trip_package=) → fallback pakej pertama.
+    var initPkg = null;
+    if (_wishPkg && metas[_wishPkg] && (DATA.package_dates[_wishPkg] || []).length) {
+      initPkg = _wishPkg;
     }
-    var _initPkg = _wishMatch || pkgs[0];
     _wishPkg = "";  // consume wish — only apply once
-    selectPackage(_initPkg.name, _initPkg.trip_group_date, _initPkg);
+    selectPackage(initPkg || names[0]);
   }
 
-  // ── Select package — stores package name AND its group_date (varian) ──
-  // group_date datang dari API response, bukan dari date radio. Untuk cruise,
-  // beberapa varian (pakej × TGD) boleh berkongsi nama pakej — jadi butang
-  // aktif dipadankan pada KEDUA-DUA name + group_date.
-  function selectPackage(name, gd, p) {
+  // ── Select package (PACKAGE-FIRST) — pakej terpilih menentukan senarai
+  // tarikh. group_date varian ditetapkan kemudian oleh pilihan tarikh
+  // (populateDates → radio → loadCabins menetapkan _selectedPkgGd).
+  function selectPackage(name) {
     _selectedPkg = name;
-    _selectedPkgGd = gd;
-    _selectedPkgData = p || _pkgMap[name + "|" + gd] || null;
+    _selectedPkgGd = "";
+    _selectedPkgData = (DATA.package_meta || {})[name] || null;
     Array.prototype.forEach.call(pkgSel.querySelectorAll(".rc-pkg-btn"), function (b) {
-      var match = b.getAttribute("data-value") === name
-        && b.getAttribute("data-gd-id") === (gd || "");
-      b.classList.toggle("rc-pkg-active", match);
+      b.classList.toggle("rc-pkg-active", b.getAttribute("data-value") === name);
     });
-    // MULTI-COMPANY: currency pakej = currency yang dicaj. Tukar simbol
-    // harga kabin + nota "Charged in" ikut pakej yang dipilih.
+    // MULTI-COMPANY: currency pakej = currency yang dicaj. Tukar simbol +
+    // nota "Charged in" ikut pakej (harga from butang ikut currency native
+    // masing-masing — sudah dibina dalam render).
     var pkgData = _selectedPkgData || {};
     if (pkgData.currency) {
       SYM = pkgData.currency_symbol || pkgData.currency;
@@ -607,7 +609,67 @@
       if (note) note.textContent = "Charged in " + pkgData.currency;
     }
     updateMetaDuration();
-    loadCabins();
+    // Senarai tarikh pakej ini (dedupe sailing pelayan) → auto-pilih
+    // tarikh pertama → loadCabins (populateDates buat semua tu).
+    populateDates((DATA.package_dates || {})[name] || []);
+  }
+
+  // ── Package Includes — gabungan DERIVE (elemen fizikal tarikh aktif) +
+  // BOM pakej (komposisi: merch/activity/...) ──
+  // Patch v43: cruise/flight di-DERIVE daripada TGD terpilih (bukan BOM
+  // pakej) — berubah ikut tarikh yang user pilih. BOM summary kekal
+  // per-pakej (tak bergantung tarikh). Panggil selepas tarikh ditetapkan.
+  function renderPackageIncludes(pkgName, gdData) {
+    var el = document.getElementById("rcDetailIncludes");
+    if (!el) return;
+    var gd = gdData || {};
+    var rows = [];
+
+    // (a) DERIVE — cruise schedule tarikh ini.
+    if (gd.cruise_schedule) {
+      rows.push({
+        icon: "ti-ship",
+        text: "Cruise: " + (gd.sailing_label || gd.cruise_schedule_title || gd.cruise_schedule),
+      });
+    }
+    // (b) DERIVE — set penerbangan tarikh ini (PNR pergi/balik/GIT).
+    (gd.flight_pnrs || []).forEach(function (p) {
+      var route = [p.home_airport, p.destination_airport]
+        .filter(Boolean).join(" → ");
+      var bits = [];
+      if (p.role) bits.push(p.role);
+      if (p.ticket_type) bits.push(p.ticket_type);
+      if (p.departure_date) bits.push(_fmtWebDate(p.departure_date));
+      rows.push({
+        icon: "ti-plane",
+        text: "Flight " + (p.pnr || "") +
+          (route ? " (" + route + ")" : "") +
+          (bits.length ? " · " + bits.join(" · ") : ""),
+      });
+    });
+    // (c) BOM pakej — komposisi Included (merch/activity/excursion/...).
+    (((DATA.component_summary || {})[pkgName] || [])
+      .filter(function (r) { return r.inclusion_mode === "Included"; })
+    ).forEach(function (r) {
+      var icon = {
+        "Activity": "ti-basket", "Excursion": "ti-road-sign",
+        "Transfer": "ti-bus", "Merchandise": "ti-gift",
+        "Miscellaneous": "ti-dots"}[r.component_type] || "ti-dots";
+      var qtyTxt = r.per_pax ? " × " + r.qty + " /pax" : (r.qty > 1 ? " × " + r.qty : "");
+      rows.push({ icon: icon, text: (r.label || r.component_type) + qtyTxt });
+    });
+
+    if (!rows.length) {
+      el.style.display = "none";
+      return;
+    }
+    el.style.display = "";
+    var html = "";
+    rows.forEach(function (r) {
+      html += '<div class="rc-include-row"><i class="ti ' + r.icon + '"></i>' +
+        '<span>' + esc(r.text) + '</span></div>';
+    });
+    el.innerHTML = '<span class="rc-field-label">Package Includes</span>' + html;
   }
 
   // ── Meta pakej per VARIAN — dipapar dalam SETIAP butang pakej ──
@@ -670,7 +732,11 @@
   }
 
   function loadCabins() {
-    var gd = _selectedPkgGd, pkg = _selectedPkg;
+    // PACKAGE-FIRST: group_date varian datang daripada radio tarikh yang
+    // dipilih (senarai tarikh pakej), BUKAN daripada butang pakej.
+    var gd = getSelectedGroupDateId() || "";
+    var pkg = _selectedPkg;
+    _selectedPkgGd = gd;
     if (!gd || !pkg) { updateBookLink(); return; }
     cabinsEl.className = "rc-cabins-loading";
     cabinsEl.innerHTML = '<p class="rc-muted">Loading…</p>';
@@ -934,8 +1000,9 @@
       package_name: pkg,                                // backward compat
       package_label: pkgLabel,
       // Currency native pakej yang dipilih (paksi multi-company) — wizard
-      // /booknow guna ni sebagai currency billing asas.
-      package_currency: ((_pkgMap[pkg + "|" + gd] || {}).currency) || LISTING_CURRENCY,
+      // /booknow guna ni sebagai currency billing asas. PACKAGE-FIRST:
+      // sumber = package_meta index (bukan _pkgMap varian lama).
+      package_currency: (((DATA.package_meta || {})[pkg] || {}).currency) || LISTING_CURRENCY,
       package_currency_symbol: SYM,
       company_currency: DATA.company_symbol || "RM",
       affiliate_code: _sp,                              // rambat ke /booknow
@@ -979,10 +1046,13 @@
     window.location.href = bnwUrl;
   }
 
-  // ════ Init: Load labels first, then populate dates ════
-  // populateDates() → auto-select first date → populatePackages() (AJAX) → selectPackage() → loadCabins()
+  // ════ Init: Load labels first, then populate PACKAGE list ════
+  // PACKAGE-FIRST: populatePackageList() → auto-select pakej pertama →
+  // populateDates(package_dates[pkg]) → auto-select tarikh pertama →
+  // loadCabins(). (_wishPkg/?trip_package= & _wishGd/?trip_group_date=
+  // dihormati pada setiap peringkat.)
   loadPriceLabels().then(function() {
-    populateDates();
+    populatePackageList();
     if (bookBtn) {
       bookBtn.addEventListener("click", addToCart);
     }

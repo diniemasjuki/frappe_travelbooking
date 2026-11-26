@@ -299,7 +299,8 @@ def _upsert_customer_billing_address(customer_name, billing):
 # SALES ORDER ITEMS
 # ══════════════════════════════════════════════
 
-def _build_so_items(selections, pricing_map, trip_name="", group_label="", is_cruise=True):
+def _build_so_items(selections, pricing_map, trip_name="", group_label="", is_cruise=True,
+                    trip_package=None, trip_group_date=None):
     """Bina SO items dengan harga dari backend pricing_map.
 
     Cruise (is_cruise=True) — model SLOT (posisi bilik): Main Guest
@@ -308,6 +309,12 @@ def _build_so_items(selections, pricing_map, trip_name="", group_label="", is_cr
     Children (price_children) / Infant (price_infant), flat per pax (tiada
     single supplement). Field payload {main_guests, extra_beds, infants}
     sama — hanya field harga + label pax_type berbeza.
+
+    trip_package / trip_group_date (opsyenal) — snapshot berstruktur yang
+    ditulis pada SETIAP baris (custom_trip_package / custom_trip_group_date)
+    supaya baris SO boleh dikenal pasti tanpa parse description. Caller
+    lama tanpa kedua-duanya kekal berfungsi (fields kekal kosong, corak
+    baris lama).
     """
     items        = []
     default_item = _get_or_create_travel_item()
@@ -327,34 +334,46 @@ def _build_so_items(selections, pricing_map, trip_name="", group_label="", is_cr
                 items.append(_so_line(default_item, room_category, "Main Guest (Single)",
                                       1, float(price.price_adult_single or 0),
                                       trip_name, group_label, cabin_no,
-                                      room_privacy=(sel.get("room_privacy") or "")))
+                                      room_privacy=(sel.get("room_privacy") or ""),
+                                      trip_package=trip_package,
+                                      trip_group_date=trip_group_date))
             elif main_guests >= 2:
                 items.append(_so_line(default_item, room_category, "Main Guest",
                                       main_guests, float(price.price_adult or 0),
-                                      trip_name, group_label, cabin_no))
+                                      trip_name, group_label, cabin_no,
+                                      trip_package=trip_package,
+                                      trip_group_date=trip_group_date))
             if extra_beds > 0:
                 items.append(_so_line(default_item, room_category, "Extra Bed",
                                       extra_beds, float(price.price_upperberth or 0),
-                                      trip_name, group_label, cabin_no))
+                                      trip_name, group_label, cabin_no,
+                                      trip_package=trip_package,
+                                      trip_group_date=trip_group_date))
         else:
             # Non-cruise: flat per pax, tiada single supplement.
             if main_guests > 0:
                 items.append(_so_line(default_item, room_category, "Adult",
                                       main_guests, float(price.price_adult or 0),
-                                      trip_name, group_label, cabin_no))
+                                      trip_name, group_label, cabin_no,
+                                      trip_package=trip_package,
+                                      trip_group_date=trip_group_date))
             if extra_beds > 0:
                 items.append(_so_line(default_item, room_category, "Children",
                                       extra_beds, float(price.price_children or 0),
-                                      trip_name, group_label, cabin_no))
+                                      trip_name, group_label, cabin_no,
+                                      trip_package=trip_package,
+                                      trip_group_date=trip_group_date))
         if infants > 0:
             items.append(_so_line(default_item, room_category, "Infant",
                                   infants, float(price.price_infant or 0),
-                                  trip_name, group_label, cabin_no))
+                                  trip_name, group_label, cabin_no,
+                                  trip_package=trip_package,
+                                  trip_group_date=trip_group_date))
     return items
 
 
 def _so_line(item_code, room_category, pax_type, qty, rate, trip_name, group_label, cabin_no=1,
-             room_privacy=""):
+             room_privacy="", trip_package=None, trip_group_date=None):
     cabin_tag = "Cabin " + str(cabin_no)
     line = {
         "item_code":   item_code,
@@ -363,7 +382,17 @@ def _so_line(item_code, room_category, pax_type, qty, rate, trip_name, group_lab
         "rate":        rate,
         "uom":         "Nos",
         "description": trip_name + " | " + group_label + " | " + room_category + " | " + cabin_tag + " | " + pax_type,
+        # Struktur cabin berstruktur (rujuk patches/v39) — sumber kebenaran
+        # BAHARU untuk _cabin_layout_from_so() & cabin_sharing; description
+        # teks kekal ditulis untuk kebolehbacaan invoice sahaja.
+        "custom_room_category":   room_category,
+        "custom_cabin_no":        cabin_no,
+        "custom_pax_type":        pax_type,
     }
+    if trip_package:
+        line["custom_trip_package"] = trip_package
+    if trip_group_date:
+        line["custom_trip_group_date"] = trip_group_date
     # Room privacy pilihan customer (cruise 1 main guest sahaja) — disimpan
     # pada SO line sebagai snapshot supaya _cabin_layout_from_so() boleh
     # alirkan nilai ni ke Booking Reservation.room_privacy masa booking
@@ -440,7 +469,13 @@ def _resolve_so_currency_and_rate(currency=None):
 
 def _cabin_layout_from_so(so_name):
     """Susunan cabin dari SO items (SO = sumber tunggal), ikut turutan cabin.
-    description: 'Trip | Group Label | Room Category | Cabin N | Pax Type'.
+
+    Sumber kebenaran BAHARU: custom fields berstruktur pada baris SO
+    (custom_room_category / custom_cabin_no / custom_pax_type — rujuk
+    patches/v39 + _so_line()). Baris lama yang belum di-backfill jatuh
+    balik ke parse description: 'Trip | Group Label | Room Category |
+    Cabin N | Pax Type'.
+
     Return: [{cabin_no, room_category, pax, pax_breakdown}] disusun ikut
     cabin_no. pax_breakdown = {"Main Guest": 2, "Extra Bed": 1, ...} —
     pecahan pax_type SEBENAR yang customer beli untuk cabin ni, perlu
@@ -451,25 +486,31 @@ def _cabin_layout_from_so(so_name):
     """
     items = frappe.db.get_all("Sales Order Item",
                               filters={"parent": so_name},
-                              fields=["description", "qty", "rate", "custom_room_privacy"],
+                              fields=["description", "qty", "rate", "custom_room_privacy",
+                                      "custom_room_category", "custom_cabin_no", "custom_pax_type"],
                               order_by="idx")
     layout = {}
     for it in items:
-        parts = (it.description or "").split(" | ")
-        if len(parts) < 5:
-            continue
-        room_category = parts[2].strip()
-        cabin_tag     = parts[3].strip()
-        pax_type      = parts[4].strip()
+        # 1) Struktur berstruktur (baris baharu / sudah di-backfill).
+        room_category = it.get("custom_room_category")
+        cabin_no      = it.get("custom_cabin_no")
+        pax_type      = it.get("custom_pax_type")
+        if not (room_category and cabin_no and pax_type):
+            # 2) Fallback parse description lama (dokumen berumur).
+            parts = (it.description or "").split(" | ")
+            if len(parts) < 5:
+                continue
+            room_category = parts[2].strip()
+            pax_type      = parts[4].strip()
+            try:
+                cabin_no = int(parts[3].strip().lower().replace("cabin", "").strip())
+            except Exception:
+                continue
 
         is_single_line = (pax_type == "Main Guest (Single)")
         if is_single_line:
             pax_type = "Main Guest"
 
-        try:
-            cabin_no = int(cabin_tag.lower().replace("cabin", "").strip())
-        except Exception:
-            continue
         if cabin_no not in layout:
             layout[cabin_no] = {"cabin_no": cabin_no, "room_category": room_category, "pax": 0,
                                 "pax_breakdown": {}, "room_privacy": "", "single_rate": None}
@@ -675,21 +716,54 @@ def _resolve_cashback_deduction(company, currency, so_name, cashback_percent, ca
 
 
 # ══════════════════════════════════════════════
-# DISKAUN ORDER-LEVEL (voucher/referral) → PE DEDUCTION
+# DISKAUN ORDER-LEVEL (voucher/referral)
 # ══════════════════════════════════════════════
-# SO booking KEKAL GROSS (semua baris item rate positif — tiada pergantungan
-# pada Selling Settings > Allow Negative rates). Jumlah diskaun voucher/
-# referral disimpan pada BOOKING (voucher_discount / referral_discount,
-# diakses melalui Sales Order.custom_booking) dan diserap sebagai baris
-# DEDUCTION (debit) ke akaun Marketing Expenses company tersebut pada
-# Payment Entry.
+# MODEL SEMASA: diskaun voucher/referral ialah CATATAN JUALAN — dibawa
+# PADA SO sebagai additional discount standard ERPNext (apply_discount_on
+# = "Grand Total", grand_total dah NET), di-snapshot pada BOOKING
+# (voucher_discount / referral_discount) sebagai catatan/audit sahaja.
+# Payment Entry TIDAK membawa baris deduction diskaun — ia rakam cash
+# tulen sahaja.
+#
+# MODEL LAMA (rekod sedia ada sebelum refactor): SO kekal GROSS dan
+# diskaun diserap sebagai baris DEDUCTION (debit) ke akaun Marketing
+# Expenses pada Payment Entry, ditopang mesinari residue
+# (_get_absorbed_order_discount / _settle_order_discount_residue). Semua
+# laluan bayaran branch pada _so_carries_order_discount() supaya rekod
+# lama kekal settle betul tanpa migrasi data.
 #
 # Kelayakan CASHBACK Manual Transfer pula TRANSAKSIONAL — tidak disimpan
 # pada mana-mana dokumen. Ia dibaca semasa bayaran: Booking.checkout_method
 # (kaedah bayaran semasa checkout) == "Manual Transfer" DAN promosi masih
 # aktif di Travel Settings, DAN bukan saluran B2B (harga net kontrak
-# partner tiada slot promosi runcit). Menutup setting promosi terus
-# menamatkan cashback untuk SEMUA booking — termasuk yang belum settle.
+# partner tiada slot promosi runcit). Cashback KEKAL sebagai deduction PE
+# untuk kedua-dua model (ia bukan diskaun harga — ia benefit ikut kaedah
+# bayaran). Menutup setting promosi terus menamatkan cashback untuk SEMUA
+# booking — termasuk yang belum settle.
+
+
+def _so_carries_order_discount(so_name):
+    """Guard laluan bayaran: adakah diskaun voucher/referral SO ni DAH
+    dibawa pada SO (additional discount — model semasa)?
+
+    True  → SO dah NET; PE allocate cash sahaja, jANGAN bina baris
+            deduction "Order Discount" dan jANGAN settle residue (formula
+            residue lama akan bersilap untuk SO net yang deposit dibayar
+            dulu — diskaun dah dalam grand_total).
+    False → SO masih GROSS dengan snapshot diskaun pada Booking (rekod
+            lama pra-refactor) — laluan PE deduction lama berkuatkuasa.
+
+    Tiada Booking linked, atau snapshot diskaun Booking sifar → True
+    (kedua-dua model berkelakaku sama: cash sahaja)."""
+    booking = frappe.db.get_value("Sales Order", so_name, "custom_booking")
+    if not booking:
+        return True
+    voucher_disc, ref_disc = frappe.db.get_value(
+        "Booking", booking, ["voucher_discount", "referral_discount"]) or (0, 0)
+    if not (float(voucher_disc or 0) > 0 or float(ref_disc or 0) > 0):
+        return True
+    so_discount = frappe.db.get_value("Sales Order", so_name, "discount_amount")
+    return float(so_discount or 0) > 0
 
 _ORDER_DISCOUNT_DESC_PREFIX = "Order Discount"
 
@@ -702,8 +776,11 @@ def _get_booking_discount_snapshot(so_name):
     "Manual Transfer" DAN promosi aktif di Travel Settings DAN bukan B2B.
     Returns (voucher_discount, referral_discount, cashback_percent).
 
+    Snapshot voucher/referral kini CATATAN sahaja — diskaun dibawa PADA SO
+    (rujuk _so_carries_order_discount()); nilai ini relevan untuk laluan
+    serapan MODEL LAMA (SO GROSS + PE deduction) dan reporting.
     SO tanpa pautan Booking (rekod lama/ dicipta manual di Desk) → sifar,
-    sama seperti tingkah lama bila field diskaun kosong."""
+    sama seperti tingkah laku lama bila field diskaun kosong."""
     booking = frappe.db.get_value("Sales Order", so_name, "custom_booking")
     if not booking:
         return 0.0, 0.0, 0.0
@@ -778,7 +855,8 @@ def _get_absorbed_order_discount(so_name, company, currency):
 
 
 def _build_discount_deduction_rows(company, currency, so_name, components):
-    """Bina BARIS DEDUCTION untuk diskaun order-level (voucher/referral).
+    """LEGACY (rekod lama SO GROSS — rujuk _so_carries_order_discount()).
+    Bina BARIS DEDUCTION untuk diskaun order-level (voucher/referral).
 
     'components' ialah senarai (description, amount); baris dengan amount
     <= 0 digugurkan. Semua baris debit akaun Marketing Expenses company
@@ -817,8 +895,14 @@ def _build_discount_deduction_rows(company, currency, so_name, components):
 
 
 def _settle_order_discount_residue(so_name):
-    """Selesaikan BAKI diskaun order-level (voucher/referral) yang belum
+    """LEGACY (rekod lama SO GROSS — rujuk _so_carries_order_discount()).
+    Selesaikan BAKI diskaun order-level (voucher/referral) yang belum
     diserap mana-mana Payment Entry — khusus laluan Stripe.
+
+    PENTING: JANGAN panggil untuk SO model semasa (diskaun pada SO,
+    grand_total NET) — formula residue di bawah TAK tahu diskaun dah
+    dalam grand_total, jadi ia akan cipta PE hantu bila deposit dibayar
+    dulu. Caller WAJIB guard dengan _so_carries_order_discount().
 
     Payment Entry Stripe dicipta oleh ERPNext (Payment Request.set_as_paid)
     dan mengallocate CASH net sahaja — tiada ruang untuk deduction. Tanpa
@@ -913,7 +997,7 @@ def _safe_date(raw) -> str:
 
 
 def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data="", label="receipt", bank_transfer_ref="",
-                                 cashback_percent=0, allocated_amount=None, discount_components=None,
+                                 cashback_percent=0, allocated_amount=None,
                                  payment_date="", note=""):
     """Manual transfer — cipta Payment Entry DRAFT + attach resit.
     Draft (docstatus 0) = menunggu admin verify & submit. Corak sama dgn portal.
@@ -923,20 +1007,18 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
     Kosong → hari ini. note: nota/memo customer tentang transaksi (pilihan)
     — ditulis ke awal PE.remarks supaya admin nampak dahulu.
 
-    CASHBACK (jika cashback_percent > 0): SO kekal GROSS dan PE membawa
-    deduction ke akaun Marketing Expenses company tersebut (rujuk
-    _resolve_cashback_deduction). 'amount' ialah CASH sebenar yang customer
-    transfer (net cashback); 'allocated_amount' ialah bahagian GROSS SO yang
-    dibetulkan (cash + cashback). allocated_amount kosong = tiada cashback
-    (allocate terus cash — behavior lama, backward compatible).
+    CASHBACK (jika cashback_percent > 0): PE membawa deduction ke akaun
+    Marketing Expenses company tersebut (rujuk _resolve_cashback_deduction).
+    'amount' ialah CASH sebenar yang customer transfer (net cashback);
+    'allocated_amount' ialah bahagian SO yang dibetulkan (cash + cashback).
+    allocated_amount kosong = allocate terus cash — behavior lama,
+    backward compatible.
 
-    DISKAUN ORDER-LEVEL (voucher/referral): 'discount_components' ialah
-    senarai (description, amount) — setiap satu menjadi baris deduction
-    berasingan ke akaun Marketing Expenses (rujuk
-    _build_discount_deduction_rows). allocated_amount kosong tapi komponen
-    wujud → gross_allocated dikira semula = cash + jumlah komponen.
-    allocated_amount terkurang dari cash + komponen → diangkat supaya PE
-    sentiasa seimbang (received + deductions = allocated).
+    DISKAUN VOUCHER/REFERRAL TIDAK dilibatkan di sini langsung — model
+    semasa membawanya PADA SO (additional discount, grand_total NET), jadi
+    PE allocate cash tulen sahaja tanpa baris deduction diskaun. Rekod
+    lama SO GROSS (pra-refactor) diserap melalui laluan portal yang
+    di-guard _so_carries_order_discount() — bukan melalui fungsi ni.
     """
     from erpnext.accounts.party import get_party_account
 
@@ -975,24 +1057,20 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
             )
         party_account = get_party_account("Customer", customer_name, company)
 
-        # CASHBACK + DISKAUN ORDER-LEVEL — kira bahagian gross, deduction &
-        # akaun marketing SEBELUM bina PE supaya paid/allocated/deduction
-        # sentiasa konsisten (PE kekal seimbang: received + deductions =
-        # allocated).
+        # CASHBACK — kira bahagian allocation & deduction SEBELUM bina PE
+        # supaya paid/allocated/deduction sentiasa konsisten (PE kekal
+        # seimbang: received + deductions = allocated). Diskaun voucher/
+        # referral tidak dilibatkan — ia pada SO (model semasa).
         cash = round(float(amount), 2)
-        disc_rows, disc_total = _build_discount_deduction_rows(
-            company, so.currency, so_name, discount_components)
-        gross_allocated = round(float(allocated_amount), 2) if allocated_amount else (
-            cash + (disc_total or 0))
-        if gross_allocated < cash + (disc_total or 0):
-            # Guard: allocated tak boleh kurang dari cash + diskaun yang
-            # mahu diserap — angkat supaya PE kekal seimbang.
-            gross_allocated = cash + (disc_total or 0)
+        gross_allocated = round(float(allocated_amount), 2) if allocated_amount else cash
+        if gross_allocated < cash:
+            # Guard: allocated tak boleh kurang dari cash — angkat.
+            gross_allocated = cash
         cashback_row = None
         if cashback_percent > 0:
             cashback_row = _resolve_cashback_deduction(
                 company, so.currency, so_name, cashback_percent, cash,
-                gross_allocated, other_deductions=disc_total or 0)
+                gross_allocated)
 
         pe = frappe.new_doc("Payment Entry")
         pe.payment_type    = "Receive"
@@ -1013,25 +1091,19 @@ def _create_manual_payment_entry(so_name, customer_name, amount, receipt_data=""
         pe.append("references", {
             "reference_doctype": "Sales Order",
             "reference_name":    so_name,
-            # Cashback/diskaun: allocate bahagian GROSS (cash + diskaun +
+            # Cashback: allocate bahagian SO yang dibetulkan (cash +
             # cashback) supaya deduction ke akaun marketing menyerap
             # perbezaan dan PE kekal seimbang (received + deductions =
-            # allocated).
-            "allocated_amount":  gross_allocated if (cashback_row or disc_rows) else cash,
+            # allocated). Tanpa cashback: allocate cash sahaja (SO dah
+            # net — diskaun voucher/referral pada additional discount).
+            "allocated_amount":  gross_allocated if cashback_row else cash,
         })
-        if disc_rows:
-            for _row in disc_rows:
-                pe.append("deductions", _row)
         if cashback_row:
             pe.append("deductions", cashback_row)
         pe.remarks = "Manual transfer (booking) for " + so_name + \
         (". Ref: " + bank_transfer_ref if bank_transfer_ref else "")
         if note:
             pe.remarks += ". Note: " + note
-        if disc_rows:
-            pe.remarks += (". Order discount " + str(disc_total) + " " +
-                           str(so.currency) + " deducted to Marketing Expenses (" +
-                           disc_rows[0]["account"] + ").")
         if cashback_row:
             pe.remarks += (". Cashback " + str(cashback_percent) + "% (" +
                            str(cashback_row["amount"]) + " " + str(so.currency) +

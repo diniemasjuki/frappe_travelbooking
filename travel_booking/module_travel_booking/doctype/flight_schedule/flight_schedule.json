@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:FS-{#####}",
+ "creation": "2026-11-02 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "info_section",
+  "schedule_code",
+  "column_break_info",
+  "status",
+  "flights_section",
+  "flights",
+  "notes_section",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "info_section",
+   "fieldtype": "Section Break",
+   "label": "Flight Schedule"
+  },
+  {
+   "description": "Label mesra set penerbangan ini (cth \"KUL\u2192IST Nov 28 + Return\").",
+   "fieldname": "schedule_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Schedule Code"
+  },
+  {
+   "fieldname": "column_break_info",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nActive\nClosed\nCompleted"
+  },
+  {
+   "fieldname": "flights_section",
+   "fieldtype": "Section Break",
+   "label": "Flights (PNR)"
+  },
+  {
+   "description": "Set PNR penerbangan untuk tarikh group ini \u2014 pergi, balik, dan blok GIT tambahan.",
+   "fieldname": "flights",
+   "fieldtype": "Table",
+   "label": "Flights",
+   "options": "Flight Schedule Flight",
+   "reqd": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "link_display_mode": "Search",
+ "links": [
+  {
+   "group": "Used By",
+   "link_doctype": "Trip Group Date",
+   "link_fieldname": "flight_schedule"
+  }
+ ],
+ "modified": "2026-11-03 07:45:25.883188",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Flight Schedule",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "schedule_code",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

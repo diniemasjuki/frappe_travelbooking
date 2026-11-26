@@ -1,0 +1,134 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "format:{schedule}-{room_no}",
+ "creation": "2026-11-02 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "cabin_info_section",
+  "schedule",
+  "room_no",
+  "column_break_info",
+  "room_category",
+  "status",
+  "physical_section",
+  "deck",
+  "column_break_physical",
+  "bed_type",
+  "notes_section",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "cabin_info_section",
+   "fieldtype": "Section Break",
+   "label": "Cabin Info"
+  },
+  {
+   "fieldname": "schedule",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Cruise Schedule",
+   "options": "Trip Cruise Schedule",
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "description": "Nombor stateroom fizikal (cth 11252).",
+   "fieldname": "room_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Room No",
+   "reqd": 1,
+   "set_only_once": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "column_break_info",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "room_category",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Room Category",
+   "options": "Trip Price Category",
+   "reqd": 1
+  },
+  {
+   "default": "Available",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Available\nBlocked\nAssigned\nMaintenance"
+  },
+  {
+   "fieldname": "physical_section",
+   "fieldtype": "Section Break",
+   "label": "Physical Details"
+  },
+  {
+   "description": "Deck nombor lokasi bilik.",
+   "fieldname": "deck",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Deck"
+  },
+  {
+   "fieldname": "column_break_physical",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Jenis katil (Twin / Queen / King ...).",
+   "fieldname": "bed_type",
+   "fieldtype": "Data",
+   "label": "Bed Type"
+  },
+  {
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [
+  {
+   "group": "Assigned To",
+   "link_doctype": "Booking Reservation",
+   "link_fieldname": "room_id"
+  }
+ ],
+ "modified": "2026-11-02 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Module Travel Booking",
+ "name": "Cruise Cabin",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

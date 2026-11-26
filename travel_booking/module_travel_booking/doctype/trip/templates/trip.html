@@ -306,18 +306,10 @@
 
         {% if group_dates %}
         <div class="rc-booking-widget">
-          {# ── FLOW: Date first → Package second ── #}
-          {# DIV, bukan <label> — bila >1 tarikh, rcDetailGroupDate mengandungi
-             BUTANG trigger popup date selector (labelable element); wrapper
-             <label> akan implicitly label BUTANG tersebut dan Chrome
-             mempropagasi :hover/:active label ke labeled control (bug sama
-             seperti wrapper butang pakej di bawah). #}
-          <div class="rc-field">
-            <span class="rc-field-label">{% if is_cruise %}Choose Sailing Date{% else %}Departure date{% endif %}</span>
-            <div id="rcDetailGroupDate" class="rc-date-radios">
-              <p class="rc-muted">Loading dates…</p>
-            </div>
-          </div>
+          {# ── FLOW: Package first → Date second (inversi aliran produk) ── #}
+          {# Pakej ialah unit jualan; tarikh ialah varian pelaksanaan. User
+             pilih pakej dahulu, senarai tarikh yang pakej itu dijual
+             dipaparkan kemudian. #}
           {# DIV, bukan <label> — butang pakej adalah labelable element;
              wrapper <label> akan implicitly label BUTANG PERTAMA dan Chrome
              mempropagasi :hover/:active label ke labeled control tersebut
@@ -325,7 +317,17 @@
           <div class="rc-field">
             <span class="rc-field-label">Choose Package</span>
             <div id="rcDetailPackage" class="rc-pkg-buttons">
-              <p class="rc-muted">Pick a date to see available packages.</p>
+              <p class="rc-muted">Loading packages…</p>
+            </div>
+          </div>
+          {# DIV, bukan <label> — bila pakej ada >1 tarikh, rcDetailGroupDate
+             mengandungi BUTANG trigger popup date selector (labelable
+             element); wrapper <label> akan implicitly label BUTANG tersebut
+             dan Chrome mempropagasi :hover/:active label ke labeled control. #}
+          <div class="rc-field">
+            <span class="rc-field-label">{% if is_cruise %}Choose Sailing Date{% else %}Departure date{% endif %}</span>
+            <div id="rcDetailGroupDate" class="rc-date-radios">
+              <p class="rc-muted">Pick a package to see available dates.</p>
             </div>
           </div>
 
@@ -333,6 +335,11 @@
           <div id="rcDetailCabins" class="rc-cabins-empty">
             <p class="rc-muted">Pick a package to see room options and prices.</p>
           </div>
+
+          {# Package Includes — komposisi elemen produk pakej terpilih (BOM,
+             Trip Package Component; render oleh trip_detail.js ikut pakej
+             aktif; auto-hide bila pakej tiada komposisi Included). #}
+          <div id="rcDetailIncludes" style="display:none;margin-top:14px;"></div>
 
           <button id="rcDetailBookBtn" class="rc-btn-primary rc-btn-disabled" disabled>Book Now</button>
           <button id="rcDetailShareBtn" class="rc-btn-share rc-btn-disabled" disabled>Share My Trip</button>
@@ -399,6 +406,9 @@
   "group_dates": {{ group_dates_json }},
   "trip_packages": {{ trip_packages_json }},
   "sailing_tgds": {{ sailing_tgds_json }},
+  "package_dates": {{ package_dates_json }},
+  "package_meta": {{ package_meta_json }},
+  "component_summary": {{ component_summary | tojson }},
   "company_symbol": {{ get_company_symbol()|tojson }},
   "currency": {{ (currency or get_company_currency())|tojson }},
   "currency_symbol": {{ (currency_symbol or get_company_symbol())|tojson }},

@@ -15,7 +15,6 @@ class Flight(Document):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
-		from travel_booking.module_travel_booking.doctype.trip_package_price.trip_package_price import TripPackagePrice
 
 		airline: DF.Link
 		arrival_date: DF.Date
@@ -23,7 +22,6 @@ class Flight(Document):
 		destination_airport: DF.Link
 		flight_class: DF.Literal["Economy", "Economy Plus", "Premium Economy", "First Class", "Business Class"]
 		flight_itinerary: DF.TextEditor | None
-		flight_price_category: DF.Table[TripPackagePrice]
 		flight_title: DF.Data | None
 		home_airport: DF.Link
 		max_seat: DF.Int
